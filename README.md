@@ -8,3 +8,11 @@ Get a boost with tenant management, deployment automation, analytics dashboards,
 Check out our [announcement blog post](https://aws.amazon.com/blogs/apn/transforming-your-monolith-to-saas-with-aws-saas-boost/) for a more detailed description of how you can benefit from AWS SaaS Boost.
 
 Now, jump to the [Getting Started Guide](./docs/getting-started.md) to start working with AWS SaaS Boost today.
+
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## License
+
+This project is licensed under the Apache-2.0 License.
