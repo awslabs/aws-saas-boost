@@ -1,0 +1,100 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: SaaS Boost Tenant Onboarding EFS Extension
+Parameters:
+  TenantId:
+    Description: The GUID for the tenant
+    Type: String
+  VPC:
+    Description: VPC id for this tenant
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetA:
+    Description: Private subnet for EFS mount target
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetB:
+    Description: Private subnet for EFS mount target
+    Type: AWS::EC2::Subnet::Id
+  ECSSecurityGroup:
+    Description: Source security group for ECS to access EFS
+    Type: AWS::EC2::SecurityGroup::Id
+  EncryptEFS:
+    Description: Turn on EFS encryption at rest?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  EFSLifecyclePolicy:
+    Description: Enable EFS IA lifecycle?
+    Type: String
+    AllowedValues:
+      - NEVER
+      - AFTER_7_DAYS
+      - AFTER_14_DAYS
+      - AFTER_30_DAYS
+      - AFTER_60_DAYS
+      - AFTER_90_DAYS
+    Default: NEVER
+Conditions:
+  HasEFSLifecylePolicy: !Not [!Equals [!Ref EFSLifecyclePolicy, NEVER]]
+Resources:
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-efs-sg']]
+      GroupDescription: EFS mount point Security Group
+      VpcId: !Ref VPC
+  EFSSecurityGroupIngressECS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EFSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      SourceSecurityGroupId: !Ref ECSSecurityGroup
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: !Ref EncryptEFS
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      LifecyclePolicies:
+        Fn::If:
+          - HasEFSLifecylePolicy
+          - - TransitionToIA: !Ref EFSLifecyclePolicy
+          - !Ref 'AWS::NoValue'
+      FileSystemTags:
+        - Key: Tenant
+          Value: !Ref TenantId
+#            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+  MountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+      SubnetId: !Ref PrivateSubnetA
+  MountTargetB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
+      SubnetId: !Ref PrivateSubnetB
+Outputs:
+  FileSystemId:
+    Description: EFS File System Id
+    Value: !Ref EFSFileSystem
+...

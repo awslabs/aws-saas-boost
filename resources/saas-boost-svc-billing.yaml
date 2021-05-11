@@ -1,0 +1,97 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Billing Service
+Parameters:
+  Environment:
+    Description: Environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  ApiGatewayHelperLayer:
+    Description: API Gateway Helper Layer ARN
+    Type: String
+Resources:
+  BillingServiceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-billing-service-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-billing-service-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  BillingServiceGetPlansLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-billing-plans-get
+      RetentionInDays: 30
+  BillingServiceGetPlans:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-billing-plans-get
+      Role: !GetAtt BillingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.SubscriptionService::getPlans
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/BillingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Billing"             
+Outputs:
+  BillingServiceGetPlansArn:
+    Description: Billing Service subscription plans Lambda ARN
+    Value: !GetAtt BillingServiceGetPlans.Arn
+...

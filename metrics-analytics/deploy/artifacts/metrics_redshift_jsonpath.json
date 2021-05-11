@@ -1,0 +1,15 @@
+{
+    "jsonpaths": [
+        "$.type",
+        "$.workload",
+        "$.context",
+        "$.tenant.id",
+        "$.tenant.name",
+        "$.tenant.tier",
+        "$.timestamp",
+        "$.metric.name",
+        "$.metric.unit",
+        "$.metric.value",
+        "$.metadata"
+    ]
+}

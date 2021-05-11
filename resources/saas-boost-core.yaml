@@ -1,0 +1,679 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Core Resources
+Parameters:
+  Environment:
+    Description: SaaS Boost environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  ApiGatewayHelperLayer:
+    Description: API Gateway Helper Layer ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  PublicApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost public API
+    Type: String
+    Default: v1
+  PrivateApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost private API
+    Type: String
+    Default: v1
+Resources:
+  SaaSBoostEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub sb-${Environment}-events
+  SaaSBoostEventBusParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
+      Type: String
+      Value: !Ref SaaSBoostEventBus
+  ECSRepository:
+    Type: AWS::ECR::Repository
+    # Properties:
+    #   RepositoryName: !Sub sb-${Environment}-repo
+  SSMParamECRRepository:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ECR_REPO
+      Type: String
+      Value: !Ref ECSRepository
+  WorkloadDeployLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-workload-deploy
+      RetentionInDays: 30
+  WorkloadDeployExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-workload-deploy-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-workload-deploy-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub arn:aws:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}/*
+              - Effect: Allow
+                Action:
+                  - codepipeline:StartPipelineExecution
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+  WorkloadDeployLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: WorkloadDeployLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-workload-deploy
+      Role: !GetAtt WorkloadDeployExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsDeploy
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/EcsDeploy-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "ECSDeploy"             
+  CfnNotifyExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-notify-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-notify-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStackResources
+                Resource:
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt WorkloadDeployLambda.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+  CfnNotifyLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-notify
+      RetentionInDays: 30
+  CfnNotifyLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CfnNotifyLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-notify
+      Role: !GetAtt CfnNotifyExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingNotification
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingNotification-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          TENANT_DEPLOY_LAMBDA: !Ref WorkloadDeployLambda
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Onboarding"          
+  CfnNotifyTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Tenant Onboarding Notifications
+      TopicName: !Sub sb-${Environment}-onboarding-notify
+      KmsMasterKeyId: alias/aws/sns  #use AWS managed key
+      
+  CfnNotifySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt CfnNotifyLambda.Arn
+      TopicArn: !Ref CfnNotifyTopic
+  CfnNotifyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CfnNotifyLambda
+      Principal: sns.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !Ref CfnNotifyTopic
+  SSMParamOnboardingSNS:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ONBOARDING_SNS
+      Type: String
+      Value: !Ref CfnNotifyTopic
+  TenantCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-tenant-pipeline-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-tenant-pipeline-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+                Condition:
+                  StringEqualsIfExists:
+                    iamPassedToService:
+                      - ecs-tasks.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeImages
+                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketVersioning
+                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}/*
+              - Effect: Allow
+                Action:
+                  - lambda:ListFunctions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt CodePipelineUpdateEcsServiceLambda.Arn
+  SSMParamCodePipelineRole:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/CODE_PIPELINE_ROLE
+      Type: String
+      Value: !GetAtt TenantCodePipelineRole.Arn
+  CodePipelineUpdateEcsServiceExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-update-ecs-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-update-ecs-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Condition:
+                  StringLike:
+                    ecs:cluster:
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+  CodePipelineUpdateEcsServiceLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-update-ecs
+      RetentionInDays: 30
+  CodePipelineUpdateEcsServiceLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CodePipelineUpdateEcsServiceLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-update-ecs
+      Role: !GetAtt CodePipelineUpdateEcsServiceExecRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsServiceUpdate
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/EcsServiceUpdate-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "ECSDeploy"         
+  CodePipelineUpdateEcsServicePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CodePipelineUpdateEcsServiceLambda
+      Principal: codepipeline.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt EcrImageActionEvent.Arn
+  EcrImageActionEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-workload-deploy
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Action
+        detail:
+          repository-name:
+            - !Ref ECSRepository
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt WorkloadDeployLambda.Arn
+          Id: sb-deploy-lambda
+  EcrImageActionEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WorkloadDeployLambda
+      Principal: events.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt EcrImageActionEvent.Arn
+  SaaSBoostPublicApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub sb-public-api-${Environment}
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  SaaSBoostPrivateApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub sb-private-api-${Environment}
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  SaaSBoostSystemRole:
+    Type: AWS::IAM::Role
+    DependsOn:
+      - SaaSBoostPublicApi
+      - SaaSBoostPrivateApi
+    Properties:
+      RoleName: !Sub sb-private-api-trust-role-${Environment}-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-private-api-trust-policy-${Environment}-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource:
+                  - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPrivateApi}/*/*/*
+                  - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPublicApi}/*/*/*
+  SystemRestClientExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-private-api-client-role-${Environment}-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-private-api-client-policy-${Environment}-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+  SystemRestApiClientLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-private-api-client
+      RetentionInDays: 30
+  SystemRestApiClient:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-private-api-client
+      Role: !GetAtt SystemRestClientExecRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemRestApiClient
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemRestApiClient-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "APIClient"           
+  SaaSBoostEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Ref SaaSBoostEventBus
+      Name: !Sub sb-system-api-call-${Environment}
+      State: ENABLED
+      EventPattern:
+        source: ['saas-boost']
+        detail-type: ['System API Call']
+      Targets:
+        - Arn: !GetAtt SystemRestApiClient.Arn
+          Id: !Sub sb-${Environment}-private-api-client
+  SystemRestApiClientEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SystemRestApiClient
+      Principal: events.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !GetAtt SaaSBoostEventRule.Arn
+  TenantEnableDisableListenerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-tenant-enable-disable-role-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-tenant-enable-disable-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:ModifyRule
+                Resource:
+                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/app/*/*/*/*
+                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/net/*/*/*/*
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeRules
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+  TenantEnableDisableListenerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenant-enable-disable
+      RetentionInDays: 30
+  # Updates ALB listener rules for tenant enable/disable
+  TenantEnableDisableListenerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-tenant-enable-disable
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 384
+      Environment:
+        Variables:
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.AlbSetListenerRule::handleRequest
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/AlbUpdate-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Role: !GetAtt TenantEnableDisableListenerFunctionRole.Arn
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Tenant"       
+  TenantEnableDisableEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-tenant-enable-disable
+      Description: A filter for when a tenant status is updated
+      EventBusName: !Ref SaaSBoostEventBus
+      EventPattern:
+        detail-type:
+          - Tenant Status Update
+        source:
+          - saas-boost
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TenantEnableDisableListenerFunction.Arn
+          Id: TenantEnableDisableListenerFunction
+  TenantEnableDisableListenerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt TenantEnableDisableListenerFunction.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TenantEnableDisableEventRule.Arn
+Outputs:
+  EcrRepository:
+    Description: SaaS Boost ECR image repository
+    Value: !Ref ECSRepository
+  NotificationSnsTopic:
+    Description: SaaS Boost Onboarding CloudFormation notifications SNS Topic
+    Value: !Ref CfnNotifyTopic
+  CodePipelineIamRole:
+    Description: SaaS Boost tenant deploy CodePipeline IAM role
+    Value: !GetAtt TenantCodePipelineRole.Arn
+  EventBus:
+    Description: SaaS Boost Eventbridge Bus
+    Value: !Ref SaaSBoostEventBus
+  EcrRepoName:
+    Description: SaaS Boost ECR Repo Name
+    Value: !Ref ECSRepository
+  SaaSBoostPublicApi:
+    Description: SaaS Boost Public API
+    Value: !Ref SaaSBoostPublicApi
+  SaaSBoostPublicApiRootResourceId:
+    Description: SaaS Boost public API root resource id
+    Value: !GetAtt SaaSBoostPublicApi.RootResourceId
+  SaaSBoostPrivateApi:
+    Description: SaaS Boost Private API
+    Value: !Ref SaaSBoostPrivateApi
+  SaaSBoostPrivateApiRootResourceId:
+    Description: SaaS Boost private API root resource id
+    Value: !GetAtt SaaSBoostPrivateApi.RootResourceId
+...

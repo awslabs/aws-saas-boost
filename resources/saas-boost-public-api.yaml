@@ -1,0 +1,2000 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Public API
+Parameters:
+  Environment:
+    Description: Environment name
+    Type: String
+  PublicApi:
+    Description: API Gateway REST API
+    Type: String
+  RootResourceId:
+    Description: API Gateway REST API root resource id
+    Type: String
+  PublicApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost public API
+    Type: String
+    Default: v1
+  CognitoUserPoolId:
+    Description: User Pool Id for the Cognito Authorizer
+    Type: String
+  BillingServiceGetPlans:
+    Description: Billing Service subscription plans Lambda ARN
+    Type: String
+  MetricsServiceQuery:
+    Description: Metrics Service query Lambda ARN
+    Type: String
+  MetricsServiceDatasets:
+    Description: Metrics Service datasets Lambda ARN
+    Type: String
+  MetricsServiceAlbQuery:
+    Description: Metrics Service ALB metric query Lambda ARN
+    Type: String
+  OnboardingServiceGetAll:
+    Description: Onboarding Service get all onboarding requests Lambda ARN
+    Type: String
+  OnboardingServiceStart:
+    Description: Onboarding Service start onboarding Lambda ARN
+    Type: String
+  OnboardingServiceById:
+    Description: Onboarding Service get onboarding request by id Lambda ARN
+    Type: String
+  OnboardingServiceUpdateStatus:
+    Description: Onboarding Service update status Lambda ARN
+    Type: String
+  SettingsServiceGetAll:
+    Description: Settings Service get all settings Lambda ARN
+    Type: String
+  SettingsServiceById:
+    Description: Settings Service get setting Lambda ARN
+    Type: String
+  SettingsServiceConfigOptions:
+    Description: Settings Service get configuration options Lambda ARN
+    Type: String
+  SettingsServiceGetAppConfig:
+    Description: Settings Service get application configuration Lambda ARN
+    Type: String
+  SettingsServiceSetAppConfig:
+    Description: Settings Service set application configuration Lambda ARN
+    Type: String
+  SettingsServiceUpdateAppConfig:
+    Description: Settings Service update application configuration Lambda ARN
+    Type: String
+  SettingsServiceTenantGetAll:
+    Description: Settings Service get all settings for a tenant Lambda ARN
+    Type: String
+  SettingsServiceTenantById:
+    Description: Settings Service get setting for a tenant Lambda ARN
+    Type: String
+  TenantServiceGetAll:
+    Description: Tenant Service get all tenants Lambda ARN
+    Type: String
+  TenantServiceGetProvisioned:
+    Description: Tenant Service get provisioned tenants Lambda ARN
+    Type: String
+  TenantServiceById:
+    Description: Tenant Service get tenant by id Lambda ARN
+    Type: String
+  TenantServiceUpdate:
+    Description: Tenant Service update tenant Lambda ARN
+    Type: String
+  TenantServiceDelete:
+    Description: Tenant Service delete tenant Lambda ARN
+    Type: String
+  TenantServiceEnable:
+    Description: Tenant Service enable tenant Lambda ARN
+    Type: String
+  TenantServiceDisable:
+    Description: Tenant Service disable tenant Lambda ARN
+    Type: String
+  UserServiceGetAll:
+    Description: User Service get all users Lambda ARN
+    Type: String
+  UserServiceInsert:
+    Description: User Service insert new user Lambda ARN
+    Type: String
+  UserServiceById:
+    Description: User Service get user by id Lambda ARN
+    Type: String
+  UserServiceUpdate:
+    Description: User Service update user Lambda ARN
+    Type: String
+  UserServiceDelete:
+    Description: User Service delete user Lambda ARN
+    Type: String
+  UserServiceEnable:
+    Description: User Service enable user Lambda ARN
+    Type: String
+  UserServiceDisable:
+    Description: User Service disable user Lambda ARN
+    Type: String
+  UserServiceToken:
+    Description: User Service auth token Lambda ARN
+    Type: String
+Resources:
+  ApiGatewayLoggingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-pub-api-log-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayLoggingAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      RestApiId: !Ref PublicApi
+      Type: COGNITO_USER_POOLS
+      ProviderARNs:
+        - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+      IdentitySource: method.request.header.Authorization
+  BillingServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'billing'
+  BillingServicePlansResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref BillingServiceResource
+      PathPart: 'plans'
+  BillingServicePlansResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref BillingServicePlansResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  BillingServiceGetPlansMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref BillingServicePlansResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  BillingServiceGetPlansLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref BillingServiceGetPlans
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/billing/plans
+  MetricsServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'metrics'
+  MetricsServiceQueryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceResource
+      PathPart: 'query'
+  MetricsServiceDatasetsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceResource
+      PathPart: 'datasets'
+  MetricsServiceAlbResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceResource
+      PathPart: 'alb'
+  MetricsServiceAlbMetricResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceAlbResource
+      PathPart: '{metric}'
+  MetricsServiceAlbQueryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceAlbMetricResource
+      PathPart: '{timerange}'
+  MetricsServiceAlbQueryByTenantIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref MetricsServiceAlbQueryResource
+      PathPart: '{id}'
+  MetricsServiceQueryMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceQueryResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  MetricsServiceQueryLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MetricsServiceQuery
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/metrics/query
+  MetricsServiceQueryResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceQueryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  MetricsServiceDatasetsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceDatasetsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  MetricsServiceDatasetsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MetricsServiceDatasets
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/datasets
+  MetricsServiceDatasetsResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceDatasetsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  MetricsServiceAlbQueryMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceAlbQueryResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters:
+        method.request.path.metric: true
+        method.request.path.timerange: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.metric: 'method.request.path.metric'
+          integration.request.path.timerange: 'method.request.path.timerange'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  MetricsServiceAlbQueryLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MetricsServiceAlbQuery
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}
+  MetricsServiceAlbQueryResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceAlbQueryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  MetricsServiceAlbQueryByTenantIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters:
+        method.request.path.metric: true
+        method.request.path.timerange: true
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.metric: 'method.request.path.metric'
+          integration.request.path.timerange: 'method.request.path.timerange'
+          integration.request.path.id: 'method.request.path.id'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  MetricsServiceAlbQueryByTenantIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MetricsServiceAlbQuery
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
+  MetricsServiceAlbQueryByTenantIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'onboarding'
+  OnboardingServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref OnboardingServiceResource
+      PathPart: '{id}'
+  OnboardingServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding
+  OnboardingServiceStartMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceStart}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceStartLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceStart
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/onboarding
+  OnboardingServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding/{id}
+  OnboardingServiceUpdateStatusMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceUpdateStatus}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceUpdateStatusLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceUpdateStatus
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/onboarding/{id}
+  OnboardingServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref OnboardingServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'settings'
+  SettingsServiceConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: 'config'
+  SettingsServiceOptionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: 'options'
+  SettingsServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: '{id}'
+  SettingsServiceTenantResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: 'tenant'
+  SettingsServiceByTenantIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceTenantResource
+      PathPart: '{id}'
+  SettingsServiceTenantSettingResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref SettingsServiceByTenantIdResource
+      PathPart: '{setting}'
+  SettingsServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings
+  SettingsServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceOptionsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceConfigOptions}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceConfigOptionsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceConfigOptions
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/options
+  SettingsServiceOptionsResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceOptionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceGetAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetAppConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
+  SettingsServiceSetAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceSetAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceSetAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceSetAppConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/settings/config
+  SettingsServiceUpdateAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdateAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceUpdateAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceUpdateAppConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/settings/config
+  SettingsServiceConfigResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,PUT'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/{id}
+  SettingsServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceByTenantIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceByTenantIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceByTenantIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/tenant/{id}
+  SettingsServiceByTenantIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceByTenantIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceTenantSettingMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceTenantSettingResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters:
+        method.request.path.id: true
+        method.request.path.setting: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.id: 'method.request.path.id'
+          integration.request.path.setting: 'method.request.path.setting'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceTenantSettingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/tenant/{id}/{setting}
+  SettingsServiceTenantSettingResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref SettingsServiceTenantSettingResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'tenants'
+  TenantServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref TenantServiceResource
+      PathPart: '{id}'
+  TenantServiceProvisionedResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref TenantServiceResource
+      PathPart: 'provisioned'
+  TenantServiceEnableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref TenantServiceByIdResource
+      PathPart: 'enable'
+  TenantServiceDisableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref TenantServiceByIdResource
+      PathPart: 'disable'
+  TenantServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants
+  TenantServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceProvisionedMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceProvisionedResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetProvisioned}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceGetProvisionedLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceGetProvisioned
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/provisioned
+  TenantServiceProvisionedResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceProvisionedResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/{id}
+  TenantServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceUpdate
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tenants/{id}
+  TenantServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceDeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceDelete
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tenants/{id}
+  TenantServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceEnableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceEnableResource
+      HttpMethod: PATCH
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceEnable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceEnableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceEnable
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/enable
+  TenantServiceEnableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceEnableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceDisableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceDisableResource
+      HttpMethod: PATCH
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDisable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceDisableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceDisable
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/disable
+  TenantServiceDisableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref TenantServiceDisableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  UserServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'users'
+  UserServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref UserServiceResource
+      PathPart: '{id}'
+  UserServiceEnableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref UserServiceByIdResource
+      PathPart: 'enable'
+  UserServiceDisableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref UserServiceByIdResource
+      PathPart: 'disable'
+  UserServiceTokenResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PublicApi
+      ParentId: !Ref UserServiceResource
+      PathPart: 'token'
+  UserServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users
+  UserServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceInsert
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users
+  UserServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  UserServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users/{id}
+  UserServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceUpdate
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/users/{id}
+  UserServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceDeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceDelete
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/users/{id}
+  UserServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  UserServiceEnableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceEnableResource
+      HttpMethod: PATCH
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceEnable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceEnableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceEnable
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/enable
+  UserServiceEnableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceEnableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  UserServiceDisableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceDisableResource
+      HttpMethod: PATCH
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationScopes:
+        - aws.cognito.signin.user.admin
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDisable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceDisableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceDisable
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/disable
+  UserServiceDisableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceDisableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  UserServiceTokenMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceTokenResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceToken}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  UserServiceTokenLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UserServiceToken
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users/token
+  UserServiceTokenResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PublicApi
+      ResourceId: !Ref UserServiceTokenResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - BillingServicePlansResourceCORS
+      - BillingServiceGetPlansMethod
+      - MetricsServiceQueryMethod
+      - MetricsServiceQueryResourceCORS
+      - MetricsServiceDatasetsMethod
+      - MetricsServiceDatasetsResourceCORS
+      - MetricsServiceAlbQueryMethod
+      - MetricsServiceAlbQueryResourceCORS
+      - MetricsServiceAlbQueryByTenantIdMethod
+      - MetricsServiceAlbQueryByTenantIdResourceCORS
+      - OnboardingServiceGetAllMethod
+      - OnboardingServiceStartMethod
+      - OnboardingServiceResourceCORS
+      - OnboardingServiceByIdMethod
+      - OnboardingServiceUpdateStatusMethod
+      - OnboardingServiceByIdResourceCORS
+      - SettingsServiceGetAllMethod
+      - SettingsServiceResourceCORS
+      - SettingsServiceOptionsMethod
+      - SettingsServiceOptionsResourceCORS
+      - SettingsServiceGetAppConfigMethod
+      - SettingsServiceSetAppConfigMethod
+      - SettingsServiceUpdateAppConfigMethod
+      - SettingsServiceConfigResourceCORS
+      - SettingsServiceGetByIdMethod
+      - SettingsServiceByIdResourceCORS
+      - SettingsServiceByTenantIdMethod
+      - SettingsServiceByTenantIdResourceCORS
+      - SettingsServiceTenantSettingMethod
+      - SettingsServiceTenantSettingResourceCORS
+      - TenantServiceGetAllMethod
+      - TenantServiceResourceCORS
+      - TenantServiceProvisionedMethod
+      - TenantServiceProvisionedResourceCORS
+      - TenantServiceGetByIdMethod
+      - TenantServiceUpdateMethod
+      - TenantServiceDeleteMethod
+      - TenantServiceByIdResourceCORS
+      - TenantServiceEnableMethod
+      - TenantServiceEnableResourceCORS
+      - TenantServiceDisableMethod
+      - TenantServiceDisableResourceCORS
+      - UserServiceGetAllMethod
+      - UserServiceInsertMethod
+      - UserServiceResourceCORS
+      - UserServiceGetByIdMethod
+      - UserServiceUpdateMethod
+      - UserServiceDeleteMethod
+      - UserServiceByIdResourceCORS
+      - UserServiceEnableMethod
+      - UserServiceEnableResourceCORS
+      - UserServiceDisableMethod
+      - UserServiceDisableResourceCORS
+      - UserServiceTokenMethod
+      - UserServiceTokenResourceCORS
+    Properties:
+      RestApiId: !Ref PublicApi
+      #StageDescription:
+      #  DataTraceEnabled: true
+      #  LoggingLevel: ERROR
+      #StageName: !Ref PublicApiStage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref PublicApi
+      StageName: !Ref PublicApiStage
+      DeploymentId: !Ref ApiDeployment
+Outputs:
+  PublicApiGatewayEndpoint:
+    Description: SaaS Boost Admin PI Gateway Invoke URL
+    Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStage}'
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:publicApiUrl
+...

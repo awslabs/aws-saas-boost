@@ -1,0 +1,716 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost
+Parameters:
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+    MinLength: 1
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+    Default: lambdas
+  Environment:
+    Description: SaaS Boost "environment" such as test, prod, beta, etc...
+    Type: String
+    MinLength: 1
+  AdminEmailAddress:
+    Description: Email address of admin user to receive temporary password notification
+    Type: String
+    AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+    ConstraintDescription: Must be a valid email address.
+  DomainName:
+    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
+    Type: String
+    Default: ''
+  PublicApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost public API
+    Type: String
+    Default: v1
+  PrivateApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost private API
+    Type: String
+    Default: v1
+  Version:
+    Description: Version of SaaS Boost
+    Type: String
+    Default: 1.0
+  DeployActiveDirectory:
+    Description: Deploy Active Directory
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  ADPasswordParam:
+    Description: 'SSM Parameter name to use for AD User password:'
+    Type: String    
+Conditions:
+  ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
+Resources:
+  SSMSaaSBoostEnvironment:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_ENVIRONMENT
+      Type: String
+      Value: !Ref Environment
+  SSMParamSaaSBoostBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
+      Type: String
+      Value: !Ref SaaSBoostBucket
+  # Create all the S3 buckets SaaS Boost needs up front so we can create
+  # a single Lambda IAM policy to clean up the buckets on stack delete
+  #
+
+  LoggingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: LogDeliveryWrite
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteContentAfter30Day
+            Status: 'Enabled'
+            ExpirationInDays: 30
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment              
+  LoggingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LoggingBucket
+      PolicyDocument: 
+        Statement: 
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:aws:s3:::${LoggingBucket}/*
+              - !Sub arn:aws:s3:::${LoggingBucket}
+            Condition: 
+              Bool: { 'aws:SecureTransport': false }
+
+  # Bucket needed for CodePipeline to drive tenant deployment workflow
+  CodePipelineBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LoggingBucket
+        LogFilePrefix: codepipeline-logs
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  CodePipelineBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CodePipelineBucket
+      PolicyDocument: 
+        Statement: 
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:aws:s3:::${CodePipelineBucket}/*
+              - !Sub arn:aws:s3:::${CodePipelineBucket}
+            Condition: 
+              Bool: { 'aws:SecureTransport': false } 
+
+  # Bucket for Access Logs for ALBs for Tenants
+  ALBAccessLogs:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteContentAfter30Day
+            Status: 'Enabled'
+            ExpirationInDays: 30
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # LoggingConfiguration:
+      #   DestinationBucketName: !Ref LoggingBucket
+      #   LogFilePrefix: ALBaccess-logs
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment 
+
+  # Bucket for Athena output for access log queries
+  AthenaOutput:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteContentAfter5Day
+            Status: 'Enabled'
+            ExpirationInDays: 5
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LoggingBucket
+        LogFilePrefix: athena-logs              
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods:
+              - GET
+            AllowedOrigins:
+              - '*'
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  AthenaOutputBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AthenaOutput
+      PolicyDocument: 
+        Statement: 
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:aws:s3:::${AthenaOutput}/*
+              - !Sub arn:aws:s3:::${AthenaOutput}
+            Condition: 
+              Bool: { 'aws:SecureTransport': false }             
+  # Bucket to host the admin console web application
+  WebS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref LoggingBucket
+        LogFilePrefix: web-logs              
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  ##NOTE: The deny non-secure policy is in the web template.
+    
+  SaaSBoostUtilsLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub sb-${Environment}-utils
+      CompatibleRuntimes: [java11]
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/Utils-lambda.zip
+  ApiGatewayHelperLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub sb-${Environment}-apigw-helper
+      CompatibleRuntimes: [java11]
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
+  ClearBucketExecutionRole:
+    Type: AWS::IAM::Role
+    DependsOn:
+      - WebS3Bucket
+      - CodePipelineBucket
+      - AthenaOutput
+      - ALBAccessLogs
+    Properties:
+      RoleName: !Sub sb-${Environment}-clear-bucket-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-clear-bucket-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub arn:aws:s3:::${WebS3Bucket}
+                  - !Sub arn:aws:s3:::${CodePipelineBucket}
+                  - !Sub arn:aws:s3:::${AthenaOutput}
+                  - !Sub arn:aws:s3:::${ALBAccessLogs}
+                  - !Sub arn:aws:s3:::${LoggingBucket}
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource:
+                  - !Sub arn:aws:s3:::${WebS3Bucket}/*
+                  - !Sub arn:aws:s3:::${CodePipelineBucket}/*
+                  - !Sub arn:aws:s3:::${AthenaOutput}/*
+                  - !Sub arn:aws:s3:::${ALBAccessLogs}/*
+                  - !Sub arn:aws:s3:::${LoggingBucket}/*                  
+  ClearBucketLogs:
+    Type: AWS::Logs::LogGroup
+    # For testing
+    #DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-clear-bucket
+      RetentionInDays: 30
+  ClearBucket:
+    Type: AWS::Lambda::Function
+    DependsOn: ClearBucketLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-clear-bucket
+      Role: !GetAtt ClearBucketExecutionRole.Arn
+      Runtime: java11
+      Timeout: 900
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearS3Bucket
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ClearS3Bucket-lambda.zip
+      Layers:
+         - !Ref SaaSBoostUtilsLayer
+      Tags: 
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Logs"            
+
+  InvokeClearCodePipelineBucket:
+    Type: Custom::CustomResource
+    DependsOn: 
+      - ClearBucket
+      - InvokeClearLoggingBucket
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref CodePipelineBucket
+  InvokeClearAthenaBucket:
+    Type: Custom::CustomResource
+    DependsOn: 
+      - ClearBucket
+      - InvokeClearLoggingBucket
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref AthenaOutput
+  InvokeClearAccessLogsBucket:
+    Type: Custom::CustomResource
+    DependsOn: 
+      - ClearBucket
+      - InvokeClearLoggingBucket
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref ALBAccessLogs
+  InvokeClearWebsiteBucket:
+    Type: Custom::CustomResource
+    DependsOn: 
+      - ClearBucket
+      - InvokeClearLoggingBucket
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref WebS3Bucket
+  ##TODO: Do we want to clear the access logs bucket
+  InvokeClearLoggingBucket:
+    Type: Custom::CustomResource
+    DependsOn: 
+      - ClearBucket
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref LoggingBucket      
+
+##nested stacks
+  network:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-network.yaml
+      Parameters:
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        Environment: !Ref Environment
+        DomainName: !Ref DomainName
+  ad:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionManagedAD
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-managed-ad.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Subnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PrivateSubnet1
+              - !GetAtt network.Outputs.PrivateSubnet2
+        VpcId: !GetAtt network.Outputs.EgressVpc
+        ADPasswordParam: !Ref ADPasswordParam        
+  web:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: network
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-web.yaml
+      Parameters:
+        Environment: !Ref Environment
+        AdminEmailAddress: !Ref AdminEmailAddress
+        WebS3Bucket: !Ref WebS3Bucket
+  core:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+      - network
+      - InvokeClearLoggingBucket
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        CodePipelineBucket: !Ref CodePipelineBucket
+        PublicApiStage: !Ref PublicApiStage
+        PrivateApiStage: !Ref PrivateApiStage
+  billing:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: core
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-billing.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+  # To Do - merge this stuff into the billing template
+  metering:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: core
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-metering-billing.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        EventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
+  metrics:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: core
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-metrics.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        ALBAccessLogs: !Ref ALBAccessLogs
+        AthenaOutput: !Ref AthenaOutput
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
+  onboarding:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - core
+      - tenant
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-onboarding.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
+        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
+        ECSRepository: !GetAtt core.Outputs.EcrRepository
+  quota:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: core
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-quota.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+  settings:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - core
+      - web
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-settings.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
+        CloudFrontDistribution: !GetAtt web.Outputs.CloudFrontDistributionUrl
+  tenant:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: core
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tenant.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+  user:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - core
+      - web
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-user.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+  publicapi:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - core
+      - web
+      - billing
+      - metrics
+      - onboarding
+      - settings
+      - tenant
+      - user
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-public-api.yaml
+      Parameters:
+        Environment: !Ref Environment
+        PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
+        RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
+        PublicApiStage: !Ref PublicApiStage
+        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
+        MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
+        MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
+        MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
+        OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
+        OnboardingServiceStart: !GetAtt onboarding.Outputs.OnboardingServiceStartArn
+        OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
+        OnboardingServiceUpdateStatus: !GetAtt onboarding.Outputs.OnboardingServiceUpdateStatusArn
+        SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
+        SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
+        SettingsServiceConfigOptions: !GetAtt settings.Outputs.SettingsServiceConfigOptionsArn
+        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
+        SettingsServiceSetAppConfig: !GetAtt settings.Outputs.SettingsServiceSetAppConfigArn
+        SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
+        SettingsServiceTenantGetAll: !GetAtt settings.Outputs.SettingsServiceTenantGetAllArn
+        SettingsServiceTenantById: !GetAtt settings.Outputs.SettingsServiceTenantByIdArn
+        TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
+        TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
+        TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
+        TenantServiceUpdate: !GetAtt tenant.Outputs.TenantServiceUpdateArn
+        TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
+        TenantServiceEnable: !GetAtt tenant.Outputs.TenantServiceEnableArn
+        TenantServiceDisable: !GetAtt tenant.Outputs.TenantServiceDisableArn
+        UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
+        UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
+        UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
+        UserServiceUpdate: !GetAtt user.Outputs.UserServiceUpdateArn
+        UserServiceDelete: !GetAtt user.Outputs.UserServiceDeleteArn
+        UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
+        UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
+        UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+  privateapi:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - core
+      - onboarding
+      - quota
+      - settings
+      - tenant
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-private-api.yaml
+      Parameters:
+        Environment: !Ref Environment
+        PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        RootResourceId: !GetAtt core.Outputs.SaaSBoostPrivateApiRootResourceId
+        PrivateApiStage: !Ref PrivateApiStage
+        QuotasServiceCheck: !GetAtt quota.Outputs.QuotasServiceCheckArn
+        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
+        TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
+        TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
+        TenantServiceUpdateOnboarding: !GetAtt tenant.Outputs.TenantServiceUpdateOnboardingArn
+        OnboardingStatusListener: !GetAtt onboarding.Outputs.OnboardingStatusListenerArn
+        OnboardingUpdateDomain: !GetAtt onboarding.Outputs.OnboardingUpdateDomainArn
+        OnboardingUpdateTenant: !GetAtt onboarding.Outputs.OnboardingUpdateTenantArn
+        SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
+        SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
+        SettingsServiceParamStoreRef: !GetAtt settings.Outputs.SettingsServiceParamStoreRefArn
+        SettingsServiceTenantGetAll: !GetAtt settings.Outputs.SettingsServiceTenantGetAllArn
+        SettingsServiceTenantById: !GetAtt settings.Outputs.SettingsServiceTenantByIdArn
+        SettingsServiceTenantUpdate: !GetAtt settings.Outputs.SettingsServiceTenantUpdateArn
+        SettingsServiceTenantDelete: !GetAtt settings.Outputs.SettingsServiceTenantDeleteArn
+
+
+
+  SSMParamMetricsAnalyticsDeployed:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED
+      Type: String
+      # start out as false and will update when stack is deployed separately
+      Value: 'false'
+  SSMParamVersion:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/VERSION
+      Type: String
+      Value: !Ref Version
+  SSMParamSaaSBoostTemplate:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_STACK
+      Type: String
+      Value: !Ref AWS::StackName
+  SSMParamALBOutputBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ALB_ACCESS_LOGS_BUCKET
+      Type: String
+      Value: !Ref ALBAccessLogs
+  SSMParamCodePipelineBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/CODE_PIPELINE_BUCKET
+      Type: String
+      Value: !Ref CodePipelineBucket
+Outputs:
+  SaaSBoostBucket:
+    Description: S3 bucket with Saas Boost resources
+    Value: !Ref SaaSBoostBucket
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:saasBoostBucket
+  WebS3Bucket:
+    Description: S3 bucket for web assets
+    Value: !Ref WebS3Bucket
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webBucket
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Value: !Ref CodePipelineBucket
+  AthenaOutputBucket:
+    Description: S3 bucket for Athena queries output
+    Value: !Ref AthenaOutput
+  ALBAccessLogsBucket:
+    Description: S3 bucket for ALB access logs
+    Value: !Ref ALBAccessLogs
+  LoggingBucket:
+    Description: S3 bucket for s3 access logging
+    Value: !Ref LoggingBucket
+  SaaSBoostUtilsLayer:
+    Description: SaaS Boost Layers ARN
+    Value: !Ref SaaSBoostUtilsLayer
+  ApiGatewayHelperLayer:
+    Description: SaaS Boost Private API Layer
+    Value: !Ref ApiGatewayHelperLayer
+  EgressVpc:
+    Description: Egress VPC Id
+    Value: !GetAtt network.Outputs.EgressVpc
+  TransitGateway:
+    Description: Transit Gateway for Egress to Public Internet
+    Value: !GetAtt network.Outputs.TransitGateway
+  TenantTransitGatewayRouteTable:
+    Description: Transit Gateway Route table for tenant
+    Value: !GetAtt network.Outputs.TenantTransitGatewayRouteTable
+  EgressTransitGatewayRouteTable:
+    Description: Transit Gateway Route table for egress
+    Value: !GetAtt network.Outputs.EgressTransitGatewayRouteTable
+  PublicSubnet1:
+    Description: Public Subnet AZ 1
+    Value: !GetAtt network.Outputs.PublicSubnet1
+  PublicSubnet2:
+    Description: Public Subnet AZ 2
+    Value: !GetAtt network.Outputs.PublicSubnet2
+  PrivateSubnet1:
+    Description: Private Subnet AZ 1
+    Value: !GetAtt network.Outputs.PrivateSubnet1
+  PrivateSubnet2:
+    Description: Private Subnet AZ 2
+    Value: !GetAtt network.Outputs.PrivateSubnet2    
+...

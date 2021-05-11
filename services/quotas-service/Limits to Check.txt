@@ -1,0 +1,142 @@
+#Limits to Check
+
+## elasticloadbalancing
+
+aws service-quotas list-aws-default-service-quotas     --query 'Quotas[*].{Adjustable:Adjustable,Name:QuotaName,Value:Value,Code:QuotaCode}'     --service-code elasticloadbalancing  --output table
+aws service-quotas get-service-quota --service-code elasticloadbalancing --quota-code L-53DA6B97
+    True      |  L-53DA6B97 |  Application Load Balancers per Region  |  20.0  
+
+
+ALB - AWS::ElasticLoadBalancingV2::LoadBalancer
+x ALB Rule - AWS::ElasticLoadBalancingV2::ListenerRule
+x Target Group - AWS::ElasticLoadBalancingV2::TargetGroup
+
+
+## autoscaling  
+aws service-quotas list-aws-default-service-quotas     --query 'Quotas[*].{Adjustable:Adjustable,Name:QuotaName,Value:Value,Code:QuotaCode}'     --service-code autoscaling  --output table
+x Autoscaling Target - AWS::ApplicationAutoScaling::ScalableTarget
+x Autoscaling ScalingPolicy - AWS::ApplicationAutoScaling::ScalingPolicy
+
+    True      |  L-CDE20ADC |  Auto Scaling groups per region                 |  200.0 
+
+    
+    https://github.com/devops-israel/aws-inventory/blob/master/index.html 
+     aws autoscaling describe-account-limits
+
+       { service: "ApplicationAutoScaling",
+          api: "describeScalableTargets",
+          params: { ServiceNamespace: "ecs" },
+          title: "Application Auto Scaling ECS Scalable Targets",
+          id: "appscaling-scalable-targets-ecs",
+          jmespath: "ScalableTargets",
+          headings: ["ResourceId", "ScalableDimension", "MinCapacity", "MaxCapacity", "RoleARN", "CreationTime"]
+        },
+
+## ecs
+Clusters per account is 10000
+    True      |  L-21C621EB |  Clusters per account                                                     |  10000.0
+Cluster - AWS::ECS::Cluster, default is 10000 per account
+ECS task definition - AWS::ECS::TaskDefinition 100 default per region per account
+    True      |  L-46458851 |  Tasks using the Fargate launch type, per Region, per account             |  100.0 
+
+aws ecs list-clusters
+
+## fargate 
+aws service-quotas list-aws-default-service-quotas     --query 'Quotas[*].{Adjustable:Adjustable,Name:QuotaName,Value:Value,Code:QuotaCode}'     --service-code fargate     --output table
+
+aws service-quotas get-service-quota --service-code fargate --quota-code L-790AF391
+
+https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-quotas.html
+
+    True      |  L-790AF391 |  Fargate On-Demand resource count  |  100.0
+
+
+
+
+ECS Service - AWS::ECS::Service 2000 per cluster
+
+
+## vpc
+
+    True      |  L-7E9ECCDB |  Active VPC peering connections per VPC        |  50.0  
+  
+    True      |  L-F678F1CE |  VPCs per Region                               |  5.0 
+ 
+x Attach Gateway AWS::EC2::VPCGatewayAttachment
+
+Internet Gateway AWS::EC2::InternetGateway
+    True      |  L-A4707A72 |  Internet gateways per Region                  |  5.0  
+
+x Route AWS::EC2::Route
+
+x RouteTable AWS::EC2::RouteTable
+
+x Subnet AWS::EC2::Subnet
+x Route table association AWS::EC2::SubnetRouteTableAssociation
+? Transit gateway route: AWS::EC2::TransitGatewayRoute
+? Transit Gateway route table association AWS::EC2::TransitGatewayRouteTableAssociation
+
+x Route 53 Alias AWS::Route53::RecordSet
+x CodePipeline AWS::CodePipeline::Pipeline
+
+
+## rds
+RDS Aurora instance AWS::RDS::DBInstance
+RDS cluster AWS::RDS::DBCluster
+|  True      |  L-952B80B8 |  DB clusters                           |  40.0      |
+|  True      |  L-7B6409FD |  DB instances                          |  40.0   
+
+aws rds describe-db-clusters
+
+x EFS AWS::EFS::FileSystem
+x EFS mount target AWS::EFS::MountTarget
+
+EC2s
+
+Amazon Elastic Compute Cloud (Amazon EC2) Quota: Customer gateways per region Value: 50.0
+
+aws service-quotas list-aws-default-service-quotas     --query 'Quotas[*].{Adjustable:Adjustable,Name:QuotaName,Value:Value,Code:QuotaCode}'     --service-code ec2   --output table
+EC2 on-demand standard VCPUs
+aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
+
+
+Cloudwatcch to get the the EC2 usage metrics
+            MetricDataQueries: [{
+                Id: 'm1',
+                MetricStat: {
+                    Metric: {
+                        Namespace: 'AWS/Usage',
+                        MetricName: 'ResourceCount',
+                        Dimensions: [{
+                                Name: 'Service',
+                                Value: 'EC2'
+                            },
+                            {
+                                Name: 'Resource',
+                                Value: 'vCPU'
+                            },
+                            {
+                                Name: 'Type',
+                                Value: 'Resource'
+                            },
+                            {
+                                Name: 'Class',
+                                Value: ''
+                            }
+                        ]
+                    },
+                    Period: 300,
+                    Stat: 'Maximum'
+                }
+            }]
+
+VCPUs
+x EC2 security group AWS::EC2::SecurityGroup
+x EC2 security group ingress AWS::EC2::SecurityGroupIngress
+
+
+IAM roles
+aws iam get-account-summary
+
+
+

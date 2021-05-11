@@ -1,0 +1,353 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Network
+Parameters:
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  Environment:
+    Description: SaaS Boost "environment" such as test, prod, beta, etc...
+    Type: String
+  DomainName:
+    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
+    Type: String
+    Default: ''
+Conditions:
+  HasDomainName: !Not [!Equals [!Ref DomainName, '']]
+Resources:
+  # Route 53 hosted zone. This hosted zone's name servers will need to be added to primary
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: HasDomainName
+    Properties:
+      HostedZoneConfig:
+        Comment: !Sub ${DomainName} Public DNS zone
+      Name: !Ref DomainName
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub sb-hostedzone-${Environment}
+  SSMParamDomainName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/DOMAIN_NAME
+      Type: String
+      Value: !If [HasDomainName, !Ref DomainName, 'N/A']
+  SSMParamHostedZone:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/HOSTED_ZONE
+      Type: String
+      Value: !If [HasDomainName, !Ref HostedZone, 'N/A']
+  # VPC and Transit Gateway for egress from Tenant VPCs for SaaS Boost
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      AutoAcceptSharedAttachments: enable
+      DefaultRouteTableAssociation: disable
+      DefaultRouteTablePropagation: disable
+      Description: A transit gateway to support a single egress subnet
+      Tags:
+        - Key: Name
+          Value: !Sub sb-tgw-${Environment}
+  # VPC for egress that will be attached to TGW
+  EgressVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      CidrBlock: 192.168.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub sb-egress-vpc-${Environment}
+  EgressVpcPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EgressVPC
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: !Sub sb-egress-public-az1-${Environment}
+  EgressVpcPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EgressVPC
+      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: !Sub sb-egress-public-az2-${Environment}
+  PrivateEgressSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EgressVPC
+      CidrBlock: 192.168.3.0/24
+      AvailabilityZone:  !Select [0, !GetAZs '']
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: !Sub sb-egress-private-az1-${Environment}
+  PrivateEgressSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref EgressVPC
+      CidrBlock: 192.168.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: !Sub sb-egress-private-az2-${Environment}
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref EgressVPC
+      InternetGatewayId: !Ref InternetGateway
+  IPAddress1:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachIGW
+    Properties:
+      Domain: vpc
+  IPAddress2:
+   Type: AWS::EC2::EIP
+   DependsOn: AttachIGW
+   Properties:
+     Domain: vpc
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt IPAddress1.AllocationId
+      SubnetId: !Ref EgressVpcPublicSubnet1
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+  NATGateway2:
+   Type: AWS::EC2::NatGateway
+   Properties:
+     AllocationId: !GetAtt IPAddress2.AllocationId
+     SubnetId: !Ref EgressVpcPublicSubnet2
+     Tags:
+       - Key: Application
+         Value: !Ref AWS::StackId
+  EgressRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref EgressVPC
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: egress-public-rt
+  PrivateEgressRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref EgressVPC
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: egress-private-rt-az1
+  PrivateEgressRouteTable2:
+   Type: AWS::EC2::RouteTable
+   Properties:
+     VpcId: !Ref EgressVPC
+     Tags:
+       - Key: Application
+         Value: !Ref AWS::StackId
+       - Key: Name
+         Value: egress-private-rt-az2
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref EgressRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref EgressVpcPublicSubnet1
+      RouteTableId: !Ref EgressRouteTable
+  SubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref EgressVpcPublicSubnet2
+      RouteTableId: !Ref EgressRouteTable
+  PrivateEgressRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PrivateEgressRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+  PrivateEgressRoute2:
+   Type: AWS::EC2::Route
+   DependsOn: AttachIGW
+   Properties:
+     RouteTableId: !Ref PrivateEgressRouteTable2
+     DestinationCidrBlock: 0.0.0.0/0
+     NatGatewayId: !Ref NATGateway2   
+#These routes to 10.0.0.0/8 are necessary for AD traffic across TGW.
+  RouteToTenants1:
+    Type: AWS::EC2::Route
+    DependsOn: EgressVpcAttachment
+    Properties:
+      RouteTableId: !Ref PrivateEgressRouteTable1
+      DestinationCidrBlock: 10.0.0.0/8
+      TransitGatewayId: !Ref TransitGateway
+  RouteToTenants2:
+   Type: AWS::EC2::Route
+   DependsOn: EgressVpcAttachment   
+   Properties:
+     RouteTableId: !Ref PrivateEgressRouteTable2
+     DestinationCidrBlock: 10.0.0.0/8
+     TransitGatewayId: !Ref TransitGateway  
+  PrivateEgressRouteTable1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateEgressSubnet1
+      RouteTableId: !Ref PrivateEgressRouteTable1
+  PrivateEgressRouteTable2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateEgressSubnet2
+      RouteTableId: !Ref PrivateEgressRouteTable2
+  # Attach Egress subnets to TGW
+  EgressVpcAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      SubnetIds:
+        - !Ref PrivateEgressSubnet1
+        - !Ref PrivateEgressSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub sb-egress-attachment-${Environment}
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref EgressVPC
+  EgressTransitGatewayRouteTable:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub sb-egress-routetbl-${Environment}
+      TransitGatewayId: !Ref TransitGateway
+  TenantTransitGatewayRouteTable:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub sb-tenant-routetbl-${Environment}
+      TransitGatewayId: !Ref TransitGateway
+  # Add a default route and black hole to the app route table
+  AppDefaultTGWRoute:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      TransitGatewayAttachmentId: !Ref EgressVpcAttachment
+      TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+# Black hole to prevent traffic from tenant vpc to antoher tenant vpc
+  AppBlackhole10Route:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      Blackhole: Yes
+      DestinationCidrBlock: 10.0.0.0/8
+      TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+  # AppBlackhole172Route:
+  #   Type: AWS::EC2::TransitGatewayRoute
+  #   Properties:
+  #     Blackhole: Yes
+  #     DestinationCidrBlock: 172.16.0.0/12
+  #     TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+
+  #NOTE: 10/21/2020 - Raju Patel - commented out as we need route from tenant VPC to 192.168 for Active Directory
+  # AppBlackhole192Route:
+  #   Type: AWS::EC2::TransitGatewayRoute
+  #   Properties:
+  #     Blackhole: Yes
+  #     DestinationCidrBlock: 192.168.0.0/16
+  #     TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+  EgressVpcTgwAssociation:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref EgressVpcAttachment
+      TransitGatewayRouteTableId: !Ref EgressTransitGatewayRouteTable
+  # Update VPC route tables to point towards transit gateway for appropriate target CIDR ranges
+  UpdateEgressRouteTable:
+    Type: AWS::EC2::Route
+    DependsOn: EgressVpcAttachment
+    Properties:
+       RouteTableId: !Ref EgressRouteTable
+       # This is to route to Tenant VPCs through egress TGW
+       DestinationCidrBlock: 10.0.0.0/8
+       TransitGatewayId: !Ref TransitGateway
+  SSMParamTransitGateway:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/TRANSIT_GATEWAY
+      Type: String
+      Value: !Ref TransitGateway
+  SSMParamTransitGatewayRouteTable:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/TRANSIT_GATEWAY_ROUTE_TABLE
+      Type: String
+      Value: !Ref TenantTransitGatewayRouteTable
+  SSMParamEgressRouteTable:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/EGRESS_ROUTE_TABLE
+      Type: String
+      Value: !Ref EgressTransitGatewayRouteTable
+Outputs:
+  EgressVpc:
+    Description: Egress VPC Id
+    Value: !Ref EgressVPC
+  TransitGateway:
+    Description: Transit Gateway for Egress to Public Internet
+    Value: !Ref TransitGateway
+  TenantTransitGatewayRouteTable:
+    Description: Transit Gateway Route table for tenant
+    Value: !Ref TenantTransitGatewayRouteTable
+  EgressTransitGatewayRouteTable:
+    Description: Transit Gateway Route table for egress
+    Value: !Ref EgressTransitGatewayRouteTable
+  PublicSubnet1:
+    Description: Public Subnet AZ 1
+    Value: !Ref EgressVpcPublicSubnet1
+  PublicSubnet2:
+    Description: Public Subnet AZ 2
+    Value: !Ref EgressVpcPublicSubnet2
+  PrivateSubnet1:
+    Description: Private Subnet AZ 1
+    Value: !Ref PrivateEgressSubnet1
+  PrivateSubnet2:
+    Description: Private Subnet AZ 2
+    Value: !Ref PrivateEgressSubnet2
+...

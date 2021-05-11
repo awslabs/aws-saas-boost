@@ -1,0 +1,7 @@
+{
+  "TenantID": "sub|1234",
+  "ProductCode": "example-billing-plan",
+  "Quantity": 5,
+  "Timestamp": 1586898989000,
+  "EventType": "BILLING"
+}

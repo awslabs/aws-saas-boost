@@ -1,0 +1,224 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Admin Console
+Parameters:
+  Environment:
+    Description: SaaS Boost "environment" such as test, prod, beta, etc...
+    Type: String
+    MinLength: 1
+  AdminEmailAddress:
+    Description: Email address of admin user to receive temporary password notification
+    AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+    ConstraintDescription: Must be a valid email address.
+    Type: String
+  WebS3Bucket:
+    Description: S3 Bucket to host the Admin Console web app
+    Type: String
+Resources:
+  ConsoleOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub access-identity-${WebS3Bucket}
+  ConsoleCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
+            Id: saas-boost-s3-website
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
+        Enabled: true
+        Comment: Saas Boost Admin Console
+        DefaultRootObject: index.html
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        #Logging:
+        #  IncludeCookies: 'false'
+        #  Bucket: mylogs.s3.amazonaws.com
+        #  Prefix: myprefix
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          TargetOriginId: saas-boost-s3-website
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: allow-all
+        IPV6Enabled: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        # Restrictions:
+        #   GeoRestriction:
+        #     RestrictionType: whitelist
+        #     #this is for testing to reduce distribution locations
+        #     Locations:
+        #       - US
+  ConsoleUserPool:
+    Type: AWS::Cognito::UserPool
+    DependsOn: ConsoleCloudFrontDistribution
+    Properties:
+      UserPoolName: !Sub sb-users-${Environment}
+      MfaConfiguration: "OFF"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailMessage: !Sub |
+            <b>Welcome to AWS SaaS Boost!</b> <br>
+            <br>
+            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="https://${ConsoleCloudFrontDistribution.DomainName}">https://${ConsoleCloudFrontDistribution.DomainName}</a>.
+            <br>
+            Your username is:  <b>{username}</b>
+            <br>
+            Your temporary password is:  <b>{####}</b>
+            <br>
+          EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
+      Schema:
+        - Name: tenant_id
+          AttributeDataType: String
+          Mutable: false
+        - Name: identity_pool
+          AttributeDataType: String
+          Mutable: false
+  ConsoleUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub sb-client-app-${Environment}
+      UserPoolId: !Ref ConsoleUserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      GenerateSecret: false
+  ConsoleIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub sb-identities-${Environment}
+      AllowClassicFlow: true
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref ConsoleUserPoolClient
+          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${ConsoleUserPool}
+          ServerSideTokenCheck: true
+  ConsoleIdentityPoolAuthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-cognito-auth-role-${Environment}-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: {"Federated": "cognito-identity.amazonaws.com"}
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud:
+                  - !Ref ConsoleIdentityPool
+              ForAnyValue:StringLike: {"cognito-identity.amazonaws.com:amr": authenticated}
+  ConsoleIdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref ConsoleIdentityPool
+      Roles:
+        authenticated: !GetAtt ConsoleIdentityPoolAuthRole.Arn
+  # Create the initial admin user
+  ConsoleAdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      DesiredDeliveryMediums:
+        - EMAIL
+      ForceAliasCreation: false
+      UserAttributes:
+        - Name: "custom:identity_pool"
+          Value: !Ref ConsoleIdentityPool
+        - Name: "email"
+          Value: !Ref AdminEmailAddress
+        - Name: "email_verified"
+          Value: "true"
+      Username: admin
+      UserPoolId: !Ref ConsoleUserPool
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        !Ref WebS3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser:
+                !GetAtt ConsoleOriginAccessIdentity.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub arn:aws:s3:::${WebS3Bucket}/*
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:aws:s3:::${WebS3Bucket}/*
+              - !Sub arn:aws:s3:::${WebS3Bucket}
+            Condition: 
+              Bool: { 'aws:SecureTransport': false }            
+Outputs:
+  SBUserPool:
+    Description: SaaS Boost User Pool Id
+    Value: !Ref ConsoleUserPool
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolId
+  SBUserPoolClient:
+    Description: SaaS Boost User Pool Client id
+    Value: !Ref ConsoleUserPoolClient
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolClientId
+  SBIdentityPool:
+    Description: SaaS Boost Identity Pool Id
+    Value: !Ref ConsoleIdentityPool
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:identityPoolId
+  CloudFrontDistributionUrl:
+    Description: Saas Boost Cloudfront distribution URL
+    Value: !Sub https://${ConsoleCloudFrontDistribution.DomainName}
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webUrl
+  CognitoSignOnBaseUri:
+    Description: URL for Cognito Hosted signon base URI
+    Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:cognitoBaseUri

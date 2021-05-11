@@ -1,0 +1,986 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Private API
+Parameters:
+  Environment:
+    Description: Environment name
+    Type: String
+  PrivateApi:
+    Description: API Gateway REST API
+    Type: String
+  RootResourceId:
+    Description: API Gateway REST API root resource id
+    Type: String
+  PrivateApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost private API
+    Type: String
+    Default: v1
+  QuotasServiceCheck:
+    Description: Quota Service check limits Lambda ARN
+    Type: String
+  TenantServiceInsert:
+    Description: Tenant Service insert new tenant Lambda ARN
+    Type: String
+  TenantServiceGetAll:
+    Description: Tenant Service get all tenants Lambda ARN
+    Type: String
+  TenantServiceGetProvisioned:
+    Description: Tenant Service get provisioned tenants Lambda ARN
+    Type: String
+  TenantServiceUpdateOnboarding:
+    Description: Tenant Service update tenant onboarding status Lambda ARN
+    Type: String
+  OnboardingStatusListener:
+    Description: Onboarding Service status uplodate listener Lambda ARN
+    Type: String
+  OnboardingUpdateDomain:
+    Description: Onboarding Service update SaaS Boost domain Lambda ARN
+    Type: String
+  OnboardingUpdateTenant:
+    Description: Onboarding Service update provisioned tenant Lambda ARN
+    Type: String
+  SettingsServiceGetAll:
+    Description: Settings Service get all settings Lambda ARN
+    Type: String
+  SettingsServiceGetSecret:
+    Description: Settings Service get decrypted secret setting Lambda ARN
+    Type: String
+  SettingsServiceParamStoreRef:
+    Description: Settings Service get parameter store reference for a setting Lambda ARN
+    Type: String
+  SettingsServiceTenantGetAll:
+    Description: Settings Service get all tenant settings Lambda ARN
+    Type: String
+  SettingsServiceTenantById:
+    Description: Settings Service get a tenant setting Lambda ARN
+    Type: String
+  SettingsServiceTenantUpdate:
+    Description: Settings Service update a tenant setting Lambda ARN
+    Type: String
+  SettingsServiceTenantDelete:
+    Description: Settings Service delete tenant settings Lambda ARN
+    Type: String
+Resources:
+  ApiGatewayLoggingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-priv-api-log-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayLoggingAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
+  QuotaServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'quotas'
+  QuotaServiceCheckResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref QuotaServiceResource
+      PathPart: 'check'
+  QuotaServiceCheckMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref QuotaServiceCheckResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QuotasServiceCheck}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  QuotasServiceLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref QuotasServiceCheck
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/quotas/check
+  QuotaServiceCheckResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref QuotaServiceCheckResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'tenants'
+  TenantServiceProvisionedResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref TenantServiceResource
+      PathPart: 'provisioned'
+  TenantServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref TenantServiceResource
+      PathPart: '{id}'
+  TenantServiceTenantOnboardingResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref TenantServiceByIdResource
+      PathPart: 'onboarding'
+  TenantServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/tenants
+  TenantServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: POST
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceInsert
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/POST/tenants
+  TenantServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceProvisionedMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceProvisionedResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetProvisioned}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceGetProvisionedLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceGetProvisioned
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/tenants/provisioned
+  TenantServiceProvisionedResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceProvisionedResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceTenantOnboardingUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceTenantOnboardingResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdateOnboarding}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceUpdateOnboardingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceUpdateOnboarding
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/tenants/{id}/onboarding
+  TenantServiceTenantOnboardingResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref TenantServiceTenantOnboardingResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'onboarding'
+  OnboardingServiceStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref OnboardingServiceResource
+      PathPart: 'status'
+  OnboardingServiceUpdateResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref OnboardingServiceResource
+      PathPart: 'update'
+  OnboardingServiceUpdateDomainResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref OnboardingServiceUpdateResource
+      PathPart: 'domain'
+  OnboardingServiceUpdateTenantResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref OnboardingServiceUpdateResource
+      PathPart: 'tenant'
+  OnboardingServiceStatusListenerMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceStatusResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingStatusListener}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceStatusListenerPrivateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingStatusListener
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/onboarding/status
+  OnboardingServiceStatusResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceStatusResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceUpdateDomainMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateDomainResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingUpdateDomain}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceUpdateDomainLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingUpdateDomain
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/onboarding/update/domain
+  OnboardingServiceUpdateDomainResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateDomainResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceUpdateTenantMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateTenantResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingUpdateTenant}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceUpdateTenantLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingUpdateTenant
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/onboarding/update/tenant
+  OnboardingServiceUpdateTenantResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateTenantResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'settings'
+  SettingsServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: '{id}'
+  SettingsServiceSecretResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceByIdResource
+      PathPart: 'secret'
+  SettingsServiceParamStoreRefResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceByIdResource
+      PathPart: 'ref'
+  SettingsServiceTenantResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: 'tenant'
+  SettingsServiceByTenantIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceTenantResource
+      PathPart: '{id}'
+  SettingsServiceTenantSettingResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceByTenantIdResource
+      PathPart: '{setting}'
+  SettingsServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetAllPrivateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings
+  SettingsServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceSecretMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceSecretResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetSecret}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetSecretLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetSecret
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings/{id}/secret
+  SettingsServiceSecretResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceSecretResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceParamStoreRefMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceParamStoreRefResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceParamStoreRef}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceParamStoreRefPrivateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceParamStoreRef
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings/{id}/ref
+  SettingsServiceParamStoreRefResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceParamStoreRefResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceByTenantIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceByTenantIdResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceTenantGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantGetAll
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings/tenant/{id}
+  SettingsServiceDeleteTenantSettngsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceByTenantIdResource
+      HttpMethod: DELETE
+      AuthorizationType: AWS_IAM
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceDeleteTenantSettingsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantDelete
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/DELETE/settings/tenant/{id}
+  SettingsServiceByTenantIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceByTenantIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceGetTenantSettingMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceTenantSettingResource
+      HttpMethod: GET
+      AuthorizationType: AWS_IAM
+      RequestParameters:
+        method.request.path.id: true
+        method.request.path.setting: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.id: 'method.request.path.id'
+          integration.request.path.setting: 'method.request.path.setting'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceTenantGetByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantById
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings/tenant/{id}/{setting}
+  SettingsServiceUpdateTenantSettingMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceTenantSettingResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      RequestParameters:
+        method.request.path.id: true
+        method.request.path.setting: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.id: 'method.request.path.id'
+          integration.request.path.setting: 'method.request.path.setting'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceTenantUpdatePrivateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceTenantUpdate
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/settings/tenant/{id}/{setting}
+  SettingsServiceTenantSettingResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceTenantSettingResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - QuotaServiceCheckMethod
+      - QuotaServiceCheckResourceCORS
+      - TenantServiceGetAllMethod
+      - TenantServiceInsertMethod
+      - TenantServiceResourceCORS
+      - TenantServiceTenantOnboardingUpdateMethod
+      - TenantServiceTenantOnboardingResourceCORS
+      - OnboardingServiceStatusListenerMethod
+      - OnboardingServiceStatusResourceCORS
+      - OnboardingServiceUpdateTenantMethod
+      - OnboardingServiceUpdateTenantResourceCORS
+      - OnboardingServiceUpdateDomainMethod
+      - OnboardingServiceUpdateDomainResourceCORS
+      - SettingsServiceGetAllMethod
+      - SettingsServiceResourceCORS
+      - SettingsServiceSecretMethod
+      - SettingsServiceSecretResourceCORS
+      - SettingsServiceParamStoreRefMethod
+      - SettingsServiceParamStoreRefResourceCORS
+      - SettingsServiceByTenantIdMethod
+      - SettingsServiceByTenantIdResourceCORS
+      - SettingsServiceGetTenantSettingMethod
+      - SettingsServiceUpdateTenantSettingMethod
+      - SettingsServiceTenantSettingResourceCORS
+    Properties:
+      RestApiId: !Ref PrivateApi
+      #StageDescription:
+      #  DataTraceEnabled: true
+      #  LoggingLevel: ERROR
+      #StageName: !Ref PrivateApiStage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref PrivateApi
+      StageName: !Ref PrivateApiStage
+      DeploymentId: !Ref ApiDeployment
+...

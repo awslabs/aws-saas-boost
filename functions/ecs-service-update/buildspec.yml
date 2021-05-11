@@ -1,0 +1,59 @@
+version: 0.2
+
+environment_variables:
+  plaintext:
+    LAMBDA_FUNCTIONS: |
+      sb-update-ecs
+    SERVICES: |
+      ecs-service-update
+    ZIP_FILES: |
+      EcsServiceUpdate-lambda.zip
+phases:
+  install:
+    commands:
+      - echo Installing dependencies ...   
+    runtime-versions:
+      java: corretto11
+  pre_build:
+    commands:
+      - |
+        if [ "X${ENVIRONMENT}" = "X" ]; then
+          ENVIRONMENT=test
+        fi
+
+        if [ "X${LAMBDA_STAGE_FOLDER}" = "X" ]; then
+          LAMBDA_STAGE_FOLDER=lambdas
+        fi
+  build:
+    commands:  
+      - echo "Build Jars and Copy to $S3_BUCKET for Service ecs-service-update"
+      - echo "test commit trigger"
+      - java -version
+      - |
+        S3_BUCKET=`aws cloudformation list-exports --query "Exports[?Name=='saas-boost::${ENVIRONMENT}-${AWS_REGION}:saasBoostBucket'].Value" --no-paginate --output text` 
+        if [ "X${S3_BUCKET}" = "X" ]; then
+          echo "No saasBoostBucket export found"
+          exit 1
+        fi
+      - |
+        for service in $SERVICES; do
+          echo "Building Zip file for service"
+          cd services/$service
+          mvn -q
+          ls -ltr target
+          cd target
+          for zipfile in `ls *.zip`; do
+            aws s3 cp "$zipfile" "s3://$S3_BUCKET/${LAMBDA_STAGE_FOLDER}/$zipfile"     
+            #update the lambda function
+            for lambdaFunction in $LAMBDA_FUNCTIONS; do
+              echo "Updating Lambda function: ${lambdaFunction}-${ENVIRONMENT}-${AWS_REGION}" 
+              aws lambda --region $AWS_REGION update-function-code --function-name ${lambdaFunction}-${ENVIRONMENT}-${AWS_REGION} --s3-bucket $S3_BUCKET --s3-key ${LAMBDA_STAGE_FOLDER}/$zipfile
+            done
+          done
+        done          
+
+# artifacts:
+#   files:
+#     - "**/*.zip"
+#   discard-paths: no
+#   base-directory: services/saasboost-users/target
