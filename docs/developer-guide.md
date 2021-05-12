@@ -33,7 +33,7 @@ The layer below represents more operational constructs (billing, metering, metri
 The last layer of this model is the managed tenant environments. This layer represents the resources that are provisioned for each tenant of your system. In reality, there is no code in the repository that corresponds to this layer. Instead, there is code in core services that provisions and configures all of the architecture that ends up running in the managed tenant environment layer. Nevertheless, once your system is up-and-running with tenants, you will have provisioned architecture constructs for each of the tenants that are managed by the SaaS Boost environment.
 
 ## Administration Application
-The SaaS Boost User Guide provides an in-depth look at the functionality of the administration application. Here we focus more on the technology and architecture that was used to build this application.
+The SaaS Boost [User Guide](user-guide.md) provides an in-depth look at the functionality of the administration application. Here we focus more on the technology and architecture that was used to build this application.
 
 The administration application is built as a single page application (SPA) using the React JS framework. It conforms to the typical patterns and conventions used to construct any React application. It also uses the CoreUI administration template that runs the Bootstrap toolkit.
 
@@ -50,7 +50,7 @@ After SaaS Boost is installed and running, you may be interested in making chang
 Within the same folder is a `sample.env` file that holds variables that are specific to your deployed environment. Rename this file with the `.env` extension, and edit its settings to allow your local environment to connect to the core services of your deployed SaaS Boost environment.
 
 Open the newly named file in an editor of your choice. To run the client locally, there are various environment variables that must be configured. The following is an example of configured settings:
-```language=shell
+```ini
 AWS_DEFAULT_REGION=us-east-1
 REACT_APP_AWS_REGION=us-east-1
 REACT_APP_COGNITO_USERPOOL=us-east-1_XXXXXXXXX

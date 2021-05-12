@@ -15,7 +15,7 @@
 ## Introduction
 This document describes how to create and configure AWS SaaS Boost. Use this document alongside the other AWS SaaS Boost documents to get a more comprehensive view of the system.
 
-While this document provides a review of the steps to setup AWS SaaS Boost, it is not intended to provide a deep dive into the user experience or underlying technology. These details are covered in the User Guide and Developer Guide. 
+While this document provides a review of the steps to setup AWS SaaS Boost, it is not intended to provide a deep dive into the user experience or underlying technology. These details are covered in the [User Guide](user-guide.md) and [Developer Guide](developer-guide.md). 
 
 ## The Target Experience
 Before digging into the steps needed to set up AWS SaaS Boost, let's look at the basic elements of the environment to get a better sense of what AWS SaaS Boost enables. The diagram in below shows the key components of the AWS SaaS Boost experience in the order of the setup flow. This flow presumes that you have a monolithic application -- one where your entire application (other than the database) can be packaged and deployed as a single unit.
@@ -38,7 +38,7 @@ Now that you have a feel for the AWS SaaS Boost technology and experience, let's
 
 ## Step 1 - Set Up Tooling
 AWS SaaS Boost uses a handful of technologies to orchestrate the installation process. Install and configure each of these prerequisites for your operating system if they aren't already installed:
-- Java 11 [Amazon Corretto 11](https://docs.aws.amazon.com/corretto/latest/corretto-11-ug/downloads-list.html) or 
+- Java 11 [Amazon Corretto 11](https://docs.aws.amazon.com/corretto/latest/corretto-11-ug/downloads-list.html)
 - [Apache Maven](https://maven.apache.org/download.cgi) (see [Installation Instructions](https://maven.apache.org/install.html))
 - [AWS Command Line Interface version 2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - [Git](https://git-scm.com/downloads)
@@ -123,9 +123,9 @@ Just as you would configure AWS SaaS Boost to support the requirements of your a
 ### Build and Deploy the Sample Application
 Once you have saved your Application Setup, you can build and containerize the sample application. To create a Docker image of this sample application, you will need to have Docker running on your local machine. Navigate to the **samples/java/** directory in your clone of the AWS SaaS Boost repo and execute the build script which will build, containerize, and push your containerized application to the AWS SaaS Boost ECR repository. You can review the steps in this example shell script to see how you might enhance your current build process for your application to integrate with AWS SaaS Boost.
 
-```
+```shell
 cd aws-saas-boost/samples/java
-bash build.sh
+sh build.sh
 ```
 
 This script prompts you for your AWS SaaS Boost environment. Enter the environment label that you specified when you ran the AWS SaaS Boost installer. When this script finishes, you have published your application to the AWS SaaS Boost application repository. To verify this, open the AWS Console, navigate to the Amazon ECR repositories, and verify that your application was uploaded. As you make changes to the application, you can execute the build script again to update your application.
@@ -136,7 +136,7 @@ You can now onboard a new tenant to deploy your containerized application. Navig
 ## Mapping Your Application to AWS SaaS Boost
 This guide provides a high-level view into the basic steps that are required to set up AWS SaaS Boost. As you think about moving a workload into AWS SaaS Boost, examine the broader capabilities of AWS SaaS Boost in more detail. This means looking more carefully at the configuration options for your application and how they map to the different AWS SaaS Boost application settings.
 
-After familiarizing yourself with the overall experience, you will have a better sense about how your application fits in the AWS SaaS Boost model. A review of the AWS SaaS Boost _User Guide_ and [Developer Guide](./developer-guide.md) will also allow you to better understand how you might configure AWS SaaS Boost to align with the needs of your solution.
+After familiarizing yourself with the overall experience, you will have a better sense about how your application fits in the AWS SaaS Boost model. A review of the AWS SaaS Boost [User Guide](user-guide.md) and [Developer Guide](developer-guide.md) will also allow you to better understand how you might configure AWS SaaS Boost to align with the needs of your solution.
 
 The steps needed to containerize vary depending on the nature of your application. Here are some resources that provide information on containerizing applications:
 - [AWS Learning Path: Containerize the Monolith](https://aws.amazon.com/getting-started/container-microservices-tutorial/module-one/)
