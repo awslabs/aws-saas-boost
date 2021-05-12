@@ -2,7 +2,7 @@
 
 ## Contents
 [Introduction](#introduction)\
-[High-Level Architecture](#high---level-architecture)\
+[High-Level Architecture](#high-level-architecture)\
 [Administration Application](#administration-application)\
 [Core Services](#core-services)\
 [Onboarding Service](#onboarding-service)\
@@ -178,7 +178,7 @@ The ability to provide separate sizing attributes at the tenant level can be use
 
 The tenant service also supports an enable/disable option where you can selectively change the tenant's status. When you ask the service to disable a tenant, all access to that tenant's application is blocked until it is re-enabled.
 
-## User Serivce
+## User Service
 The user microservice provides operations for managing users of the administration application. It supports the classic set of create, read, update, and delete (CRUD) mechanisms to manage the list of administrators. Amazon Cognito manages the data for each user, which means that each management operation makes an API call to Amazon Cognito to fetch, create, update, or delete users.
 
 ## Settings Service
@@ -207,7 +207,7 @@ The metrics service retrieves data from CloudWatch for graphs that view consumpt
 
 It's important to note that the focus of the metrics service is on enabling access to specific tenant-aware operational insights. Tenant context is part of all the metrics data that is captured here. This context is used to create views of the data that allow SaaS providers to analyze and assess system activity through a tenant (or tier) lens. Where possible, the administration application lets you filter analytics views by tenant. This aids operations teams by focusing on the trends of individual tenants.
 
-## Quote Service
+## Quota Service
 The quota service provides a lightweight mechanism for collecting information about AWS account quotas. As new tenants are added to the system, it evaluates the state of different account limits to determine the system's readiness to provision new infrastructure.
 
 This microservice makes a variety of calls to different AWS services to gather quota data. The data returned from these calls is used to assess whether your SaaS Boost environment exceeds any quota thresholds that could affect the system's ability to provision more tenants.
