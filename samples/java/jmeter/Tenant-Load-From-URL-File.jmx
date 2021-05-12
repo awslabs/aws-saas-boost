@@ -239,7 +239,7 @@ br.close();
                 <connectTime>true</connectTime>
               </value>
             </objProp>
-            <stringProp name="filename">/Users/rjupte/Repos1/saas-boost-hello-world/java/jmeter/test.log</stringProp>
+            <stringProp name="filename">test.log</stringProp>
           </ResultCollector>
           <hashTree/>
           <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
