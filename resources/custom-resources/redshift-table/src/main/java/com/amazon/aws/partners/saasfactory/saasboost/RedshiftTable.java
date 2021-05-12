@@ -17,8 +17,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
@@ -49,11 +47,7 @@ public class RedshiftTable implements RequestHandler<Map<String, Object>, Object
 
     @Override
     public Object handleRequest(Map<String, Object> event, Context context) {
-        try {
-            LOGGER.info(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(event));
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Could not log input");
-        }
+        Utils.logRequestEvent(event);
 
         final String requestType = (String) event.get("RequestType");
         Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
@@ -97,7 +91,7 @@ public class RedshiftTable implements RequestHandler<Map<String, Object>, Object
                                 LOGGER.info("Connected to Redshift database");
                             } catch (Exception e) {
                                 LOGGER.error("Error connecting {}", e.getMessage());
-                                LOGGER.error(getFullStackTrace(e));
+                                LOGGER.error(Utils.getFullStackTrace(e));
                                 attempts++;
                                 try {
                                     LOGGER.info("Sleep one minute for dns to resolve");
@@ -135,12 +129,12 @@ public class RedshiftTable implements RequestHandler<Map<String, Object>, Object
                         statement.executeUpdate(sql);
                         // Further code to follow
                     } catch(ClassNotFoundException cnfe) {
-                        String stackTrace = getFullStackTrace(cnfe);
+                        String stackTrace = Utils.getFullStackTrace(cnfe);
                         LOGGER.error(stackTrace);
                         responseData.put("Reason", stackTrace);
                         sendResponse(event, context, "FAILED", responseData);
                     } catch (SQLException sqle) {
-                        String stackTrace = getFullStackTrace(sqle);
+                        String stackTrace = Utils.getFullStackTrace(sqle);
                         LOGGER.error(stackTrace);
                         responseData.put("Reason", stackTrace);
                         sendResponse(event, context, "FAILED", responseData);
@@ -180,7 +174,7 @@ public class RedshiftTable implements RequestHandler<Map<String, Object>, Object
         } catch (final TimeoutException | InterruptedException | ExecutionException e) {
             // Timed out
             LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
-            String stackTrace = getFullStackTrace(e);
+            String stackTrace = Utils.getFullStackTrace(e);
             LOGGER.error(stackTrace);
             responseData.put("Reason", stackTrace);
             sendResponse(event, context, "FAILED", responseData);
@@ -228,24 +222,17 @@ public class RedshiftTable implements RequestHandler<Map<String, Object>, Object
                 response.write(responseBody.toString());
             } catch (IOException ioe) {
                 LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(getFullStackTrace(ioe));
+                LOGGER.error(Utils.getFullStackTrace(ioe));
             }
 
             LOGGER.info("Response Code: " + connection.getResponseCode());
             connection.disconnect();
         } catch (IOException e) {
             LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(getFullStackTrace(e));
+            LOGGER.error(Utils.getFullStackTrace(e));
         }
 
         return null;
-    }
-
-    private static String getFullStackTrace(Exception e) {
-        final StringWriter sw = new StringWriter();
-        final PrintWriter pw = new PrintWriter(sw, true);
-        e.printStackTrace(pw);
-        return sw.getBuffer().toString();
     }
 
 }
