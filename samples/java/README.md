@@ -32,14 +32,14 @@ If you'd like to test the app locally before you deploy to your SaaS Boost envir
 2. Build the application using Maven `mvn clean package`
 3. Build a Docker image of the compiled application `docker image build -t helloworld -f Dockerfile .`
 4. Run the Docker image as a container setting the various environment variables to their proper values.\
-`docker run -p 8888:8080 -v hello-world:/mnt -e DB_HOST=localhost -e DB_NAME=dbname -e DB_PORT=3306 -e DB_MASTER_USERNAME=dbuser -e DB_MASTER_PASSWORD=dbpass helloworld`
+`docker run -p 8888:8080 -v hello-world:/mnt -e AWS_REGION=us-east-1 -e DB_HOST=localhost -e DB_NAME=dbname -e DB_PORT=3306 -e DB_MASTER_USERNAME=dbuser -e DB_MASTER_PASSWORD=dbpass helloworld`
 
 ## (Experimental - Using Oracle JDBC)
 If you would like to experiment with Oracle, you must download the JDBC driver from your Oracle account and install it in your Maven cache.\
 `mvn install:install-file -Dfile=./ojdbc7.jar -DgroupId=com.oracle -DartifactId=ojdbc7 -Dversion=12.1.0.1 -Dpackaging=jar`
 
 Once you have the Oracle JDBC driver available to Maven, add the following dependency to the project's POM file.
-```
+```xml
 <dependency>
     <groupId>com.oracle</groupId>
     <artifactId>ojdbc7</artifactId>
