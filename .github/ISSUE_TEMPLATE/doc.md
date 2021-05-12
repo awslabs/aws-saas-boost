@@ -2,7 +2,7 @@
 name: "📕 Documentation Issue"
 about: Issue in the reference documentation or developer guide
 title: "[title] "
-labels: feature-request, documentation, triage
+labels: documentation, triage
 ---
 
 
