@@ -18,7 +18,7 @@
     "aws-amplify": "^3.0.7",
     "aws-amplify-react": "^4.1.6",
     "aws-sdk": "^2.649.0",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "bootstrap": "^4.4.1",
     "chart.js": "^2.9.3",
     "flag-icon-css": "^3.4.6",
