@@ -136,7 +136,7 @@ You can now onboard a new tenant to deploy your containerized application. Navig
 ## Mapping Your Application to AWS SaaS Boost
 This guide provides a high-level view into the basic steps that are required to set up AWS SaaS Boost. As you think about moving a workload into AWS SaaS Boost, examine the broader capabilities of AWS SaaS Boost in more detail. This means looking more carefully at the configuration options for your application and how they map to the different AWS SaaS Boost application settings.
 
-After familiarizing yourself with the overall experience, you will have a better sense about how your application fits in the AWS SaaS Boost model. A review of the AWS SaaS Boost _User Guide_ and _Developer Guide_ will also allow you to better understand how you might configure AWS SaaS Boost to align with the needs of your solution.
+After familiarizing yourself with the overall experience, you will have a better sense about how your application fits in the AWS SaaS Boost model. A review of the AWS SaaS Boost _User Guide_ and [Developer Guide](./developer-guide.md) will also allow you to better understand how you might configure AWS SaaS Boost to align with the needs of your solution.
 
 The steps needed to containerize vary depending on the nature of your application. Here are some resources that provide information on containerizing applications:
 - [AWS Learning Path: Containerize the Monolith](https://aws.amazon.com/getting-started/container-microservices-tutorial/module-one/)
