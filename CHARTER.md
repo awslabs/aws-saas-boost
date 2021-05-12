@@ -15,7 +15,7 @@ We continuously invest in security posture as best practices evolve.
 
 ### AWS SaaS Boost is valuable because it’s built to last
 
-We prioritize efficiency in the dimensions that it benefits customers. 
+We prioritize efficiency in the dimensions that benefit customers. 
 We favor contributions that make it easy for customers to onboard, simple for operators to maintain, extensible to encourage integration, and optimized to offer the best quality per tenant.
 
 ### AWS SaaS Boost is open because the best SaaS can only be built through collaboration
