@@ -233,7 +233,7 @@ To better understand how this works, let's go through the process of uploading a
 - **Enable** the Provision a File System for the application checkbox
 - Set the Mount point to **/mnt**
 - **Enable** the Provision a database for the application checkbox
-- Select any of the available databases (MariaDB with a db.t2.micro instance class will provision the fastest)
+- Select any of the available databases (MariaDB with a db.t3.micro instance class will provision the fastest)
 - Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
 
 ![Figure 14 - Configure the sample application](images/ug-sample-app.png?raw=true "Figure 14 - Configure the sample application")
