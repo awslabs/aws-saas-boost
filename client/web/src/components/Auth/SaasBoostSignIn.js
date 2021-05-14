@@ -257,7 +257,7 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
                         <h2>AWS SaaS Boost</h2>
                         <div>
                           <img
-                            src="/APN_logos_Sass-Factory_color.png"
+                            src="/saas-boost-login.png"
                             alt="SaasFactory"
                             width="80%"
                           />

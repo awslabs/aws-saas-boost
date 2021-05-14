@@ -30,8 +30,6 @@ import PropTypes from "prop-types";
 
 import { AppNavbarBrand, AppSidebarToggler } from "@coreui/react";
 
-//import logo from "../../../public/APN_logos_Sass-Factory_color.png";
-
 const propTypes = {
   children: PropTypes.node,
 };
@@ -53,8 +51,11 @@ class DefaultHeader extends Component {
     return (
       <>
         <AppSidebarToggler className="d-lg-none" display="md" mobile />
-        <div className="ml-4">AWS SaaS Boost</div>
-
+        <AppNavbarBrand>
+          <img src="/saas-boost-logo.png" alt="logo" height="20" className="ml-4 mr-2"/>
+          <span style={{color: "#FF9900"}}><strong>AWS</strong></span>&nbsp;
+          <span style={{color: "#232F3E"}}>SaaS Boost</span>
+        </AppNavbarBrand>
         <Nav className="ml-auto mr-2" navbar>
           <NavItem className="d-md-down-none">
             <NavLink to="#" className="nav-link">

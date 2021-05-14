@@ -244,7 +244,7 @@ function TenantViewComponent(props) {
               <CardHeader style={banner}>
                 <div>
                   <img src="/aws.png" style={{ width: '38px' }}></img>
-                  <span style={{ marginLeft: '18px' }}>AWS Console</span>
+                  <span style={{ marginLeft: '18px' }}>AWS Console Links</span>
                 </div>
               </CardHeader>
               <CardBody>
