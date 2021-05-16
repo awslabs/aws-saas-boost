@@ -2230,17 +2230,27 @@ public class SaaSBoostInstall {
         //refresh the client
         cfn = CloudFormationClient.create();
 
-        ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
-                .build());
-
+        String nextToken = null;
         Map<String, String> exportsMap = new HashMap<>();
-        for (Export export : response.exports()) {
-            if (export.name().startsWith("saas-boost::" + envName)) {
-                exportsMap.put(export.name(), export.value());
+        do {
+            ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
+                    .nextToken(nextToken)
+                    .build());
+            nextToken = response.nextToken();
+            for (Export export : response.exports()) {
+                if (export.name().startsWith("saas-boost::" + envName)) {
+                    exportsMap.put(export.name(), export.value());
+                }
+                //LOGGER.info("Export name: {}, Export value: {}", export.name(), export.value());
             }
-        }
+        } while (null != nextToken);
 
         final String prefix = "saas-boost::" + envName + "-" + AWS_REGION.id() + ":";
+
+        if (!exportsMap.containsKey(prefix + "webUrl")) {
+            outputMessage("Unexpected errors, CloudFormation export " + prefix + "webUrl not found");
+            System.exit(2);
+        }
 
         //run yarn to build the react app
         outputMessage("Start build of AWS SaaS Boost React web application with yarn ...");
