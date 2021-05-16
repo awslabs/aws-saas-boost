@@ -2241,7 +2241,6 @@ public class SaaSBoostInstall {
                 if (export.name().startsWith("saas-boost::" + envName)) {
                     exportsMap.put(export.name(), export.value());
                 }
-                LOGGER.info("Export name: {}, Export value: {}", export.name(), export.value());
             }
         } while (null != nextToken);
 
