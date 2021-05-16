@@ -2257,6 +2257,13 @@ public class SaaSBoostInstall {
             pb = new ProcessBuilder("yarn", "build");
         }
 
+        // Check to ensure the availability of the variable `prefix + "webUrl"` before proceeding to next step
+        if (!exportsMap.containsKey(prefix + "webUrl")) {
+            outputMessage("Unexpected errors, CloudFormation export " + prefix + "webUrl not found");
+            LOGGER.info("Available exports part of stack output" + String.join(", ", exportsMap.keySet()));
+            System.exit(2);
+        }
+
         Map<String, String> env = pb.environment();
         pb.directory(new File(webDir));
         env.put("REACT_APP_SIGNOUT_URI",exportsMap.get(prefix + "webUrl"));
