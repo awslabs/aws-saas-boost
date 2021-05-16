@@ -129,7 +129,7 @@ public class SaaSBoostInstall {
             LOGGER.error(getFullStackTrace(ioe));
         }
         this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
-        this.cfn = CloudFormationClient.create();
+        this.cfn = CloudFormationClient.builder().region(AWS_REGION).build();
 
         this.ddb = DynamoDbClient.builder()
                 .region(AWS_REGION).build();
@@ -2228,17 +2228,21 @@ public class SaaSBoostInstall {
         }
 
         //refresh the client
-        cfn = CloudFormationClient.create();
+        cfn = CloudFormationClient.builder().region(AWS_REGION).build();
 
-        ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
-                .build());
-
+        String nextToken = null;
         Map<String, String> exportsMap = new HashMap<>();
-        for (Export export : response.exports()) {
-            if (export.name().startsWith("saas-boost::" + envName)) {
-                exportsMap.put(export.name(), export.value());
+        do {
+            ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
+                    .nextToken(nextToken)
+                    .build());
+            nextToken = response.nextToken();
+            for (Export export : response.exports()) {
+                if (export.name().startsWith("saas-boost::" + envName)) {
+                    exportsMap.put(export.name(), export.value());
+                }
             }
-        }
+        } while (null != nextToken);
 
         final String prefix = "saas-boost::" + envName + "-" + AWS_REGION.id() + ":";
 
@@ -2250,6 +2254,13 @@ public class SaaSBoostInstall {
             pb = new ProcessBuilder("cmd", "/c", "yarn", "build");
         } else {
             pb = new ProcessBuilder("yarn", "build");
+        }
+
+        // Check to ensure the availability of the variable `prefix + "webUrl"` before proceeding to next step
+        if (!exportsMap.containsKey(prefix + "webUrl")) {
+            outputMessage("Unexpected errors, CloudFormation export " + prefix + "webUrl not found");
+            LOGGER.info("Available exports part of stack output" + String.join(", ", exportsMap.keySet()));
+            System.exit(2);
         }
 
         Map<String, String> env = pb.environment();
@@ -2407,12 +2418,18 @@ public class SaaSBoostInstall {
             quickSightClient = QuickSightClient.builder().region(quickSightRegion).build();
         }
 
-        ListUsersResponse response  = quickSightClient.listUsers(ListUsersRequest.builder()
-                .awsAccountId(accountId)
-                .namespace("default")
-                .build());
+        List<User> users = new ArrayList<>();
+        String nextToken;
+        do{
+            ListUsersResponse response  = quickSightClient.listUsers(ListUsersRequest.builder()
+                    .awsAccountId(accountId)
+                    .namespace("default")
+                    .build());
+            nextToken = response.nextToken();
+            users.addAll(response.userList());
+        } while (null != nextToken);
 
         LOGGER.info("Completed load of Quicksight users");
-        return response.userList();
+        return users;
     }
 }
