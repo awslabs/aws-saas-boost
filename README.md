@@ -44,6 +44,13 @@ Now, jump to the [Getting Started Guide](./docs/getting-started.md) to start wor
 | services/tenant-service | Tenant Service manages tenants |
 | services/user-service | User Service manages system users (users of the admin web app, not tenant users) |
 
+## Cost
+You will be billed for the [various services](docs/services.md) leveraged by AWS SaaS Boost. Provisioned resources are tagged with "SaaS Boost" and each tenant's resources are also uniquely tagged to help you with [cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/cost-alloc-tags.html).
+
+Each tenant you onboard into an AWS SaaS Boost environment will provision more infrastructure and will increase your costs.
+
+Note that the _optional_ Analytics and Metrics module will provision a Redshift cluster.
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
