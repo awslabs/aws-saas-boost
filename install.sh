@@ -13,7 +13,7 @@
 #  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
- 
+
 
 
 echo "Start SaaS Boost Installation"
@@ -55,7 +55,7 @@ then
   exit 2
 fi
 
-# check for yarn
+# check for node
 if ! command -v node >/dev/null 2>&1;
 then
   echo "node must be installed"
@@ -68,14 +68,14 @@ if [ -z $AWS_DEFAULT_REGION ]; then
     echo "AWS_REGION not set, check your aws profile or set AWS_DEFAULT_REGION"
     exit 2
   fi
-else 
+else
   export AWS_REGION=$AWS_DEFAULT_REGION
 fi
 
 echo "AWS Region = $AWS_REGION"
 
 cd ${CURRENT_DIR}/installer
-echo "Build installler jar with maven"
+echo "Build installer jar with maven"
 if ! mvn > /dev/null 2>&1 ;
 then
   echo "Error with build of Java installer for SaaS Boost"
@@ -91,7 +91,7 @@ if [ $? -ne 0 ]; then
 fi
 
 cd ${CURRENT_DIR}
-clear 
+clear
 echo "Launch Java Installer for SaaS Boost"
 
 
