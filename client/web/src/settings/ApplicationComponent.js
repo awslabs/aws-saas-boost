@@ -174,7 +174,9 @@ export function ApplicationComponent(props) {
         mountPoint: Yup.string().when("fileSystemType", {
           is: "EFS",
           then: Yup.string()
-            .matches(/^\/[a-zA-Z/]+$/, "Invalid path. Ex: /mnt")
+            .matches(/^(\/[a-zA-Z._-]+)*$/, "Invalid path. Ex: /mnt")
+            .max(100, "The full path can't exceed 100 characters in length")
+            .test("subdirectories", "The path can only include up to four subdirectories", val => (val.match(/\//g) || []).length <= 4)
             .required(),
           otherwise: Yup.string()
             .matches(
