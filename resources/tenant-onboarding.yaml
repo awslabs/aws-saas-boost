@@ -506,6 +506,13 @@ Resources:
                   - s3:GetObjectVersion              
                 Resource:
                   - !Sub arn:aws:s3:::${SaaSBoostBucket}/tenants/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -568,6 +575,11 @@ Resources:
                  - ContainerPath: !Ref MountPoint
                    SourceVolume: fsxShare
                 - !Ref 'AWS::NoValue' 
+          LinuxParameters:
+            Fn::If:
+              - WindowsOS
+              - !Ref 'AWS::NoValue'
+              - InitProcessEnabled: true
           Secrets:
             Fn::If:
               - ProvisionRDS
@@ -1007,6 +1019,7 @@ Resources:
     DependsOn:
       - ListenerWaitCondition
     Properties:
+      EnableExecuteCommand: true
       ServiceName:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Cluster: !Ref ECSCluster
