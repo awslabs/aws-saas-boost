@@ -56,8 +56,8 @@ public class AlbSetListenerRule implements RequestHandler<Map<String, Object>, O
         String source = (String) event.get("source");
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String tenantId = (String) detail.get("tenantId");
-        String status = (String) detail.get("status");
-        LOGGER.info("Processing Tenant Update of Tenant: {} with Status {}", tenantId, status);
+        Boolean enable = (Boolean) detail.get("status");
+        LOGGER.info("Processing Tenant Update of Tenant: {} with Status {}", tenantId, enable);
 
         // ALB id will look like app/tenant-ae928191/2531796b463f0de7
         // so index 1 from the split will have the ALB name
@@ -71,15 +71,25 @@ public class AlbSetListenerRule implements RequestHandler<Map<String, Object>, O
 
             DescribeListenersResponse listenersResponse = elb.describeListeners(request -> request.loadBalancerArn(loadBalancer.loadBalancerArn()));
             Listener listener = listenersResponse.listeners().get(0);
+            //In case SSL then we have more than 1 listener and want to pick the SSL listener.
+            if (listenersResponse.listeners().size() > 1) {
+                for (Listener listenerRecord : listenersResponse.listeners()) {
+                    if (listenerRecord.port() == 443) {
+                        listener = listenerRecord;
+                        break;
+                    }
+                }
+            }
             LOGGER.info("Updating load balancer listener {}", listener.toString());
 
-            DescribeRulesResponse rulesResponse = elb.describeRules(request -> request.listenerArn(listener.listenerArn()));
+            Listener finalListener = listener;
+            DescribeRulesResponse rulesResponse = elb.describeRules(request -> request.listenerArn(finalListener.listenerArn()));
             Action action = null;
-            if ("false".equalsIgnoreCase(status)) {
+            if (!enable) {
                 // Disabled tenant. Set to fixed response with HTML.
                 action = Action.builder()
                         .fixedResponseConfig(FixedResponseActionConfig.builder()
-                                .messageBody("<html><body>Access to your application is disabled. Contact our support if you have questions.</body></html")
+                                .messageBody("<html><body>Access to your application is disabled. Contact our support if you have questions.</body></html>")
                                 .contentType("text/html")
                                 .statusCode("200")
                                 .build())

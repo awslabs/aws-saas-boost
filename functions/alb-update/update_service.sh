@@ -43,7 +43,7 @@ fi
 
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-tenant-listener-update"
+FUNCTIONS=("sb-${ENVIRONMENT}-tenant-enable-disable"
         )
 
 for FUNCTION in ${FUNCTIONS[@]}; do
