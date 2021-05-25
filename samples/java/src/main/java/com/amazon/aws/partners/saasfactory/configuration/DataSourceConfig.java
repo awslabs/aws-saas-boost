@@ -32,7 +32,7 @@ public class DataSourceConfig {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourceConfig.class);
     private static Boolean INITIALIZED = Boolean.FALSE;
-    private static final String DB_NAME = System.getenv("DB_NAME");
+    private static final String DB_NAME = !"".equals(System.getenv("DB_NAME")) ? System.getenv("DB_NAME") : "saas_boost";
 
     @Bean
     public static DataSource getDataSource() {
