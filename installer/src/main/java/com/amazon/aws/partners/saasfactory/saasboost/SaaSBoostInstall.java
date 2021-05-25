@@ -1841,6 +1841,10 @@ public class SaaSBoostInstall {
 
         // Populates the array with names of files and directories
         pathnames = f.list(filter);
+        if (null == pathnames) {
+            outputMessage("Path: " + path + " has no files matching filter: " + filter + ". Check the install directory for missing files.");
+            System.exit(2);
+        }
 
         // For each pathname in the pathnames array
         for (String pathname : pathnames) {
