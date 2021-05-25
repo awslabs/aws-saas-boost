@@ -214,7 +214,7 @@ Parameters:
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
-  #  Default: /saas-boost/feb5/CERTIFICATE_ARN:1
+  #  Default: /saas-boost/<environment>/SSL_CERT_ARN:1
     Default: ''
   ## These params are here to read the image values from the public SSM. Leave the defaults
   WIN2019FULL:
@@ -1002,6 +1002,32 @@ Resources:
           Type: forward
       Port: 80
       Protocol: HTTP
+  ALBRule:
+    #This rule necessary for disable tenant functionalty
+    Condition: NoCertificate
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values: ['*']
+      ListenerArn: !Ref ALBListener
+      Priority: 1   
+  ALBSSLRule:
+    #This rule necessary for disable tenant functionalty  
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values: ['*']
+      ListenerArn: !Ref ALBListenerSSL
+      Priority: 1              
   ListenerSSLWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
     Condition: HasCertificate
