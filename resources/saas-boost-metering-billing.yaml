@@ -82,13 +82,13 @@ Resources:
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Role: !GetAtt BillProductSetupFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
   BillProductSetupFunctionPermission:
     Type: AWS::Lambda::Permission
@@ -117,14 +117,14 @@ Resources:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - dynamodb:UpdateItem
                   - dynamodb:PutItem
                 Resource: !GetAtt MeteringBillingTable.Arn
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -172,7 +172,7 @@ Resources:
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Role: !GetAtt BillEventProcessFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
@@ -207,14 +207,14 @@ Resources:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                 Resource: !GetAtt MeteringBillingTable.Arn
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -249,13 +249,13 @@ Resources:
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Role: !GetAtt BillEventAggregationFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
   BillEventAggregationFunctionRole:
     Type: AWS::IAM::Role
@@ -297,7 +297,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -312,7 +312,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub sb-${Environment}-bill-publish-event
-      Description: A scheduled task to publish billing data to Stripe      
+      Description: A scheduled task to publish billing data to Stripe
       # Scheduled rules only supported on the default event bus
       # Run this on the top of the hour
       ScheduleExpression: "cron(5 */1 * * ? *)"
@@ -381,13 +381,13 @@ Resources:
           - CloudWatchLogsLogGroup:
               LogGroupArn: !GetAtt BillPublishToExternalLogGroup.Arn
         Level: ALL
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"        
+          Value: "Billing"
 
   BillPublishToExternalStateMachineRole:
     Type: AWS::IAM::Role
@@ -432,7 +432,7 @@ Resources:
   BillPublishLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-bill-publish-external      
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-bill-publish-external
       RetentionInDays: 30
 
   BillPublishFunction:
@@ -448,7 +448,7 @@ Resources:
           DYNAMODB_CONFIG_INDEX_NAME: !Ref TenantConfigurationIndexName
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage 
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
       Code:
@@ -458,13 +458,13 @@ Resources:
          - !Ref SaaSBoostUtilsLayer
          - !Ref ApiGatewayHelperLayer
       Role: !GetAtt BillPublishFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
 
   BillPublishFunctionRole:
@@ -515,7 +515,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}                  
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
   #####
 
   # Data persistence resources
@@ -547,13 +547,13 @@ Resources:
         PointInTimeRecoveryEnabled: true
       SSESpecification:
         SSEEnabled: true
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"        
+          Value: "Billing"
 
   ##Billing system onboarding
   BillingSystemSetupEventRule:
@@ -570,13 +570,13 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt BillingSystemSetupFunction.Arn
-          Id: BillingSystemSetupFunction          
+          Id: BillingSystemSetupFunction
 
   BillingSystemSetupLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-bill-system-setup
-      RetentionInDays: 30      
+      RetentionInDays: 30
 
   BillingSystemSetupFunction:
     Type: AWS::Lambda::Function
@@ -601,13 +601,13 @@ Resources:
          - !Ref SaaSBoostUtilsLayer
          - !Ref ApiGatewayHelperLayer
       Role: !GetAtt BillingSystemSetupFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
   BillingSystemSetupFunctionPermission:
     Type: AWS::Lambda::Permission
@@ -638,7 +638,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -707,13 +707,13 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer
       Role: !GetAtt BillingTenantSetupFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
   BillingTenantSetupFunctionPermission:
     Type: AWS::Lambda::Permission
@@ -744,7 +744,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -752,13 +752,13 @@ Resources:
                   - logs:DescribeLogStreams
                   - logs:CreateLogGroup
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:* 
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}                  
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -808,13 +808,13 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer
       Role: !GetAtt BillingTenantDisableFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"      
+          Value: "Billing"
 
   BillingTenantDisableFunctionPermission:
     Type: AWS::Lambda::Permission
@@ -845,7 +845,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: 
+                Resource:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
@@ -853,14 +853,14 @@ Resources:
                   - logs:DescribeLogStreams
                   - logs:CreateLogGroup
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:* 
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}  
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}                                                
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}

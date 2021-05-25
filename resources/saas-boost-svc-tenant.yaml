@@ -118,13 +118,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"             
+          Value: "Tenant"
   TenantServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -144,13 +144,13 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/TenantService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"          
+          Value: "Tenant"
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -180,13 +180,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -211,13 +211,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceUpdateOnboardingLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -242,13 +242,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -273,13 +273,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -304,13 +304,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceEnableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -335,13 +335,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceDisableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -366,13 +366,13 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"            
+          Value: "Tenant"
   TenantServiceUpdateResourcesLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -397,13 +397,13 @@ Resources:
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"        
+          Value: "Tenant"
   TenantServiceUpdateResourcesEventRule:
     Type: AWS::Events::Rule
     Properties:

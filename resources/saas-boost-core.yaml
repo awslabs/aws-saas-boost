@@ -147,13 +147,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "ECSDeploy"             
+          Value: "ECSDeploy"
   CfnNotifyExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -225,20 +225,20 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANT_DEPLOY_LAMBDA: !Ref WorkloadDeployLambda
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
   CfnNotifyTopic:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: Tenant Onboarding Notifications
       TopicName: !Sub sb-${Environment}-onboarding-notify
       KmsMasterKeyId: alias/aws/sns  #use AWS managed key
-      
+
   CfnNotifySubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -380,13 +380,13 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/EcsServiceUpdate-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "ECSDeploy"         
+          Value: "ECSDeploy"
   CodePipelineUpdateEcsServicePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -518,13 +518,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "APIClient"           
+          Value: "APIClient"
   SaaSBoostEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -619,13 +619,13 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer
       Role: !GetAtt TenantEnableDisableListenerFunctionRole.Arn
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"       
+          Value: "Tenant"
   TenantEnableDisableEventRule:
     Type: AWS::Events::Rule
     Properties:

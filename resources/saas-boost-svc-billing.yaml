@@ -83,13 +83,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Billing"             
+          Value: "Billing"
 Outputs:
   BillingServiceGetPlansArn:
     Description: Billing Service subscription plans Lambda ARN

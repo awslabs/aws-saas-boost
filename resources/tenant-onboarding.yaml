@@ -97,7 +97,7 @@ Parameters:
     Type: String
     Default: tgw-rtb-034f653af0d951d46
   EgressTransitGatewayRouteTable:
-    Description: Id of the Egress Route table for Transit Gateway  
+    Description: Id of the Egress Route table for Transit Gateway
     Type: String
     Default: tgw-rtb-06222a87e38f4df69
   DomainName:
@@ -181,36 +181,36 @@ Parameters:
   UseFSx:
     Description: Deploy the FSX nested stack?
     Type: String
-    AllowedValues: [true, false] 
+    AllowedValues: [true, false]
     Default: false
   FSxWeeklyMaintenanceTime:
     Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
     Default: '7:02:00'
-    Type: String    
+    Type: String
   FSxStorageCapacity:
     Default: 32
-    Description: Specify the storage capacity of the file system being created, in gibibytes. 
+    Description: Specify the storage capacity of the file system being created, in gibibytes.
       Valid values are 32 GiB - 65,536 GiB. Consider choosing a higher value for greater capacity.
     Type: Number
   FSxThroughputCapacity:
     Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048. 
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxBackupRetention:
-    Description: Specify the number of days to retain automatic backups. 
-      Setting this value to 0 disables the creation of automatic backups. The maximum retention period 
-      for backups is 35 days. 
+    Description: Specify the number of days to retain automatic backups.
+      Setting this value to 0 disables the creation of automatic backups. The maximum retention period
+      for backups is 35 days.
     Default: 7
     Type: Number
   FSxDailyBackupTime:
-    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone. 
+    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
     Default: '01:00'
     Type: String
   FSxWindowsMountDrive:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
     Default: G
-    Type: String   
+    Type: String
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
@@ -219,16 +219,16 @@ Parameters:
   ## These params are here to read the image values from the public SSM. Leave the defaults
   WIN2019FULL:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-ECS_Optimized/image_id'    
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-ECS_Optimized/image_id'
   WIN2019CORE:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id'    
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id'
   WIN1909CORE:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-1909-English-Core-ECS_Optimized/image_id'    
+    Default: '/aws/service/ami-windows-latest/Windows_Server-1909-English-Core-ECS_Optimized/image_id'
   WIN2016FULL:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'                   
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
@@ -242,7 +242,7 @@ Conditions:
     - Condition: WindowsOS
   IsWin2019Full: !Equals [WIN2019FULL, !Ref DockerHostOS]
   IsWin2019Core: !Equals [WIN2019CORE, !Ref DockerHostOS]
-  IsWin1909Core: !Equals [WIN1909CORE, !Ref DockerHostOS]    
+  IsWin1909Core: !Equals [WIN1909CORE, !Ref DockerHostOS]
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -254,8 +254,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-vpc-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]               
+          Value:
+            Fn::Join: ['', ['sb-vpc-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -275,8 +275,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-pub-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                   
+          Value:
+            Fn::Join: ['', ['sb-pub-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   RoutePublic:
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
@@ -294,8 +294,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-pub-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                   
+          Value:
+            Fn::Join: ['', ['sb-pub-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
 
   SubnetPublicARouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -312,8 +312,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-pub-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                   
+          Value:
+            Fn::Join: ['', ['sb-pub-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   SubnetPublicBRouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -329,8 +329,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-priv-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                   
+          Value:
+            Fn::Join: ['', ['sb-priv-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   SubnetPrivateB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -341,8 +341,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-priv-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                             
+          Value:
+            Fn::Join: ['', ['sb-priv-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   TenantRouteTablePrivate:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -351,8 +351,8 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-priv-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]                             
+          Value:
+            Fn::Join: ['', ['sb-priv-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   Subnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -372,11 +372,11 @@ Resources:
         - !Ref SubnetPrivateB
       Tags:
         - Key: Tenant
-          Value: 
+          Value:
             !Ref TenantId
         - Key: Name
-          Value: 
-            Fn::Join: ['', ['sb-tgwattach-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]   
+          Value:
+            Fn::Join: ['', ['sb-tgwattach-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       TransitGatewayId: !Ref TransitGateway
       VpcId: !Ref VPC
   # Add Route from Egress back to this Tenant CIDR Range and attachment
@@ -491,7 +491,7 @@ Resources:
                 Action:
                   - firehose:PutRecord
                   - firehose:PutRecordBatch
-                Resource: 
+                Resource:
                   - !Sub arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
               - Effect: Allow
                 Action:
@@ -503,7 +503,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:GetObjectVersion              
+                  - s3:GetObjectVersion
                 Resource:
                   - !Sub arn:aws:s3:::${SaaSBoostBucket}/tenants/${TenantId}/*
               - Effect: Allow
@@ -565,16 +565,16 @@ Resources:
           MountPoints:
             !If
               - ProvisionEFS
-              - 
+              -
                 - ContainerPath: !Ref MountPoint
                   SourceVolume: !GetAtt efs.Outputs.FileSystemId
               - !If
                 - ProvisionFsx
-                - 
+                -
                 #TODO: update to mount mount
                  - ContainerPath: !Ref MountPoint
                    SourceVolume: fsxShare
-                - !Ref 'AWS::NoValue' 
+                - !Ref 'AWS::NoValue'
           LinuxParameters:
             Fn::If:
               - WindowsOS
@@ -593,17 +593,17 @@ Resources:
       Volumes:
         !If
           - ProvisionEFS
-          -    
+          -
             - Name: !GetAtt efs.Outputs.FileSystemId
               EfsVolumeConfiguration:
                 FileSystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
             - ProvisionFsx
-            - 
+            -
               - Name: fsxShare
                 Host:
                   SourcePath: !Sub ${FSxWindowsMountDrive}\
-            - !Ref 'AWS::NoValue'      
+            - !Ref 'AWS::NoValue'
   ECSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -659,7 +659,7 @@ Resources:
   # Or we need an Target Group (Linux/Fargate)
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
-    Condition: 
+    Condition:
       WindowsOS
     Properties:
       AutoScalingGroupName:
@@ -764,18 +764,18 @@ Resources:
                 Action:
                   - ecs:DiscoverPollEndpoint
                 Resource: '*'
-####Added for FSX file system          
-## this is to take place of AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies      
+####Added for FSX file system
+## this is to take place of AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter                
+                  - ssm:GetParameter
                   - ssm:GetParameters
-                Resource: 
+                Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME                  
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
               - Effect: Allow
                 Action:
                   - ds:CreateComputer
@@ -784,7 +784,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - kms:Decrypt
-                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm                
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Condition: WindowsOS
@@ -795,7 +795,7 @@ Resources:
   ECSLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Condition: WindowsOS
-    ## Wait for Fsx before creating because FSX file system has to be provisioned for the mount    
+    ## Wait for Fsx before creating because FSX file system has to be provisioned for the mount
     DependsOn:  FsxWaitCondition
     Metadata:
       Comment: 'packages -> groups -> users-> sources -> files -> commands -> services'
@@ -851,19 +851,19 @@ Resources:
                 - !If
                   - IsWin2019Core
                   - !Ref WIN2019CORE
-                  - !If 
+                  - !If
                     - IsWin1909Core
                     - !Ref WIN1909CORE
-                    - !Ref WIN2016FULL      
+                    - !Ref WIN2016FULL
       InstanceType: !Ref DockerHostInstanceType
       IamInstanceProfile: !Ref ECSInstanceProfile
-      #KeyName: 
+      #KeyName:
       AssociatePublicIpAddress: false
       SecurityGroups:
         - !Ref ECSSecurityGroup
-      UserData: 
+      UserData:
         Fn::Base64:
-          !Sub | 
+          !Sub |
             <powershell>
             Start-Transcript -Path "C:\UserData.log" -Append
             Write-Output ("Download and install the CloudWatch agent")
@@ -886,15 +886,15 @@ Resources:
             Write-Output ("UseFsx value is ${UseFSx}")
             If ('${UseFSx}' -eq 'true')  {
                 # Add to domain
-                Write-Output ("Add computer to domain and map drive to ${FSxWindowsMountDrive}")  
-                Write-Output ("Read SSM Parameters to join to domain")            
+                Write-Output ("Add computer to domain and map drive to ${FSxWindowsMountDrive}")
+                Write-Output ("Read SSM Parameters to join to domain")
                 $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
                 $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
                 $credential = New-Object System.Management.Automation.PSCredential($username,$password)
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value          
+                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
                 $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
                 $ips = $ipdns.Split(",")
-                $ip1 = $ips[0] 
+                $ip1 = $ips[0]
 
                 Write-Output ("Add $ip1 as the DNS Server")
                 # Get the VPC DNS server.
@@ -903,22 +903,22 @@ Resources:
                 # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
                 # VPC DNS server is the last one in the list.
                 $vpcdns = $dnsclient.ServerAddresses | select -last 1
-            
+
                 # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
                 $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
                 Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
                 Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
 
                 # Join the domain
-                Write-Output ("Join Computer to Domain $directoryName")            
-                Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore 
+                Write-Output ("Join Computer to Domain $directoryName")
+                Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
                 # $networkAdapter = Get-WmiObject Win32_NetworkAdapter -Filter "AdapterType = 'Ethernet 802.3'"
                 # $networkAdapterName = ($networkAdapter | Select-Object -First 1).NetConnectionID
                 # netsh.exe interface ipv4 add dnsservers name="$networkAdapterName" address=$ip1 index=1
-                # Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore  
+                # Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                Write-Output ("Setup mapping to file server")   
+                Write-Output ("Setup mapping to file server")
                 $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
                 $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
 
@@ -969,13 +969,13 @@ Resources:
           Type: forward
       Port: 443
       Protocol: HTTPS
-      Certificates: 
-        - CertificateArn: 
+      Certificates:
+        - CertificateArn:
             Fn::Join:
               - ''
               - - '{{resolve:ssm:'
                 - !Ref SSLCertArnParam
-                - '}}'        
+                - '}}'
   ALBListenerForwardSSL:
     Condition: HasCertificate
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -990,7 +990,7 @@ Resources:
             Query: "#{query}"
             StatusCode: "HTTP_301"
       Port: 80
-      Protocol: HTTP      
+      Protocol: HTTP
       LoadBalancerArn: !Ref ECSLoadBalancer
   ALBListener:
     Condition: NoCertificate
@@ -1014,9 +1014,9 @@ Resources:
         - Field: path-pattern
           Values: ['*']
       ListenerArn: !Ref ALBListener
-      Priority: 1   
+      Priority: 1
   ALBSSLRule:
-    #This rule necessary for disable tenant functionalty  
+    #This rule necessary for disable tenant functionalty
     Condition: HasCertificate
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -1027,7 +1027,7 @@ Resources:
         - Field: path-pattern
           Values: ['*']
       ListenerArn: !Ref ALBListenerSSL
-      Priority: 1              
+      Priority: 1
   ListenerSSLWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
     Condition: HasCertificate
@@ -1041,7 +1041,7 @@ Resources:
     Properties:
       Handle: !If [HasCertificate, !Ref ListenerSSLWaitHandle, !Ref ListenerWaitHandle]
       Timeout: '1'
-      Count: 0  
+      Count: 0
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -1118,7 +1118,7 @@ Resources:
      Properties:
        HostedZoneId: !Ref HostedZoneId
        Name: !Sub ${TenantSubDomain}.${DomainName}
-       Type: 'A'   
+       Type: 'A'
        AliasTarget:
          DNSName: !Sub dualstack.${ECSLoadBalancer.DNSName}
          HostedZoneId: !GetAtt ECSLoadBalancer.CanonicalHostedZoneID
@@ -1182,17 +1182,17 @@ Resources:
 
 #### Fsx changes
 # setup wait handle for dependency for launch config
-  FsxWaitHandle: 
+  FsxWaitHandle:
     Condition: ProvisionFsx
     DependsOn: fsx
     Type: "AWS::CloudFormation::WaitConditionHandle"
 
-  WaitHandle: 
+  WaitHandle:
     Type: "AWS::CloudFormation::WaitConditionHandle"
 
-  FsxWaitCondition: 
+  FsxWaitCondition:
     Type: "AWS::CloudFormation::WaitCondition"
-    Properties: 
+    Properties:
       Handle: !If [ProvisionFsx, !Ref FsxWaitHandle, !Ref WaitHandle]
       Timeout: "1"
       Count: 0
@@ -1214,14 +1214,14 @@ Resources:
       - TenantTGWAttachment
       - TenantRoute
       - TenantVpcTgwAssociation
-      - UpdateRouteTable    
+      - UpdateRouteTable
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-fsx.yaml
       TimeoutInMinutes: 30
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
-        ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID:1}}'        
+        ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID:1}}'
         PrivateSubnet1ID: !Ref SubnetPrivateA
         PrivateSubnet2ID: !Ref SubnetPrivateB
         VPCID: !Ref VPC
@@ -1231,7 +1231,7 @@ Resources:
         DailyBackupTime: !Ref FSxDailyBackupTime
         WeeklyMaintenanceTime: !Ref FSxWeeklyMaintenanceTime
         StorageCapacity: !Ref FSxStorageCapacity
-        ThroughputCapacity: !Ref FSxThroughputCapacity        
+        ThroughputCapacity: !Ref FSxThroughputCapacity
         FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
 
   efs:

@@ -55,7 +55,7 @@ Parameters:
     Default: 'false'
   ADPasswordParam:
     Description: 'SSM Parameter name to use for AD User password:'
-    Type: String    
+    Type: String
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
 Resources:
@@ -97,20 +97,20 @@ Resources:
               SSEAlgorithm: AES256
       Tags:
         - Key: SaaS Boost
-          Value: !Ref Environment              
+          Value: !Ref Environment
   LoggingBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref LoggingBucket
-      PolicyDocument: 
-        Statement: 
+      PolicyDocument:
+        Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
               - !Sub arn:aws:s3:::${LoggingBucket}/*
               - !Sub arn:aws:s3:::${LoggingBucket}
-            Condition: 
+            Condition:
               Bool: { 'aws:SecureTransport': false }
 
   # Bucket needed for CodePipeline to drive tenant deployment workflow
@@ -139,16 +139,16 @@ Resources:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref CodePipelineBucket
-      PolicyDocument: 
-        Statement: 
+      PolicyDocument:
+        Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
               - !Sub arn:aws:s3:::${CodePipelineBucket}/*
               - !Sub arn:aws:s3:::${CodePipelineBucket}
-            Condition: 
-              Bool: { 'aws:SecureTransport': false } 
+            Condition:
+              Bool: { 'aws:SecureTransport': false }
 
   # Bucket for Access Logs for ALBs for Tenants
   ALBAccessLogs:
@@ -174,7 +174,7 @@ Resources:
       #   LogFilePrefix: ALBaccess-logs
       Tags:
         - Key: SaaS Boost
-          Value: !Ref Environment 
+          Value: !Ref Environment
 
   # Bucket for Athena output for access log queries
   AthenaOutput:
@@ -197,7 +197,7 @@ Resources:
               SSEAlgorithm: AES256
       # LoggingConfiguration:
       #   DestinationBucketName: !Ref LoggingBucket
-      #   LogFilePrefix: athena-logs              
+      #   LogFilePrefix: athena-logs
       CorsConfiguration:
         CorsRules:
           - AllowedMethods:
@@ -211,16 +211,16 @@ Resources:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref AthenaOutput
-      PolicyDocument: 
-        Statement: 
+      PolicyDocument:
+        Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
               - !Sub arn:aws:s3:::${AthenaOutput}/*
               - !Sub arn:aws:s3:::${AthenaOutput}
-            Condition: 
-              Bool: { 'aws:SecureTransport': false }             
+            Condition:
+              Bool: { 'aws:SecureTransport': false }
   # Bucket to host the admin console web application
   WebS3Bucket:
     Type: AWS::S3::Bucket
@@ -237,12 +237,12 @@ Resources:
               SSEAlgorithm: AES256
       LoggingConfiguration:
         DestinationBucketName: !Ref LoggingBucket
-        LogFilePrefix: web-logs              
+        LogFilePrefix: web-logs
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
   ##NOTE: The deny non-secure policy is in the web template.
-    
+
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -313,7 +313,7 @@ Resources:
                   - !Sub arn:aws:s3:::${CodePipelineBucket}/*
                   - !Sub arn:aws:s3:::${AthenaOutput}/*
                   - !Sub arn:aws:s3:::${ALBAccessLogs}/*
-                  - !Sub arn:aws:s3:::${LoggingBucket}/*                  
+                  - !Sub arn:aws:s3:::${LoggingBucket}/*
   ClearBucketLogs:
     Type: AWS::Logs::LogGroup
     # For testing
@@ -336,17 +336,17 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/ClearS3Bucket-lambda.zip
       Layers:
          - !Ref SaaSBoostUtilsLayer
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Logs"            
+          Value: "Logs"
 
   InvokeClearCodePipelineBucket:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
@@ -354,7 +354,7 @@ Resources:
       Bucket: !Ref CodePipelineBucket
   InvokeClearAthenaBucket:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
@@ -362,7 +362,7 @@ Resources:
       Bucket: !Ref AthenaOutput
   InvokeClearAccessLogsBucket:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
@@ -370,7 +370,7 @@ Resources:
       Bucket: !Ref ALBAccessLogs
   InvokeClearWebsiteBucket:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
@@ -379,11 +379,11 @@ Resources:
   ##TODO: Do we want to clear the access logs bucket
   InvokeClearLoggingBucket:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - ClearBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref LoggingBucket      
+      Bucket: !Ref LoggingBucket
 
 ##nested stacks
   network:
@@ -408,7 +408,7 @@ Resources:
             - - !GetAtt network.Outputs.PrivateSubnet1
               - !GetAtt network.Outputs.PrivateSubnet2
         VpcId: !GetAtt network.Outputs.EgressVpc
-        ADPasswordParam: !Ref ADPasswordParam        
+        ADPasswordParam: !Ref ADPasswordParam
   web:
     Type: AWS::CloudFormation::Stack
     DependsOn: network
@@ -420,7 +420,7 @@ Resources:
         WebS3Bucket: !Ref WebS3Bucket
   core:
     Type: AWS::CloudFormation::Stack
-    DependsOn: 
+    DependsOn:
       - network
       - InvokeClearLoggingBucket
     Properties:
@@ -712,5 +712,5 @@ Outputs:
     Value: !GetAtt network.Outputs.PrivateSubnet1
   PrivateSubnet2:
     Description: Private Subnet AZ 2
-    Value: !GetAtt network.Outputs.PrivateSubnet2    
+    Value: !GetAtt network.Outputs.PrivateSubnet2
 ...

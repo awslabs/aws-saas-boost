@@ -96,13 +96,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
   UserServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -126,13 +126,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
@@ -157,13 +157,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceInsertLogs:
     Type: AWS::Logs::LogGroup
@@ -188,13 +188,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
@@ -219,13 +219,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceEnableLogs:
     Type: AWS::Logs::LogGroup
@@ -250,13 +250,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceDisableLogs:
     Type: AWS::Logs::LogGroup
@@ -281,13 +281,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
   UserServiceTokenLogs:
     Type: AWS::Logs::LogGroup
@@ -312,13 +312,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "User"            
+          Value: "User"
 
 Outputs:
   UserServiceGetAllArn:
