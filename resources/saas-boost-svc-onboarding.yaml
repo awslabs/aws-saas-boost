@@ -701,6 +701,7 @@ Resources:
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
+                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/app/*
               - Effect: Allow
                 Action:
                   - iam:GetRolePolicy
