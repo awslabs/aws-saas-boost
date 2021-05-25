@@ -109,6 +109,7 @@ limitations under the License.
                     </includeOnlyProperties>
                     <commitIdGenerationMode>full</commitIdGenerationMode>
                     <dotGitDirectory>${project.basedir}/../.git</dotGitDirectory>
+                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
                 </configuration>
             </plugin>
         </plugins>
