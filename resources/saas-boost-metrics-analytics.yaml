@@ -60,14 +60,14 @@ Metadata:
       PrivateSubnet1:
         default: Existing private subnet ID in AZ-1
       PrivateSubnet2:
-        default: Existing private subnet ID in AZ-2        
+        default: Existing private subnet ID in AZ-2
       DatabaseName:
         default: Database name
       ClusterType:
         default: Cluster type
       NumberOfNodes:
         default: Number of nodes
-      NodeType: 
+      NodeType:
         default: Node type
       EncryptData:
         default: Encrypt data at rest
@@ -106,7 +106,7 @@ Parameters:
     Description: The private subnet in Availability Zone 1
   PrivateSubnet2:
     Type: AWS::EC2::Subnet::Id
-    Description: The private subnet in Availability Zone 2    
+    Description: The private subnet in Availability Zone 2
   EncryptData:
     Description: Set to Y to encrypt the data as it leaves your Amazon Kinesis Data Firehose delivery stream.
     Type: String
@@ -148,7 +148,7 @@ Parameters:
   #   Description: The master password for the Amazon Redshift cluster.
   #   MaxLength: '1024'
   #   MinLength: '1'
-  #   Type: String    
+  #   Type: String
   MetricUser:
     Description: The name of the master user of the Amazon Redshift cluster.
     Type: String
@@ -182,13 +182,13 @@ Parameters:
     Type: String
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
-    Type: String    
+    Type: String
   LoggingBucket:
     Description: SaaS Boost S3 access logging bucket
     Type: String
 Mappings:
-  RegionMap: 
-    us-east-1: 
+  RegionMap:
+    us-east-1:
       RedshiftInboundTraffic: 52.70.63.192/27
     us-east-2:
       RedshiftInboundTraffic: 13.58.135.96/27
@@ -219,23 +219,23 @@ Mappings:
     sa-east-1:
       RedshiftInboundTraffic: 18.228.1.128/27
   AWSQuickSightIPMap:
-    ap-northeast-1: 
+    ap-northeast-1:
       QuickSightIP: 13.113.244.32/27
-    ap-southeast-1: 
+    ap-southeast-1:
       QuickSightIP: 13.229.254.0/27
-    ap-southeast-2: 
+    ap-southeast-2:
       QuickSightIP: 54.153.249.96/27
-    eu-central-1: 
+    eu-central-1:
       QuickSightIP: 35.158.127.192/27
-    eu-west-1: 
+    eu-west-1:
       QuickSightIP: 52.210.255.224/27
-    eu-west-2: 
+    eu-west-2:
       QuickSightIP: 35.177.218.0/27
-    us-east-1: 
+    us-east-1:
       QuickSightIP: 52.23.63.224/27
-    us-east-2: 
+    us-east-2:
       QuickSightIP: 52.15.247.160/27
-    us-west-2: 
+    us-west-2:
       QuickSightIP: 54.70.204.128/27
     us-west-1:
       QuickSightIP: none
@@ -264,17 +264,17 @@ Conditions:
     - multi-node
   NoEncryption: !Equals
     - !Ref 'EncryptData'
-    - 'N'  
+    - 'N'
   isQuickSightRegionIP:
     !Not [!Equals [!FindInMap [ AWSQuickSightIPMap, !Ref "AWS::Region", QuickSightIP ], "none"]]
 Resources:
   EncryptionKey:
     Type: AWS::KMS::Key
     DeletionPolicy: Delete
-    UpdateReplacePolicy: Retain     
+    UpdateReplacePolicy: Retain
     Properties:
       Description: KMS key generated to encrypt Kinesis data.
-      EnableKeyRotation: true     
+      EnableKeyRotation: true
       KeyPolicy:
         Id: !Sub sb-${Environment}-kms-metrics-policy
         Version: '2012-10-17'
@@ -365,24 +365,24 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256      
+              SSEAlgorithm: AES256
       LoggingConfiguration:
         DestinationBucketName: !Ref LoggingBucket
-        LogFilePrefix: metrics-logs 
+        LogFilePrefix: metrics-logs
   MetricsBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref MetricsBucket
-      PolicyDocument: 
-        Statement: 
+      PolicyDocument:
+        Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
               - !Sub arn:aws:s3:::${MetricsBucket}/*
               - !Sub arn:aws:s3:::${MetricsBucket}
-            Condition: 
-              Bool: { 'aws:SecureTransport': false }                    
+            Condition:
+              Bool: { 'aws:SecureTransport': false }
   RedshiftCluster:
     Type: AWS::Redshift::Cluster
     Properties:
@@ -405,7 +405,7 @@ Resources:
           - ''
           - - '{{resolve:ssm-secure:'
             - !Ref MetricUserPasswordSSMParameter
-            - ':1}}'      
+            - ':1}}'
       ClusterParameterGroupName:
         Ref: RedshiftClusterParameterGroup
       VpcSecurityGroupIds:
@@ -413,7 +413,7 @@ Resources:
       ClusterSubnetGroupName:
         Ref: RedshiftClusterSubnetGroup
       PubliclyAccessible: true
-      Encrypted: 
+      Encrypted:
         !If
           - NoEncryption
           - false
@@ -430,14 +430,14 @@ Resources:
         ParameterValue: 'true'
   RedshiftClusterSubnetGroup:
     Type: AWS::Redshift::ClusterSubnetGroup
-    Properties:    
+    Properties:
       Description: Cluster subnet group
       SubnetIds:
       - Ref: PublicSubnet1
       - Ref: PublicSubnet2
   RSDefaultSG:
     Type: AWS::EC2::SecurityGroup
-    Properties:    
+    Properties:
       GroupDescription: RSSecurity group
       SecurityGroupIngress:
       - CidrIp: !FindInMap
@@ -454,15 +454,15 @@ Resources:
   QSingressRule:
     Type: AWS::EC2::SecurityGroupIngress
     Condition: isQuickSightRegionIP
-    Properties: 
+    Properties:
       CidrIp: !FindInMap
               - AWSQuickSightIPMap
               - !Ref 'AWS::Region'
               - QuickSightIP
       Description: Amazon QuickSight access
-      FromPort: 
+      FromPort:
         Ref: RedshiftPortNumber
-      ToPort: 
+      ToPort:
         Ref: RedshiftPortNumber
       IpProtocol: tcp
       GroupId: !GetAtt RSDefaultSG.GroupId
@@ -597,17 +597,17 @@ Resources:
           CopyOptions: !Join
                         - ''
                         - - "gzip compupdate off STATUPDATE ON TIMEFORMAT 'epochsecs' "
-                          - "json 's3://" 
+                          - "json 's3://"
                           - !Ref 'MetricsBucket'
                           - "/metrics_redshift_jsonpath.json'"
           DataTableName: !Ref 'MetricsTableName'
         Username: !Ref 'MetricUser'
-        Password: 
+        Password:
           Fn::Join:
             - ''
             - - '{{resolve:ssm-secure:'
               - !Ref MetricUserPasswordSSMParameter
-              - ':1}}'                   
+              - ':1}}'
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref RSCloudwatchLogsGroup
@@ -690,7 +690,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
-                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD 
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD
   LambdaSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -699,15 +699,15 @@ Resources:
       VpcId: !Ref VPC
   LambdaIngressRule:
     Type: AWS::EC2::SecurityGroupIngress
-    Properties: 
-      Description: Lambda Custom Resource Access 
-      FromPort: 
+    Properties:
+      Description: Lambda Custom Resource Access
+      FromPort:
         Ref: RedshiftPortNumber
-      ToPort: 
+      ToPort:
         Ref: RedshiftPortNumber
       IpProtocol: tcp
       GroupId: !GetAtt RSDefaultSG.GroupId
-      SourceSecurityGroupId: !GetAtt LambdaSG.GroupId      
+      SourceSecurityGroupId: !GetAtt LambdaSG.GroupId
   RedshiftTableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -731,16 +731,16 @@ Resources:
         SubnetIds:
           - !Ref PrivateSubnet1
           - !Ref PrivateSubnet2
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "MetricsAnalytics"          
+          Value: "MetricsAnalytics"
   InvokeRedshiftTable:
     Type: Custom::CustomResource
-    DependsOn: 
+    DependsOn:
       - RedshiftCluster
       - LambdaIngressRule
       - LambdaSG
@@ -752,13 +752,13 @@ Resources:
       TableName: !Ref MetricsTableName
       DatabaseUrl: !Sub "jdbc:redshift://${RedshiftCluster.Endpoint.Address}:${RedshiftCluster.Endpoint.Port}/${DatabaseName}"
       # DatabasePort: !Sub ${RedshiftCluster.Endpoint.Port}
-      # DatabaseName: !Sub ${DatabaseName}      
-      # ClusterId: !Sub ${RedshiftCluster.ClusterIdentifier}      
+      # DatabaseName: !Sub ${DatabaseName}
+      # ClusterId: !Sub ${RedshiftCluster.ClusterIdentifier}
 Outputs:
   MetricsBucket:
     Value: !Ref MetricsBucket
     Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:metricsBucket    
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:metricsBucket
   RedshiftCluster:
     Value: !Ref RedshiftCluster
   RedshiftDeliveryStream:

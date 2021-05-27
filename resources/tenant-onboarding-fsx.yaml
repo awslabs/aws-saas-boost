@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: '2010-09-09'
-Description: This template creates Amazon FSx for Windows File Server into private subnets in separate Availability Zones 
+Description: This template creates Amazon FSx for Windows File Server into private subnets in separate Availability Zones
   inside a VPC and uses AWS Directory Service for Microsoft Active Directory or Self-Managed Active directory.
-#from https://github.com/aws-quickstart/quickstart-fsx-windows-file-server  
+#from https://github.com/aws-quickstart/quickstart-fsx-windows-file-server
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -45,7 +45,7 @@ Metadata:
       ActiveDirectoryId:
         default: AWS Managed Microsoft AD ID
       TenantId:
-        default: Id of the SaaS Boost Tenant        
+        default: Id of the SaaS Boost Tenant
       BackupRetention:
         default: Automated backup retention
       DailyBackupTime:
@@ -73,16 +73,16 @@ Metadata:
 Parameters:
   ActiveDirectoryId:
     Description: Enter the ID of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
-    Default: 'd-9a672bc07a' 
+    Default: 'd-9a672bc07a'
     Type: String
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
-    Default: oct12   
+    Default: oct12
   TenantId:
     Description: Enter the ID of the Tenant
-    Default: '123456a1-fsx' 
-    Type: String    
+    Default: '123456a1-fsx'
+    Type: String
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
@@ -90,15 +90,15 @@ Parameters:
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
-    Default: lambdas-2020-10-12-15-26   
+    Default: lambdas-2020-10-12-15-26
   BackupRetention:
-    Description: Specify the number of days to retain automatic backups. 
-      Setting this value to 0 disables the creation of automatic backups. The maximum retention period 
-      for backups is 35 days. 
+    Description: Specify the number of days to retain automatic backups.
+      Setting this value to 0 disables the creation of automatic backups. The maximum retention period
+      for backups is 35 days.
     Default: 7
     Type: Number
   DailyBackupTime:
-    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone. 
+    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
     Default: '01:00'
     Type: String
   FSxEncryptionKey:
@@ -106,16 +106,16 @@ Parameters:
       - 'Default'
       - 'GenerateKey'
       - 'UseKey'
-    Description: Use the default AWS Key Management Service (AWS KMS) key for Amazon FSx, choose GenerateKey to create a key, 
-      or choose UseKey to use an existing key for encryption at rest on the Amazon FSx for Windows file system. 
+    Description: Use the default AWS Key Management Service (AWS KMS) key for Amazon FSx, choose GenerateKey to create a key,
+      or choose UseKey to use an existing key for encryption at rest on the Amazon FSx for Windows file system.
     Default: 'Default'
     Type: String
   FSxExistingKeyID:
-    Description: If you chose the option to use an existing key, you must specify the KMS Key ID you want to use. 
+    Description: If you chose the option to use an existing key, you must specify the KMS Key ID you want to use.
     Default: ''
     Type: String
   # DomainMembersSG:
-  #   Description: Specify the ID of the security group that can exchange information with the domain controllers. 
+  #   Description: Specify the ID of the security group that can exchange information with the domain controllers.
   #   Type: String
   PrivateSubnet1ID:
     Description: Choose the ID of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
@@ -127,12 +127,12 @@ Parameters:
     Default: subnet-0eae0ed414c44eda3
   StorageCapacity:
     Default: 32
-    Description: Specify the storage capacity of the file system being created, in gibibytes. 
+    Description: Specify the storage capacity of the file system being created, in gibibytes.
       Valid values are 32 GiB - 65,536 GiB. Consider choosing a higher value for greater capacity.
     Type: Number
   ThroughputCapacity:
     Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048. 
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxAllowedCIDR:
@@ -172,7 +172,7 @@ Resources:
     Properties:
       KeyPolicy:
         Version: 2012-10-17
-        Id: 
+        Id:
           Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
         Statement:
           - Effect: Allow
@@ -199,7 +199,7 @@ Resources:
                 kms:CallerAccount: !Sub '${AWS::AccountId}'
       Tags:
         - Key: Name
-          Value: 
+          Value:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
         - Key: Tenant
           Value: !Ref TenantId
@@ -207,8 +207,8 @@ Resources:
     Condition: CreateKey
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: 
-        Fn::Join: ['', ['alias/tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]      
+      AliasName:
+        Fn::Join: ['', ['alias/tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
 #      !Sub "alias/${AWS::StackName}"
       TargetKeyId: !Ref FSxKMSKey
   FSxSecurityGroup:
@@ -376,7 +376,7 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: '*'
-              - Effect: Allow              
+              - Effect: Allow
                 Action:
                   - fsx:DescribeFileSystems
                 Resource: '*'
@@ -407,7 +407,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.FsxDnsName
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/FsxDnsName-lambda.zip     
+        S3Key: !Sub ${LambdaSourceFolder}/FsxDnsName-lambda.zip
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -418,12 +418,12 @@ Resources:
       FsxFileSystemId: !Ref WindowsFSx
 
   SSMParamFilesystem:
-    Type: AWS::SSM::Parameter   
+    Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
       Type: String
-      Value: !GetAtt InvokeGetFsxDnsName.DnsName      
-          
+      Value: !GetAtt InvokeGetFsxDnsName.DnsName
+
 Outputs:
   FSxFileSystemID:
     Description: File System ID for FSx for Windows File Server

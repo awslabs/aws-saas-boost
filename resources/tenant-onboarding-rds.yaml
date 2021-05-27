@@ -156,7 +156,7 @@ Resources:
             Condition:
               StringEquals:
                 'kms:CallerAccount': !Ref 'AWS::AccountId'
-                'kms:ViaService': !Sub 'rds.${AWS::Region}.amazonaws.com'       
+                'kms:ViaService': !Sub 'rds.${AWS::Region}.amazonaws.com'
           # - Sid: Allow access for Key Administrators
           #   Effect: Allow
           #   Principal:
@@ -221,7 +221,7 @@ Resources:
     Type: AWS::KMS::Alias
     Properties:
       AliasName: !Sub alias/sb-${Environment}-${TenantId}
-      TargetKeyId: !Ref EncryptionKey          
+      TargetKeyId: !Ref EncryptionKey
   RDSSecurityGroupIngressBootstrap:
     Type: AWS::EC2::SecurityGroupIngress
     Condition: BootstrapDatabase
@@ -250,8 +250,8 @@ Resources:
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
       # PreferredBackupWindow: sat:22:30-sun:02:00
       ##
-      KmsKeyId: !GetAtt EncryptionKey.Arn 
-      StorageEncrypted: True     
+      KmsKeyId: !GetAtt EncryptionKey.Arn
+      StorageEncrypted: True
       Port: !Ref RDSPort
       MasterUsername: !Ref RDSMasterUsername
       MasterUserPassword:
@@ -289,18 +289,18 @@ Resources:
       # TODO: Parameterize these
       BackupRetentionPeriod: 14
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
-      # PreferredBackupWindow: sat:22:30-sun:02:00      
+      # PreferredBackupWindow: sat:22:30-sun:02:00
       DeleteAutomatedBackups: False
       MultiAZ: false
       Engine: !Ref RDSEngine
       EngineVersion: !Ref RDSEngineVersion
-      KmsKeyId: !GetAtt EncryptionKey.Arn 
-      StorageEncrypted: True         
+      KmsKeyId: !GetAtt EncryptionKey.Arn
+      StorageEncrypted: True
       LicenseModel:
         Fn::If:
           - SqlServer
           - license-included
-          - !Ref 'AWS::NoValue'      
+          - !Ref 'AWS::NoValue'
       DBName:
         Fn::If:
           - SqlServer

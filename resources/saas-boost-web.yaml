@@ -194,8 +194,8 @@ Resources:
             Resource:
               - !Sub arn:aws:s3:::${WebS3Bucket}/*
               - !Sub arn:aws:s3:::${WebS3Bucket}
-            Condition: 
-              Bool: { 'aws:SecureTransport': false }            
+            Condition:
+              Bool: {'aws:SecureTransport': false}
 Outputs:
   SBUserPool:
     Description: SaaS Boost User Pool Id

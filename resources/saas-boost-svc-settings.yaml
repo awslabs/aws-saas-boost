@@ -123,13 +123,13 @@ Resources:
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/RdsOptions-lambda.zip
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"         
+          Value: "Settings"
   InvokeRdsOptions:
     Type: Custom::CustomResource
     Properties:
@@ -224,13 +224,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   # SettingsServiceGetAllVersion:
   #   Type: AWS::Lambda::Version
   #   Properties:
@@ -266,13 +266,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceGetSecretLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -295,13 +295,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -324,13 +324,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceTenantGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -353,13 +353,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceTenantGetByIdLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -382,13 +382,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceTenantUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -411,7 +411,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
@@ -440,13 +440,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"   
+          Value: "Settings"
   SettingsServiceSetAppConfigLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -470,13 +470,13 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceUpdateAppConfigLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -504,13 +504,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceGetAppConfigLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -533,13 +533,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   # SettingsServiceGetAppConfigVersion:
   #   Type: AWS::Lambda::Version
   #   Properties:
@@ -575,13 +575,13 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
   SettingsServiceConfigOptionsLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -607,13 +607,13 @@ Resources:
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           OPTIONS_TABLE: !Ref RdsOptionsTable
           CLOUDFRONT_DISTRIBUTION: !Ref CloudFrontDistribution
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Settings"           
+          Value: "Settings"
 Outputs:
   # SettingsServiceGetAllAliasArn:
   #   Description: Settings Service get all settings Lambda ARN
@@ -629,7 +629,7 @@ Outputs:
     Value: !GetAtt SettingsServiceConfigOptions.Arn
   SettingsServiceGetAppConfigArn:
     Description: Settings Service get application configuration Lambda ARN
-    Value: !GetAtt SettingsServiceGetAppConfig.Arn 
+    Value: !GetAtt SettingsServiceGetAppConfig.Arn
   # SettingsServiceGetAppConfigAliasArn:
   #   Description: Settings Service get application configuration Lambda ARN
   #   Value: !Ref SettingsServiceGetAppConfigAlias

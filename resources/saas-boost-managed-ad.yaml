@@ -59,7 +59,7 @@ Parameters:
     MaxLength: '1024'
     MinLength: '1'
     Type: String
- 
+
 
 Resources:
   ADDirectory:
@@ -79,12 +79,12 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
       Type: String
       # save the ips
-      Value:   
-       !Join [",", !GetAtt ADDirectory.DnsIpAddresses]  
+      Value:
+       !Join [",", !GetAtt ADDirectory.DnsIpAddresses]
 
   SSMParamDirectoryName:
     Type: AWS::SSM::Parameter
-    DependsOn: ADDirectory    
+    DependsOn: ADDirectory
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
       Type: String
@@ -92,15 +92,15 @@ Resources:
 
   SSMParamUserName:
     Type: AWS::SSM::Parameter
-    DependsOn: ADDirectory    
+    DependsOn: ADDirectory
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
       Type: String
       # save the ips
-      Value: !Sub ${Environment}.${AWS::Region}.saasboost.com\admin      
+      Value: !Sub ${Environment}.${AWS::Region}.saasboost.com\admin
 
   SSMParamDirectoryId:
-    Type: AWS::SSM::Parameter   
+    Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_ID
       Type: String

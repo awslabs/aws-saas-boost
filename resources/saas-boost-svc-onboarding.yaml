@@ -209,7 +209,7 @@ Resources:
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.CidrDynamoDB
       Layers:
-        - !Ref SaaSBoostUtilsLayer      
+        - !Ref SaaSBoostUtilsLayer
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CidrDynamoDB-lambda.zip
@@ -292,9 +292,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:GetObjectVersion              
-                  - s3:PutObject 
-                  - s3:DeleteObject                 
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:DeleteObject
                 Resource:
                   - !Sub arn:aws:s3:::${SaaSBoostBucket}/*
               - Effect: Allow
@@ -307,7 +307,7 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                   - ssm:PutParameter
-                Resource: 
+                Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
                   - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
               - Effect: Allow
@@ -359,7 +359,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:CreateTransitGatewayRoute
-                  - ec2:AssociateTransitGatewayRouteTable      
+                  - ec2:AssociateTransitGatewayRouteTable
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
@@ -373,13 +373,13 @@ Resources:
                 Action:
                   - elasticloadbalancing:CreateLoadBalancer
                   - elasticloadbalancing:ModifyLoadBalancerAttributes
-                  - elasticloadbalancing:CreateListener                            
+                  - elasticloadbalancing:CreateListener
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/app/*/*
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/net/*/*
               - Effect: Allow
                 Action:
-                  - elasticloadbalancing:CreateRule                
+                  - elasticloadbalancing:CreateRule
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
@@ -401,7 +401,7 @@ Resources:
                   - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/Tenant-*
               - Effect: Allow
                 Action:
-                  - iam:CreateServiceLinkedRole                
+                  - iam:CreateServiceLinkedRole
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
                 Condition:
@@ -426,7 +426,7 @@ Resources:
                 Action:
                   - ecs:CreateService
                   - ecs:DescribeServices
-                  - ecs:UpdateService                 
+                  - ecs:UpdateService
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
               - Effect: Allow
@@ -434,7 +434,7 @@ Resources:
                   - codepipeline:CreatePipeline
                   - codepipeline:GetPipeline
                   - codepipeline:GetPipelineState
-                  - codepipeline:UpdatePipeline               
+                  - codepipeline:UpdatePipeline
                 Resource:
                   - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
               - Effect: Allow
@@ -450,25 +450,25 @@ Resources:
               - Effect: Allow
                 Action:
                   - route53:CreateHostedZone
-                  - elasticfilesystem:CreateFileSystem               
+                  - elasticfilesystem:CreateFileSystem
                   - ds:DescribeDirectories
-                  - fsx:DescribeFileSystems   
+                  - fsx:DescribeFileSystems
                   - application-autoscaling:Describe*
                   - application-autoscaling:RegisterScalableTarget
-                  - application-autoscaling:PutScalingPolicy                  
+                  - application-autoscaling:PutScalingPolicy
                   - autoscaling:Describe*
-                  - ecs:CreateCluster               
+                  - ecs:CreateCluster
                   - ecs:RegisterTaskDefinition
                   - ecs:DeregisterTaskDefinition
                   - ecs:TagResource
-                  - ecs:UntagResource   
+                  - ecs:UntagResource
                   - elasticloadbalancing:Describe*
                   - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags  
+                  - elasticloadbalancing:RemoveTags
                   - kms:List*
                   - kms:CreateKey
                   - kms:Describe*
-                  - kms:Get*                                                                                                              
+                  - kms:Get*
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -478,7 +478,7 @@ Resources:
                 - kms:UpdateAlias
                 Resource:
                 - !Sub arn:aws:kms:*:${AWS::AccountId}:alias/*
-                - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*                   
+                - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*
               - Effect: Allow
                 Action:
                   - route53:GetChange
@@ -489,9 +489,9 @@ Resources:
                   - elasticfilesystem:Describe*
                   - elasticfilesystem:CreateMountTarget
                   - elasticfilesystem:CreateTags
-                  - elasticfilesystem:PutFileSystemPolicy                  
+                  - elasticfilesystem:PutFileSystemPolicy
                   - elasticfilesystem:PutLifecycleConfiguration
-                  - fsx:CreateFileSystem                  
+                  - fsx:CreateFileSystem
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
@@ -502,7 +502,7 @@ Resources:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
               - Effect: Allow
                 Action:
-                  - rds:CreateDBCluster                
+                  - rds:CreateDBCluster
                   - rds:AddTagsToResource
                   - rds:RemoveTagsFromResource
                 Resource:
@@ -512,13 +512,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - rds:DescribeDBSubnetGroups
-                  - rds:CreateDBSubnetGroup               
+                  - rds:CreateDBSubnetGroup
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
-                  - rds:CreateDBInstance               
+                  - rds:CreateDBInstance
                   - rds:AddTagsToResource
 #                  - rds:RemoveTagsFromResource
                 Resource:
@@ -629,7 +629,7 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                   - ssm:PutParameter
-                Resource: 
+                Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
                   - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
               - Effect: Allow
@@ -642,7 +642,7 @@ Resources:
                   - ec2:DeleteSecurityGroup
                   - ec2:DeleteRouteTable
                   - ec2:DisassociateRouteTable
-                  - ec2:DeleteNetworkInterface                  
+                  - ec2:DeleteNetworkInterface
                   - kms:DeleteAlias
                   - kms:GetKeyPolicy
                   - kms:DescribeKey
@@ -650,7 +650,7 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - ec2:DeleteTags                  
+                  - ec2:DeleteTags
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
@@ -679,25 +679,25 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:DeleteTransitGatewayRoute
-                  - ec2:DisassociateTransitGatewayRouteTable                  
+                  - ec2:DisassociateTransitGatewayRouteTable
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
               - Effect: Allow
                 Action:
-                  - elasticloadbalancing:DeleteTargetGroup                  
+                  - elasticloadbalancing:DeleteTargetGroup
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/*/*
               - Effect: Allow
                 Action:
-                  - elasticloadbalancing:DeleteLoadBalancer                                
+                  - elasticloadbalancing:DeleteLoadBalancer
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/app/*/*
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/net/*/*
               - Effect: Allow
                 Action:
-                  - elasticloadbalancing:DeleteRule      
-                  - elasticloadbalancing:DeleteListener                              
+                  - elasticloadbalancing:DeleteRule
+                  - elasticloadbalancing:DeleteListener
                 Resource:
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
                   - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
@@ -717,7 +717,7 @@ Resources:
                   - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/Tenant-*
               - Effect: Allow
                 Action:
-                  - iam:DeleteServiceLinkedRole                  
+                  - iam:DeleteServiceLinkedRole
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
                 Condition:
@@ -741,39 +741,39 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
-                  - ecs:DeleteService                  
+                  - ecs:DeleteService
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
               - Effect: Allow
                 Action:
                   - codepipeline:GetPipeline
                   - codepipeline:GetPipelineState
-                  - codepipeline:DeletePipeline                  
+                  - codepipeline:DeletePipeline
                 Resource:
                   - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
               - Effect: Allow
                 Action:
                   - route53:GetHostedZone
                   - route53:ListResourceRecordSets
-                  - route53:ListQueryLoggingConfigs               
+                  - route53:ListQueryLoggingConfigs
                   - route53:DeleteHostedZone
                   - route53:ChangeResourceRecordSets
                 Resource:
                   - arn:aws:route53:::hostedzone/*
               - Effect: Allow
                 Action:
-                  - elasticfilesystem:DeleteFileSystem                  
+                  - elasticfilesystem:DeleteFileSystem
                   - ds:DescribeDirectories
-                  - fsx:DescribeFileSystems   
+                  - fsx:DescribeFileSystems
                   - application-autoscaling:Describe*
-                  - application-autoscaling:DeleteScalingPolicy                  
+                  - application-autoscaling:DeleteScalingPolicy
                   - autoscaling:Describe*
-                  - application-autoscaling:DeregisterScalableTarget                   
-                  - ecs:DeleteCluster                  
+                  - application-autoscaling:DeregisterScalableTarget
+                  - ecs:DeleteCluster
                   - ecs:DeregisterTaskDefinition
-                  - ecs:UntagResource   
+                  - ecs:UntagResource
                   - elasticloadbalancing:Describe*
-                  - elasticloadbalancing:RemoveTags                                                                           
+                  - elasticloadbalancing:RemoveTags
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -783,12 +783,12 @@ Resources:
               - Effect: Allow
                 Action:
                   - elasticfilesystem:DescribeFileSystems
-                  - elasticfilesystem:DeleteMountTarget                  
+                  - elasticfilesystem:DeleteMountTarget
                   - elasticfilesystem:DescribeMountTargets
                   - elasticfilesystem:DescribeTags
-                  - elasticfilesystem:DeleteFileSystemPolicy                  
+                  - elasticfilesystem:DeleteFileSystemPolicy
                   - fsx:DescribeFileSystems
-                  - fsx:DeleteFileSystem                                    
+                  - fsx:DeleteFileSystem
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
@@ -799,23 +799,23 @@ Resources:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
               - Effect: Allow
                 Action:
-                  - rds:DeleteDBCluster                  
+                  - rds:DeleteDBCluster
 #                  - rds:RemoveTagsFromResource
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*                  
+                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBSubnetGroups
-                  - rds:DeleteDBSubnetGroup                  
+                  - rds:DeleteDBSubnetGroup
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
-                  - rds:DeleteDBInstance                  
+                  - rds:DeleteDBInstance
                   - rds:RemoveTagsFromResource
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
@@ -877,13 +877,13 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"             
+          Value: "Onboarding"
   OnboardingServiceGetByIdLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -906,13 +906,13 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"             
+          Value: "Onboarding"
   OnboardingServiceStartLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -942,13 +942,13 @@ Resources:
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           ECR_REPO: !Ref ECSRepository
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"             
+          Value: "Onboarding"
   OnboardingServiceUpdateStatusLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -972,13 +972,13 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
   OnboardingServiceProvisionTenantLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1007,13 +1007,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
 
   OnboardingServiceDeleteTenantLogs:
     Type: AWS::Logs::LogGroup
@@ -1043,13 +1043,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
 
   OnboardingServiceDeleteTenantEventRule:
     Type: AWS::Events::Rule
@@ -1073,7 +1073,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt OnboardingServiceDeleteTenant.Arn
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt OnboardingServiceDeleteTenantEventRule.Arn          
+      SourceArn: !GetAtt OnboardingServiceDeleteTenantEventRule.Arn
 
   OnboardingStatusListenerLogs:
     Type: AWS::Logs::LogGroup
@@ -1099,13 +1099,13 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"                   
+          Value: "Onboarding"
   CodePipelineExecutionStateChangeEvent:
     Type: AWS::Events::Rule
     Properties:
@@ -1150,13 +1150,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
   OnboardingUpdateTenantLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1180,13 +1180,13 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"          
+          Value: "Onboarding"
 Outputs:
   OnboardingServiceGetAllArn:
     Description: Onboarding Service get all onboarding requests Lambda ARN

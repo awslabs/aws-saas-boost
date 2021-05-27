@@ -137,8 +137,8 @@ Resources:
             Resource:
               - !Sub arn:aws:s3:::${ALBAccessLogs}/*
               - !Sub arn:aws:s3:::${ALBAccessLogs}
-            Condition: 
-              Bool: { 'aws:SecureTransport': false }               
+            Condition:
+              Bool: { 'aws:SecureTransport': false }
   AccessLogsTable:
     Type: AWS::Glue::Table
     Properties:
@@ -328,13 +328,13 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"             
+          Value: "Metrics"
   # Publish path request count metrics to S3 bucket
   PublishRequestCountMetricsEvent:
     Type: AWS::Events::Rule
@@ -399,13 +399,13 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"            
+          Value: "Metrics"
   # Event to Publish path request count metrics to S3 bucket
   PublishResponseTimeMetricsEvent:
     Type: AWS::Events::Rule
@@ -473,13 +473,13 @@ Resources:
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
           ACCESS_LOGS_PATH: !Sub s3://${ALBAccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"          
+          Value: "Metrics"
   # Publish path request count metrics to S3 bucket
   AddAthenaPartitionEvent:
     Type: AWS::Events::Rule
@@ -694,13 +694,13 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"            
+          Value: "Metrics"
   MetricsServiceDatasetsLog:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -726,13 +726,13 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"            
+          Value: "Metrics"
   AlbAccessQueryLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -762,18 +762,18 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags: 
+      Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Metrics"            
+          Value: "Metrics"
 Outputs:
   ALBAccessLogsDatabase:
     Description: Athena Database for ALB Access Logs
     Value: !Ref ALBAccessLogsDatabase
-  AccessLogsTable: 
+  AccessLogsTable:
     Description: Athena Access Logs Table
     Value: !Ref AccessLogsTable
   QueryArn:
