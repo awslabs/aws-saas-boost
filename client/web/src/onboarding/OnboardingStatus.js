@@ -22,8 +22,14 @@ export function OnboardingStatus({ status }) {
   let statusColor = "danger";
 
   switch (status) {
+    case "deleted":
+      statusColor = "danger";
+      break;
     case "deployed":
       statusColor = "success";
+      break;
+    case "provisioning":
+      statusColor = "info";
       break;
     case "failed":
       statusColor = "danger";
