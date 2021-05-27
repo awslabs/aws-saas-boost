@@ -19,14 +19,18 @@ import { Badge } from "reactstrap";
 import { capitalize } from "lodash";
 
 export function OnboardingStatus({ status }) {
-  let statusColor = "danger";
+  let statusColor = "";
 
   switch (status) {
+    case "deleted":
+    case "failed":
+      statusColor = "danger";
+      break;
     case "deployed":
       statusColor = "success";
       break;
-    case "failed":
-      statusColor = "danger";
+    case "provisioning":
+      statusColor = "info";
       break;
     default:
       statusColor = "warning";
