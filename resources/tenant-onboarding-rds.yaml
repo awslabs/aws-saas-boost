@@ -89,6 +89,7 @@ Conditions:
     Fn::Or:
       - Condition: CreateDatabase
       - Condition: BootstrapFile
+  SupportsEncryption: !Not [!Equals [!Ref RDSEngine, 'sqlserver-ex']]
 Resources:
   RDSSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -127,7 +128,7 @@ Resources:
         - CidrIp: 0.0.0.0/0
           IpProtocol: '-1'
   EncryptionKey:
-#    Condition: UseDatabaseEncryption
+    Condition: SupportsEncryption
     DeletionPolicy: Retain
     Type: AWS::KMS::Key
     Properties:
@@ -217,7 +218,7 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
   EncryptionKeyAlias:
-#    Condition: UseDatabaseEncryption
+    Condition: SupportsEncryption
     Type: AWS::KMS::Alias
     Properties:
       AliasName: !Sub alias/sb-${Environment}-${TenantId}
@@ -250,8 +251,8 @@ Resources:
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
       # PreferredBackupWindow: sat:22:30-sun:02:00
       ##
-      KmsKeyId: !GetAtt EncryptionKey.Arn
-      StorageEncrypted: True
+      KmsKeyId: !If [SupportsEncryption, !GetAtt EncryptionKey.Arn, !Ref 'AWS::NoValue']
+      StorageEncrypted: !If [SupportsEncryption, True, False]
       Port: !Ref RDSPort
       MasterUsername: !Ref RDSMasterUsername
       MasterUserPassword:
@@ -294,8 +295,8 @@ Resources:
       MultiAZ: false
       Engine: !Ref RDSEngine
       EngineVersion: !Ref RDSEngineVersion
-      KmsKeyId: !GetAtt EncryptionKey.Arn
-      StorageEncrypted: True
+      KmsKeyId: !If [SupportsEncryption, !GetAtt EncryptionKey.Arn, !Ref 'AWS::NoValue']
+      StorageEncrypted: !If [SupportsEncryption, True, False]
       LicenseModel:
         Fn::If:
           - SqlServer
