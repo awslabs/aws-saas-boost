@@ -59,6 +59,7 @@ import software.amazon.awssdk.services.quicksight.model.Tag;
 import software.amazon.awssdk.services.quicksight.model.User;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
+import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -82,6 +83,7 @@ public class SaaSBoostInstall {
     private String lambdaSourceFolder;
     private String mavenCommand = "mvn";
     private IamClient iam;
+    private StsClient sts;
     private String emailAddress = "";
     private String domain = "";
     private String metricsAndAnalytics;
@@ -138,6 +140,10 @@ public class SaaSBoostInstall {
 
         //iam requires global region
         this.iam = IamClient.builder()
+                .region(Region.AWS_GLOBAL)
+                .build();
+
+        this.sts = StsClient.builder()
                 .region(Region.AWS_GLOBAL)
                 .build();
 
@@ -901,7 +907,8 @@ public class SaaSBoostInstall {
         outputMessage("Installer Version: " + getVersionInfo());
 
         checkEnvironment();
-        accountId = iam.getUser().user().arn().split(":")[4];
+        //accountId = iam.getUser().user().arn().split(":")[4];
+        accountId = sts.getCallerIdentity().account();
 
         boolean isValid = false;
 
@@ -1514,7 +1521,8 @@ public class SaaSBoostInstall {
     }
 
     private void setupQuickSight(String stackName, Map<String, String> outputs) {
-        String accountNumber = iam.getUser().user().arn().split(":")[4];
+        //String accountNumber = iam.getUser().user().arn().split(":")[4];
+        String accountNumber = sts.getCallerIdentity().account();
         LOGGER.info("User for Quicksight: " + quickSightUser);
 
         //refresh the client
