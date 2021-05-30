@@ -907,7 +907,6 @@ public class SaaSBoostInstall {
         outputMessage("Installer Version: " + getVersionInfo());
 
         checkEnvironment();
-        //accountId = iam.getUser().user().arn().split(":")[4];
         accountId = sts.getCallerIdentity().account();
 
         boolean isValid = false;
@@ -1521,7 +1520,6 @@ public class SaaSBoostInstall {
     }
 
     private void setupQuickSight(String stackName, Map<String, String> outputs) {
-        //String accountNumber = iam.getUser().user().arn().split(":")[4];
         String accountNumber = sts.getCallerIdentity().account();
         LOGGER.info("User for Quicksight: " + quickSightUser);
 
