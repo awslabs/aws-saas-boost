@@ -520,7 +520,6 @@ Resources:
                   - rds:DescribeDBInstances
                   - rds:CreateDBInstance
                   - rds:AddTagsToResource
-#                  - rds:RemoveTagsFromResource
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
@@ -800,7 +799,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - rds:DeleteDBCluster
-#                  - rds:RemoveTagsFromResource
+                  - rds:CreateDBClusterSnapshot
+                  - rds:DescribeDBClusterSnapshots
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
