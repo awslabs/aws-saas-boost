@@ -1504,22 +1504,6 @@ public class SaaSBoostInstall {
 
     private Map<String, String> getMetricStackOutputs(String stackName) {
         //get the Redshift outputs from the metrics cloudformation stack
-
-/*        LOGGER.info("Get resources for CloudFormation stack {}", stackName);
-        ListStackResourcesResponse stackResourcesResponse = cfn.listStackResources(ListStackResourcesRequest.builder().stackName(stackName).build());
-        String metricsStackPhysicalId = null;
-        for (StackResourceSummary summary : stackResourcesResponse.stackResourceSummaries()) {
-            if ("metrics".equalsIgnoreCase(summary.logicalResourceId())) {
-                metricsStackPhysicalId = summary.physicalResourceId();
-                break;
-            }
-        }
-
-        if (null == metricsStackPhysicalId) {
-            outputMessage("Unable to find metrics nested stack from CloudFormation stack: " + stackName);
-            System.exit(2);
-        }*/
-
         try {
             Map<String, String> outputs = new HashMap<>();
             DescribeStacksResponse stacksResponse = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackName).build());
@@ -1952,6 +1936,10 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 5l;
             do {
+                //refresh client due to timeouts
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
@@ -2007,6 +1995,9 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 3l;
             do {
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
@@ -2133,6 +2124,10 @@ public class SaaSBoostInstall {
                 sleepTime = 15l;
             }*/
             do {
+                //refresh the client
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
