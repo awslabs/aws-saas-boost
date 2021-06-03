@@ -83,10 +83,11 @@ public class TenantServiceDAL {
 
         // Get all tenants who haven't just started provisioning (created)
         // or who had an error during provisioning (failed)
-        String filter = "attribute_exists(onboarding) AND onboarding <> :created AND onboarding <> :failed";
+        String filter = "attribute_exists(onboarding) AND onboarding <> :created AND onboarding <> :failed AND onboarding <> :deleted";
         Map<String, AttributeValue> expressions = new HashMap<>();
         expressions.put(":created", AttributeValue.builder().s("created").build());
         expressions.put(":failed", AttributeValue.builder().s("failed").build());
+        expressions.put(":deleted", AttributeValue.builder().s("deleted").build());
         // Also, only get tenants who have (or have not) overridden the default
         // compute settings for memory, CPU, and auto scaling group bounds
         if (customizedTenants != null) {
