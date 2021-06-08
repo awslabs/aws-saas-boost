@@ -8,7 +8,7 @@ Our mission is to create a community-driven suite of extensible building blocks 
 
 These tenets guide AWS SaaS Boost development. They let you know what we value and what we're working toward.
 
-### AWS SaaS Boost is secure since all customers want to use solution's they can trust
+### AWS SaaS Boost is secure since all customers want to use solutions they can trust
 
 We provide software that enables multi-tenant workloads to be trusted as a service, ensuring isolation and security at all levels.  
 We continuously invest in security posture as best practices evolve.
