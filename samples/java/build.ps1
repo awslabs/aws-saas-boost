@@ -17,7 +17,7 @@ $SAAS_BOOST_ENV="test"
 # Use your own profile name and region
 Set-AWSCredential -ProfileName dev
 Set-DefaultAWSRegion -Region us-west-2
-$AWS_ACCOUNT = (Get-StsCallerIdentity).Account
+$AWS_ACCOUNT_ID = (Get-StsCallerIdentity).Account
 $AWS_REGION=(Get-DefaultAWSRegion).Region
 echo $AWS_REGION
 $ECR_REPO = (Get-SSMParameterValue -Name /saas-boost/$SAAS_BOOST_ENV/ECR_REPO).Parameters[0].Value
