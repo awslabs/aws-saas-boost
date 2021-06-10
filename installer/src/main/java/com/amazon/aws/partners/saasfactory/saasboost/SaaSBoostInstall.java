@@ -16,6 +16,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.*;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.regions.Region;
@@ -59,6 +61,7 @@ import software.amazon.awssdk.services.quicksight.model.Tag;
 import software.amazon.awssdk.services.quicksight.model.User;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
+import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -97,6 +100,7 @@ public class SaaSBoostInstall {
     private SsmClient ssm;
     private DynamoDbClient ddb;
     private EcrClient ecr;
+    private StsClient sts;
 
     // This filter will only include files ending with .py
     private final FilenameFilter zipFileFilter = new FilenameFilter() {
@@ -128,16 +132,31 @@ public class SaaSBoostInstall {
             LOGGER.error("Error getting VersionInfo", ioe);
             LOGGER.error(getFullStackTrace(ioe));
         }
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
-        this.cfn = CloudFormationClient.builder().region(AWS_REGION).build();
+        this.s3 = AmazonS3Client.builder()
+                .withCredentials(new DefaultAWSCredentialsProviderChain())
+                .withRegion(AWS_REGION.id()).build();
+        this.cfn = CloudFormationClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
 
         this.ddb = DynamoDbClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(AWS_REGION).build();
-        this.ecr = EcrClient.builder().region(AWS_REGION).build();
-        this.ssm = SsmClient.builder().region(AWS_REGION).build();
+        this.ecr = EcrClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
+        this.ssm = SsmClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
 
         //iam requires global region
         this.iam = IamClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(Region.AWS_GLOBAL)
+                .build();
+
+        this.sts = StsClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(Region.AWS_GLOBAL)
                 .build();
 
@@ -356,7 +375,9 @@ public class SaaSBoostInstall {
         final List<String> list = new ArrayList<>(Arrays.asList("redshift-table"));
 
         //refresh s3 client
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
+        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
+                .withCredentials(new DefaultAWSCredentialsProviderChain())
+                .build();
         buildAndCopyLambdas("resources" + File.separator + "custom-resources", list);
 
         //create db password if metrics installed
@@ -369,6 +390,7 @@ public class SaaSBoostInstall {
 
         //create secure SSM parameter for password
         ssm = SsmClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(AWS_REGION).build();
         // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
         LOGGER.info("Update SSM param REDSHIFT_MASTER_PASSWORD with dbPassword");
@@ -384,6 +406,7 @@ public class SaaSBoostInstall {
         createMetricsStack(stackName);
 
         ssm = SsmClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(AWS_REGION).build();
         // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
         LOGGER.info("Update SSM param METRICS_ANALYTICS_DEPLOYED to true");
@@ -396,7 +419,9 @@ public class SaaSBoostInstall {
         LOGGER.info("Copying json files for Metrics and Analytics from {} to {}", file.toString(), outputs.get("MetricsBucket"));
         //refresh the client first
         try {
-            s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
+            s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
+                    .withCredentials(new DefaultAWSCredentialsProviderChain())
+                    .build();
             s3.putObject(outputs.get("MetricsBucket"), "metrics_redshift_jsonpath.json", file);
         } catch (Exception e) {
             outputMessage("Error with s3 copy of " + file.toString() + " to " + outputs.get("MetricsBucket"));
@@ -604,7 +629,9 @@ public class SaaSBoostInstall {
 
         //deploy the API Gateway to v1 stage
         outputMessage("Updating API Gateway Deployment for Stages");
-        ApiGatewayClient apiGatewayClient = ApiGatewayClient.builder().region(AWS_REGION).build();
+        ApiGatewayClient apiGatewayClient = ApiGatewayClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
 
         GetRestApisResponse response = apiGatewayClient.getRestApis();
         for (RestApi api : response.items()) {
@@ -636,7 +663,9 @@ public class SaaSBoostInstall {
 
         //delete the old lambdas zip files
         outputMessage("Delete files from previous Lambda folder: " + existingLambdaSourceFolder);
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
+        this.s3 = AmazonS3Client.builder()
+                .withCredentials(new DefaultAWSCredentialsProviderChain())
+                .withRegion(AWS_REGION.id()).build();
         ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(s3ArtifactBucket).withPrefix(existingLambdaSourceFolder + "/");
         ObjectListing listing = s3.listObjects(listObjectsRequest);
         List<S3ObjectSummary> objects = listing.getObjectSummaries();
@@ -749,7 +778,9 @@ public class SaaSBoostInstall {
 
     private void updateLambdaAliases() {
         List<String> aliasFunctions = new ArrayList<>(Arrays.asList("settings-get-all", "settings-get-config"));
-        LambdaClient lambda = LambdaClient.builder().region(AWS_REGION).build();
+        LambdaClient lambda = LambdaClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
         for (String lambdaFunction : aliasFunctions) {
             lambdaFunction = "sb-" + envName + "-" + lambdaFunction + "-" + AWS_REGION.id();
             outputMessage("Updating Lambda Alias for function: " + lambdaFunction);
@@ -901,14 +932,14 @@ public class SaaSBoostInstall {
         outputMessage("Installer Version: " + getVersionInfo());
 
         checkEnvironment();
-        accountId = iam.getUser().user().arn().split(":")[4];
+        accountId = sts.getCallerIdentity().account();
 
         boolean isValid = false;
 
          //get option of initial install or add metrics
         do {
             System.out.println("1. New AWS SaaS Boost install.");
-            System.out.println("2. Install Metrics and Analytics in to existing AWS SaaS Boost deployment.");
+            System.out.println("2. Install Metrics and Analytics into existing AWS SaaS Boost deployment.");
             System.out.println("3. Update Web Application for existing AWS SaaS Boost deployment.");
             System.out.println("4. Update existing AWS SaaS Boost deployment.");
             System.out.println("5. Delete existing AWS SaaS Boost deployment.");
@@ -1148,7 +1179,9 @@ public class SaaSBoostInstall {
         //delete the old lambdas zip files
 
         LOGGER.info("Clean up s3 bucket: " + s3ArtifactBucket);
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
+        this.s3 = AmazonS3Client.builder()
+                .withCredentials(new DefaultAWSCredentialsProviderChain())
+                .withRegion(AWS_REGION.id()).build();
         ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(s3ArtifactBucket);
         ObjectListing listing = s3.listObjects(listObjectsRequest);
         ArrayList<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<>();
@@ -1434,6 +1467,7 @@ public class SaaSBoostInstall {
             String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
             String adPassword = "AdX43Bc" + parts[0];
             ssm = SsmClient.builder()
+                    .credentialsProvider(DefaultCredentialsProvider.builder().build())
                     .region(AWS_REGION).build();
             // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
             LOGGER.info("Add SSM param ACTIVE_DIRECTORY_PASSWORD with password");
@@ -1470,22 +1504,6 @@ public class SaaSBoostInstall {
 
     private Map<String, String> getMetricStackOutputs(String stackName) {
         //get the Redshift outputs from the metrics cloudformation stack
-
-/*        LOGGER.info("Get resources for CloudFormation stack {}", stackName);
-        ListStackResourcesResponse stackResourcesResponse = cfn.listStackResources(ListStackResourcesRequest.builder().stackName(stackName).build());
-        String metricsStackPhysicalId = null;
-        for (StackResourceSummary summary : stackResourcesResponse.stackResourceSummaries()) {
-            if ("metrics".equalsIgnoreCase(summary.logicalResourceId())) {
-                metricsStackPhysicalId = summary.physicalResourceId();
-                break;
-            }
-        }
-
-        if (null == metricsStackPhysicalId) {
-            outputMessage("Unable to find metrics nested stack from CloudFormation stack: " + stackName);
-            System.exit(2);
-        }*/
-
         try {
             Map<String, String> outputs = new HashMap<>();
             DescribeStacksResponse stacksResponse = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackName).build());
@@ -1514,11 +1532,13 @@ public class SaaSBoostInstall {
     }
 
     private void setupQuickSight(String stackName, Map<String, String> outputs) {
-        String accountNumber = iam.getUser().user().arn().split(":")[4];
+        final String accountNumber = sts.getCallerIdentity().account();
         LOGGER.info("User for Quicksight: " + quickSightUser);
 
         //refresh the client
-        quickSightClient = QuickSightClient.builder().region(AWS_REGION).build();
+        quickSightClient = QuickSightClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
         LOGGER.info("Create data source in Quicksight for metrics Redshift table in Region: " + AWS_REGION.id());
         CreateDataSourceResponse createDataSourceResponse = quickSightClient.createDataSource(CreateDataSourceRequest.builder()
                 .dataSourceId("sb-" + this.envName + "-metrics-source")
@@ -1916,6 +1936,10 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 5l;
             do {
+                //refresh client due to timeouts
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
@@ -1971,6 +1995,9 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 3l;
             do {
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
@@ -2097,6 +2124,10 @@ public class SaaSBoostInstall {
                 sleepTime = 15l;
             }*/
             do {
+                //refresh the client
+                cfn = CloudFormationClient.builder()
+                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                        .region(AWS_REGION).build();
                 DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                         .stackName(stackName)
                         .build());
@@ -2232,7 +2263,9 @@ public class SaaSBoostInstall {
         }
 
         //refresh the client
-        cfn = CloudFormationClient.builder().region(AWS_REGION).build();
+        cfn = CloudFormationClient.builder()
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .region(AWS_REGION).build();
 
         String nextToken = null;
         Map<String, String> exportsMap = new HashMap<>();
@@ -2309,7 +2342,9 @@ public class SaaSBoostInstall {
         }
 
         //refresh the client
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id()).build();
+        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
+                .withCredentials(new DefaultAWSCredentialsProviderChain())
+                .build();
         TransferManager xferMgr = TransferManagerBuilder.standard()
                 .withS3Client(this.s3)
                 .build();
@@ -2419,7 +2454,9 @@ public class SaaSBoostInstall {
     private List<User> getQuicksightUsers() {
         LOGGER.info("Load Quicksight users");
         if (null == quickSightClient) {
-            quickSightClient = QuickSightClient.builder().region(quickSightRegion).build();
+            quickSightClient = QuickSightClient.builder()
+                    .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                    .region(quickSightRegion).build();
         }
 
         List<User> users = new ArrayList<>();
