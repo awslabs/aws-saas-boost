@@ -52,8 +52,8 @@ Parameters:
   TaskCPU:
     Description: Fargate CPU setting
     Type: Number
-    AllowedValues: [256, 512, 1024, 2048, 4096]
-    Default: 512
+    AllowedValues: [2, 4, 8]
+    Default: 2
   TaskCount:
     Description: Desired count of concurrent tasks for this tenant
     Type: Number

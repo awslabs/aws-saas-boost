@@ -51,7 +51,7 @@ public class QuotasServiceDAL {
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
-    public QuotaCheck checkQuotas() {
+    public QuotaCheck checkQuotas(Integer cpu) {
         boolean reportBackError = false;
         boolean exceedsLimit = false;
         String serviceCode;
@@ -98,7 +98,7 @@ public class QuotasServiceDAL {
         // ec2 vCPU
         serviceCode = "ec2";
         deployedCountMap.clear();
-        deployedCountMap.put("Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances", getVCpuCount());
+        deployedCountMap.put("Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances", (getVCpuCount() + cpu));
         quotasMap = getQuotas(serviceCode);
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;

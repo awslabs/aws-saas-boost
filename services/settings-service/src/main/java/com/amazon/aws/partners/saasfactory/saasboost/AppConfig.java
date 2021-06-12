@@ -85,7 +85,7 @@ public class AppConfig {
         Integer cpu = null;
         // Avoid weird NPE while using the ternary operator (probably some autoboxing issue)...
         if (getComputeSize() != null) {
-            cpu = getComputeSize().getCpu();
+            cpu = getComputeSize().getVCpu();
         } else {
             cpu = defaultCpu;
         }

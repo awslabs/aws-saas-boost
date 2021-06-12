@@ -17,19 +17,21 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 public enum ComputeSize {
 
-    S(512, 1024, "t3.medium"),
-    M(1024, 2048, "t3.medium"),
-    L(2048, 4096, "m5.xlarge"),
-    XL(4096, 8192, "m5.2xlarge");
+    S(512, 1024, "t3.medium", 2),
+    M(1024, 2048, "t3.medium", 2),
+    L(2048, 4096, "m5.xlarge", 4),
+    XL(4096, 8192, "m5.2xlarge",8);
 
     private final int cpu;
     private final int memory;
     private final String instanceType;
+    private final int vCpu;
 
-    ComputeSize(int cpu, int memory, String instanceType) {
+    ComputeSize(int cpu, int memory, String instanceType, int vCpu) {
         this.cpu = cpu;
         this.memory = memory;
         this.instanceType = instanceType;
+        this.vCpu = vCpu;
     }
 
     public int getCpu() {
@@ -42,5 +44,9 @@ public enum ComputeSize {
 
     public String getInstanceType() {
         return instanceType;
+    }
+
+    public int getVCpu(){
+        return vCpu;
     }
 }

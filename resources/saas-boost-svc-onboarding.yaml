@@ -801,6 +801,8 @@ Resources:
                   - rds:DeleteDBCluster
                   - rds:CreateDBClusterSnapshot
                   - rds:DescribeDBClusterSnapshots
+#                  Fix for tenant deletion, close #50
+                  - rds:RemoveTagsFromResource
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*

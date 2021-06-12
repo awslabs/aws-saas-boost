@@ -53,7 +53,16 @@ public class QuotasService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        QuotasServiceDAL.QuotaCheck quotaCheck = dal.checkQuotas();
+        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
+        if (queryParams.isEmpty() || !queryParams.containsKey("cpu")) {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(400)
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Required CPU units not available to compare.\"}");
+        }
+
+        Integer cpu = Integer.valueOf(queryParams.get("cpu"));
+        QuotasServiceDAL.QuotaCheck quotaCheck = dal.checkQuotas(cpu);
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::getSettings exec " + totalTimeMillis);

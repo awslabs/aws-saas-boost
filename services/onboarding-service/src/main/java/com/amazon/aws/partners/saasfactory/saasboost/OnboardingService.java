@@ -280,6 +280,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         if (Utils.isNotEmpty(tshirt)) {
             try {
                 computeSize = ComputeSize.valueOf(tshirt);
+                if(cpu == null){
+					cpu = computeSize.getVCpu();
+				}
             } catch (IllegalArgumentException e) {
                 LOGGER.error("Invalid compute size {}", tshirt);
                 return new APIGatewayProxyResponseEvent()
@@ -303,7 +306,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         //check if Quotas will be exceeded.
         try {
             LOGGER.info("Check Service Quota Limits");
-            Map<String, Object> retMap = checkLimits();
+            Map<String, Object> retMap = checkLimits(cpu, context);
             Boolean passed = (Boolean) retMap.get("passed");
             String message = (String) retMap.get("message");
             if (!passed) {
@@ -507,38 +510,12 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             UUID tenantId = UUID.fromString(((String) tenant.get("id")).toLowerCase());
 
             // Get the settings for this SaaS Boost install for this SaaS Boost "environment"
-            Map<String, String> settings = null;
-            ApiRequest getSettingsRequest = ApiRequest.builder()
-                    .resource("settings")
-                    .method("GET")
-                    .build();
-            SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
-            try {
-                String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
-                ArrayList<Map<String, String>> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
-                if (null == getSettingsResponse) {
-                    return new APIGatewayProxyResponseEvent()
-                            .withStatusCode(400)
-                            .withHeaders(CORS)
-                            .withBody("{\"message\": \"Invalid settings response.\"}");
-                }
-                settings = getSettingsResponse
-                        .stream()
-                        .collect(Collectors.toMap(
-                                setting -> setting.get("name"), setting -> setting.get("value")
-                        ));
-            } catch (Exception e) {
-                LOGGER.error("Error invoking API settings");
-                dal.updateStatus(onboardingId, OnboardingStatus.failed);
-                LOGGER.error(Utils.getFullStackTrace(e));
-                throw new RuntimeException(e);
-            }
-
-            // We can't continue if any of the SaaS Boost settings are blank
-            if (settings == null || settings.isEmpty()) {
-                LOGGER.error("One or more required SaaS Boost parameters is missing.");
-                dal.updateStatus(onboardingId, OnboardingStatus.failed);
-                throw new RuntimeException("SaaS Boost parameters are missing.");
+            Map<String, String> settings = getSettings(onboardingId, context);
+            if(settings == null){
+                return new APIGatewayProxyResponseEvent()
+                        .withStatusCode(400)
+                        .withHeaders(CORS)
+                        .withBody("{\"message\": \"Invalid settings response.\"}");
             }
 
             // And parameters specific to this tenant
@@ -1328,7 +1305,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     /*
     Check deployed services against service quotas to make sure limits will not be exceeded.
      */
-    private Map<String, Object> checkLimits() throws Exception {
+    private Map<String, Object> checkLimits(Integer cpu, Context context) throws Exception {
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing environment variable API_GATEWAY_HOST");
         }
@@ -1338,10 +1315,14 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing environment variable API_TRUST_ROLE");
         }
+        if (cpu == null) {
+            Map<String, String> settings = getSettings(null, context);
+            cpu = Integer.valueOf(settings.get("TASK_CPU"));
+        }
         long startMillis = System.currentTimeMillis();
         Map<String, Object> valMap = new HashMap<>();
         ApiRequest tenantsRequest = ApiRequest.builder()
-                .resource("quotas/check")
+                .resource("quotas/check?cpu="+cpu)
                 .method("GET")
                 .build();
         SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, tenantsRequest);
@@ -1359,6 +1340,46 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         LOGGER.debug("checkLimits: Total time to check service limits: " + (System.currentTimeMillis() - startMillis));
         return valMap;
+    }
+
+    public Map<String, String> getSettings(UUID onboardingId, Context context) throws RuntimeException {
+        Map<String, String> settings;
+        ApiRequest getSettingsRequest = ApiRequest.builder()
+                .resource("settings")
+                .method("GET")
+                .build();
+        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
+        try {
+            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
+            ArrayList<Map<String, String>> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
+            if (null == getSettingsResponse) {
+                return null;
+            }
+            settings = getSettingsResponse
+                    .stream()
+                    .collect(Collectors.toMap(
+                            setting -> setting.get("name"), setting -> setting.get("value")
+                    ));
+        } catch (Exception e) {
+            LOGGER.error("Error invoking API settings");
+            if(onboardingId != null){
+                dal.updateStatus(onboardingId, OnboardingStatus.failed);
+            }
+
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+
+        // We can't continue if any of the SaaS Boost settings are blank
+        if (settings == null || settings.isEmpty()) {
+            LOGGER.error("One or more required SaaS Boost parameters is missing.");
+            if(onboardingId != null){
+                dal.updateStatus(onboardingId, OnboardingStatus.failed);
+            }
+            throw new RuntimeException("SaaS Boost parameters are missing.");
+        }
+
+        return settings;
     }
 
 }
