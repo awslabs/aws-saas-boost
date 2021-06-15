@@ -45,6 +45,8 @@ AWS SaaS Boost uses a handful of technologies to orchestrate the installation pr
 - [Node 14.15 (LTS)](https://nodejs.org/download/release/v14.15.1/)
 - [Yarn](https://classic.yarnpkg.com/en/docs/install)
 
+If you would like to install AWS SaaS Boost using Cloud9, you can follow these instructions [Install using AWS Cloud9](./install_using_cloud9.md) and then continue with Step 3.
+
 ## Step 2 - Clone the AWS SaaS Boost Repository
 With the tooling in place, you can now download the code and installation scripts for AWS SaaS Boost. Open your terminal window and navigate to the directory where you want to store the AWS SaaS Boost assets. Issue the following command to clone the AWS SaaS Boost repository:
 
