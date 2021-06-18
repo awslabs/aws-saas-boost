@@ -332,10 +332,10 @@ public class TenantServiceDAL {
             item.put("cpu", AttributeValue.builder().n(tenant.getCpu().toString()).build());
         }
         if (tenant.getMinCount() != null) {
-            item.put("minTaskCount", AttributeValue.builder().n(tenant.getMinCount().toString()).build());
+            item.put("minCount", AttributeValue.builder().n(tenant.getMinCount().toString()).build());
         }
         if (tenant.getMaxCount() != null) {
-            item.put("maxTaskCount", AttributeValue.builder().n(tenant.getMaxCount().toString()).build());
+            item.put("maxCount", AttributeValue.builder().n(tenant.getMaxCount().toString()).build());
         }
         if (tenant.getPlanId() != null && !tenant.getPlanId().isEmpty()) {
             item.put("planId", AttributeValue.builder().s(tenant.getPlanId()).build());
