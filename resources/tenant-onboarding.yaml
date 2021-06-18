@@ -1084,7 +1084,7 @@ Resources:
       ServiceNamespace: ecs
       ScalableDimension: ecs:service:DesiredCount
       MaxCapacity: !Ref MaxTaskCount
-      MinCapacity: 1
+      MinCapacity: !Ref TaskCount
   ECSServiceCPUAutoScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
