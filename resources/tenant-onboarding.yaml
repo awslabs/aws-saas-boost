@@ -408,6 +408,148 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+     
+
+####Capacity Provider Changes
+  CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Condition: WindowsOS
+    Properties:
+      Name: 
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-cp']]
+      AutoScalingGroupProvider:
+          AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+          ManagedScaling:
+            TargetCapacity: 100
+            Status: ENABLED
+          ManagedTerminationProtection: ENABLED          
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId                 
+
+  ClusterCapacityProviderAssociations:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Condition: WindowsOS
+    Properties:
+      Cluster: !Ref ECSCluster    
+      CapacityProviders:
+        - !Ref CapacityProvider
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !Ref CapacityProvider
+          Base: 0
+          Weight: 1
+
+  CapacityProviderWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: WindowsOS
+    DependsOn: ClusterCapacityProviderAssociations
+  ClusterCapacityAssociationWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [WindowsOS, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
+      Timeout: '1'
+      Count: 0       
+
+  CustomResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 
+        Fn::Join:
+          - ''
+          - - 'sb-'
+            - !Ref Environment
+            - '-custom-resouce-role-tenant-'
+            - !Select [0, !Split ['-', !Ref TenantId]]
+            - '-'
+            - !Ref AWS::Region
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: 
+            Fn::Join:
+              - ''
+              - - 'sb-'
+                - !Ref Environment
+                - '-custom-resource-policy-tenant-'
+                - !Select [0, !Split ['-', !Ref TenantId]]
+                - '-'
+                - !Ref AWS::Region
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - autoscaling:*
+                Resource: '*'
+  CustomResourceLogs:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName:
+          Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-customresource']]
+        RetentionInDays: 30
+  CustomResourceFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - CustomResourceLogs
+    Properties:
+      FunctionName: 
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-customresource']]           
+      Role: !GetAtt CustomResourceRole.Arn
+      Runtime: python3.7
+      Timeout: 900
+      MemorySize: 640
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: !Sub |
+            import boto3
+            import cfnresponse            
+            ASG = boto3.client('autoscaling')
+            ASGName = '${ECSAutoScalingGroup}'
+            def lambda_handler(event, context):
+                responseData = {}            
+                if(event['RequestType'] == 'Delete'):
+                    group = ASG.describe_auto_scaling_groups(
+                        AutoScalingGroupNames=[ASGName])
+                    instances=group["AutoScalingGroups"][0]["Instances"]
+                    instanceids=[]
+                    for i in instances:
+                      instanceids.append(i["InstanceId"])
+                    ASG.set_instance_protection(
+                                        InstanceIds=instanceids,
+                                        AutoScalingGroupName=ASGName,
+                                        ProtectedFromScaleIn=False)
+                    cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+                else:
+                    cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+      Description: Disable instance protection
+  InvokeCustomResource:
+    Type: Custom::CustomResource
+    DependsOn:
+      - ECSService
+    Properties:
+      ServiceToken: !GetAtt CustomResourceFunction.Arn             
+## end changes          
+
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -535,6 +677,7 @@ Resources:
         - Name:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:latest
+          #Image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
           Cpu: !If [WindowsOS, !Ref TaskCPU, !Ref 'AWS::NoValue']
           Memory: !If [WindowsOS, !Ref TaskMemory, !Ref 'AWS::NoValue']
           PortMappings:
@@ -657,6 +800,7 @@ Resources:
           Value: !Ref TenantId
   # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
   # Or we need an Target Group (Linux/Fargate)
+  # per https://aws.amazon.com/blogs/containers/managing-compute-for-amazon-ecs-clusters-with-capacity-providers/
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Condition:
@@ -668,25 +812,25 @@ Resources:
         - !Ref SubnetPrivateA
         - !Ref SubnetPrivateB
       LaunchConfigurationName: !Ref ECSLaunchConfiguration
-      MinSize: !Ref TaskCount
-      MaxSize: !Ref MaxTaskCount
-      DesiredCapacity: !Ref TaskCount
+      # LaunchTemplate:
+      #   LaunchTemplateId: !Ref LaunchTemplate
+      #   Version: !GetAtt LaunchTemplate.LatestVersionNumber      
+      NewInstancesProtectedFromScaleIn: true      
+      MinSize: "0"
+      MaxSize: "20"
+      DesiredCapacity: "0"
       #Cooldown:
-      #HealthCheckGracePeriod:
+      #HealthCheckGracePeriod: 60
       #HealthCheckType:
       #MetricsCollection:
       #NotificationConfigurations:
-    CreationPolicy:
-      ResourceSignal:
-        Count: 1
-        Timeout: PT10M
     UpdatePolicy:
       AutoScalingRollingUpdate:
-        MinInstancesInService: 0
+        MinInstancesInService: 1
         #MinSuccessfulInstancesPercent: 0
         MaxBatchSize: 1
         PauseTime: PT5M
-        WaitOnResourceSignals: false
+        WaitOnResourceSignals: true
         SuspendProcesses:
           - HealthCheck
           - ReplaceUnhealthy
@@ -792,6 +936,103 @@ Resources:
       Path: '/'
       Roles:
         - !Ref ECSInstanceRole
+  # LaunchTemplate:
+  #   Type: AWS::EC2::LaunchTemplate
+  #   Condition: WindowsOS
+  #   ## Wait for Fsx before creating because FSX file system has to be provisioned for the mount
+  #   DependsOn:  FsxWaitCondition    
+  #   Properties:
+  #     LaunchTemplateData:
+  #       ImageId: !If
+  #                 - IsWin2019Full
+  #                 - !Ref WIN2019FULL
+  #                 - !If
+  #                   - IsWin2019Core
+  #                   - !Ref WIN2019CORE
+  #                   - !If
+  #                     - IsWin1909Core
+  #                     - !Ref WIN1909CORE
+  #                     - !Ref WIN2016FULL
+  #       InstanceType: !Ref DockerHostInstanceType
+  #       KeyName: rjupte7-us-east-1
+  #       #InstanceType: "t3.medium"
+  #       IamInstanceProfile: 
+  #         Name: !Ref ECSInstanceProfile
+  #       UserData:
+  #         Fn::Base64: !Sub |
+  #           <powershell>
+  #           Start-Transcript -Path "C:\UserData.log" -Append
+  #           Write-Output ("Download and install the CloudWatch agent")
+  #           Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+
+  #           Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+
+  #           Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+  #           cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+  #           .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+
+  #           # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+  #           Import-Module ECSTools
+  #           Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+
+  #           # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+  #           [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+  #           Restart-Service AmazonECS
+
+  #           Write-Output ("UseFsx value is ${UseFSx}")
+  #           If ('${UseFSx}' -eq 'true')  {
+  #               # Add to domain
+  #               Write-Output ("Add computer to domain and map drive to ${FSxWindowsMountDrive}")
+  #               Write-Output ("Read SSM Parameters to join to domain")
+  #               $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
+  #               $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
+  #               $credential = New-Object System.Management.Automation.PSCredential($username,$password)
+  #               $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
+  #               $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+  #               $ips = $ipdns.Split(",")
+  #               $ip1 = $ips[0]
+
+  #               Write-Output ("Add $ip1 as the DNS Server")
+  #               # Get the VPC DNS server.
+  #               $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
+
+  #               # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
+  #               # VPC DNS server is the last one in the list.
+  #               $vpcdns = $dnsclient.ServerAddresses | select -last 1
+
+  #               # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
+  #               $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
+  #               Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
+  #               Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
+
+  #               # Join the domain
+  #               Write-Output ("Join Computer to Domain $directoryName")
+  #               Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
+
+  #               # $networkAdapter = Get-WmiObject Win32_NetworkAdapter -Filter "AdapterType = 'Ethernet 802.3'"
+  #               # $networkAdapterName = ($networkAdapter | Select-Object -First 1).NetConnectionID
+  #               # netsh.exe interface ipv4 add dnsservers name="$networkAdapterName" address=$ip1 index=1
+  #               # Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
+
+  #               Write-Output ("Setup mapping to file server")
+  #               $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
+  #               $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
+
+  #               # Map the share to local drive letter
+  #               Write-Output ("Map $fileserverpath to ${FSxWindowsMountDrive}")
+  #               New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
+  #           }  # end if for UseFsx
+
+  #           Write-Output ("Cfn-init and signal completion")
+  #           # Now run the CloudFormation init config set
+  #           cfn-init.exe -v -s ${AWS::StackId} -r ECSLaunchConfiguration --region ${AWS::Region}
+
+  #           # And, finally signal CloudFormation that we're done setting up
+  #           cfn-signal.exe -e 0 --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+  #           Stop-Transcript
+  #           </powershell>
+  #           <persist>true</persist>      
   ECSLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Condition: WindowsOS
@@ -1041,18 +1282,19 @@ Resources:
     Properties:
       Handle: !If [HasCertificate, !Ref ListenerSSLWaitHandle, !Ref ListenerWaitHandle]
       Timeout: '1'
-      Count: 0
+      Count: 0    
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
       - ListenerWaitCondition
+      - ClusterCapacityAssociationWaitCondition
     Properties:
-      EnableExecuteCommand: true
+      #EnableExecuteCommand: true
       ServiceName:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition
-      LaunchType: !If [WindowsOS, EC2, FARGATE]
+      LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
       # Initially set DesiredCount to zero so the resource stabilizes
       # CodePipeline will update it when deploying the task
       DesiredCount: 0
@@ -1073,6 +1315,13 @@ Resources:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref ALBTargetGroup
+      CapacityProviderStrategy:
+        !If
+          - WindowsOS      
+          - - CapacityProvider: !Ref CapacityProvider
+              Base: 1
+              Weight: 1          
+          - !Ref 'AWS::NoValue'
   ECSServiceAutoScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn:
