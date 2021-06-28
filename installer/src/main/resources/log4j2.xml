@@ -17,11 +17,11 @@ limitations under the License.
 <Configuration status="WARN" strict="true">
     <Appenders>
         <Appender type="Console" name="STDOUT">
-            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %C{1}.%M %m %ex%n"/>
+            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{AWSRequestId} %-5p %C{1} - %m%n"/>
         </Appender>
 
         <Appender Type="File" name="fileAppender" fileName="saas-boost-install.log">
-            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %C{1}.%M %m %ex%n"/>
+            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{AWSRequestId} %-5p %C{1} - %m%n"/>
         </Appender>
     </Appenders>
     <Loggers>
