@@ -13,25 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: 2010-09-09
-Description: SaaS Boost Tenant Onboarding
+Description: AWS SaaS Boost Tenant Onboarding
 Parameters:
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
-    Default: oct12
+#    Default: 
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-    Default: sb-oct12-artifacts-e7389e84-cdae
+#    Default: 
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
     Default: lambdas
-    #Default: lambdas-2020-10-12-15-26
+    #Default: 
   TenantId:
     Description: The GUID for the tenant
     Type: String
-    Default: 123456a1-35c4-4a30-8e17-0ba0280af391
+#    Default: 
   TenantSubDomain:
     Description: The subdomain for this tenant
     Type: String
@@ -65,7 +65,7 @@ Parameters:
   ContainerRepository:
     Description: The name of the ECR repository hosting the container image
     Type: String
-    Default: ecsrepository-o9zf9rbljvnt
+#    Default: 
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
@@ -78,11 +78,11 @@ Parameters:
   CodePipelineRoleArn:
     Description: The IAM role for CodePipeline
     Type: String
-    Default: arn:aws:iam::094057127497:role/sb-tenant-pipeline-role-oct12-us-east-2
+#    Default: 
   ArtifactBucket:
     Description: The S3 bucket where CodePipeline should look for source artifacts
     Type: String
-    Default: sb-oct12-codepipelinebucket-ka31t4gu60sl
+#    Default: 
   CidrPrefix:
     Description: Prefix of Cidr for this tenant such as 10.1, 10.2 etc.
     Type: String
@@ -91,15 +91,15 @@ Parameters:
   TransitGateway:
     Description: Id of Transit Gateway for Egress
     Type: String
-    Default: tgw-0e8f91a21d14b1e5e
+#    Default: 
   TenantTransitGatewayRouteTable:
     Description: Id of the Tenants Route table for Transit Gateway
     Type: String
-    Default: tgw-rtb-034f653af0d951d46
+#    Default: 
   EgressTransitGatewayRouteTable:
     Description: Id of the Egress Route table for Transit Gateway
     Type: String
-    Default: tgw-rtb-06222a87e38f4df69
+#    Default: 
   DomainName:
     Description: The hosted zone domain name
     Type: String
@@ -168,11 +168,11 @@ Parameters:
   ALBAccessLogsBucket:
     Description: SaaS Boost bucket for Access logs
     Type: String
-    Default: sb-oct12-albaccesslogs-15ofqujyc1ley
+#    Default: 
   EventBus:
     Description: Optional. SaaS boost Metering and Billing Event Bridge
     Type: String
-    Default: sb-events-oct12-us-east-2
+#    Default: 
   BillingPlan:
     Description: The billing plan to assign this tenant to after the stack completes
     Type: String
@@ -714,7 +714,6 @@ Resources:
               - !If
                 - ProvisionFsx
                 -
-                #TODO: update to mount mount
                  - ContainerPath: !Ref MountPoint
                    SourceVolume: fsxShare
                 - !Ref 'AWS::NoValue'
@@ -936,103 +935,6 @@ Resources:
       Path: '/'
       Roles:
         - !Ref ECSInstanceRole
-  # LaunchTemplate:
-  #   Type: AWS::EC2::LaunchTemplate
-  #   Condition: WindowsOS
-  #   ## Wait for Fsx before creating because FSX file system has to be provisioned for the mount
-  #   DependsOn:  FsxWaitCondition    
-  #   Properties:
-  #     LaunchTemplateData:
-  #       ImageId: !If
-  #                 - IsWin2019Full
-  #                 - !Ref WIN2019FULL
-  #                 - !If
-  #                   - IsWin2019Core
-  #                   - !Ref WIN2019CORE
-  #                   - !If
-  #                     - IsWin1909Core
-  #                     - !Ref WIN1909CORE
-  #                     - !Ref WIN2016FULL
-  #       InstanceType: !Ref DockerHostInstanceType
-  #       KeyName: rjupte7-us-east-1
-  #       #InstanceType: "t3.medium"
-  #       IamInstanceProfile: 
-  #         Name: !Ref ECSInstanceProfile
-  #       UserData:
-  #         Fn::Base64: !Sub |
-  #           <powershell>
-  #           Start-Transcript -Path "C:\UserData.log" -Append
-  #           Write-Output ("Download and install the CloudWatch agent")
-  #           Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
-
-  #           Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
-
-  #           Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
-  #           cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
-  #           .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
-
-  #           # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
-  #           Import-Module ECSTools
-  #           Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
-
-  #           # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
-  #           [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
-  #           Restart-Service AmazonECS
-
-  #           Write-Output ("UseFsx value is ${UseFSx}")
-  #           If ('${UseFSx}' -eq 'true')  {
-  #               # Add to domain
-  #               Write-Output ("Add computer to domain and map drive to ${FSxWindowsMountDrive}")
-  #               Write-Output ("Read SSM Parameters to join to domain")
-  #               $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
-  #               $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
-  #               $credential = New-Object System.Management.Automation.PSCredential($username,$password)
-  #               $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
-  #               $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
-  #               $ips = $ipdns.Split(",")
-  #               $ip1 = $ips[0]
-
-  #               Write-Output ("Add $ip1 as the DNS Server")
-  #               # Get the VPC DNS server.
-  #               $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
-
-  #               # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
-  #               # VPC DNS server is the last one in the list.
-  #               $vpcdns = $dnsclient.ServerAddresses | select -last 1
-
-  #               # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
-  #               $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
-  #               Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
-  #               Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
-
-  #               # Join the domain
-  #               Write-Output ("Join Computer to Domain $directoryName")
-  #               Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
-
-  #               # $networkAdapter = Get-WmiObject Win32_NetworkAdapter -Filter "AdapterType = 'Ethernet 802.3'"
-  #               # $networkAdapterName = ($networkAdapter | Select-Object -First 1).NetConnectionID
-  #               # netsh.exe interface ipv4 add dnsservers name="$networkAdapterName" address=$ip1 index=1
-  #               # Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
-
-  #               Write-Output ("Setup mapping to file server")
-  #               $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
-  #               $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
-
-  #               # Map the share to local drive letter
-  #               Write-Output ("Map $fileserverpath to ${FSxWindowsMountDrive}")
-  #               New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
-  #           }  # end if for UseFsx
-
-  #           Write-Output ("Cfn-init and signal completion")
-  #           # Now run the CloudFormation init config set
-  #           cfn-init.exe -v -s ${AWS::StackId} -r ECSLaunchConfiguration --region ${AWS::Region}
-
-  #           # And, finally signal CloudFormation that we're done setting up
-  #           cfn-signal.exe -e 0 --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
-
-  #           Stop-Transcript
-  #           </powershell>
-  #           <persist>true</persist>      
   ECSLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Condition: WindowsOS

@@ -861,6 +861,7 @@ Resources:
                   - lambda:GetFunction
                   - lambda:GetFunctionConfiguration
                   - lambda:InvokeFunction
+                  - lambda:DeleteFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
               - Effect: Allow
