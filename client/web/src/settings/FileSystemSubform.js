@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { Fragment } from "react";
+import React, { Fragment } from 'react';
 import {
   Row,
   Col,
@@ -26,14 +26,10 @@ import {
   InputGroupAddon,
   FormGroup,
   Label,
-} from "reactstrap";
-import {
-  SaasBoostSelect,
-  SaasBoostInput,
-  SaasBoostCheckbox,
-} from "../components/FormComponents";
-import Slider from "rc-slider";
-import "rc-slider/assets/index.css";
+} from 'reactstrap';
+import { SaasBoostSelect, SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents';
+import Slider from 'rc-slider';
+import 'rc-slider/assets/index.css';
 
 export default class FileSystemSubform extends React.Component {
   render() {
@@ -76,7 +72,7 @@ export default class FileSystemSubform extends React.Component {
 const EfsFilesystemOptions = (props) => {
   return (
     props.provisionFs &&
-    props.containerOs === "LINUX" && (
+    props.containerOs === 'LINUX' && (
       <Row>
         <Col xl={6} className="mt-2">
           <SaasBoostInput
@@ -115,40 +111,34 @@ const EfsFilesystemOptions = (props) => {
 
 const FsxFilesystemOptions = (props) => {
   const fsMarks = {
-    32: "32",
-    1024: "1024",
+    32: '32',
+    1024: '1024',
   };
 
   const tpMarks = {
-    8: "8",
-    2048: "2048",
+    8: '8',
+    2048: '2048',
   };
 
   const onStorageChange = (val) => {
-    props.formik.setFieldValue("filesystem.fsx.storageGb", val);
+    props.formik.setFieldValue('filesystem.fsx.storageGb', val);
   };
 
   const onThroughputChange = (val) => {
-    props.formik.setFieldValue("filesystem.fsx.throughputMbs", val);
+    props.formik.setFieldValue('filesystem.fsx.throughputMbs', val);
   };
 
   const onWeeklyMaintTimeChange = (val) => {
-    props.formik.setFieldValue(
-      "filesystem.fsx.weeklyMaintenanceTime",
-      val.target.value
-    );
+    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceTime', val.target.value);
   };
 
   const onWeeklyDayChange = (val) => {
-    props.formik.setFieldValue(
-      "filesystem.fsx.weeklyMaintenanceDay",
-      val.target.value
-    );
+    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceDay', val.target.value);
   };
 
   return (
     props.provisionFs &&
-    props.containerOs === "WINDOWS" && (
+    props.containerOs === 'WINDOWS' && (
       <Row>
         <Col sm={6} className="mt-2">
           <SaasBoostInput
