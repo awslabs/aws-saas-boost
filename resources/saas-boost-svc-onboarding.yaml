@@ -866,6 +866,12 @@ Resources:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
               - Effect: Allow
                 Action:
+                  - ssm:Get*
+                  - ssm:DeleteParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*                
+              - Effect: Allow
+                Action:
                   - ec2:RevokeSecurityGroupEgress
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
