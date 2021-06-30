@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from "react";
-import { Switch, Route } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import React, { useEffect, useState } from 'react';
+import { Switch, Route } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 
 import {
   fetchSettings,
@@ -31,16 +31,12 @@ import {
   selectConfigError,
   selectConfigMessage,
   createConfig,
-} from "./ducks";
+} from './ducks';
 
-import { ApplicationComponent } from "./ApplicationComponent";
-import { ConfirmModal } from "./ConfirmModal";
-import {
-  selectDbOptions,
-  selectOsOptions,
-  selectDbUploadUrl,
-} from "../options/ducks";
-import { fetchTenantsThunk, selectAllTenants } from "../tenant/ducks";
+import { ApplicationComponent } from './ApplicationComponent';
+import { ConfirmModal } from './ConfirmModal';
+import { selectDbOptions, selectOsOptions, selectDbUploadUrl } from '../options/ducks';
+import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks';
 
 export function ApplicationContainer(props) {
   const dispatch = useDispatch();
@@ -75,7 +71,7 @@ export function ApplicationContainer(props) {
   useEffect(() => {
     const settingsResponse = dispatch(fetchSettings());
     return () => {
-      if (settingsResponse.PromiseStatus === "pending") {
+      if (settingsResponse.PromiseStatus === 'pending') {
         settingsResponse.abort();
       }
       dispatch(dismissError());
@@ -85,7 +81,7 @@ export function ApplicationContainer(props) {
   useEffect(() => {
     const fetchConfigResponse = dispatch(fetchConfig());
     return () => {
-      if (fetchConfigResponse.PromiseStatus === "pending") {
+      if (fetchConfigResponse.PromiseStatus === 'pending') {
         fetchConfigResponse.abort();
       }
       dispatch(dismissError());
@@ -95,7 +91,7 @@ export function ApplicationContainer(props) {
   useEffect(() => {
     const fetchTenantsResponse = dispatch(fetchTenantsThunk());
     return () => {
-      if (fetchTenantsResponse.PromiseStatus === "pending") {
+      if (fetchTenantsResponse.PromiseStatus === 'pending') {
         fetchTenantsResponse.abort();
       }
       dismissError(dismissError());
@@ -118,7 +114,6 @@ export function ApplicationContainer(props) {
   };
 
   const updateConfiguration = async (values) => {
-    console.log("Submit values:", values);
     const isMatch = (pw, encryptedPw) => {
       return encryptedPw.substring(0, 8) === pw;
     };
@@ -143,15 +138,10 @@ export function ApplicationContainer(props) {
       };
       cleanedFs = {
         ...cleanedFs,
-        efs: cleanedFs.fileSystemType === "EFS" ? cleanedFs.efs : null,
-        fsx: cleanedFs.fileSystemType === "FSX" ? fsx : null,
+        efs: cleanedFs.fileSystemType === 'EFS' ? cleanedFs.efs : null,
+        fsx: cleanedFs.fileSystemType === 'FSX' ? fsx : null,
       };
-      const {
-        port,
-        hasEncryptedPassword,
-        encryptedPassword,
-        ...restDb
-      } = database;
+      const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database;
       // If we detected an encrypted password coming in, and it looks like they haven't changed it
       // then send the encrypted password back to the server. Otherwise send what they changed.
       const cleanedDb = {
@@ -167,16 +157,12 @@ export function ApplicationContainer(props) {
         filesystem: provisionFS ? cleanedFs : null,
         database: provisionDb ? cleanedDb : null,
         billing: provisionBilling ? billing : null,
-        operatingSystem: operatingSystem === "LINUX" ? "LINUX" : windowsVersion,
+        operatingSystem: operatingSystem === 'LINUX' ? 'LINUX' : windowsVersion,
       };
       if (!!file && file.name && provisionDb) {
-        await dispatch(
-          saveToPresignedBucket({ dbFile: file, url: dbUploadUrl })
-        );
+        await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }));
       }
-      await dispatch(
-        hasTenants ? updateConfig(configToSend) : createConfig(configToSend)
-      );
+      await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend));
     } catch (e) {
       console.error(e);
     }
@@ -211,11 +197,7 @@ export function ApplicationContainer(props) {
               settingsObj={settingsObj}
               error={configError}
               message={configMessage}
-              loading={
-                loading === "idle" && configLoading === "idle"
-                  ? "idle"
-                  : "pending"
-              }
+              loading={loading === 'idle' && configLoading === 'idle' ? 'idle' : 'pending'}
               updateConfiguration={presubmitCheck}
               {...props}
             />

@@ -14,19 +14,10 @@
  * limitations under the License.
  */
 
-import React from "react";
-import {
-  Row,
-  Col,
-  Card,
-  CardBody,
-  CardHeader,
-  FormGroup,
-  Label,
-  FormFeedback,
-} from "reactstrap";
-import { Field } from "formik";
-import { SaasBoostSelect, SaasBoostInput } from "../components/FormComponents";
+import React from 'react';
+import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap';
+import { Field } from 'formik';
+import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents';
 
 const ContainerSettingsSubform = (props) => {
   const { osOptions, isLocked } = props;
@@ -34,9 +25,7 @@ const ContainerSettingsSubform = (props) => {
     if (!osOptions) {
       return null;
     }
-    const winKeys = Object.keys(osOptions).filter((key) =>
-      key.startsWith("WIN")
-    );
+    const winKeys = Object.keys(osOptions).filter((key) => key.startsWith('WIN'));
     const options = winKeys.map((key) => {
       var desc = osOptions[key];
       return (
@@ -45,7 +34,7 @@ const ContainerSettingsSubform = (props) => {
         </option>
       );
     });
-    return props.formik.values.operatingSystem === "WINDOWS" && osOptions ? (
+    return props.formik.values.operatingSystem === 'WINDOWS' && osOptions ? (
       <FormGroup>
         <SaasBoostSelect
           type="select"
@@ -64,12 +53,12 @@ const ContainerSettingsSubform = (props) => {
   // based on the container OS
   const onOperatingSystemChange = (val) => {
     const os = val?.target?.value;
-    props.formik.setFieldValue("operatingSystem", os);
-    if (os === "WINDOWS") {
-      props.formik.setFieldValue("filesystem.fileSystemType", "FSX");
+    props.formik.setFieldValue('operatingSystem', os);
+    if (os === 'WINDOWS') {
+      props.formik.setFieldValue('filesystem.fileSystemType', 'FSX');
     }
-    if (os === "LINUX") {
-      props.formik.setFieldValue("filesystem.fileSystemType", "EFS");
+    if (os === 'LINUX') {
+      props.formik.setFieldValue('filesystem.fileSystemType', 'EFS');
     }
   };
 
@@ -124,11 +113,7 @@ const ContainerSettingsSubform = (props) => {
                         value="LINUX"
                         disabled={isLocked}
                       />
-                      <Label
-                        className="form-check-label"
-                        check
-                        htmlFor="inline-radio1"
-                      >
+                      <Label className="form-check-label" check htmlFor="inline-radio1">
                         <i className="fa fa-linux"></i> Linux
                       </Label>
                     </FormGroup>
@@ -142,11 +127,7 @@ const ContainerSettingsSubform = (props) => {
                         value="WINDOWS"
                         disabled={isLocked}
                       />
-                      <Label
-                        className="form-check-label"
-                        check
-                        htmlFor="inline-radio2"
-                      >
+                      <Label className="form-check-label" check htmlFor="inline-radio2">
                         <i className="fa fa-windows"></i> Windows
                       </Label>
                     </FormGroup>
