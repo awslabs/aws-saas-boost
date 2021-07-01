@@ -1180,6 +1180,9 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
