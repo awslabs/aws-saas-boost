@@ -435,13 +435,14 @@ Resources:
 
   CustomResourceRole:
     Type: AWS::IAM::Role
+    Condition: WindowsOS    
     Properties:
       RoleName: 
         Fn::Join:
           - ''
           - - 'sb-'
             - !Ref Environment
-            - '-custom-resouce-role-tenant-'
+            - '-disable-protection-role-tenant-'
             - !Select [0, !Split ['-', !Ref TenantId]]
             - '-'
             - !Ref AWS::Region
@@ -461,7 +462,7 @@ Resources:
               - ''
               - - 'sb-'
                 - !Ref Environment
-                - '-custom-resource-policy-tenant-'
+                - '-disable-protection-policy-tenant-'
                 - !Select [0, !Split ['-', !Ref TenantId]]
                 - '-'
                 - !Ref AWS::Region
@@ -485,52 +486,40 @@ Resources:
                   - autoscaling:*
                 Resource: '*'
   CustomResourceLogs:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName:
-          Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-customresource']]
-        RetentionInDays: 30
+    Type: AWS::Logs::LogGroup
+    Condition: WindowsOS      
+    Properties:
+      LogGroupName:
+        Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]
+      RetentionInDays: 30
   CustomResourceFunction:
     Type: AWS::Lambda::Function
+    Condition: WindowsOS    
     DependsOn:
       - CustomResourceLogs
     Properties:
       FunctionName: 
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-customresource']]           
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]           
       Role: !GetAtt CustomResourceRole.Arn
-      Runtime: python3.7
-      Timeout: 900
+      Runtime: java11
+      Timeout: 870
       MemorySize: 640
-      Handler: index.lambda_handler
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.DisableInstanceProtection
       Code:
-        ZipFile: !Sub |
-            import boto3
-            import cfnresponse            
-            ASG = boto3.client('autoscaling')
-            ASGName = '${ECSAutoScalingGroup}'
-            def lambda_handler(event, context):
-                responseData = {}            
-                if(event['RequestType'] == 'Delete'):
-                    group = ASG.describe_auto_scaling_groups(
-                        AutoScalingGroupNames=[ASGName])
-                    instances=group["AutoScalingGroups"][0]["Instances"]
-                    instanceids=[]
-                    for i in instances:
-                      instanceids.append(i["InstanceId"])
-                    ASG.set_instance_protection(
-                                        InstanceIds=instanceids,
-                                        AutoScalingGroupName=ASGName,
-                                        ProtectedFromScaleIn=False)
-                    cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
-                else:
-                    cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
-      Description: Disable instance protection
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/DisableInstanceProtection-lambda.zip
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+      Description: Disable instance protection to allow delete of Autoscaling group
   InvokeCustomResource:
     Type: Custom::CustomResource
+    Condition: WindowsOS
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !GetAtt CustomResourceFunction.Arn             
+      ServiceToken: !GetAtt CustomResourceFunction.Arn     
+      AutoScalingGroup: !Ref ECSAutoScalingGroup     
 ## end changes          
 
   ECSTaskExecutionRole:
