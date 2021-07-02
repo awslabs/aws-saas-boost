@@ -1,0 +1,106 @@
+name: PR Build Validation
+on: 
+  pull_request:
+    branches: [ main ]
+jobs:
+  Build-Java:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v2
+        
+      - name: Cache Maven packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      # We use Corretto Java 11 for Lambda: https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html
+      # Currently amazon-corretto Java is not supported for GitHub actions on Ubuntu-latest. By default we're using Adopt JDK11
+      #   https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-README.md
+      # We may want to either switch to using an AL2 container (to give us corretto) or contribute a new JDK to the GitHub runners
+      #   There is an open issue (as of 2021/06/30) requesting Corretto support: https://github.com/actions/setup-java/issues/68
+      # - name: Set up JDK 11
+      #   uses: actions/setup-java@v2
+      #   with:
+      #     java-version: '11'
+      #     distribution: 'adopt'
+      
+      # TODO add parent pom for Java built services
+      # This is... not great. We currently have no way to build all Java code with a single command. 
+      # And we can't just run mvn clean compile because later modules rely on the binaries of earlier ones. 
+      # Including a parent pom will solve both of the above.
+      
+      - name: Build Installer
+        run: |
+          cd ${{ github.workspace }}/installer
+          mvn clean install -DskipTests
+          
+      - name: Build Layers
+        run: |
+          find ${{ github.workspace }}/layers -maxdepth 1 -mindepth 1 -type d | 
+          while read dir ; do 
+            cd $dir
+            mvn clean install -DskipTests
+            cd -
+          done
+          
+      - name: Build Functions
+        run: |
+          find ${{ github.workspace }}/functions -maxdepth 1 -mindepth 1 -type d | 
+          while read dir ; do 
+            cd $dir
+            mvn clean install -DskipTests
+            cd -
+          done
+          
+      - name: Build Resources
+        run: |
+          find ${{ github.workspace }}/resources/custom-resources -maxdepth 1 -mindepth 1 -type d |
+          while read dir ; do 
+            cd $dir
+            mvn clean install -DskipTests
+            cd -
+          done
+          
+      - name: Build Services
+        run: |
+          find ${{ github.workspace }}/services -maxdepth 1 -mindepth 1 -type d | 
+          while read dir ; do 
+            cd $dir
+            mvn clean install -DskipTests
+            cd -
+          done
+
+  Build-WebClient:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+          
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 14
+          
+      - name: Cache node modules
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-node-modules
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+            
+      # CI=false is required because GitHub hosted runners set CI=true, which causes Warnings to be treated as Errors when doing yarn build
+      # this is a workaround to allow the build to succeed until we can get around to fixing the warnings generated
+      # https://docs.github.com/en/actions/reference/environment-variables#default-environment-variables
+      # TODO remove CI=false
+      - name: Build WebClient
+        run: |
+          cd ${{ github.workspace }}/client/web
+          yarn
+          CI=false yarn build
