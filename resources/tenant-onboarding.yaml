@@ -18,16 +18,13 @@ Parameters:
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
-    Default: oct12
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-    Default: sb-oct12-artifacts-e7389e84-cdae
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
     Default: lambdas
-    #Default: lambdas-2020-10-12-15-26
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -65,7 +62,6 @@ Parameters:
   ContainerRepository:
     Description: The name of the ECR repository hosting the container image
     Type: String
-    Default: ecsrepository-o9zf9rbljvnt
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
@@ -73,8 +69,7 @@ Parameters:
   ContainerHealthCheckPath:
     Description: The destination on the Container for the Load Balancer to use for health checks
     Type: String
-    #Default: '/index.html'
-    Default: /
+    Default: '/'
   CodePipelineRoleArn:
     Description: The IAM role for CodePipeline
     Type: String
@@ -86,20 +81,15 @@ Parameters:
   CidrPrefix:
     Description: Prefix of Cidr for this tenant such as 10.1, 10.2 etc.
     Type: String
-    #Default: 10.0
-    Default: 10.10
   TransitGateway:
     Description: Id of Transit Gateway for Egress
     Type: String
-    Default: tgw-0e8f91a21d14b1e5e
   TenantTransitGatewayRouteTable:
     Description: Id of the Tenants Route table for Transit Gateway
     Type: String
-    Default: tgw-rtb-034f653af0d951d46
   EgressTransitGatewayRouteTable:
     Description: Id of the Egress Route table for Transit Gateway
     Type: String
-    Default: tgw-rtb-06222a87e38f4df69
   DomainName:
     Description: The hosted zone domain name
     Type: String
@@ -168,16 +158,12 @@ Parameters:
   ALBAccessLogsBucket:
     Description: SaaS Boost bucket for Access logs
     Type: String
-    Default: sb-oct12-albaccesslogs-15ofqujyc1ley
   EventBus:
     Description: Optional. SaaS boost Metering and Billing Event Bridge
     Type: String
-    Default: sb-events-oct12-us-east-2
   BillingPlan:
     Description: The billing plan to assign this tenant to after the stack completes
     Type: String
-    Default: plan_none
-#Fsx for Windows
   UseFSx:
     Description: Deploy the FSX nested stack?
     Type: String
@@ -194,7 +180,7 @@ Parameters:
     Type: Number
   FSxThroughputCapacity:
     Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048.
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxBackupRetention:
@@ -214,7 +200,6 @@ Parameters:
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
-  #  Default: /saas-boost/<environment>/SSL_CERT_ARN:1
     Default: ''
   ## These params are here to read the image values from the public SSM. Leave the defaults
   WIN2019FULL:
@@ -236,7 +221,6 @@ Conditions:
   WindowsOS: !Not [!Equals [!Ref DockerHostOS, 'LINUX']]
   HasCertificate: !Not [!Equals [!Ref SSLCertArnParam, '']]
   NoCertificate: !Not [Condition: HasCertificate]
-  # FSX
   ProvisionFsx: !And
     - !Equals [!Ref UseFSx, 'true']
     - Condition: WindowsOS
@@ -499,7 +483,6 @@ Resources:
                   - events:PutEvents
                 Resource:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
-              #added to access config files for tenant.
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -1200,6 +1183,8 @@ Resources:
   fsx:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFsx
+    Metadata:
+      ForceUpdate: !Ref LambdaSourceFolder
     DependsOn:
       - SubnetPublicA
       - SubnetPublicB
@@ -1237,6 +1222,8 @@ Resources:
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
+    Metadata:
+      ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-efs.yaml
       TimeoutInMinutes: 15
@@ -1252,6 +1239,8 @@ Resources:
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
+    Metadata:
+      ForceUpdate: !Ref LambdaSourceFolder
     # Have to make sure the entire network is still up when you delete
     # or we won't be able to call back to the CFN response URL
     DependsOn:

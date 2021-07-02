@@ -58,7 +58,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
     final static List<String> REQUIRED_PARAMS = Collections.unmodifiableList(
             Arrays.asList("SAAS_BOOST_BUCKET", "CODE_PIPELINE_BUCKET", "CODE_PIPELINE_ROLE", "ECR_REPO", "ONBOARDING_WORKFLOW",
                     "ONBOARDING_SNS", "ONBOARDING_TEMPLATE", "TRANSIT_GATEWAY", "TRANSIT_GATEWAY_ROUTE_TABLE", "EGRESS_ROUTE_TABLE",
-                    "SAAS_BOOST_ENVIRONMENT", "SAAS_BOOST_STACK")
+                    "SAAS_BOOST_ENVIRONMENT", "SAAS_BOOST_STACK", "SAAS_BOOST_LAMBDAS_FOLDER")
     );
     final static List<String> READ_WRITE_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN","COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK", "APP_NAME",

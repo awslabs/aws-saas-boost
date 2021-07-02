@@ -769,6 +769,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("TenantSubDomain").parameterValue(tenantSubdomain).build());
             templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
             templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(settings.get("SAAS_BOOST_BUCKET")).build());
+            templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(settings.get("SAAS_BOOST_LAMBDAS_FOLDER")).build());
             templateParameters.add(Parameter.builder().parameterKey("DockerHostOS").parameterValue(clusterOS).build());
             templateParameters.add(Parameter.builder().parameterKey("DockerHostInstanceType").parameterValue(settings.get("CLUSTER_INSTANCE_TYPE")).build());
             templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory).build());
@@ -1119,6 +1120,15 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     }
 
     public APIGatewayProxyResponseEvent updateProvisionedTenant(Map<String, Object> event, Context context) {
+        if (Utils.isBlank(API_GATEWAY_HOST)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
+        }
+        if (Utils.isBlank(API_GATEWAY_STAGE)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
+        }
+        if (Utils.isBlank(API_TRUST_ROLE)) {
+            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
         long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingService::updateProvisionedTenant");
         Utils.logRequestEvent(event);
@@ -1146,10 +1156,26 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String billingPlan = (String) tenant.get("planId");
             String subdomain = (String) tenant.get("subdomain");
 
+            // We have an inconsistency with how the Lambda source folder is managed.
+            // If you update an existing SaaS Boost installation with the installer script
+            // it will create a new S3 "folder" for the Lambda code packages to force
+            // CloudFormation to update the functions. We are now saving this change as
+            // part of the global settings, but we'll need to go fetch it here because it's
+            // not part of the onboarding request data nor is it part of the tenant data.
+            Map<String, Object> settings = fetchSettingsForTenantUpdate(context);
+            String lambdaSourceFolder = (String) settings.get("SAAS_BOOST_LAMBDAS_FOLDER");
+            String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/" + settings.get("ONBOARDING_TEMPLATE");
+
             List<Parameter> templateParameters = new ArrayList<>();
             templateParameters.add(Parameter.builder().parameterKey("TenantId").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build());
+            if (Utils.isNotBlank(lambdaSourceFolder)) {
+                LOGGER.info("Overriding previous template parameter LambdaSourceFolder to {}", lambdaSourceFolder);
+                templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(lambdaSourceFolder).build());
+            } else {
+                templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build());
+            }
             templateParameters.add(Parameter.builder().parameterKey("DockerHostOS").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("DockerHostInstanceType").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").usePreviousValue(Boolean.TRUE).build());
@@ -1181,8 +1207,6 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("MetricsStream").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("ALBAccessLogsBucket").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("EventBus").usePreviousValue(Boolean.TRUE).build());
-
-            //--> for FSX for Windows
             templateParameters.add(Parameter.builder().parameterKey("UseFSx").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").usePreviousValue(Boolean.TRUE).build());
@@ -1192,26 +1216,31 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
 
             if (taskMemory != null) {
+                LOGGER.info("Overriding previous template parameter TaskMemory to {}", taskMemory);
                 templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
             } else {
                 templateParameters.add(Parameter.builder().parameterKey("TaskMemory").usePreviousValue(Boolean.TRUE).build());
             }
             if (taskCpu != null) {
+                LOGGER.info("Overriding previous template parameter TaskCPU to {}", taskCpu);
                 templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
             } else {
                 templateParameters.add(Parameter.builder().parameterKey("TaskCPU").usePreviousValue(Boolean.TRUE).build());
             }
             if (taskCount != null) {
+                LOGGER.info("Overriding previous template parameter TaskCount to {}", taskCount);
                 templateParameters.add(Parameter.builder().parameterKey("TaskCount").parameterValue(taskCount.toString()).build());
             } else {
                 templateParameters.add(Parameter.builder().parameterKey("TaskCount").usePreviousValue(Boolean.TRUE).build());
             }
             if (maxCount != null) {
+                LOGGER.info("Overriding previous template parameter MaxTaskCount to {}", maxCount);
                 templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
             } else {
                 templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").usePreviousValue(Boolean.TRUE).build());
             }
             if (billingPlan != null) {
+                LOGGER.info("Overriding previous template parameter BillingPlan to {}", Utils.isBlank(billingPlan) ? "''" : billingPlan);
                 templateParameters.add(Parameter.builder().parameterKey("BillingPlan").parameterValue(billingPlan).build());
             } else {
                 templateParameters.add(Parameter.builder().parameterKey("BillingPlan").usePreviousValue(Boolean.TRUE).build());
@@ -1221,12 +1250,14 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             if (subdomain == null) {
                 subdomain = "";
             }
+            LOGGER.info("Setting template parameter TenantSubDomain to {}", subdomain);
             templateParameters.add(Parameter.builder().parameterKey("TenantSubDomain").parameterValue(subdomain).build());
             try {
                 UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
                         .stackName(stackId)
-                        .usePreviousTemplate(Boolean.TRUE)
-                        .capabilitiesWithStrings("CAPABILITY_NAMED_IAM")
+                        .usePreviousTemplate(Boolean.FALSE)
+                        .templateURL(templateUrl)
+                        .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                         .parameters(templateParameters)
                         .build()
                 );
@@ -1234,10 +1265,16 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 dal.updateStatus(onboarding.getId(), OnboardingStatus.updating);
                 LOGGER.info("OnboardingService::updateProvisionedTenant stack id " + stackId);
             } catch (SdkServiceException cfnError) {
-                LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
-                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
-                throw cfnError;
+                // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
+                // need to be updated. Swallow this error.
+                if (cfnError.getMessage().contains("No updates are to be performed")) {
+                    LOGGER.warn("cloudformation::updateStack error {}", cfnError.getMessage());
+                } else {
+                    LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
+                    LOGGER.error(Utils.getFullStackTrace(cfnError));
+                    dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
+                    throw cfnError;
+                }
             }
 
             response = new APIGatewayProxyResponseEvent()
@@ -1287,13 +1324,12 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
 
         LOGGER.info("Calling cloudFormation update-stack --stack-name {}", settings.get("SAAS_BOOST_STACK"));
-        String stackId;
+        String stackId = null;
         try {
             UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
                     .stackName(settings.get("SAAS_BOOST_STACK"))
                     .usePreviousTemplate(Boolean.TRUE)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    //.notificationARNs(settings.get("ONBOARDING_SNS"))
                     .parameters(
                             Parameter.builder().parameterKey("DomainName").parameterValue(settings.get("DOMAIN_NAME")).build(),
                             Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build(),
@@ -1310,9 +1346,15 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             stackId = cfnResponse.stackId();
             LOGGER.info("OnboardingService::resetDomainName stack id " + stackId);
         } catch (SdkServiceException cfnError) {
-            LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
-            LOGGER.error(Utils.getFullStackTrace(cfnError));
-            throw cfnError;
+            // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
+            // need to be updated. Swallow this error.
+            if (cfnError.getMessage().contains("No updates are to be performed")) {
+                LOGGER.warn("cloudformation::updateStack error {}", cfnError.getMessage());
+            } else {
+                LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
+                LOGGER.error(Utils.getFullStackTrace(cfnError));
+                throw cfnError;
+            }
         }
 
         response = new APIGatewayProxyResponseEvent()
@@ -1323,6 +1365,35 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("OnboardingService::resetDomainName exec " + totalTimeMillis);
         return response;
+    }
+
+    protected Map<String, Object> fetchSettingsForTenantUpdate(Context context) {
+        Map<String, Object> settings = new HashMap<>();
+        try {
+            String getSettingResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                    ApiGatewayHelper.getApiRequest(
+                            API_GATEWAY_HOST,
+                            API_GATEWAY_STAGE,
+                            ApiRequest.builder()
+                                    .resource("settings?setting=SAAS_BOOST_BUCKET&setting=SAAS_BOOST_LAMBDAS_FOLDER&setting=ONBOARDING_TEMPLATE")
+                                    .method("GET")
+                                    .build()
+                    ),
+                    API_TRUST_ROLE,
+                    context.getAwsRequestId()
+            );
+            List<Map<String, Object>> settingsResponse = Utils.fromJson(getSettingResponseBody, ArrayList.class);
+            settings = settingsResponse
+                    .stream()
+                    .collect(Collectors.toMap(
+                            setting -> (String) setting.get("name"), setting -> setting.get("value")
+                    ));
+        } catch (Exception e) {
+            LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/settings?setting=SAAS_BOOST_BUCKET&setting=SAAS_BOOST_LAMBDAS_FOLDER&setting=ONBOARDING_TEMPLATE");
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+        return settings;
     }
 
     /*

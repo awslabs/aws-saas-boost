@@ -71,6 +71,12 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
       Type: String
       Value: !Ref SaaSBoostBucket
+  SSMParamLambdaSourceFolder:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_LAMBDAS_FOLDER
+      Type: String
+      Value: !Ref LambdaSourceFolder
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
   #

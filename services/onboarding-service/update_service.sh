@@ -48,8 +48,9 @@ fi
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
 FUNCTIONS=(
-  "sb-${ENVIRONMENT}-onboarding-get-all"
+	"sb-${ENVIRONMENT}-onboarding-get-all"
 	"sb-${ENVIRONMENT}-onboarding-get-by-id"
+	"sb-${ENVIRONMENT}-onboarding-delete"
 	"sb-${ENVIRONMENT}-onboarding-listener"
 	"sb-${ENVIRONMENT}-onboarding-provision"
 	"sb-${ENVIRONMENT}-onboarding-start"
@@ -57,7 +58,6 @@ FUNCTIONS=(
 	"sb-${ENVIRONMENT}-onboarding-update-status"
 	"sb-${ENVIRONMENT}-onboarding-update-tenant"
 	"sb-${ENVIRONMENT}-tenants-update-onboarding"
-	"sb-${ENVIRONMENT}-onboarding-listener"
 )
 
 

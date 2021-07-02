@@ -322,22 +322,24 @@ public class TenantServiceDAL {
         if (tenant.getOverrideDefaults() != null) {
             item.put("overrideDefaults", AttributeValue.builder().bool(tenant.getOverrideDefaults()).build());
         }
-        if (Utils.isNotEmpty(tenant.getComputeSize())) {
-            item.put("computeSize", AttributeValue.builder().s(tenant.getComputeSize()).build());
+        if (Boolean.TRUE == tenant.getOverrideDefaults()) {
+            if (Utils.isNotEmpty(tenant.getComputeSize())) {
+                item.put("computeSize", AttributeValue.builder().s(tenant.getComputeSize()).build());
+            }
+            if (tenant.getMemory() != null) {
+                item.put("memory", AttributeValue.builder().n(tenant.getMemory().toString()).build());
+            }
+            if (tenant.getCpu() != null) {
+                item.put("cpu", AttributeValue.builder().n(tenant.getCpu().toString()).build());
+            }
+            if (tenant.getMinCount() != null) {
+                item.put("minCount", AttributeValue.builder().n(tenant.getMinCount().toString()).build());
+            }
+            if (tenant.getMaxCount() != null) {
+                item.put("maxCount", AttributeValue.builder().n(tenant.getMaxCount().toString()).build());
+            }
         }
-        if (tenant.getMemory() != null) {
-            item.put("memory", AttributeValue.builder().n(tenant.getMemory().toString()).build());
-        }
-        if (tenant.getCpu() != null) {
-            item.put("cpu", AttributeValue.builder().n(tenant.getCpu().toString()).build());
-        }
-        if (tenant.getMinCount() != null) {
-            item.put("minCount", AttributeValue.builder().n(tenant.getMinCount().toString()).build());
-        }
-        if (tenant.getMaxCount() != null) {
-            item.put("maxCount", AttributeValue.builder().n(tenant.getMaxCount().toString()).build());
-        }
-        if (tenant.getPlanId() != null && !tenant.getPlanId().isEmpty()) {
+        if (Utils.isNotBlank(tenant.getPlanId())) {
             item.put("planId", AttributeValue.builder().s(tenant.getPlanId()).build());
         }
         if (tenant.getResources() != null) {
@@ -396,43 +398,45 @@ public class TenantServiceDAL {
             if (item.containsKey("overrideDefaults")) {
                 tenant.setOverrideDefaults(item.get("overrideDefaults").bool());
             }
-            if (item.containsKey("computeSize")) {
-                tenant.setComputeSize(item.get("computeSize").s());
-            }
-            if (item.containsKey("memory")) {
-                try {
-                    Integer memory = Integer.valueOf(item.get("memory").n());
-                    tenant.setMemory(memory);
-                } catch (NumberFormatException nfe) {
-                    LOGGER.error("Failed to parse memory from database: {}", item.get("memory").n());
-                    LOGGER.error(Utils.getFullStackTrace(nfe));
+            if (Boolean.TRUE == tenant.getOverrideDefaults()) {
+                if (item.containsKey("computeSize")) {
+                    tenant.setComputeSize(item.get("computeSize").s());
                 }
-            }
-            if (item.containsKey("cpu")) {
-                try {
-                    Integer cpu = Integer.valueOf(item.get("cpu").n());
-                    tenant.setCpu(cpu);
-                } catch (NumberFormatException nfe) {
-                    LOGGER.error("Failed to parse CPU from database: {}", item.get("cpu").n());
-                    LOGGER.error(Utils.getFullStackTrace(nfe));
+                if (item.containsKey("memory")) {
+                    try {
+                        Integer memory = Integer.valueOf(item.get("memory").n());
+                        tenant.setMemory(memory);
+                    } catch (NumberFormatException nfe) {
+                        LOGGER.error("Failed to parse memory from database: {}", item.get("memory").n());
+                        LOGGER.error(Utils.getFullStackTrace(nfe));
+                    }
                 }
-            }
-            if (item.containsKey("minCount")) {
-                try {
-                    Integer minCount = Integer.valueOf(item.get("minCount").n());
-                    tenant.setMinCount(minCount);
-                } catch (NumberFormatException nfe) {
-                    LOGGER.error("Failed to parse min task count from database: {}", item.get("minCount").n());
-                    LOGGER.error(Utils.getFullStackTrace(nfe));
+                if (item.containsKey("cpu")) {
+                    try {
+                        Integer cpu = Integer.valueOf(item.get("cpu").n());
+                        tenant.setCpu(cpu);
+                    } catch (NumberFormatException nfe) {
+                        LOGGER.error("Failed to parse CPU from database: {}", item.get("cpu").n());
+                        LOGGER.error(Utils.getFullStackTrace(nfe));
+                    }
                 }
-            }
-            if (item.containsKey("maxCount")) {
-                try {
-                    Integer maxCount = Integer.valueOf(item.get("maxCount").n());
-                    tenant.setMaxCount(maxCount);
-                } catch (NumberFormatException nfe) {
-                    LOGGER.error("Failed to parse max task count from database: {}", item.get("maxCount").n());
-                    LOGGER.error(Utils.getFullStackTrace(nfe));
+                if (item.containsKey("minCount")) {
+                    try {
+                        Integer minCount = Integer.valueOf(item.get("minCount").n());
+                        tenant.setMinCount(minCount);
+                    } catch (NumberFormatException nfe) {
+                        LOGGER.error("Failed to parse min task count from database: {}", item.get("minCount").n());
+                        LOGGER.error(Utils.getFullStackTrace(nfe));
+                    }
+                }
+                if (item.containsKey("maxCount")) {
+                    try {
+                        Integer maxCount = Integer.valueOf(item.get("maxCount").n());
+                        tenant.setMaxCount(maxCount);
+                    } catch (NumberFormatException nfe) {
+                        LOGGER.error("Failed to parse max task count from database: {}", item.get("maxCount").n());
+                        LOGGER.error(Utils.getFullStackTrace(nfe));
+                    }
                 }
             }
             if (item.containsKey("planId")) {
