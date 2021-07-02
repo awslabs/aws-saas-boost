@@ -17,16 +17,15 @@ limitations under the License.
 <Configuration status="WARN" strict="true">
     <Appenders>
         <Appender type="Console" name="STDOUT">
-            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss} %C{1}.%M %m %ex%n"/><!-- class and line number -->
+            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{AWSRequestId} %-5p %C{1} - %m%n"/>
         </Appender>
 
         <Appender Type="File" name="fileAppender" fileName="saas-boost-install.log">
-            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss} %C{1}.%M %m %ex%n"/><!-- class and line number -->
+            <Layout type="PatternLayout" pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{AWSRequestId} %-5p %C{1} - %m%n"/>
         </Appender>
     </Appenders>
     <Loggers>
         <Root level="debug">
-            <!-- <AppenderRef ref="STDOUT"/> -->
             <AppenderRef ref="fileAppender"/>
         </Root>
         <Logger name="software.amazon.awssdk" level="ERROR"/>
