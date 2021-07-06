@@ -68,7 +68,7 @@ Parameters:
   ContainerHealthCheckPath:
     Description: The destination on the Container for the Load Balancer to use for health checks
     Type: String
-    Default: /
+    Default: '/'
   CodePipelineRoleArn:
     Description: The IAM role for CodePipeline
     Type: String
@@ -78,7 +78,6 @@ Parameters:
   CidrPrefix:
     Description: Prefix of Cidr for this tenant such as 10.1, 10.2 etc.
     Type: String
-    Default: 10.10
   TransitGateway:
     Description: Id of Transit Gateway for Egress
     Type: String
@@ -162,7 +161,6 @@ Parameters:
   BillingPlan:
     Description: The billing plan to assign this tenant to after the stack completes
     Type: String
-    Default: plan_none
   UseFSx:
     Description: Deploy the FSX nested stack?
     Type: String
@@ -648,7 +646,6 @@ Resources:
         - Name:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:latest
-          #Image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
           Cpu: !If [WindowsOS, !Ref TaskCPU, !Ref 'AWS::NoValue']
           Memory: !If [WindowsOS, !Ref TaskMemory, !Ref 'AWS::NoValue']
           PortMappings:
@@ -781,14 +778,11 @@ Resources:
       VPCZoneIdentifier:
         - !Ref SubnetPrivateA
         - !Ref SubnetPrivateB
-      LaunchConfigurationName: !Ref ECSLaunchConfiguration
-      # LaunchTemplate:
-      #   LaunchTemplateId: !Ref LaunchTemplate
-      #   Version: !GetAtt LaunchTemplate.LatestVersionNumber      
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration 
       NewInstancesProtectedFromScaleIn: true      
-      MinSize: "0"
-      MaxSize: "20"
-      DesiredCapacity: "0"
+      MinSize: '0'
+      MaxSize: '20'
+      DesiredCapacity: '0'
       #Cooldown:
       #HealthCheckGracePeriod: 60
       #HealthCheckType:
@@ -1162,7 +1156,7 @@ Resources:
       - ListenerWaitCondition
       - ClusterCapacityAssociationWaitCondition
     Properties:
-      #EnableExecuteCommand: true
+      EnableExecuteCommand: true
       ServiceName:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Cluster: !Ref ECSCluster
@@ -1380,6 +1374,8 @@ Resources:
     Condition: ProvisionRDS
     Metadata:
       ForceUpdate: !Ref LambdaSourceFolder    
+    # Have to make sure the entire network is still up when you delete
+    # or we won't be able to call back to the CFN response URL      
     DependsOn:
       - SubnetPublicA
       - SubnetPublicB
