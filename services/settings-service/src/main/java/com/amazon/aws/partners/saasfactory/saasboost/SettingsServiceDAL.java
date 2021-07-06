@@ -308,6 +308,10 @@ public class SettingsServiceDAL {
         return fromParameterStore(updated);
     }
 
+    public void deleteSetting(Setting setting) {
+        deleteParameter(toParameterStore(setting));
+    }
+
     private Parameter putParameter(Parameter parameter) {
         Parameter updated = null;
         try {
@@ -328,6 +332,18 @@ public class SettingsServiceDAL {
             throw ssmError;
         }
         return updated;
+    }
+
+    private void deleteParameter(Parameter parameter) {
+        try {
+            DeleteParameterResponse response = ssm.deleteParameter(request -> request
+                    .name(parameter.name())
+            );
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:DeleteParameter error " + ssmError.getMessage());
+            throw ssmError;
+        }
+        return;
     }
 
     public List<Map<String, Object>> rdsOptions() {
@@ -546,6 +562,57 @@ public class SettingsServiceDAL {
         return appConfig;
     }
 
+    public void deleteAppConfig() {
+        long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsServiceDAL::deleteAppConfig");
+        // NOTE: Could also implement this like deleteTenantSettings by combining SettingsService::REQUIRED_PARAMS
+        // and SettingsService::READ_WRITE_PARAMS and building the Parameter Store path by hand to avoid the call(s)
+        // to getParameters before the call to deleteParameters
+        List<String> parametersToDelete = toSettings(getAppConfig()).stream()
+                .map(s -> toParameterStore(s).name())
+                .collect(Collectors.toList());
+        List<String> batch = new ArrayList<>();
+        try {
+            Iterator<String> it = parametersToDelete.iterator();
+            while (it.hasNext()) {
+                if (batch.size() < 10) {
+                    batch.add(it.next());
+                    // If parametersToDelete % 10 != 0, then be sure to make a request with the remainder
+                    if (!it.hasNext()) {
+                        DeleteParametersResponse response = ssm.deleteParameters(r ->
+                                r.names(batch)
+                        );
+                        LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
+                        if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
+                            LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
+                        }
+                        // We've reached the end of the request input
+                        break;
+                    }
+                } else {
+                    // Batch has reached max size of 10, make the request
+                    DeleteParametersResponse response = ssm.deleteParameters(r ->
+                            r.names(batch)
+                    );
+                    LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
+                    if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
+                        LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
+                    }
+                    // Clear the batch so we can fill it up for the next request
+                    batch.clear();
+                }
+            }
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:DeleteParameters error", ssmError);
+            LOGGER.error(Utils.getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
+        return;
+    }
+
     public static Setting fromParameterStore(Parameter parameter) {
         Setting setting = null;
         if (parameter != null) {
@@ -647,7 +714,10 @@ public class SettingsServiceDAL {
         settings.add(Setting.builder().name("MIN_COUNT").value(minCount).readOnly(false).build());
         String maxCount = appConfig.getMaxCount() != null ? appConfig.getMaxCount().toString() : null;
         settings.add(Setting.builder().name("MAX_COUNT").value(maxCount).readOnly(false).build());
-        settings.add(Setting.builder().name("CLUSTER_OS").value(appConfig.getOperatingSystem().name()).readOnly(false).build());
+        OperatingSystem os = appConfig.getOperatingSystem();
+        if (os != null) {
+            settings.add(Setting.builder().name("CLUSTER_OS").value(os.name()).readOnly(false).build());
+        }
         settings.add(Setting.builder().name("CLUSTER_INSTANCE_TYPE").value(appConfig.getInstanceType()).readOnly(false).build());
         SharedFilesystem filesystem = appConfig.getFilesystem();
         if (filesystem != null) {

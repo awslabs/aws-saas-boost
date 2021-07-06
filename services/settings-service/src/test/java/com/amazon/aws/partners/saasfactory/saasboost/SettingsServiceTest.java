@@ -254,6 +254,13 @@ public class SettingsServiceTest {
     public void testFromParameterStore() {
 
     }
+
+    @Test
+    public void testToSettings() {
+        AppConfig appConfig = AppConfig.builder().build();
+        List<Setting> settings = SettingsServiceDAL.toSettings(appConfig);
+        System.out.println(Utils.toJson(settings));
+    }
     
     @Test
     public void testRdsOptions() throws Exception {

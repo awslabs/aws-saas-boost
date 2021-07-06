@@ -73,6 +73,9 @@ Parameters:
   SettingsServiceTenantDelete:
     Description: Settings Service delete tenant settings Lambda ARN
     Type: String
+  SettingsServiceDeleteAppConfig:
+    Description: Settings Service delete application configuration Lambda ARN
+    Type: String
 Resources:
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
@@ -606,6 +609,12 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref SettingsServiceByTenantIdResource
       PathPart: '{setting}'
+  SettingsServiceConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: 'config'
   SettingsServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -944,6 +953,38 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+
+
+
+  SettingsServiceDeleteAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: DELETE
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceDeleteAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceDeleteAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceDeleteAppConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/DELETE/settings/config
+
+
+
+
+
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:

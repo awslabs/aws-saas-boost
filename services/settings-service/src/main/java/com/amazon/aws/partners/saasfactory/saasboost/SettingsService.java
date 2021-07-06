@@ -723,6 +723,34 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         LOGGER.info("SettingsService::updateAppConfig exec " + totalTimeMillis);
         return response;
     }
+    
+    public APIGatewayProxyResponseEvent deleteAppConfig(Map<String, Object> event, Context context) {
+        if (Utils.warmup(event)) {
+            //LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+        }
+
+        long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsService::deleteAppConfig");
+        Utils.logRequestEvent(event);
+        APIGatewayProxyResponseEvent response = null;
+
+        try {
+            dal.deleteAppConfig();
+            response = new APIGatewayProxyResponseEvent()
+            .withHeaders(CORS)
+            .withStatusCode(200);
+        } catch (Exception e) {
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(400)
+                    .withBody("{\"message\":\"Error deleting application settings.\"}");
+        }
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsService::deleteAppConfig exec " + totalTimeMillis);
+        return response;
+    }
 
     private void triggerBillingSetup() {
         Map<String, Object> billingSetupDetail = new HashMap<>();
