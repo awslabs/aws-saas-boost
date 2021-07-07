@@ -315,6 +315,7 @@ Resources:
             - !Ref RDSMasterPasswordParam
             - '}}'
       AllocatedStorage: '100'
+      StorageType: gp2
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
