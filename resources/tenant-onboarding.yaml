@@ -485,7 +485,9 @@ Resources:
                 Resource: '*'
   CustomResourceLogs:
     Type: AWS::Logs::LogGroup
-    Condition: WindowsOS      
+    Condition: WindowsOS
+#    DeletionPolicy: Retain 
+#    UpdateReplacePolicy: Retain   
     Properties:
       LogGroupName:
         Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]
@@ -1156,7 +1158,7 @@ Resources:
       - ListenerWaitCondition
       - ClusterCapacityAssociationWaitCondition
     Properties:
-      EnableExecuteCommand: true
+      EnableExecuteCommand: !If [WindowsOS, false, true]
       ServiceName:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Cluster: !Ref ECSCluster
