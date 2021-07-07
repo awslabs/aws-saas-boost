@@ -62,6 +62,8 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
                                 .autoScalingGroupNames(autoScalingGroup)
                                 .build());
 
+                        LOGGER.info("Response for describe has {} Auto Scaling Groups", response.autoScalingGroups().size());
+
                         if (!response.autoScalingGroups().isEmpty()) {
                             AutoScalingGroup asgGroup = response.autoScalingGroups().get(0);
                             List<String> instancesToUpdate = new ArrayList<>();
@@ -72,6 +74,7 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
                             autoScalingClient.setInstanceProtection(SetInstanceProtectionRequest.builder()
                                     .instanceIds(instancesToUpdate)
                                     .protectedFromScaleIn(false)
+                                    .autoScalingGroupName(autoScalingGroup)
                                     .build());
 
                             LOGGER.info("Disabled instance protection on {} instances.", instancesToUpdate.size());
