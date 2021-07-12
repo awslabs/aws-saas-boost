@@ -431,7 +431,7 @@ Resources:
       Timeout: '1'
       Count: 0       
 
-  CustomResourceRole:
+  DisableInstanceProtectionRole:
     Type: AWS::IAM::Role
     Condition: WindowsOS    
     Properties:
@@ -483,7 +483,7 @@ Resources:
                 Action:
                   - autoscaling:*
                 Resource: '*'
-  CustomResourceLogs:
+  DisableInstanceProtectionLogs:
     Type: AWS::Logs::LogGroup
     Condition: WindowsOS
 #    DeletionPolicy: Retain 
@@ -492,15 +492,15 @@ Resources:
       LogGroupName:
         Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]
       RetentionInDays: 30
-  CustomResourceFunction:
+  DisableInstanceProtectionFunction:
     Type: AWS::Lambda::Function
     Condition: WindowsOS    
     DependsOn:
-      - CustomResourceLogs
+      - DisableInstanceProtectionLogs
     Properties:
       FunctionName: 
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]           
-      Role: !GetAtt CustomResourceRole.Arn
+      Role: !GetAtt DisableInstanceProtectionRole.Arn
       Runtime: java11
       Timeout: 870
       MemorySize: 640
@@ -512,13 +512,13 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
       Description: Disable instance protection to allow delete of Autoscaling group
-  InvokeCustomResource:
+  InvokeDisableInstanceProtection:
     Type: Custom::CustomResource
     Condition: WindowsOS
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !GetAtt CustomResourceFunction.Arn     
+      ServiceToken: !GetAtt DisableInstanceProtectionFunction.Arn     
       AutoScalingGroup: !Ref ECSAutoScalingGroup     
 ## end changes          
 
