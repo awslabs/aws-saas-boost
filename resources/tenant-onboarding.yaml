@@ -18,13 +18,16 @@ Parameters:
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
+    Default: oct12
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
+    Default: sb-oct12-artifacts-e7389e84-cdae
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
     Default: lambdas
+    #Default: lambdas-2020-10-12-15-26
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -62,6 +65,7 @@ Parameters:
   ContainerRepository:
     Description: The name of the ECR repository hosting the container image
     Type: String
+    Default: ecsrepository-o9zf9rbljvnt
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
@@ -69,7 +73,8 @@ Parameters:
   ContainerHealthCheckPath:
     Description: The destination on the Container for the Load Balancer to use for health checks
     Type: String
-    Default: '/'
+    #Default: '/index.html'
+    Default: /
   CodePipelineRoleArn:
     Description: The IAM role for CodePipeline
     Type: String
@@ -81,15 +86,20 @@ Parameters:
   CidrPrefix:
     Description: Prefix of Cidr for this tenant such as 10.1, 10.2 etc.
     Type: String
+    #Default: 10.0
+    Default: 10.10
   TransitGateway:
     Description: Id of Transit Gateway for Egress
     Type: String
+    Default: tgw-0e8f91a21d14b1e5e
   TenantTransitGatewayRouteTable:
     Description: Id of the Tenants Route table for Transit Gateway
     Type: String
+    Default: tgw-rtb-034f653af0d951d46
   EgressTransitGatewayRouteTable:
     Description: Id of the Egress Route table for Transit Gateway
     Type: String
+    Default: tgw-rtb-06222a87e38f4df69
   DomainName:
     Description: The hosted zone domain name
     Type: String
@@ -120,6 +130,143 @@ Parameters:
       - AFTER_60_DAYS
       - AFTER_90_DAYS
     Default: NEVER
+# Elasticsearch config
+  # ProvisionES:
+  #   Description: Deploy the elasticsearch nested stack?
+  #   Type: String
+  #   AllowedValues: ['true', 'false']
+  #   Default: 'true'
+  UseES:
+    Description: Deploy the Elasticsearch nested stack?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+  ElasticsearchVersion:
+    Default: '6.2'
+    Type: String
+    ConstraintDescription: Must be an allowed AWS ES version (Major.Minor)
+    AllowedValues: ['7.9', '7.8', '7.7', '7.4', '7.1', '6.8', '6.7', '6.5', '6.4', '6.3', '6.2', '6.0', '5.6', '5.5']
+  ElasticsearchMasterInstanceType:
+    Description: Instance type for master nodes.
+    Type: String
+    Default: t2.small.elasticsearch
+    AllowedValues:
+      - r5.large.elasticsearch
+      - r5.xlarge.elasticsearch
+      - r5.2xlarge.elasticsearch
+      - r5.4xlarge.elasticsearch
+      - r5.12xlarge.elasticsearch
+      - t2.small.elasticsearch
+      - t2.medium.elasticsearch
+      - c4.large.elasticsearch
+      - c4.xlarge.elasticsearch
+      - c4.2xlarge.elasticsearch
+      - c4.4xlarge.elasticsearch
+      - c4.8xlarge.elasticsearch
+      - i2.xlarge.elasticsearch
+      - i2.2xlarge.elasticsearch
+      - m4.large.elasticsearch
+      - m4.xlarge.elasticsearch
+      - m4.2xlarge.elasticsearch
+      - m4.4xlarge.elasticsearch
+      - m4.10xlarge.elasticsearch
+      - r4.large.elasticsearch
+      - r4.xlarge.elasticsearch
+      - r4.2xlarge.elasticsearch
+      - r4.4xlarge.elasticsearch
+      - r4.8xlarge.elasticsearch
+      - r4.16xlarge.elasticsearch
+      - m3.medium.elasticsearch
+      - m3.large.elasticsearch
+      - m3.xlarge.elasticsearch
+      - m3.2xlarge.elasticsearch
+      - r3.large.elasticsearch
+      - r3.xlarge.elasticsearch
+      - r3.2xlarge.elasticsearch
+      - r3.4xlarge.elasticsearch
+      - r3.8xlarge.elasticsearch
+  ElasticsearchDataInstanceType:
+    Description: Instance type for data nodes.
+    Type: String
+    Default: r5.2xlarge.elasticsearch
+    AllowedValues:
+      - r5.large.elasticsearch
+      - r5.xlarge.elasticsearch
+      - r5.2xlarge.elasticsearch
+      - r5.4xlarge.elasticsearch
+      - r5.12xlarge.elasticsearch
+      - t2.small.elasticsearch
+      - t2.medium.elasticsearch
+      - c4.large.elasticsearch
+      - c4.xlarge.elasticsearch
+      - c4.2xlarge.elasticsearch
+      - c4.4xlarge.elasticsearch
+      - c4.8xlarge.elasticsearch
+      - i2.xlarge.elasticsearch
+      - i2.2xlarge.elasticsearch
+      - m4.large.elasticsearch
+      - m4.xlarge.elasticsearch
+      - m4.2xlarge.elasticsearch
+      - m4.4xlarge.elasticsearch
+      - m4.10xlarge.elasticsearch
+      - r4.large.elasticsearch
+      - r4.xlarge.elasticsearch
+      - r4.2xlarge.elasticsearch
+      - r4.4xlarge.elasticsearch
+      - r4.8xlarge.elasticsearch
+      - r4.16xlarge.elasticsearch
+      - m3.medium.elasticsearch
+      - m3.large.elasticsearch
+      - m3.xlarge.elasticsearch
+      - m3.2xlarge.elasticsearch
+      - r3.large.elasticsearch
+      - r3.xlarge.elasticsearch
+      - r3.2xlarge.elasticsearch
+      - r3.4xlarge.elasticsearch
+      - r3.8xlarge.elasticsearch
+  NumberOfMasterNodes:
+    Description: How many dedicated master nodes you want to have. 3 is recommended.
+    Type: Number
+    Default: 3
+    AllowedValues:
+      - 3
+      - 5
+  NumberOfDataNodes:
+    Description: How many data nodes you want to have. Multiples of your number of availability zones (2) is recommended.
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 20
+    # CustomEndpoint:
+    # Description: Name for custom endpoint
+    # Type: string
+  CustomEndpointEnabled:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  EnforceHTTPS:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  ESPortHTTP:
+    Type: String
+    Default: '80'
+  ESPortHTTPS:
+    Type: String
+    Default: '443'
+  TLSSecurityPolicy:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  # ElasticsearchName:
+  #   Description: The name of the AWS Elasticsearch Service deployment.
+  #   Type: String
+  #   ConstraintDescription: Must be a valid AWS ES domain name prefix. The name must start with a
+  #     lowercase letter and must be between 3 and 28 characters. Valid characters
+  #     are a-z (lowercase only), 0-9, and - (hyphen).
+  #   AllowedPattern: '[a-z][a-z0-9\\-]+'
+  
+# RDS config
   UseRDS:
     Description: Deploy the RDS nested stack?
     Type: String
@@ -158,12 +305,16 @@ Parameters:
   ALBAccessLogsBucket:
     Description: SaaS Boost bucket for Access logs
     Type: String
+    Default: sb-oct12-albaccesslogs-15ofqujyc1ley
   EventBus:
     Description: Optional. SaaS boost Metering and Billing Event Bridge
     Type: String
+    Default: sb-events-oct12-us-east-2
   BillingPlan:
     Description: The billing plan to assign this tenant to after the stack completes
     Type: String
+    Default: plan_none
+#Fsx for Windows
   UseFSx:
     Description: Deploy the FSX nested stack?
     Type: String
@@ -180,7 +331,7 @@ Parameters:
     Type: Number
   FSxThroughputCapacity:
     Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxBackupRetention:
@@ -200,6 +351,7 @@ Parameters:
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
+  #  Default: /saas-boost/<environment>/SSL_CERT_ARN:1
     Default: ''
   ## These params are here to read the image values from the public SSM. Leave the defaults
   WIN2019FULL:
@@ -218,15 +370,19 @@ Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
+  ProvisionES: !Equals [!Ref UseES, 'true']
   WindowsOS: !Not [!Equals [!Ref DockerHostOS, 'LINUX']]
   HasCertificate: !Not [!Equals [!Ref SSLCertArnParam, '']]
   NoCertificate: !Not [Condition: HasCertificate]
+  ESEnforceHTTPS_false: !Equals [ !Ref "EnforceHTTPS", "false" ]
+  # FSX
   ProvisionFsx: !And
     - !Equals [!Ref UseFSx, 'true']
     - Condition: WindowsOS
   IsWin2019Full: !Equals [WIN2019FULL, !Ref DockerHostOS]
   IsWin2019Core: !Equals [WIN2019CORE, !Ref DockerHostOS]
   IsWin1909Core: !Equals [WIN1909CORE, !Ref DockerHostOS]
+  
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -443,7 +599,11 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_HOST
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_NAME
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/METRICS_STREAM
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}METRICS_STREAM
+                  # Makes more sense to add parameter to tenant rather than in saas boost environment 
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_NAME
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_ENDPOINT
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_PORT
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -483,6 +643,7 @@ Resources:
                   - events:PutEvents
                 Resource:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+              #added to access config files for tenant.
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -529,9 +690,10 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
-            Fn::If:
+            !If
               - ProvisionRDS
-              - - Name: AWS_REGION
+              -
+                - Name: AWS_REGION
                   Value: !Ref AWS::Region
                 - Name: TENANT_ID
                   Value: !Ref TenantId
@@ -543,8 +705,27 @@ Resources:
                   Value: !GetAtt rds.Outputs.RdsEndpoint
                 - Name: DB_NAME
                   Value: !Ref RDSDatabase
-              - - Name: SAAS_BOOST_BUCKET
+                - Name: SAAS_BOOST_BUCKET
                   Value: !Ref SaaSBoostBucket
+              - !If
+                - ProvisionES
+                -
+                  - Name: AWS_REGION
+                    Value: !Ref AWS::Region
+                  - Name: TENANT_ID
+                    Value: !Ref TenantId
+                  - Name: SAAS_BOOST_EVENT_BUS
+                    Value: !Ref EventBus
+                  - Name: METRICS_STREAM
+                    Value: !Ref MetricsStream
+                  - Name: ES_CLUSTER_NAME
+                    Value: !GetAtt es.Outputs.ESClusterName
+                  - Name: ES_CLUSTER_ENDPOINT
+                    Value: !GetAtt es.Outputs.ESDomainEndpoint
+                  - Name: ES_CLUSTER_PORT
+                    Value: !GetAtt es.Outputs.ESClusterPort
+                - !Ref 'AWS::NoValue'
+
           MountPoints:
             !If
               - ProvisionEFS
@@ -564,21 +745,34 @@ Resources:
               - !Ref 'AWS::NoValue'
               - InitProcessEnabled: true
           Secrets:
-            Fn::If:
+            !If
               - ProvisionRDS
-              - - Name: DB_MASTER_USERNAME
+              -
+                - Name: DB_MASTER_USERNAME
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_USERNAME
                 - Name: DB_MASTER_PASSWORD
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
                 - Name: DB_PORT
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
               - !Ref 'AWS::NoValue'
+              
+              # - !If
+              #   - ProvisionES
+              #   -
+              #     - Name: ES_CLUSTER_NAME
+              #       ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_NAME
+              #     - Name: ES_CLUSTER_ENDPOINT
+              #       ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_ENDPOINT
+              #     - Name: ES_CLUSTER_PORT
+              #       ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_PORT
+              #   - !Ref 'AWS::NoValue'
+            
       Volumes:
         !If
           - ProvisionEFS
           -
             - Name: !GetAtt efs.Outputs.FileSystemId
-              EfsVolumeConfiguration:
+              EfsVolumeConfiguration: 
                 FileSystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
             - ProvisionFsx
@@ -1183,8 +1377,6 @@ Resources:
   fsx:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFsx
-    Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder
     DependsOn:
       - SubnetPublicA
       - SubnetPublicB
@@ -1222,8 +1414,6 @@ Resources:
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
-    Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-efs.yaml
       TimeoutInMinutes: 15
@@ -1236,11 +1426,45 @@ Resources:
         EncryptEFS: !Ref EncryptEFS
         EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
 
+# ElasticSearch Extension
+  es:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionES
+    DependsOn:
+      - SubnetPublicA
+      - SubnetPublicB
+      - SubnetPublicARouteTable
+      - SubnetPublicBRouteTable
+      - RoutePublic
+      - RouteTablePublic
+      - InternetGateway
+      - Subnet1RouteTableAssociation
+      - Subnet2RouteTableAssociation
+      - TenantRouteTablePrivate
+      - TenantTGWAttachment
+      - TenantRoute
+      - TenantVpcTgwAssociation
+      - UpdateRouteTable
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-es.yaml
+      TimeoutInMinutes: 30
+      Parameters:
+        TenantId: !Ref TenantId
+        VPC: !Ref VPC
+        PrivateSubnetA: !Ref SubnetPrivateA
+        PrivateSubnetB: !Ref SubnetPrivateB
+        ElasticsearchVersion: !Ref ElasticsearchVersion
+        ECSSecurityGroup: !Ref ECSSecurityGroup
+        ElasticsearchDataInstanceType: !Ref ElasticsearchDataInstanceType
+        NumberOfDataNodes: !Ref NumberOfDataNodes
+        EnforceHTTPS: !Ref EnforceHTTPS
+        ESPort: !If [ESEnforceHTTPS_false, !Ref ESPortHTTPS, !Ref ESPortHTTP]
+        ElasticsearchName: 
+          Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-es-cluster']]
+   
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
-    Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder
     # Have to make sure the entire network is still up when you delete
     # or we won't be able to call back to the CFN response URL
     DependsOn:
