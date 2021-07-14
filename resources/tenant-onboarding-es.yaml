@@ -162,7 +162,7 @@ Outputs:
     Value: !Ref ElasticsearchName
   ESClusterPort:
     Description: Listening Port of Elasticsearch cluster 
-    Value: !Ref ESPort
+    Value: !Ref ESPortHTTP
   ESClusterPortDefault:
     Description: Typicaly when migrating an on-premises elastricsearch(ES) stack to a cloud cluster the application that uses ES will need 2 ports, this bypasses such requirement   
     Value: !Ref ESPortHTTPS

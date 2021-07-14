@@ -724,6 +724,8 @@ Resources:
                     Value: !GetAtt es.Outputs.ESDomainEndpoint
                   - Name: ES_CLUSTER_PORT
                     Value: !GetAtt es.Outputs.ESClusterPort
+                  - Name: ES_CLUSTER_PORT_DEFAULT
+                    Value: !!GetAtt es.outputs.ESClusterPortDefault
                 - !Ref 'AWS::NoValue'
 
           MountPoints:
