@@ -648,6 +648,192 @@ Resources:
       FunctionName: !GetAtt TenantEnableDisableListenerFunction.Arn
       Principal: events.amazonaws.com
       SourceArn: !GetAtt TenantEnableDisableEventRule.Arn
+  EcsShutdownServicesExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-ecs-shutdown-services-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-ecs-shutdown-services-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Condition:
+                  StringLike:
+                    ecs:cluster:
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+  EcsShutdownServicesLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-ecs-shutdown-services
+      RetentionInDays: 30
+  EcsShutdownServicesLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: EcsShutdownServicesLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-ecs-shutdown-services
+      Role: !GetAtt EcsShutdownServicesExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsShutdownServices
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/EcsShutdownServices-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "EcsShutdownServices"
+#  EcsShutdownServicesRule:
+#    Type: AWS::Events::Rule
+#    Properties:
+#      Name: !Sub sb-${Environment}-ecs-shutdown-services
+#      Description: Shuts down all tenant tasks in ECS
+#      ScheduledExpression: cron(0 3 * * ? *)
+#      State: DISABLED
+#      Targets:
+#        - Arn: !GetAtt EcsShutdownServicesLambda.Arn
+#          Id: EcsShutdownServicesLambda
+#  EcsShutdownServicesPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Action: lambda:InvokeFunction
+#      FunctionName: !GetAtt EcsShutdownServicesLambda.Arn
+#      Principal: events.amazonaws.com
+#      SourceArn: !GetAtt EcsShutdownServicesRule.Arn
+  EcsStartupServicesExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-ecs-startup-services-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-ecs-startup-services-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Condition:
+                  StringLike:
+                    ecs:cluster:
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+  EcsStartupServicesLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-ecs-startup-services
+      RetentionInDays: 30
+  EcsStartupServicesLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: EcsStartupServicesLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-ecs-startup-services
+      Role: !GetAtt EcsStartupServicesExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsStartupServices
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/EcsStartupServices-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "EcsStartupServices"
+#  EcsStartupServicesRule:
+#    Type: AWS::Events::Rule
+#    Properties:
+#      Name: !Sub sb-${Environment}-ecs-startup-services
+#      Description: Shuts down all tenant tasks in ECS
+#      ScheduledExpression: cron(0 6 * * ? *)
+#      State: DISABLED
+#      Targets:
+#        - Arn: !GetAtt EcsStartupServicesLambda.Arn
+#          Id: EcsStartupServicesLambda
+#  EcsStartupServicesPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Action: lambda:InvokeFunction
+#      FunctionName: !GetAtt EcsStartupServicesLambda.Arn
+#      Principal: events.amazonaws.com
+#      SourceArn: !GetAtt EcsStartupServicesRule.Arn
 Outputs:
   EcrRepository:
     Description: SaaS Boost ECR image repository
