@@ -481,8 +481,21 @@ Resources:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
-                  - autoscaling:*
+                  - autoscaling:DescribeAutoScalingInstances
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeTags
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - autoscaling:SetInstanceProtection
+                Resource:
+                  Fn::Join:
+                    - ""
+                    - - "arn:aws:autoscaling:*:"
+                      - !Ref "AWS::AccountId"
+                      - ":autoScalingGroup:*:autoScalingGroupName/tenant-"
+                      - !Select [0, !Split ['-', !Ref TenantId]]
+                      - "*"
   DisableInstanceProtectionLogs:
     Type: AWS::Logs::LogGroup
     Condition: WindowsOS
