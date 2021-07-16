@@ -1332,7 +1332,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFsx
     Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder    
+      ForceUpdate: !Ref LambdaSourceFolder
     DependsOn:
       - SubnetPublicA
       - SubnetPublicB
@@ -1371,7 +1371,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
     Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder    
+      ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-efs.yaml
       TimeoutInMinutes: 15
@@ -1388,7 +1388,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
     Metadata:
-      ForceUpdate: !Ref LambdaSourceFolder    
+      ForceUpdate: !Ref LambdaSourceFolder
     # Have to make sure the entire network is still up when you delete
     # or we won't be able to call back to the CFN response URL      
     DependsOn:
