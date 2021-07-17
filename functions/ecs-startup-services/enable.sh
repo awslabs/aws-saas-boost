@@ -30,15 +30,15 @@ if [ "${SB_ENV}" != "${SAAS_BOOST_ENV}" ]; then
     exit 1
 fi
 
-# Has the EcsShutdownServices Lambda function been setup?
-LAMBDA_FX="sb-${SAAS_BOOST_ENV}-ecs-shutdown-services"
+# Has the EcsStartupServices Lambda function been setup?
+LAMBDA_FX="sb-${SAAS_BOOST_ENV}-ecs-startup-services"
 LAMBDA_ARN=$(aws lambda get-function --function-name "${LAMBDA_FX}" --query "Configuration.FunctionArn" --output text)
 if [ $? != 0 ]; then
-    echo "Can't find the EcsShutdownServices Lambda function in this SaaS Boost environment."
+    echo "Can't find the EcsStartupServices Lambda function in this SaaS Boost environment."
     exit 1
 fi
 
-RULE="sb-${SAAS_BOOST_ENV}-ecs-shutdown-services"
+RULE="sb-${SAAS_BOOST_ENV}-ecs-startup-services"
 EXISTING_SCHEDULE=$(aws events describe-rule --name "${RULE}" --query "ScheduleExpression" --output text)
 if [ $? == 0 ] && [ ! -z "${EXISTING_SCHEDULE}" ]; then
     read -p "Reuse the existing schedule expression ${EXISTING_SCHEDULE}? [Y/N] " REUSE_SCHEDULE
@@ -46,9 +46,9 @@ fi
 if ! [[ $REUSE_SCHEDULE =~ ^[Yy] ]]; then
     # Get a cron schedule to invoke our Lambda on
     echo "Enter an EventBridge cron schedule expression (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-create-rule-schedule.html#eb-cron-expressions)."
-    read -p "[Press enter for default schedule of 12 midnight daily]: " SCHEDULE
+    read -p "[Press enter for default schedule of 6 AM daily]: " SCHEDULE
     if [ -z "$SCHEDULE" ]; then
-        SCHEDULE="cron(0 0 * * ? *)"
+        SCHEDULE="cron(0 6 * * ? *)"
     fi
 else
     SCHEDULE="${EXISTING_SCHEDULE}"
@@ -64,7 +64,7 @@ fi
 #echo "Schedule = $SCHEDULE"
 
 # Now we can make or update an EventBridge rule for this schedule
-RULE_ARN=$(aws events put-rule --name "${RULE}" --schedule-expression "${SCHEDULE}" --state ENABLED --description "Shuts down all tenant tasks in ECS" --query "RuleArn" --output text)
+RULE_ARN=$(aws events put-rule --name "${RULE}" --schedule-expression "${SCHEDULE}" --state ENABLED --description "Starts up all tenant tasks in ECS" --query "RuleArn" --output text)
 if [ $? != 0 ]; then
     echo "Error putting scheduled event rule"
     exit 1
@@ -77,7 +77,7 @@ echo "Set EventBridge scheduled event rule to ${SCHEDULE}"
 # escaped string rather than a proper JSON structure, so we can't use
 # --query like we normally would. We could always call remove-permission
 # before add-permission... but, this seems more correct.
-STATEMENT_ID="sb-${SAAS_BOOST_ENV}-ecs-shutdown-services-permission"
+STATEMENT_ID="sb-${SAAS_BOOST_ENV}-ecs-startup-services-permission"
 GREP_PATTERN="\"Sid\":\"${STATEMENT_ID}\""
 EXISTING_PERMISSION=$(aws lambda get-policy --function-name ${LAMBDA_FX} --query "Policy" --output text | grep $GREP_PATTERN)
 if [ $? == 0 ]; then
@@ -93,7 +93,7 @@ else
 fi
 
 # Finally, wire together the EventBridge scheduled rule with the Lambda function
-EVENT_TARGET=$(aws events put-targets --rule "${RULE}" --targets "Id"="EcsShutdownServicesLambda","Arn"="${LAMBDA_ARN}")
+EVENT_TARGET=$(aws events put-targets --rule "${RULE}" --targets "Id"="EcsStartupServicesLambda","Arn"="${LAMBDA_ARN}")
 if [ $? != 0 ]; then
     echo "Error putting EventBridge target for rule ${RULE} to function ${LAMBDA_FX}"
     exit 1

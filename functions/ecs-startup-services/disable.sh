@@ -30,7 +30,7 @@ if [ "${SB_ENV}" != "${SAAS_BOOST_ENV}" ]; then
     exit 1
 fi
 
-RULE="sb-${SAAS_BOOST_ENV}-ecs-shutdown-services"
+RULE="sb-${SAAS_BOOST_ENV}-ecs-startup-services"
 EXISTING_RULE=$(aws events describe-rule --name "${RULE}")
 if [ $? != 0 ]; then
     echo "Can't find the EventBridge rule ${RULE}"

@@ -724,23 +724,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "EcsShutdownServices"
-#  EcsShutdownServicesRule:
-#    Type: AWS::Events::Rule
-#    Properties:
-#      Name: !Sub sb-${Environment}-ecs-shutdown-services
-#      Description: Shuts down all tenant tasks in ECS
-#      ScheduledExpression: cron(0 3 * * ? *)
-#      State: DISABLED
-#      Targets:
-#        - Arn: !GetAtt EcsShutdownServicesLambda.Arn
-#          Id: EcsShutdownServicesLambda
-#  EcsShutdownServicesPermission:
-#    Type: AWS::Lambda::Permission
-#    Properties:
-#      Action: lambda:InvokeFunction
-#      FunctionName: !GetAtt EcsShutdownServicesLambda.Arn
-#      Principal: events.amazonaws.com
-#      SourceArn: !GetAtt EcsShutdownServicesRule.Arn
   EcsStartupServicesExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -817,23 +800,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "EcsStartupServices"
-#  EcsStartupServicesRule:
-#    Type: AWS::Events::Rule
-#    Properties:
-#      Name: !Sub sb-${Environment}-ecs-startup-services
-#      Description: Shuts down all tenant tasks in ECS
-#      ScheduledExpression: cron(0 6 * * ? *)
-#      State: DISABLED
-#      Targets:
-#        - Arn: !GetAtt EcsStartupServicesLambda.Arn
-#          Id: EcsStartupServicesLambda
-#  EcsStartupServicesPermission:
-#    Type: AWS::Lambda::Permission
-#    Properties:
-#      Action: lambda:InvokeFunction
-#      FunctionName: !GetAtt EcsStartupServicesLambda.Arn
-#      Principal: events.amazonaws.com
-#      SourceArn: !GetAtt EcsStartupServicesRule.Arn
 Outputs:
   EcrRepository:
     Description: SaaS Boost ECR image repository
