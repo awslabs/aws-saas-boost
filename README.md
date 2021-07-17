@@ -20,6 +20,8 @@ Now, jump to the [Getting Started Guide](./docs/getting-started.md) to start wor
 | functions/alb-update | Used by Tenant Service enable/disable to modify tenant's load balancer access |
 | functions/ecs-deploy | Listens for changes to ECR and Onboarding Service to trigger CodePipeline for tenants |
 | functions/ecs-service-update | Used by CodePipeline to make sure ECS deploys at least 1 task |
+| functions/ecs-shutdown-services | Optional functionality to shutdown tenant ECS services for costs savings in non-production environments |
+| functions/ecs-startup-services | Optional functionality to startup tenant ECS services that have been shutdown |
 | functions/onboarding-notification | Callback from CloudFormation -> SNS to trigger post provisioning flows |
 | functions/system-rest-api-client | REST client used by services to invoke API of other services |
 | installer | Command line installer |
@@ -57,4 +59,4 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 
 ## License
 
-This project is licensed under the Apache-2.0 License.
+This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file.
