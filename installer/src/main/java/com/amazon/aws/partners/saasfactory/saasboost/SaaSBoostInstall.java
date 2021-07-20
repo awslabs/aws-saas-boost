@@ -380,23 +380,29 @@ public class SaaSBoostInstall {
                 .build();
         buildAndCopyLambdas("resources" + File.separator + "custom-resources", list);
 
-        //create db password if metrics installed
-        if (null == dbPassword || dbPassword.isEmpty()) {
-            UUID uniqueId = UUID.randomUUID();
-            String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-            dbPassword = "Pass12" + parts[0];
-            //outputMessage("The database password for Redshift Metrics database is: " + this.dbPassword);
-        }
-
-        //create secure SSM parameter for password
+        //check if REDSHIFT_MASTER_PASSWORD param is already present so we don't create a new version
         ssm = SsmClient.builder()
                 .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(AWS_REGION).build();
-        // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
-        LOGGER.info("Update SSM param REDSHIFT_MASTER_PASSWORD with dbPassword");
-        //*TODO: check if parameter exists and do not update if it exists.
-        software.amazon.awssdk.services.ssm.model.Parameter passwordParam = putParameter(toParameterStore("REDSHIFT_MASTER_PASSWORD", dbPassword ,true));
-        dbPasswordSSMParameter = passwordParam.name();
+        try {
+            dbPasswordSSMParameter = "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD";
+            GetParameterResponse parameterResponse = ssm.getParameter(GetParameterRequest.builder()
+                    .name(dbPasswordSSMParameter)
+                    .withDecryption(true)
+                    .build());
+            dbPassword = parameterResponse.parameter().value();
+            LOGGER.info("Found existing SSM Parameter: " + dbPasswordSSMParameter);
+        } catch (Exception e) {
+            //create db password param if not existing
+            LOGGER.info("SSM Parameter " + dbPasswordSSMParameter + " not found, add it.");
+            if (null == dbPassword || dbPassword.isEmpty()) {
+                UUID uniqueId = UUID.randomUUID();
+                String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
+                dbPassword = "Pass12" + parts[0];
+            }
+            software.amazon.awssdk.services.ssm.model.Parameter passwordParam = putParameter(toParameterStore("REDSHIFT_MASTER_PASSWORD", dbPassword ,true));
+            dbPasswordSSMParameter = passwordParam.name();
+        }
         outputMessage("Redshift Database User Password stored in secure SSM Parameter: " + dbPasswordSSMParameter);
 
         //execute CloudFormation
@@ -405,6 +411,7 @@ public class SaaSBoostInstall {
 
         createMetricsStack(stackName);
 
+        //refresh client in case it is stale
         ssm = SsmClient.builder()
                 .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .region(AWS_REGION).build();
@@ -833,7 +840,7 @@ public class SaaSBoostInstall {
         outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
-        private void checkEnvironment() {
+    private void checkEnvironment() {
 /*        String awsRegion = System.getenv("AWS_REGION");
         if (null == awsRegion || awsRegion.isEmpty()) {
             outputMessage("AWS_REGION environment variable must be set.");
@@ -936,7 +943,7 @@ public class SaaSBoostInstall {
 
         boolean isValid = false;
 
-         //get option of initial install or add metrics
+        //get option of initial install or add metrics
         do {
             System.out.println("1. New AWS SaaS Boost install.");
             System.out.println("2. Install Metrics and Analytics into existing AWS SaaS Boost deployment.");
@@ -1252,7 +1259,7 @@ public class SaaSBoostInstall {
             envName = input.next();
             //outputMessage("You entered environment name: " + envName);
 //            if (null != envName && envName.length() <= 10 && envName.equals(envName.toLowerCase())) {
-              if (null != envName && validateEnvironmentName(envName)) {
+            if (null != envName && validateEnvironmentName(envName)) {
                 isValid = true;
             } else {
                 outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters and lowercase, please try again.");
@@ -1591,7 +1598,7 @@ public class SaaSBoostInstall {
                 .build();
         inputColumns.add(inputColumn);
 
-         inputColumn = InputColumn.builder()
+        inputColumn = InputColumn.builder()
                 .name("timerecorded")
                 .type(InputColumnDataType.DATETIME)
                 .build();
@@ -1693,7 +1700,7 @@ public class SaaSBoostInstall {
         aws iam get-role --role-name "AWSServiceRoleForApplicationAutoScaling_ECSService" || aws iam create-service-linked-role --aws-service-name "ecs.application-autoscaling.amazonaws.com"
         aws iam get-role --role-name "AWSServiceRoleForRDS" || aws iam create-service-linked-role --aws-service-name "rds.amazonaws.com"
         aws iam get-role --role-name "AWSServiceRoleForAmazonFsx" || aws iam create-service-linked-role --aws-service-name "fsx.amazonaws.com"
-        aws iam get-role --role-name "AWSServiceRoleForAutoScaling" || aws iam create-service-linked-role --aws-service-name "autoscaling.amazonaws.com"        
+        aws iam get-role --role-name "AWSServiceRoleForAutoScaling" || aws iam create-service-linked-role --aws-service-name "autoscaling.amazonaws.com"
         */
 
         //check for the service role first
@@ -1793,7 +1800,7 @@ public class SaaSBoostInstall {
     private static void outputMessage(String msg) {
         LOGGER.info(msg);
         System.out.println(msg);
-    } 
+    }
 
     private void buildAndCopyLambdas(String dir, List<String> subDirs) throws IOException {
         if (null == subDirs || subDirs.size() == 0) {
@@ -1818,13 +1825,13 @@ public class SaaSBoostInstall {
             final String lambdaDir = this.rootDir + File.separator + dir +File.separator + subdir;
             final String targetDir = lambdaDir + File.separator + "target";
 
-           //run maven command
-           try {
-               executeCommand(command, null, new File(lambdaDir));
-           } catch (IOException e) {
-               LOGGER.error("Error running maven for {}", fileName);
-               throw e;
-           }
+            //run maven command
+            try {
+                executeCommand(command, null, new File(lambdaDir));
+            } catch (IOException e) {
+                LOGGER.error("Error running maven for {}", fileName);
+                throw e;
+            }
 
             //copy the zip file to s3
             final List<String> zipFilesList = listFiles(targetDir, this.zipFileFilter);
@@ -1921,13 +1928,13 @@ public class SaaSBoostInstall {
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                            .stackName(stackName)
-                            .onFailure("DO_NOTHING")
-                            .timeoutInMinutes(90)
-                            .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost.yaml")
-                            .parameters(templateParameters)
-                            .build()
+                    .stackName(stackName)
+                    .onFailure("DO_NOTHING")
+                    .timeoutInMinutes(90)
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost.yaml")
+                    .parameters(templateParameters)
+                    .build()
             );
             stackId = cfnResponse.stackId();
             LOGGER.info("createSaaSBoostStack::stack id " + stackId);
@@ -2061,14 +2068,14 @@ public class SaaSBoostInstall {
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                            .stackName(stackName)
-                            .onFailure("DO_NOTHING")
-                            .timeoutInMinutes(90)
- //                           .roleARN("arn:aws:iam::094057127497:role/sb-install-role-feb1")
-                            .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
-                            .parameters(templateParameters)
-                            .build()
+                    .stackName(stackName)
+                    .onFailure("DO_NOTHING")
+                    .timeoutInMinutes(90)
+                    //                           .roleARN("arn:aws:iam::094057127497:role/sb-install-role-feb1")
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
+                    .parameters(templateParameters)
+                    .build()
             );
             stackId = cfnResponse.stackId();
             LOGGER.info("createMetricsStack::stack id " + stackId);
@@ -2167,7 +2174,7 @@ public class SaaSBoostInstall {
                     .build());
             Stack stack = response.stacks().get(0);
             return true;
-        //wait until the stack is created and output message stack is being created
+            //wait until the stack is created and output message stack is being created
         } catch (SdkServiceException cfnError) {
             return false;
         }
