@@ -109,7 +109,7 @@ public class EcsShutdownServices implements RequestHandler<Map<String, Object>, 
         return null;
     }
 
-    public ArrayList<Map<String, Object>> getProvisionedTenants(Context context) {
+    protected ArrayList<Map<String, Object>> getProvisionedTenants(Context context) {
         ArrayList<Map<String, Object>> provisionedTenants = null;
         try {
             String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(

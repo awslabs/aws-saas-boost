@@ -122,7 +122,7 @@ public class EcsStartupServices implements RequestHandler<Map<String, Object>, O
         return null;
     }
 
-    public ArrayList<Map<String, Object>> getProvisionedTenants(Context context) {
+    protected ArrayList<Map<String, Object>> getProvisionedTenants(Context context) {
         ArrayList<Map<String, Object>> provisionedTenants = null;
         try {
             String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
@@ -146,7 +146,7 @@ public class EcsStartupServices implements RequestHandler<Map<String, Object>, O
         return provisionedTenants;
     }
 
-    public Integer getDefaultMinCount(Context context) {
+    protected Integer getDefaultMinCount(Context context) {
         Integer defaultMin = null;
         try {
             String getSettingResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
