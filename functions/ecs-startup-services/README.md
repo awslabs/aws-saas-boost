@@ -9,8 +9,8 @@ This function gives you a way to undo the [EcsShutdownServices](../ecs-shutdown-
 ## How do I use it?
 Because you should not use this feature in production, SaaS Boost will not automatically turn it on during install. The function and supporting resources like log groups and IAM policies will be installed and ready-to-use.
 
-The common use case will be to trigger this function on a schedule. For example, you may choose to startup your application services in the morning in a development environment after having shut them down overnight. Amazon EventBridge supports [triggering Lambda functions on a schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-create-rule-schedule.html).
+The common use case will be to trigger this function on a schedule. For example, you may choose to startup your application services in the morning in a development environment after having shut them down overnight. Amazon EventBridge supports [triggering Lambda functions on a schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-create-rule-schedule.html). See the sample [enable.sh](enable.sh) script for one way to configure EventBridge with the EcsStartupServices function.
 
-See the sample [enable.sh](enable.sh) script for one way to configure EventBridge with the EcsStartupServices function.
+You can also simply invoke the Lambda function manually with the AWS CLI `aws lambda invoke --function-name sb-${SAAS_BOOST_ENV}-ecs-startup-services response.json`.
 
 See [ECS Shutdown Services](../ecs-shutdown-services/README.md).
