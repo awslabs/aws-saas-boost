@@ -46,7 +46,7 @@ fi
 if ! [[ $REUSE_SCHEDULE =~ ^[Yy] ]]; then
     # Get a cron schedule to invoke our Lambda on
     echo "Enter an EventBridge cron schedule expression (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-create-rule-schedule.html#eb-cron-expressions)."
-    read -p "[Press enter for default schedule of 12 midnight daily]: " SCHEDULE
+    read -p "[Press enter for default schedule of 12 midnight daily, cron(0 0 * * ? *)]: " SCHEDULE
     if [ -z "$SCHEDULE" ]; then
         SCHEDULE="cron(0 0 * * ? *)"
     fi
