@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: 2010-09-09
-Description: SaaS Boost Tenant Onboarding
+Description: AWS SaaS Boost Tenant Onboarding
 Parameters:
   Environment:
     Description: Environment (test, uat, prod, etc.)
@@ -31,7 +31,6 @@ Parameters:
   TenantId:
     Description: The GUID for the tenant
     Type: String
-    Default: 123456a1-35c4-4a30-8e17-0ba0280af391
   TenantSubDomain:
     Description: The subdomain for this tenant
     Type: String
@@ -78,11 +77,9 @@ Parameters:
   CodePipelineRoleArn:
     Description: The IAM role for CodePipeline
     Type: String
-    Default: arn:aws:iam::094057127497:role/sb-tenant-pipeline-role-oct12-us-east-2
   ArtifactBucket:
     Description: The S3 bucket where CodePipeline should look for source artifacts
     Type: String
-    Default: sb-oct12-codepipelinebucket-ka31t4gu60sl
   CidrPrefix:
     Description: Prefix of Cidr for this tenant such as 10.1, 10.2 etc.
     Type: String
@@ -548,6 +545,152 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+     
+
+####Capacity Provider Changes
+  CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Condition: WindowsOS
+    Properties:
+      Name: 
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-cp']]
+      AutoScalingGroupProvider:
+          AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+          ManagedScaling:
+            TargetCapacity: 100
+            Status: ENABLED
+          ManagedTerminationProtection: ENABLED          
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId                 
+
+  ClusterCapacityProviderAssociations:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Condition: WindowsOS
+    Properties:
+      Cluster: !Ref ECSCluster    
+      CapacityProviders:
+        - !Ref CapacityProvider
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !Ref CapacityProvider
+          Base: 0
+          Weight: 1
+
+  CapacityProviderWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: WindowsOS
+    DependsOn: ClusterCapacityProviderAssociations
+  ClusterCapacityAssociationWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [WindowsOS, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
+      Timeout: '1'
+      Count: 0       
+
+  DisableInstanceProtectionRole:
+    Type: AWS::IAM::Role
+    Condition: WindowsOS    
+    Properties:
+      RoleName: 
+        Fn::Join:
+          - ''
+          - - 'sb-'
+            - !Ref Environment
+            - '-disable-protection-role-tenant-'
+            - !Select [0, !Split ['-', !Ref TenantId]]
+            - '-'
+            - !Ref AWS::Region
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: 
+            Fn::Join:
+              - ''
+              - - 'sb-'
+                - !Ref Environment
+                - '-disable-protection-policy-tenant-'
+                - !Select [0, !Split ['-', !Ref TenantId]]
+                - '-'
+                - !Ref AWS::Region
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - autoscaling:DescribeAutoScalingInstances
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeTags
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - autoscaling:SetInstanceProtection
+                Resource:
+                  Fn::Join:
+                    - ""
+                    - - "arn:aws:autoscaling:*:"
+                      - !Ref "AWS::AccountId"
+                      - ":autoScalingGroup:*:autoScalingGroupName/tenant-"
+                      - !Select [0, !Split ['-', !Ref TenantId]]
+                      - "*"
+  DisableInstanceProtectionLogs:
+    Type: AWS::Logs::LogGroup
+    Condition: WindowsOS
+#    DeletionPolicy: Retain 
+#    UpdateReplacePolicy: Retain   
+    Properties:
+      LogGroupName:
+        Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]
+      RetentionInDays: 30
+  DisableInstanceProtectionFunction:
+    Type: AWS::Lambda::Function
+    Condition: WindowsOS    
+    DependsOn:
+      - DisableInstanceProtectionLogs
+    Properties:
+      FunctionName: 
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]           
+      Role: !GetAtt DisableInstanceProtectionRole.Arn
+      Runtime: java11
+      Timeout: 870
+      MemorySize: 640
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.DisableInstanceProtection
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/DisableInstanceProtection-lambda.zip
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+      Description: Disable instance protection to allow delete of Autoscaling group
+  InvokeDisableInstanceProtection:
+    Type: Custom::CustomResource
+    Condition: WindowsOS
+    DependsOn:
+      - ECSService
+    Properties:
+      ServiceToken: !GetAtt DisableInstanceProtectionFunction.Arn     
+      AutoScalingGroup: !Ref ECSAutoScalingGroup     
+## end changes          
+
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -739,7 +882,6 @@ Resources:
               - !If
                 - ProvisionFsx
                 -
-                #TODO: update to mount mount
                  - ContainerPath: !Ref MountPoint
                    SourceVolume: fsxShare
                 - !Ref 'AWS::NoValue'
@@ -838,6 +980,7 @@ Resources:
           Value: !Ref TenantId
   # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
   # Or we need an Target Group (Linux/Fargate)
+  # per https://aws.amazon.com/blogs/containers/managing-compute-for-amazon-ecs-clusters-with-capacity-providers/
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Condition:
@@ -848,26 +991,23 @@ Resources:
       VPCZoneIdentifier:
         - !Ref SubnetPrivateA
         - !Ref SubnetPrivateB
-      LaunchConfigurationName: !Ref ECSLaunchConfiguration
-      MinSize: !Ref TaskCount
-      MaxSize: !Ref MaxTaskCount
-      DesiredCapacity: !Ref TaskCount
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration 
+      NewInstancesProtectedFromScaleIn: true      
+      MinSize: '0'
+      MaxSize: '20'
+      DesiredCapacity: '0'
       #Cooldown:
-      #HealthCheckGracePeriod:
+      #HealthCheckGracePeriod: 60
       #HealthCheckType:
       #MetricsCollection:
       #NotificationConfigurations:
-    CreationPolicy:
-      ResourceSignal:
-        Count: 1
-        Timeout: PT10M
     UpdatePolicy:
       AutoScalingRollingUpdate:
-        MinInstancesInService: 0
+        MinInstancesInService: 1
         #MinSuccessfulInstancesPercent: 0
         MaxBatchSize: 1
         PauseTime: PT5M
-        WaitOnResourceSignals: false
+        WaitOnResourceSignals: true
         SuspendProcesses:
           - HealthCheck
           - ReplaceUnhealthy
@@ -1222,18 +1362,19 @@ Resources:
     Properties:
       Handle: !If [HasCertificate, !Ref ListenerSSLWaitHandle, !Ref ListenerWaitHandle]
       Timeout: '1'
-      Count: 0
+      Count: 0    
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
       - ListenerWaitCondition
+      - ClusterCapacityAssociationWaitCondition
     Properties:
-      EnableExecuteCommand: true
+      EnableExecuteCommand: !If [WindowsOS, false, true]
       ServiceName:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition
-      LaunchType: !If [WindowsOS, EC2, FARGATE]
+      LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
       # Initially set DesiredCount to zero so the resource stabilizes
       # CodePipeline will update it when deploying the task
       DesiredCount: 0
@@ -1254,6 +1395,13 @@ Resources:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref ALBTargetGroup
+      CapacityProviderStrategy:
+        !If
+          - WindowsOS      
+          - - CapacityProvider: !Ref CapacityProvider
+              Base: 1
+              Weight: 1          
+          - !Ref 'AWS::NoValue'
   ECSServiceAutoScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     DependsOn:
@@ -1470,7 +1618,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
     # Have to make sure the entire network is still up when you delete
-    # or we won't be able to call back to the CFN response URL
+    # or we won't be able to call back to the CFN response URL      
     DependsOn:
       - SubnetPublicA
       - SubnetPublicB

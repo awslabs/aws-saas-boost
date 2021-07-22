@@ -299,8 +299,7 @@ Resources:
                   - !Sub arn:aws:s3:::${SaaSBoostBucket}
               - Effect: Allow
                 Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
+                  - s3:Get*
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource:
@@ -312,8 +311,7 @@ Resources:
                   - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
+                  - ssm:Get*
                   - ssm:PutParameter
                 Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
@@ -322,7 +320,6 @@ Resources:
                 Action:
                   - ec2:CreateInternetGateway
                   - ec2:CreateVpc
-                  - ec2:DescribeInternetGateways
                   - ec2:ModifyVpcAttribute
                   - ec2:AttachInternetGateway
                   - ec2:CreateSubnet
@@ -331,6 +328,7 @@ Resources:
                   - ec2:AssociateRouteTable
                   - ec2:Describe*
                   - ec2:CreateNetworkInterface
+                  - ecs:CreateCapacityProvider
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -428,15 +426,19 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecs:DescribeClusters
+                  - ecs:PutClusterCapacityProviders                  
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
               - Effect: Allow
                 Action:
                   - ecs:CreateService
                   - ecs:DescribeServices
                   - ecs:UpdateService
+                  - ecs:DescribeCapacityProviders
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
               - Effect: Allow
                 Action:
                   - codepipeline:CreatePipeline
@@ -549,6 +551,7 @@ Resources:
                   - autoscaling:UpdateAutoScalingGroup
                   - autoscaling:SuspendProcesses
                   - autoscaling:ResumeProcesses
+                  - autoscaling:CreateOrUpdateTags
                 Resource:
                   - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
               - Effect: Allow
@@ -558,9 +561,8 @@ Resources:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
               - Effect: Allow
                 Action:
-                  - lambda:GetFunction
+                  - lambda:Get*
                   - lambda:CreateFunction
-                  - lambda:GetFunctionConfiguration
                   - lambda:InvokeFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
@@ -757,10 +759,19 @@ Resources:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
               - Effect: Allow
                 Action:
+                  - ecs:DescribeClusters
+                  - ecs:PutClusterCapacityProviders                  
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*                  
+              - Effect: Allow
+                Action:
                   - ecs:DescribeServices
                   - ecs:DeleteService
+                  - ecs:DeleteCapacityProvider
+                  - ecs:DescribeCapacityProviders
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/tenant*                  
               - Effect: Allow
                 Action:
                   - codepipeline:GetPipeline
@@ -785,6 +796,7 @@ Resources:
                   - application-autoscaling:Describe*
                   - application-autoscaling:DeleteScalingPolicy
                   - autoscaling:Describe*
+                  - autoscaling:DeleteTags
                   - application-autoscaling:DeregisterScalableTarget
                   - ecs:DeleteCluster
                   - ecs:DeregisterTaskDefinition
@@ -811,7 +823,7 @@ Resources:
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
               - Effect: Allow
                 Action:
-                  - rds:DescribeDBClusters
+                  - rds:DescribeDBClusters                  
                 Resource:
                   - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
               - Effect: Allow
@@ -853,6 +865,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - autoscaling:DeleteAutoScalingGroup
+                  - autoscaling:UpdateAutoScalingGroup
                   - autoscaling:SuspendProcesses
                 Resource:
                   - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
@@ -866,8 +879,15 @@ Resources:
                   - lambda:GetFunction
                   - lambda:GetFunctionConfiguration
                   - lambda:InvokeFunction
+                  - lambda:DeleteFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+              - Effect: Allow
+                Action:
+                  - ssm:Get*
+                  - ssm:DeleteParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*                
               - Effect: Allow
                 Action:
                   - ec2:RevokeSecurityGroupEgress
