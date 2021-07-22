@@ -1,3 +1,4 @@
+
 # Copyright 2020 Daniel Cortez Stevenson
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,12 +26,15 @@ Parameters:
   VPC:
     Description: VPC id for this tenant
     Type: AWS::EC2::VPC::Id
-  PrivateSubnetA:
-    Description: Private subnet for EFS mount target
+  # PrivateSubnetA:
+  #   Description: Private subnet for ES
+  #   Type: AWS::EC2::Subnet::Id
+  SubnetPublicA:
+    Description: Public subnet for ES
     Type: AWS::EC2::Subnet::Id
-  PrivateSubnetB:
-    Description: Private subnet for EFS mount target
-    Type: AWS::EC2::Subnet::Id
+  # PrivateSubnetB:
+  #   Description: Private subnet for EFS mount target
+  #   Type: AWS::EC2::Subnet::Id
   ECSSecurityGroup:
     Description: Source security group for ECS to access EFS
     Type: AWS::EC2::SecurityGroup::Id
@@ -106,8 +110,8 @@ Resources:
       GroupId: !Ref ESSecurityGroup
       IpProtocol: tcp
       # To review !! 
-      FromPort: !If [EnforceHTTPS_false, !Ref ESPortHTTPS, !Ref ESPortHTTP]
-      ToPort: !If [EnforceHTTPS_false, !Ref ESPortHTTPS, !Ref ESPortHTTP]
+      FromPort: !If [EnforceHTTPS_false, !Ref ESPortHTTP, !Ref ESPortHTTPS]
+      ToPort: !If [EnforceHTTPS_false, !Ref ESPortHTTP, !Ref ESPortHTTPS]
       SourceSecurityGroupId: !Ref ECSSecurityGroup
 
   ElasticsearchDomain:
@@ -133,7 +137,7 @@ Resources:
         AutomatedSnapshotStartHour: 0
       VPCOptions:
         SubnetIds:
-          - !Ref PrivateSubnetA
+          - !Ref SubnetPublicA
           # - !Ref PrivateSubnetB
         SecurityGroupIds:
         - !Ref ESSecurityGroup
@@ -166,4 +170,8 @@ Outputs:
   ESClusterPortDefault:
     Description: Typicaly when migrating an on-premises elastricsearch(ES) stack to a cloud cluster the application that uses ES will need 2 ports, this bypasses such requirement   
     Value: !Ref ESPortHTTPS
+  # ESSubnetID:
+  #   Description: VPC Subnet ID for Elasticsearch Cluster 
+  #   Value: !Ref PrivateSubnetA
+
 ...

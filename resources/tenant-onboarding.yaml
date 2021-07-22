@@ -604,6 +604,8 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_NAME
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_ENDPOINT
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_PORT
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/ES_CLUSTER_PORT_DEFAULT
+
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -725,7 +727,7 @@ Resources:
                   - Name: ES_CLUSTER_PORT
                     Value: !GetAtt es.Outputs.ESClusterPort
                   - Name: ES_CLUSTER_PORT_DEFAULT
-                    Value: !!GetAtt es.outputs.ESClusterPortDefault
+                    Value: !GetAtt es.Outputs.ESClusterPortDefault
                 - !Ref 'AWS::NoValue'
 
           MountPoints:
@@ -1123,10 +1125,10 @@ Resources:
         Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       HealthCheckProtocol: HTTP
       HealthCheckPath: !Ref ContainerHealthCheckPath
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 300
       HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      UnhealthyThresholdCount: 10
       Port: !Ref ContainerPort
       Protocol: HTTP
       TargetType: !If [WindowsOS, instance, ip]
@@ -1453,8 +1455,8 @@ Resources:
       Parameters:
         TenantId: !Ref TenantId
         VPC: !Ref VPC
-        PrivateSubnetA: !Ref SubnetPrivateA
-        PrivateSubnetB: !Ref SubnetPrivateB
+        SubnetPublicA: !Ref SubnetPublicA
+        # PrivateSubnetB: !Ref SubnetPrivateB
         ElasticsearchVersion: !Ref ElasticsearchVersion
         ECSSecurityGroup: !Ref ECSSecurityGroup
         ElasticsearchDataInstanceType: !Ref ElasticsearchDataInstanceType
