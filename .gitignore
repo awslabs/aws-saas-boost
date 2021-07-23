@@ -71,3 +71,4 @@ jmeter.log
 installer/*.log
 security-check/*.log
 saas-boost-install.log
+samples
