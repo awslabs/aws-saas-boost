@@ -45,6 +45,7 @@ Parameters:
   ECSRepository:
     Description: SaaS Boost ECR image repository
     Type: String
+  
 Resources:
   SSMParamOnboardingTemplate:
     Type: AWS::SSM::Parameter
@@ -232,6 +233,13 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
+          # # Elasticsearch policy
+          # - Effect: Allow
+          #   Action:
+          #     - es:DescribeElasticsearchDomain
+          #   Resource: 
+          #                   - !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*/*
+
       Policies:
         - PolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
           PolicyDocument:
@@ -564,6 +572,16 @@ Resources:
                   - ec2:AuthorizeSecurityGroupEgress
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+              # Elasticsearch onboarding policy
+              - Effect: Allow
+                Action:
+                  - es:AddTags 
+                  - es:CreateElasticsearchDomain  
+                  - es:DescribeElasticsearchDomain
+                  - es:CreateElasticsearchServiceRole
+                Resource: 
+                  - !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+
   OnboardingServiceDeleteTenantExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -875,6 +893,19 @@ Resources:
                   - ec2:RevokeSecurityGroupEgress
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+              # Elasticsearch onboarding delete policy
+              - Effect: Allow
+                Action:
+                  - es:DeleteElasticsearchDomain   
+                  - es:DeleteElasticsearchServiceRole 
+                  - es:DescribeElasticsearchDomain
+                  # case specific - debug purpose
+                  # - es:ESHttpPut 
+                  ##############
+                  - es:RemoveTags 
+                Resource: 
+                  - !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+
   OnboardingServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1200,9 +1231,6 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
