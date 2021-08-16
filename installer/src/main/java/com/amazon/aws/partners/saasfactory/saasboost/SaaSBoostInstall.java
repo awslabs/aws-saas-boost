@@ -1343,7 +1343,7 @@ public class SaaSBoostInstall {
             getExistingSaaSBoostEnvironment();
         }
         try {
-            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER"));
+            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED"));
             analyticsDeployed = Boolean.valueOf(response.parameter().value());
         } catch (SdkServiceException ssmError) {
             // TODO CloudFormation should own this parameter, not the installer... it's possible the parameter doesn't exist
