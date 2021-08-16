@@ -99,8 +99,8 @@ public class SaaSBoostInstall {
         UPDATE_WEB_APP(3, "Update Web Application for existing AWS SaaS Boost deployment.", true),
         UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
         DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
-        CANCEL(6, "Exit installer.", false),
-        DEBUG(7, "Debug", false);
+        CANCEL(6, "Exit installer.", false);
+        //DEBUG(7, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -187,11 +187,9 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void debug() {
-        final String bucket = "sb-test-inst-artifacts-ae3a1377-f8fc";
-        cleanUpS3(bucket, null);
-        s3.deleteBucket(r -> r.bucket(bucket));
-    }
+//    protected void debug() {
+//
+//    }
 
     public void start() {
         outputMessage("===========================================================");
@@ -252,9 +250,9 @@ public class SaaSBoostInstall {
             case CANCEL:
                 cancel();
                 break;
-            case DEBUG:
-                debug();
-                break;
+//            case DEBUG:
+//                debug();
+//                break;
         }
     }
 
