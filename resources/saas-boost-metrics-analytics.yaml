@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >-
-  Template deploys a Metrics & Analytics Solution that Integrates Amazon Kinesis Firehose, S3 and Amazon Redshift in an existing VPC.
+Description: AWS SaaS Boost Analytics Module
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -117,8 +116,11 @@ Parameters:
   DatabaseName:
     Description: The name of the metrics database to be created when the Amazon Redshift cluster is created.
     Type: String
+    MinLength: 3
+    MaxLength: 31
+    AllowedPattern: ^[a-zA-Z]+[a-zA-Z0-9_\$]*$
+    ConstraintDescription: Database name must be between 3 and 31 characters in length
     Default: sbmetrics
-    AllowedPattern: "([a-z]|[0-9])+"
   ClusterType:
     Description: The type of Amazon Redshift cluster.
     Type: String
