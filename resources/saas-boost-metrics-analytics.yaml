@@ -407,7 +407,7 @@ Resources:
           - ''
           - - '{{resolve:ssm-secure:'
             - !Ref MetricUserPasswordSSMParameter
-            - ':1}}'
+            - '}}'
       ClusterParameterGroupName:
         Ref: RedshiftClusterParameterGroup
       VpcSecurityGroupIds:

@@ -611,9 +611,16 @@ public class SaaSBoostInstall {
         String dbPassword = null;
         String dbPasswordParam = "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD";
         try {
-            GetParameterResponse existingDbPasswordResponse = ssm.getParameter(request -> request.name(dbPasswordParam).withDecryption(true));
+            GetParameterResponse existingDbPasswordResponse = ssm.getParameter(GetParameterRequest.builder()
+                    .name(dbPasswordParam)
+                    .withDecryption(true)
+                    .build()
+            );
             // We actually need the secret value because we need to give it to QuickSight
             dbPassword = existingDbPasswordResponse.parameter().value();
+            // And, we'll add the parameter version to the end of the name just in case it's greater than 1
+            // so that CloudFormation can properly fetch the secret value
+            dbPasswordParam = dbPasswordParam + ":" + existingDbPasswordResponse.parameter().version();
             LOGGER.info("Reusing existing RedShift password for Analytics");
         } catch (SdkServiceException noSuchParameter) {
             LOGGER.info("Generating new random RedShift password for Analytics");
