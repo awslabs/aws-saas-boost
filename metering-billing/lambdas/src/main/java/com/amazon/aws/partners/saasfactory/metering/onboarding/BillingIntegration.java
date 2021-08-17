@@ -24,6 +24,7 @@ import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.stripe.Stripe;
+import com.stripe.exception.InvalidRequestException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.*;
 import com.stripe.net.StripeResponse;
@@ -271,50 +272,86 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         SubscriptionPlan planEnum;
         try {
             planEnum = SubscriptionPlan.valueOf(planId.toLowerCase());
-            if (planEnum == SubscriptionPlan.product_none)  {
-                LOGGER.info("Plan of {} for tenant {} will not be setup for billing.", planEnum.name(), tenantId);
-                return;
-            }
         } catch (IllegalArgumentException e) {
             LOGGER.error("provisionTenantInStripe: No PlanID: " + planId + " matched to SubscriptionPlanEnum");
             throw new RuntimeException("provisionTenantInStripe: Invalid PlanID: '" + planId + "' in the event detail");
         }
 
-        final String customerId = "tenant-" + tenantId.split("-")[0];  //get first segment
-        LOGGER.info("provisionTenantInStripe: Setting up Tenant: " + customerId + " as a customer and creating subscription");
+        final String customerName = "tenant-" + tenantId.split("-")[0];  //get first segment
+        LOGGER.info("provisionTenantInStripe: Setting up Tenant: {} as a customer and creating subscription", customerName);
 
-        try {
-            //Only attempt to setup tenant if customer does not already exist for this tenant
-            try {
-                Customer customer = Customer.retrieve(customerId);
-                LOGGER.info("Customer : " + customerId + " already exists, setup of tenant: " + tenantId + " skipped");
+        Customer customer = getStripeCustomer(customerName);
+
+        //Only attempt to setup tenant if customer does not already exist for this tenant
+        if (null == customer) {
+            LOGGER.error("No existing customer: {} found in Stripe, so one will be created.", customerName);
+            if (planEnum == SubscriptionPlan.product_none)  {
+                LOGGER.info("Plan of {} for tenant {} will not be setup for billing.", planEnum.name(), tenantId);
                 return;
+            }
+            try {
+                CustomerCreateParams params =
+                        CustomerCreateParams.builder()
+                                .setName(customerName)
+                                //.setEmail("bogus@example.com")
+                                .setPaymentMethod("pm_card_visa")
+                                .setInvoiceSettings(
+                                        CustomerCreateParams.InvoiceSettings.builder()
+                                                .setDefaultPaymentMethod("pm_card_visa")
+                                                .build())
+                                .setDescription(customerName + " from AWS SaaS Boost")
+                                .build();
+                customer = Customer.create(params);
+                //create the subscription
+                createStripeSubscription(customer, planEnum, tenantId,false);
+                LOGGER.info("provisionTenantInStripe: Customer created with id: " + customer.getId());
+            } catch (StripeException e) {
+                LOGGER.error("provisionTenantInStripe: Error creating Customer for Tenant: " + tenantId);
+                LOGGER.error(Utils.getFullStackTrace(e));
+                throw e;
+            }
+        } else {
+            LOGGER.info("provisionTenantInStripe: Customer: {} create skipped, already exists with id: {} ", customerName, customer.getId());
+            //If subscription plan has changed then cancel the old subscriptions and create a new.
+            //Ideally, the subscription information for the tenant would be stored in a DDB table so we do not have to hit Stripe to find if it has changed
+
+            //Compare plan with what is on subscription item in Stripe to determine if plan has changed
+
+            //get subscriptions for customer
+            try {
+                final SubscriptionListParams subscriptionListParams = SubscriptionListParams.builder().setCustomer(customer.getId()).build();
+                final SubscriptionCollection collection = Subscription.list(subscriptionListParams);
+                for (final Subscription subscription : collection.getData()) {
+                    LOGGER.info("provisionTenantInStripe: check Stripe subscription items for matching plan");
+                    for (SubscriptionItem si : subscription.getItems().getData()) {
+                        if (si.getPrice().getProduct().equalsIgnoreCase(planId)) {
+                            LOGGER.info("Subscription Plan has not changed for the tenant, nothing to do");
+                            return;
+                        }
+                    }
+                    //NOTE: Do queued metered events need to sent to Stripe before canceling the subscription?
+
+                    //attempt to cancel the subscription
+                    LOGGER.info("provisionTenantInStripe: No match in Stripe subscription items for plan {}", planId);
+                    LOGGER.info("provisionTenantInStripe: Attempt to Cancel Subscription: {} ", subscription.getId());
+                    Subscription canceledSubscription = subscription.cancel();
+                    LOGGER.info("provisionTenantInStripe: Canceled Subscription: {} ", subscription.getId());
+                }
+
             } catch (StripeException se) {
-                //this means no customer found
+                //this means cancel failed
+                LOGGER.error("Error canceling subscription in Stripe for customer: {}", customerName);
                 LOGGER.error(Utils.getFullStackTrace(se));
+                throw se;
             }
 
-            CustomerCreateParams params =
-                    CustomerCreateParams.builder()
-                            .setName(customerId)
-                            //.setEmail("bogus@example.com")
-                            .setPaymentMethod("pm_card_visa")
-                            .setInvoiceSettings(
-                                    CustomerCreateParams.InvoiceSettings.builder()
-                                            .setDefaultPaymentMethod("pm_card_visa")
-                                            .build())
-                            .setDescription(customerId + " from SaaS Boost")
-                            .build();
-            Customer customer = Customer.create(params);
-            LOGGER.info("provisionTenantInStripe: Customer created with id: " + customer.getId());
+            //create the subscription for the new plan id.
+            if (planEnum == SubscriptionPlan.product_none)  {
+                LOGGER.info("Plan of {} for tenant {} will not be setup for billing.", planEnum.name(), tenantId);
+                return;
+            }
 
-            //create the subscription
-            createStripeSubscription(customer, planEnum, tenantId);
-
-        } catch (StripeException e) {
-            LOGGER.error("provisionTenantInStripe: Error creating Customer for Tenant: " + tenantId);
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw e;
+            createStripeSubscription(customer, planEnum, tenantId,true);
         }
     }
 
@@ -322,7 +359,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     Cancels active subscriptions in Stripe for a Tenant
      */
     private void cancelSubscriptionInStripe(String tenantId) throws StripeException {
-        LOGGER.info("disableTenantInStripe: Starting...");
+        LOGGER.info("cancelSubscriptionInStripe: Starting...");
 
         try {
             Stripe.apiKey = getStripeAPIKey();
@@ -335,29 +372,14 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
             throw new RuntimeException("cancelSubscriptionInStripe: No tenantId found in the event detail");
         }
 
-        final String customerId = "tenant-" + tenantId.split("-")[0];  //get first segment
-        LOGGER.info("disableTenantInStripe: Cancel Tenant: " + customerId + " subscriptions");
+        final String customerName = "tenant-" + tenantId.split("-")[0];  //get first segment
+        LOGGER.info("cancelSubscriptionInStripe: Cancel Tenant: " + customerName + " subscriptions");
 
-        //Only attempt to disable tenant if customer exists
-        Map<String, Customer> custIdMap = new LinkedHashMap<>();
-        boolean hasMore = false;
-        String startingAfter = null;
-        LOGGER.info(("Load list of customers"));
-        do {
-            CustomerListParams customerListParams = CustomerListParams.builder().setLimit(100l).setStartingAfter(startingAfter).build();
-            CustomerCollection customerCollection = Customer.list(customerListParams);
-            hasMore = customerCollection.getHasMore();
-            for (Customer customer : customerCollection.getData()) {
-                startingAfter = customer.getId();
-                custIdMap.put(customer.getName(), customer);
-            }
-        } while (hasMore);
-        LOGGER.info("Loaded {} customers", custIdMap.size());
-        Customer customer = custIdMap.get(customerId);
+        Customer customer = getStripeCustomer(customerName);
         if (null != customer) {
-            LOGGER.info("disableTenantInStripe: Customer: {} exists, cancel active subscriptions for customer id: {}", customerId, customer.getId());
+            LOGGER.info("cancelSubscriptionInStripe: Customer: {} exists, cancel active subscriptions for customer id: {}", customerName, customer.getId());
         } else {
-            LOGGER.info("disableTenantInStripe: Customer: {} not found in Stripe, skip subscription cancellation", customerId);
+            LOGGER.info("cancelSubscriptionInStripe: Customer: {} not found in Stripe, skip subscription cancellation", customerName);
             return;
         }
 
@@ -366,25 +388,47 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
             final SubscriptionListParams subscriptionListParams = SubscriptionListParams.builder().setCustomer(customer.getId()).build();
             final SubscriptionCollection collection = Subscription.list(subscriptionListParams);
             for (final Subscription subscription : collection.getData()) {
+                //NOTE: Do queued metered events need to sent to Stripe before canceling the subscription?
+
                 //attempt to cancel the subscription
-                LOGGER.info("disableTenantInStripe: Cancel Subscription: {} ", subscription.getId());
+                LOGGER.info("cancelSubscriptionInStripe: Cancel Subscription: {} ", subscription.getId());
                 Subscription canceledSubscription = subscription.cancel();
             }
         } catch (StripeException se) {
             //this means cancel failed
-            LOGGER.error("Error canceling subscription in Stripe for customer: {}", customerId);
+            LOGGER.error("Error canceling subscription in Stripe for customer: {}", customerName);
             LOGGER.error(Utils.getFullStackTrace(se));
         }
     }
 
+    private Customer getStripeCustomer(final String customerId) throws StripeException {
+        //Only attempt to disable tenant if customer exists
+        Map<String, Customer> custIdMap = new LinkedHashMap<>();
+        boolean hasMore = false;
+        String startingAfter = null;
+        LOGGER.info("Find Stripe customer with name: {} ", customerId);
+        do {
+            CustomerListParams customerListParams = CustomerListParams.builder().setLimit(100l).setStartingAfter(startingAfter).build();
+            CustomerCollection customerCollection = Customer.list(customerListParams);
+            hasMore = customerCollection.getHasMore();
+            for (Customer customer : customerCollection.getData()) {
+                if (customerId.equals(customer.getName())) {
+                    return customer;
+                }
+                startingAfter = customer.getId();
+            }
+        } while (hasMore);
+        return null;
+    }
+
 
     /*
-    Creates a customer and a subscription in Stripe
+    Creates a subscription in Stripe
     The Subscription will have one item for the monthly plan and additional items for metered products
     For the metered products, a message is sent to Event Bus to add that record to the Dynanamo table mapping
      the Tenant internal product code to the Stripe Subscription id which is unique for each tenant and product.
      */
-    private void createStripeSubscription(Customer customer, SubscriptionPlan plan, String fullTenantId) throws StripeException{
+    private void createStripeSubscription(Customer customer, SubscriptionPlan plan, String fullTenantId, boolean existingCustomer) throws StripeException{
         //get the PRICE ID for the product code of the plan.  This is for the monthly subscription
         final String planPriceId = getPriceId(plan.name());
         List<SubscriptionCreateParams.Item> items = new ArrayList<>();
@@ -395,7 +439,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         //loop through the metered items for this plan and build items for the metered products on this plan
         MeteredProduct[] meteredProducts = plan.getMeteredProducts();
         if (null != meteredProducts) {
-            for(int i=0; i < meteredProducts.length; i++) {
+            for (int i = 0; i < meteredProducts.length; i++) {
                 MeteredProduct product = meteredProducts[i];
                 final String priceId = getPriceId(product.name());
                 items.add(SubscriptionCreateParams.Item.builder()
@@ -411,7 +455,17 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         try {
             Subscription subscription = Subscription.create(params);
             LOGGER.info(("createStripeSubscription: Subscription created with id: " + subscription.getId()));
-            for(SubscriptionItem item : subscription.getItems().getData()) {
+            //Add a config record into DDB table for the subscription plan by sending a message to EventBridge
+            LOGGER.info("createStripeSubscription: Send message to add Plan Id to Tenant Billing config record");
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            systemApiRequest.put("tenantId", fullTenantId);
+            systemApiRequest.put("internalProductCode", "plan_id");
+            systemApiRequest.put("externalProductCode", plan.toString());
+            systemApiRequest.put("timestamp", Instant.now().toEpochMilli());     //epoch time in UTC
+            putTenantProductOnboardEvent(Utils.toJson(systemApiRequest));
+
+            //now process each of the metered products.
+            for (SubscriptionItem item : subscription.getItems().getData()) {
                 LOGGER.info("createStripeSubscription: Item :" + item.getId() + ", " + item.getPrice() + " has subscription id: " + item.getSubscription());
                 try {
                     MeteredProduct product = MeteredProduct.valueOf(item.getPrice().getProduct());
@@ -422,7 +476,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
                 }
                 //Add a config record into DDB table for each metered product by sending a message to EventBridge
                 LOGGER.info("createStripeSubscription: Send message to add Tenant Product record");
-                Map<String, Object> systemApiRequest = new HashMap<>();
+                systemApiRequest = new HashMap<>();
                 systemApiRequest.put("tenantId", fullTenantId);
                 systemApiRequest.put("internalProductCode", item.getPrice().getProduct());
                 systemApiRequest.put("externalProductCode", item.getId());

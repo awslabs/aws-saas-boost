@@ -55,8 +55,8 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
         LOGGER.info("Processing for Autoscaling group {}", autoScalingGroup);
         try {
             Runnable r = () -> {
-                if ("Delete".equalsIgnoreCase(requestType)) {
-                    LOGGER.info("DELETE");
+                if ("Delete".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
+                    LOGGER.info("Request Type: " + requestType);
                     try {
                         DescribeAutoScalingGroupsResponse response = autoScalingClient.describeAutoScalingGroups(DescribeAutoScalingGroupsRequest.builder()
                                 .autoScalingGroupNames(autoScalingGroup)
