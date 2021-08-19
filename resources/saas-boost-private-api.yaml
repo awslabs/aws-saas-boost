@@ -953,9 +953,6 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-
-
-
   SettingsServiceDeleteAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -980,11 +977,6 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceDeleteAppConfig
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/DELETE/settings/config
-
-
-
-
-
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
