@@ -15,37 +15,99 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.InputStream;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.*;
 
 import static org.junit.Assert.*;
 
+// Note that these tests will only work if you run them from Maven or if you add
+// the AWS_REGION environment variable to your IDE's configuration settings
 public class CloudFormationTemplateParserTest {
 
+    /*
+    private static LinkedHashMap<String, Object> template;
+
+    @BeforeClass
+    public static void initTemplate() {
+        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> requiredStringParameter = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> defaultStringParameter = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> numericParameter = new LinkedHashMap<>();
+        requiredStringParameter.put("Description", "String parameter with no default");
+        requiredStringParameter.put("Type", "String");
+        parameters.put("RequiredStringParameter", requiredStringParameter);
+        defaultStringParameter.put("Description", "String parameter with default value");
+        defaultStringParameter.put("Type", "String");
+        defaultStringParameter.put("Default", "foobar");
+        parameters.put("DefaultStringParameter", defaultStringParameter);
+        numericParameter.put("Description", "Number parameter with default value");
+        numericParameter.put("Type", "Number");
+        numericParameter.put("Default", 0);
+        parameters.put("NumericParameter", numericParameter);
+
+        LinkedHashMap<String, Object> resources = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> resource = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> resourceProperties = new LinkedHashMap<>();
+        resourceProperties.put("Name", "/saas-boost/FOOBAR");
+        resourceProperties.put("Type", "String");
+        resourceProperties.put("Value", "!Ref DefaultStringParameter");
+        resource.put("Type", "AWS::SSM::Parameter");
+        resource.put("Properties", resourceProperties);
+        resources.put("Resource", resource);
+
+        LinkedHashMap<String, Object> outputs = new LinkedHashMap<>();
+        LinkedHashMap<String, Object> output = new LinkedHashMap<>();
+        output.put("Description", "Output of the requried string parameter value");
+        output.put("Value", "!Ref RequiredStringParameter");
+        outputs.put("RequiredStringParameterOutput", output);
+
+        template = new LinkedHashMap<>();
+        template.put("AWSTemplateFormatVersion","2010-09-09");
+        template.put("Description", "Fake CloudFormation template for testing YAML parser");
+        template.put("Parameters", parameters);
+        template.put("Resources", resources);
+        template.put("Outputs", outputs);
+    }
+    */
+
+    @After
+    public void resetStdIn() {
+        System.setIn(System.in);
+    }
+
     @Test
-    public void testReadTemplate() throws Exception {
-        System.out.println("testReadTemplate");
-        InputStream cloudFormationTemplate = this.getClass().getClassLoader().getResourceAsStream("template.yaml");
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        LinkedHashMap<String, Object> template = mapper.readValue(cloudFormationTemplate, LinkedHashMap.class);
-        LinkedHashMap<String, Map<String, Object>> parameters = (LinkedHashMap<String, Map<String, Object>>) template.get("Parameters");
+    public void testGetCloudFormationParameterMap() throws Exception {
+        System.out.println("testGetCloudFormationParameterMap");
+        
+        // The input map represents the existing CloudFormation parameter values.
+        // These will either be the template defaults, or they will be the parameter
+        // values read from a created stack with the describeStacks call.
+        // We'll pretend that the RequiredStringParameter parameter is newly added
+        // to the template on disk so the user should be prompted for a value
+        Map<String, String> input = new LinkedHashMap<>();
+        input.put("DefaultStringParameter", "foobar");
+        input.put("NumericParameter", "1"); // Let's pretend that we overwrote the default the first time around
 
-        assertEquals("Template has 3 parameters", parameters.size(), 3);
-        for (String parameterName : Arrays.asList("RequiredStringParameter", "DefaultStringParameter", "NumericParameter")) {
-            assertTrue(parameterName + " parameter exists", parameters.containsKey(parameterName));
+        // Fill up standard input with a response for the Keyboard class
+        System.setIn(new ByteArrayInputStream("keyboard input\n".getBytes(StandardCharsets.UTF_8)));
+
+        Path cloudFormationTemplate = Path.of(this.getClass().getClassLoader().getResource("template.yaml").toURI());
+        Map<String, String> actual = SaaSBoostInstall.getCloudFormationParameterMap(cloudFormationTemplate, input);
+
+        Map<String, String> expected = new LinkedHashMap<>();
+        expected.put("RequiredStringParameter", "keyboard input");
+        expected.put("DefaultStringParameter", "foobar");
+        expected.put("NumericParameter", "1");
+
+        assertEquals("Template has 3 parameters", expected.size(), actual.size());
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            assertEquals(entry.getKey() + " equals " + entry.getValue(), entry.getValue(), actual.get(entry.getKey()));
         }
-
-        LinkedHashMap<String, Object> properties = (LinkedHashMap<String, Object>) parameters.get("RequiredStringParameter");
-        assertFalse("Required parameter does not have a default value", properties.containsKey("Default"));
-
-        properties = (LinkedHashMap<String, Object>) parameters.get("DefaultStringParameter");
-        assertTrue("Default parameter has default value", properties.containsKey("Default"));
-        assertEquals("Default value", "foobar", properties.get("Default"));
     }
 }

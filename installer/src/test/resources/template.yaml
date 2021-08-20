@@ -31,11 +31,11 @@ Resources:
   Resource:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/FOOBAR
+      Name: /saas-boost/FOOBAR
       Type: String
       Value: !Ref DefaultStringParameter
 Outputs:
   RequiredStringParameterOutput:
-  Description: Output of the requried string parameter value
-  Value: !Ref RequiredStringParameter
+    Description: Output of the requried string parameter value
+    Value: !Ref RequiredStringParameter
 ...

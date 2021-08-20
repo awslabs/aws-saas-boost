@@ -61,6 +61,11 @@ limitations under the License.
                         <version>2.22.1</version>
                     </dependency>
                 </dependencies>
+                <configuration>
+                    <environmentVariables>
+                        <AWS_REGION>us-east-1</AWS_REGION>
+                    </environmentVariables>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

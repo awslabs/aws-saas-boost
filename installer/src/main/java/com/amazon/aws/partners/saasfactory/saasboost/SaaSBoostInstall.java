@@ -436,7 +436,12 @@ public class SaaSBoostInstall {
         }
 
         // Get values for all the CloudFormation parameters including possibly new ones in the template file on disk
-        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap("saas-boost.yaml", this.baseStackDetails);
+        Path cloudFormationTemplate = workingDir.resolve(Path.of("resources", "saas-boost.yaml"));
+        if (!Files.exists(cloudFormationTemplate)) {
+            outputMessage("Unable to find file " + cloudFormationTemplate.toString());
+            System.exit(2);
+        }
+        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap(cloudFormationTemplate, this.baseStackDetails);
 
         // Update the Lambda source folder to deploy updated code
         outputMessage("Updating LambdaSourceFolder parameter to " + this.lambdaSourceFolder);
@@ -803,20 +808,19 @@ public class SaaSBoostInstall {
             throw cfnError;
         }
         // Update the parameter values if necessary to match the template file on disk
-        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap("saas-boost-metrics-analytics.yaml", stackParamsMap);
+        Path cloudFormationTemplate = workingDir.resolve(Path.of("resources", "saas-boost-metrics-analytics.yaml"));
+        if (!Files.exists(cloudFormationTemplate)) {
+            outputMessage("Unable to find file " + cloudFormationTemplate.toString());
+            System.exit(2);
+        }
+        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap(cloudFormationTemplate, stackParamsMap);
         updateCloudFormationStack(stackName, cloudFormationParamMap, "saas-boost-metrics-analytics.yaml");
     }
 
-    protected Map<String, String> getCloudFormationParameterMap(String yamlFileName, Map<String, String> stackParamsMap) {
+    protected static Map<String, String> getCloudFormationParameterMap(Path cloudFormationTemplateFile, Map<String, String> stackParamsMap) {
         // Open CFN template yaml file and prompt for values of params that are not in the existing stack
-        LOGGER.info("Building map of parameters for template " + yamlFileName);
+        LOGGER.info("Building map of parameters for template " + cloudFormationTemplateFile);
         Map<String, String> cloudFormationParamMap = new LinkedHashMap<>();
-
-        Path cloudFormationTemplateFile = workingDir.resolve(Path.of("resources", yamlFileName));
-        if (!Files.exists(cloudFormationTemplateFile)) {
-            outputMessage("Unable to find file " + cloudFormationTemplateFile.toString());
-            System.exit(2);
-        }
 
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         try (InputStream cloudFormationTemplate = Files.newInputStream(cloudFormationTemplateFile)) {
@@ -1361,7 +1365,7 @@ public class SaaSBoostInstall {
     protected Map<String, String> getExistingSaaSBoostStackDetails() {
         LOGGER.info("Getting CloudFormation stack details for SaaS Boost stack {}", this.stackName);
         Map<String, String> details = new HashMap<>();
-        Collection<String> requiredOutputs = Collections.unmodifiableList(Arrays.asList("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1", "PrivateSubnet2", "EgressVpc", "LoggingBucket"));
+        Collection<String> requiredOutputs = List.of("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1", "PrivateSubnet2", "EgressVpc", "LoggingBucket");
         try {
             DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(this.stackName));
             if (response.hasStacks() && !response.stacks().isEmpty()) {
@@ -1611,7 +1615,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    private void deleteCloudFormationStack(final String stackName) {
+    protected void deleteCloudFormationStack(final String stackName) {
         outputMessage("Deleting CloudFormation stack: " + stackName);
         // Describe stacks won't return a response on stack name after it's deleted
         // but it will return a response on the stack id or ARN.

@@ -39,16 +39,6 @@ public class Keyboard {
         return value;
     }
 
-    public static String readWord() {
-        String value = null;
-        try {
-            value = reader.next().split("\\s+")[0];
-        } catch (Exception exception) {
-            LOGGER.error("Error reading String data, null value returned.");
-        }
-        return value;
-    }
-
     public static Boolean readBoolean() {
         String token = reader.next();
         String[] trueValues = new String[]{"true", "y", "yes", "1"};
@@ -65,17 +55,6 @@ public class Keyboard {
             }
         } catch (Exception exception) {
             LOGGER.error("Error reading boolean data, null value returned.");
-        }
-        return value;
-    }
-
-    public static Character readChar() {
-        String token = reader.next();
-        Character value = null;
-        try {
-            value = token.charAt(0);
-        } catch (Exception exception) {
-            LOGGER.error("Error reading char data, null value returned.");
         }
         return value;
     }
