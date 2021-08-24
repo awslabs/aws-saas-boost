@@ -122,8 +122,6 @@ export function ApplicationComponent(props) {
     fsx: getFsx(appConfig.filesystem?.fsx),
   };
 
-  console.log('**FILESYSTEM**', filesystem);
-
   const initialValues = {
     operatingSystem: os,
     windowsVersion: os !== LINUX ? appConfig.operatingSystem : '',
