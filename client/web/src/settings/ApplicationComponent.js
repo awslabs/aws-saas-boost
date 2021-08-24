@@ -113,7 +113,7 @@ export function ApplicationComponent(props) {
     ...appConfig.filesystem,
     mountPoint: appConfig.filesystem?.mountPoint || '',
     // Start off with FSX if Windows and EFS if Linux
-    fileSystemType: appConfig.filesystem?.fileSystemType || (os !== 'LINUX' ? 'FSX' : 'EFS'),
+    fileSystemType: appConfig.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
 
     efs: appConfig.filesystem?.efs || {
       lifecycle: '0',
