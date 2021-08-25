@@ -44,16 +44,21 @@ export function ApplicationComponent(props) {
   } = props;
 
   console.log('App Config:', appConfig);
+  const LINUX = 'LINUX';
+  const WINDOWS = 'WINDOWS';
+  const FSX = 'FSX';
+  const EFS = 'EFS';
+
   const os = !!appConfig.operatingSystem
-    ? appConfig.operatingSystem === 'LINUX'
-      ? 'LINUX'
-      : 'WINDOWS'
+    ? appConfig.operatingSystem === LINUX
+      ? LINUX
+      : WINDOWS
     : '';
   const db = !!appConfig.database
     ? {
         ...appConfig.database,
         //This is frail, but try to see if the incoming password is base64d
-        //If so, assume it's encryped
+        //If so, assume it's encrypted
         //Also store a copy in the encryptedPassword field
         hasEncryptedPassword: !!appConfig.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
         encryptedPassword: appConfig.database.password,
@@ -107,10 +112,9 @@ export function ApplicationComponent(props) {
   const filesystem = {
     ...appConfig.filesystem,
     mountPoint: appConfig.filesystem?.mountPoint || '',
-    // Somehow the container OS was set without the filesystem type being set
-    // There's a handler on the OS radio so it'll overwrite this as necessary, but start off
-    // with FSX if Windows and EFS if Linux
-    fileSystemType: appConfig.filesystem?.fileSystemType || os !== 'LINUX' ? 'FSX' : 'EFS',
+    // Start off with FSX if Windows and EFS if Linux
+    fileSystemType: appConfig.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
+
     efs: appConfig.filesystem?.efs || {
       lifecycle: '0',
       encryptAtRest: '',
@@ -120,7 +124,7 @@ export function ApplicationComponent(props) {
 
   const initialValues = {
     operatingSystem: os,
-    windowsVersion: os !== 'LINUX' ? appConfig.operatingSystem : '',
+    windowsVersion: os !== LINUX ? appConfig.operatingSystem : '',
     name: appConfig.name || '',
     domainName: appConfig.domainName || '',
     sslCertArn: appConfig.sslCertArn || '',
@@ -168,7 +172,7 @@ export function ApplicationComponent(props) {
       is: true,
       then: Yup.object({
         mountPoint: Yup.string().when('fileSystemType', {
-          is: 'EFS',
+          is: EFS,
           then: Yup.string()
             .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
             .max(100, "The full path can't exceed 100 characters in length")
@@ -186,7 +190,7 @@ export function ApplicationComponent(props) {
             .required(),
         }),
         fsx: Yup.object().when('fileSystemType', {
-          is: 'FSX',
+          is: FSX,
           then: Yup.object({
             storageGb: Yup.number()
               .required()
@@ -207,7 +211,7 @@ export function ApplicationComponent(props) {
           otherwise: Yup.object().nullable(),
         }),
         efs: Yup.object().when('fileSystemType', {
-          is: 'EFS',
+          is: EFS,
           then: Yup.object({
             encryptAtRest: Yup.bool(),
             lifecycle: Yup.number().required('Lifecycle is required'),
@@ -233,7 +237,7 @@ export function ApplicationComponent(props) {
         return maxCount >= this.parent.minCount;
       }),
     windowsVersion: Yup.string().when('operatingSystem', {
-      is: (containerOs) => containerOs && containerOs === 'WINDOWS',
+      is: (containerOs) => containerOs && containerOs === WINDOWS,
       then: Yup.string().required('Windows version is a required field'),
       otherwise: Yup.string().nullable(),
     }),
