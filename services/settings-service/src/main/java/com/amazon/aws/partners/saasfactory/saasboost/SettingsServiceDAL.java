@@ -35,13 +35,15 @@ public class SettingsServiceDAL {
     private final static Logger LOGGER = LoggerFactory.getLogger(SettingsServiceDAL.class);
     private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private final static String OPTIONS_TABLE = System.getenv("OPTIONS_TABLE");
-    private final static String SAAS_BOOST_PREFIX = "saas-boost";
     private final static String AWS_REGION = System.getenv("AWS_REGION");
 
+    // Package private for testing
+    final static String SAAS_BOOST_PREFIX = "saas-boost";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
-    private final static Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
+    final static Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
     // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    private final static Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+    final static Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+
     private final SsmClient ssm;
     private DynamoDbClient ddb;
 
@@ -410,7 +412,7 @@ public class SettingsServiceDAL {
 
     static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR.thenComparing(INSTANCE_GENERATION_COMPARATOR).thenComparing(INSTANCE_SIZE_COMPARATOR);
 
-    private static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
+    protected static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
         Map<String, Object> option = new LinkedHashMap<>();
         option.put("engine", item.get("engine").s());
         option.put("region", item.get("region").s());
@@ -488,6 +490,19 @@ public class SettingsServiceDAL {
                 .collect(
                         Collectors.toMap(Setting::getName, Setting::getValue)
                 );
+
+        // Get the secret value for the optional billing provider or you'll always
+        // be testing for empty against the encrypted hash of the "N/A" sentinel string
+        AppConfig appConfig = toAppConfig(appSettings, getSecret("BILLING_API_KEY"));
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
+        return appConfig;
+    }
+
+    protected static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
+        AppConfig appConfig = null;
+
         Database database = null;
         if (Utils.isNotEmpty(appSettings.get("DB_ENGINE"))) {
             database = Database.builder()
@@ -527,20 +542,18 @@ public class SettingsServiceDAL {
                     .efs(efs)
                     .build();
         }
-        // Get the secret value for the optional billing provider to test for N/A
-        // or you'll always be testing for existence against the encrypted hash
+
         BillingProvider billingProvider = null;
-        Setting billingApiKey = getSecret("BILLING_API_KEY");
         if (billingApiKey != null) {
             String apiKey = billingApiKey.getValue();
-            if (Utils.isNotEmpty(apiKey) && !"N/A".equals(apiKey)) {
+            if (Utils.isNotEmpty(apiKey)) {
                 billingProvider = BillingProvider.builder()
                         .apiKey(appSettings.get("BILLING_API_KEY"))
                         .build();
             }
         }
 
-        AppConfig appConfig = AppConfig.builder()
+        appConfig = AppConfig.builder()
                 .name(appSettings.get("APP_NAME"))
                 .domainName(appSettings.get("DOMAIN_NAME"))
                 .sslCertArn(appSettings.get("SSL_CERT_ARN"))
@@ -557,8 +570,7 @@ public class SettingsServiceDAL {
                 .filesystem(filesystem)
                 .billing(billingProvider)
                 .build();
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
+
         return appConfig;
     }
 
@@ -617,7 +629,7 @@ public class SettingsServiceDAL {
         Setting setting = null;
         if (parameter != null) {
             String parameterStoreName = parameter.name();
-            if (Utils.isBlank(parameterStoreName)) {
+            if (Utils.isEmpty(parameterStoreName)) {
                 throw new RuntimeException("Can't get Setting name for blank Parameter Store name [" + parameter.toString() + "]");
             }
             String settingName = null;
@@ -657,7 +669,7 @@ public class SettingsServiceDAL {
         Setting setting = null;
         if (parameter != null) {
             String parameterStoreName = parameter.name();
-            if (Utils.isBlank(parameterStoreName)) {
+            if (Utils.isEmpty(parameterStoreName)) {
                 throw new RuntimeException("Can't get Setting name for blank Parameter Store name");
             }
             String settingName = null;
@@ -669,7 +681,7 @@ public class SettingsServiceDAL {
                 settingName = regex.group(2);
             }
             if (settingName == null) {
-                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern");
+                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern " + SAAS_BOOST_TENANT_PATTERN.toString());
             }
             setting = Setting.builder()
                     .name(settingName)
@@ -683,7 +695,7 @@ public class SettingsServiceDAL {
     }
 
     public static Parameter toTenantParameterStore(UUID tenantId, Setting setting) {
-        if (setting == null || Utils.isBlank(setting.getName())) {
+        if (setting == null || Utils.isEmpty(setting.getName())) {
             throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
         }
         String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString() + "/" + setting.getName();

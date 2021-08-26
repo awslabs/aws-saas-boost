@@ -18,6 +18,8 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonDeserialize(builder = Setting.Builder.class)
 public class Setting {
 
@@ -63,6 +65,35 @@ public class Setting {
 
     public String getDescription() {
         return description;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Setting other = (Setting) obj;
+        return (
+                ((name == null && other.name == null) || (name != null && name.equals(other.name))) // Parameter Store is case sensitive
+                && ((value == null && other.value == null) || (value != null && value.equals(other.value)))
+                && ((description == null && other.description == null) || (description != null && description.equalsIgnoreCase(other.description)))
+                && ((version == null && other.version == null) || (version != null && version.equals(other.version)))
+                && (readOnly == other.readOnly)
+                && (secure == other.secure)
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, value, (description != null ? description.toUpperCase() : null), version, readOnly, secure);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

@@ -1,0 +1,73 @@
+  {
+    "instances": [
+      {
+        "instance": "T3_MICRO"
+      },
+      {
+        "instance": "M5_2XL"
+      },
+      {
+        "instance": "T2_MEDIUM"
+      },
+      {
+        "instance": "T3_XL"
+      },
+      {
+        "instance": "R5_12XL"
+      },
+      {
+        "instance": "M4_XL"
+      },
+      {
+        "instance": "R5_24XL"
+      },
+      {
+        "instance": "T3_MEDIUM"
+      },
+      {
+        "instance": "M5_12XL"
+      },
+      {
+        "instance": "T3_SMALL"
+      },
+      {
+        "instance": "R5_4XL"
+      },
+      {
+        "instance": "T3_4XL"
+      },
+      {
+        "instance": "M5_LARGE"
+      },
+      {
+        "instance": "T3_2XL"
+      },
+      {
+        "instance": "R5_LARGE"
+      },
+      {
+        "instance": "M5_24XL"
+      },
+      {
+        "instance": "T3_12XL"
+      },
+      {
+        "instance": "R5_XL"
+      },
+      {
+        "instance": "R5_2XL"
+      },
+      {
+        "instance": "T3_24XL"
+      },
+      {
+        "instance": "T3_LARGE"
+      },
+      {
+        "instance": "M5_4XL"
+      },
+      {
+        "instance": "M5_XL"
+      }
+    ]
+  }

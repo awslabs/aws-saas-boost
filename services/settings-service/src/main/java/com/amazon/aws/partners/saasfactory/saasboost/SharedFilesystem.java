@@ -15,20 +15,18 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
-//@JsonInclude(JsonInclude.Include.NON_NULL)
-//@JsonPropertyOrder({
-//        "fileSystemType",
-//        "mountPoint",
-//        "fsx",
-//        "efs"
-//})
+import java.util.Objects;
 
 @JsonDeserialize(builder = SharedFilesystem.Builder.class)
 public class SharedFilesystem {
+
+    private String fileSystemType;
+    private String mountPoint;
+    private FsxFilesystem fsx;
+    private EfsFilesystem efs;
 
     private SharedFilesystem(SharedFilesystem.Builder builder) {
         this.mountPoint = builder.mountPoint;
@@ -40,12 +38,6 @@ public class SharedFilesystem {
     public static SharedFilesystem.Builder builder() {
         return new SharedFilesystem.Builder();
     }
-
-    private String fileSystemType;
-    private String mountPoint;
-    private FsxFilesystem fsx;
-
-    private EfsFilesystem efs;
 
     public String getFileSystemType() {
         return fileSystemType;
@@ -63,6 +55,32 @@ public class SharedFilesystem {
         return efs;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final SharedFilesystem other = (SharedFilesystem) obj;
+        return (
+                ((fileSystemType == null && other.fileSystemType == null) || (fileSystemType != null && fileSystemType.equals(other.fileSystemType)))
+                && ((mountPoint == null && other.mountPoint == null) || (mountPoint != null && mountPoint.equals(other.mountPoint)))
+                && ((fsx == null && other.fsx == null) || (fsx != null && fsx.equals(other.fsx)))
+                && ((efs == null && other.efs == null) || (efs != null && efs.equals(other.efs)))
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fileSystemType, mountPoint, fsx, efs);
+    }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {

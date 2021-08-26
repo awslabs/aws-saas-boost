@@ -19,6 +19,8 @@ import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
         "encryptAtRest",
@@ -83,6 +85,30 @@ public class EfsFilesystem {
         return lifecycle != null ? lifecycle.getLifecycleDays() : 0;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final EfsFilesystem other = (EfsFilesystem) obj;
+        return (
+                ((encryptAtRest == null && other.encryptAtRest == null) || (encryptAtRest != null && encryptAtRest.equals(other.encryptAtRest)))
+                && ((lifecycle == null && other.lifecycle == null) || (lifecycle != null && lifecycle == other.lifecycle))
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(encryptAtRest, lifecycle);
+    }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     @JsonIgnoreProperties(value = {"filesystemLifecycle"})

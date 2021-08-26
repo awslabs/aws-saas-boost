@@ -15,9 +15,6 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-
-//@JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public enum OperatingSystem {
 
     LINUX("Amazon Linux 2"),
