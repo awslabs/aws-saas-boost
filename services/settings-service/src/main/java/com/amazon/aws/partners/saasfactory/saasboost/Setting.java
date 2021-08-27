@@ -19,10 +19,12 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @JsonDeserialize(builder = Setting.Builder.class)
 public class Setting {
 
+    private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_\\.-]+");
     private final String name;
     private final String value;
     private boolean readOnly;
@@ -67,6 +69,14 @@ public class Setting {
         return description;
     }
 
+    public static boolean isValidSettingName(String name) {
+        boolean valid = false;
+        if (name != null) {
+            valid = PARAMETER_STORE_REGEX.matcher(name).matches();
+        }
+        return valid;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -109,6 +119,9 @@ public class Setting {
         }
 
         public Builder name(String name) {
+            if (!isValidSettingName(name)) {
+                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 3 symbols .-_ are allowed.");
+            }
             this.name = name;
             return this;
         }

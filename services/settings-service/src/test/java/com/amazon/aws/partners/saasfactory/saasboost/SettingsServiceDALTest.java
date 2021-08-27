@@ -146,7 +146,90 @@ public class SettingsServiceDALTest {
                 .description(null)
                 .build();
         assertEquals("Valid secret param equals secure setting", expectedSecretSetting, SettingsServiceDAL.fromParameterStore(secretParameter));
+    }
 
+    @Test
+    public void testToParameterStore() {
+        System.out.println("testToParameterStore");
+
+        String settingName = "SAAS_BOOST_BUCKET";
+        String parameterName = "/" + SettingsServiceDAL.SAAS_BOOST_PREFIX + "/" + env + "/" + settingName;
+        String parameterValue = "sb-" + env + "-artifacts-test";
+
+        assertThrows("null setting throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toParameterStore(null);});
+        assertThrows("null setting name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toParameterStore(Setting.builder().build());});
+        assertThrows("Empty setting name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toParameterStore(Setting.builder().name("").build());});
+        assertThrows("Blank setting name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toParameterStore(Setting.builder().name(" ").build());});
+
+        Parameter expectedEmptyParameter = Parameter.builder()
+                .name(parameterName)
+                .type(ParameterType.STRING)
+                .value("N/A")
+                .build();
+        Setting settingNullValue = Setting.builder()
+                .name(settingName)
+                .value(null)
+                .description(null)
+                .version(null)
+                .secure(false)
+                .readOnly(false)
+                .build();
+        assertEquals("null setting value equals N/A parameter value", expectedEmptyParameter, SettingsServiceDAL.toParameterStore(settingNullValue));
+
+        Setting settingEmptyValue = Setting.builder()
+                .name(settingName)
+                .value("")
+                .description(null)
+                .version(null)
+                .secure(false)
+                .readOnly(false)
+                .build();
+        assertEquals("Empty setting value equals N/A parameter value", expectedEmptyParameter, SettingsServiceDAL.toParameterStore(settingEmptyValue));
+
+        Parameter expectedBlankParameter = Parameter.builder()
+                .name(parameterName)
+                .type(ParameterType.STRING)
+                .value(" ")
+                .build();
+        Setting settingBlankValue = Setting.builder()
+                .name(settingName)
+                .value(" ")
+                .description(null)
+                .version(null)
+                .secure(false)
+                .readOnly(false)
+                .build();
+        assertEquals("Blank setting value equals N/A parameter value", expectedBlankParameter, SettingsServiceDAL.toParameterStore(settingBlankValue));
+
+        Parameter expectedValueParameter = Parameter.builder()
+                .name(parameterName)
+                .type(ParameterType.STRING)
+                .value(parameterValue)
+                .build();
+        Setting settingWithValue = Setting.builder()
+                .name(settingName)
+                .value(parameterValue)
+                .description(null)
+                .version(null)
+                .secure(false)
+                .readOnly(false)
+                .build();
+        assertEquals("Setting value equals parameter value", expectedValueParameter, SettingsServiceDAL.toParameterStore(settingWithValue));
+
+        Parameter expectedSecretParameter = Parameter.builder()
+                .name(parameterName)
+                .type(ParameterType.SECURE_STRING)
+                .value(parameterValue)
+                .build();
+        Setting settingSecretValue = Setting.builder()
+                .name(settingName)
+                .value(parameterValue)
+                .description(null)
+                .version(null)
+                .secure(true)
+                .readOnly(false)
+                .build();
+        assertEquals("Setting secret value equals secure parameter", expectedSecretParameter, SettingsServiceDAL.toParameterStore(settingSecretValue));
     }
 
     @Test
@@ -383,6 +466,98 @@ public class SettingsServiceDALTest {
         AppConfig actual = SettingsServiceDAL.toAppConfig(appSettings, emptyBillingApiKey);
 
         assertEquals("AppConfig with EFS file system equals AppConfig from settings", expected, actual);
+    }
+
+    @Test
+    public void testToAppConfigWithFSx() throws Exception {
+        System.out.println("testToAppConfigWithFSx");
+        appSettings.put("FILE_SYSTEM_TYPE", "FSX");
+        appSettings.put("FILE_SYSTEM_MOUNT_POINT", "FileShare");
+        appSettings.put("FSX_BACKUP_RETENTION_DAYS", "30");
+        appSettings.put("FSX_DAILY_BACKUP_TIME", "01:00");
+        appSettings.put("FSX_STORAGE_GB", "256");
+        appSettings.put("FSX_THROUGHPUT_MBS", "500");
+        appSettings.put("FSX_WEEKLY_MAINTENANCE_TIME", "07:01:00");
+        appSettings.put("FSX_WINDOWS_MOUNT_DRIVE", "Z:");
+
+        AppConfig expected = AppConfig.builder()
+                .name(appSettings.get("APP_NAME"))
+                .domainName(appSettings.get("DOMAIN_NAME"))
+                .sslCertArn(appSettings.get("SSL_CERT_ARN"))
+                .healthCheckURL(appSettings.get("HEALTH_CHECK"))
+                .computeSize(appSettings.get("COMPUTE_SIZE"))
+                .defaultCpu(appSettings.get("TASK_CPU"))
+                .defaultMemory(appSettings.get("TASK_MEMORY"))
+                .containerPort(appSettings.get("CONTAINER_PORT"))
+                .minCount(appSettings.get("MIN_COUNT"))
+                .maxCount(appSettings.get("MAX_COUNT"))
+                .operatingSystem(appSettings.get("CLUSTER_OS"))
+                .instanceType(appSettings.get("CLUSTER_INSTANCE_TYPE"))
+                .database(null)
+                .filesystem(SharedFilesystem.builder()
+                        .fileSystemType("FSX")
+                        .mountPoint("FileShare")
+                        .efs(null)
+                        .fsx(FsxFilesystem.builder()
+                                .windowsMountDrive("Z:")
+                                .backupRetentionDays(30)
+                                .storageGb(256)
+                                .dailyBackupTime("01:00")
+                                .throughputMbs(500)
+                                .weeklyMaintenanceTime("07:01:00")
+                                .build()
+                        )
+                        .build()
+                )
+                .billing(null)
+                .build();
+        AppConfig actual = SettingsServiceDAL.toAppConfig(appSettings, emptyBillingApiKey);
+
+        assertEquals("AppConfig with FSx file system equals AppConfig from settings", expected, actual);
+    }
+
+    @Test
+    public void testToAppConfigWithDatabase() throws Exception {
+        System.out.println("testToAppConfigWithDatabase");
+        appSettings.put("DB_ENGINE", "AURORA_PG");
+        appSettings.put("DB_NAME", "test");
+        appSettings.put("DB_VERSION", "11.7");
+        appSettings.put("DB_PARAM_FAMILY", "aurora-postgresql11");
+        appSettings.put("DB_INSTANCE_TYPE", "M5_4XL");
+        appSettings.put("DB_MASTER_USERNAME", "saasboost");
+        appSettings.put("DB_MASTER_PASSWORD", "foobar");
+        appSettings.put("DB_BOOTSTRAP_FILE", "bootstrap.sql");
+
+        AppConfig expected = AppConfig.builder()
+                .name(appSettings.get("APP_NAME"))
+                .domainName(appSettings.get("DOMAIN_NAME"))
+                .sslCertArn(appSettings.get("SSL_CERT_ARN"))
+                .healthCheckURL(appSettings.get("HEALTH_CHECK"))
+                .computeSize(appSettings.get("COMPUTE_SIZE"))
+                .defaultCpu(appSettings.get("TASK_CPU"))
+                .defaultMemory(appSettings.get("TASK_MEMORY"))
+                .containerPort(appSettings.get("CONTAINER_PORT"))
+                .minCount(appSettings.get("MIN_COUNT"))
+                .maxCount(appSettings.get("MAX_COUNT"))
+                .operatingSystem(appSettings.get("CLUSTER_OS"))
+                .instanceType(appSettings.get("CLUSTER_INSTANCE_TYPE"))
+                .database(Database.builder()
+                        .engine("AURORA_PG")
+                        .family("aurora-postgresql11")
+                        .version("11.7")
+                        .instance("M5_4XL")
+                        .database("test")
+                        .username("saasboost")
+                        .password("foobar")
+                        .bootstrapFilename("bootstrap.sql")
+                        .build()
+                )
+                .filesystem(null)
+                .billing(null)
+                .build();
+        AppConfig actual = SettingsServiceDAL.toAppConfig(appSettings, emptyBillingApiKey);
+
+        assertEquals("AppConfig with RDS database equals AppConfig from settings", expected, actual);
     }
 
     @Test

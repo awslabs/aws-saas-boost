@@ -652,8 +652,8 @@ public class SettingsServiceDAL {
     }
 
     public static Parameter toParameterStore(Setting setting) {
-        if (setting == null || Utils.isBlank(setting.getName())) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
+        if (setting == null || !Setting.isValidSettingName(setting.getName())) {
+            throw new RuntimeException("Can't create Parameter Store parameter with invalid Setting name");
         }
         String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName();
         String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();

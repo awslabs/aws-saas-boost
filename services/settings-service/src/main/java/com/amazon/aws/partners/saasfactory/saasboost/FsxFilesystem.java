@@ -21,15 +21,15 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "storageGb",
-        "throughputMbs",
-        "backupRetentionDays",
-        "dailyBackupTime",
-        "weeklyMaintenanceTime",
-        "windowsMountDrive"
-})
+//@JsonInclude(JsonInclude.Include.NON_NULL)
+//@JsonPropertyOrder({
+//        "storageGb",
+//        "throughputMbs",
+//        "backupRetentionDays",
+//        "dailyBackupTime",
+//        "weeklyMaintenanceTime",
+//        "windowsMountDrive"
+//})
 @JsonDeserialize(builder = FsxFilesystem.Builder.class)
 public class FsxFilesystem {
 
@@ -107,7 +107,6 @@ public class FsxFilesystem {
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-   // @JsonIgnoreProperties(value = {"filesystemLifecycle"})
     public static final class Builder {
         private Integer storageGb;
         private Integer throughputMbs;
