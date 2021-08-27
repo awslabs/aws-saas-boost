@@ -18,6 +18,8 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonDeserialize(builder = AppConfig.Builder.class)
 public class AppConfig {
 
@@ -137,6 +139,45 @@ public class AppConfig {
 
     public boolean hasDatabase() {
         return getDatabase() != null;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final AppConfig other = (AppConfig) obj;
+        return (
+                ((name == null && other.name == null) || (name != null && name.equals(other.name)))
+                && ((domainName == null && other.domainName == null) || (domainName != null && domainName.equals(other.domainName)))
+                && ((sslCertArn == null && other.sslCertArn == null) || (sslCertArn != null && sslCertArn.equals(other.sslCertArn)))
+                && ((minCount == null && other.minCount == null) || (minCount != null && minCount.equals(other.minCount)))
+                && ((maxCount == null && other.maxCount == null) || (maxCount != null && maxCount.equals(other.maxCount)))
+                && (computeSize == other.computeSize)
+                && ((defaultCpu == null && other.defaultCpu == null) || (defaultCpu != null && defaultCpu.equals(other.defaultCpu)))
+                && ((defaultMemory == null && other.defaultMemory == null) || (defaultMemory != null && defaultMemory.equals(other.defaultMemory)))
+                && ((containerPort == null && other.containerPort == null) || (containerPort != null && containerPort.equals(other.containerPort)))
+                && ((healthCheckURL == null && other.healthCheckURL == null) || (healthCheckURL != null && healthCheckURL.equals(other.healthCheckURL)))
+                && (operatingSystem == other.operatingSystem)
+                && ((instanceType == null && other.instanceType == null) || (instanceType != null && instanceType.equals(other.instanceType)))
+                && ((filesystem == null && other.filesystem == null) || (filesystem != null && filesystem.equals(other.filesystem)))
+                && ((database == null && other.database == null) || (database != null && database.equals(other.database)))
+                && ((billing == null && other.billing == null) || (billing != null && billing.equals(other.billing)))
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, domainName, sslCertArn, minCount, maxCount, computeSize, defaultCpu, defaultMemory, containerPort,
+                healthCheckURL, operatingSystem, instanceType, filesystem, database, billing);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

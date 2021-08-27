@@ -35,13 +35,15 @@ public class SettingsServiceDAL {
     private final static Logger LOGGER = LoggerFactory.getLogger(SettingsServiceDAL.class);
     private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private final static String OPTIONS_TABLE = System.getenv("OPTIONS_TABLE");
-    private final static String SAAS_BOOST_PREFIX = "saas-boost";
     private final static String AWS_REGION = System.getenv("AWS_REGION");
 
+    // Package private for testing
+    final static String SAAS_BOOST_PREFIX = "saas-boost";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
-    private final static Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
+    final static Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
     // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    private final static Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+    final static Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+
     private final SsmClient ssm;
     private DynamoDbClient ddb;
 
@@ -308,6 +310,10 @@ public class SettingsServiceDAL {
         return fromParameterStore(updated);
     }
 
+    public void deleteSetting(Setting setting) {
+        deleteParameter(toParameterStore(setting));
+    }
+
     private Parameter putParameter(Parameter parameter) {
         Parameter updated = null;
         try {
@@ -328,6 +334,18 @@ public class SettingsServiceDAL {
             throw ssmError;
         }
         return updated;
+    }
+
+    private void deleteParameter(Parameter parameter) {
+        try {
+            DeleteParameterResponse response = ssm.deleteParameter(request -> request
+                    .name(parameter.name())
+            );
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:DeleteParameter error " + ssmError.getMessage());
+            throw ssmError;
+        }
+        return;
     }
 
     public List<Map<String, Object>> rdsOptions() {
@@ -394,7 +412,7 @@ public class SettingsServiceDAL {
 
     static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR.thenComparing(INSTANCE_GENERATION_COMPARATOR).thenComparing(INSTANCE_SIZE_COMPARATOR);
 
-    private static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
+    protected static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
         Map<String, Object> option = new LinkedHashMap<>();
         option.put("engine", item.get("engine").s());
         option.put("region", item.get("region").s());
@@ -472,6 +490,19 @@ public class SettingsServiceDAL {
                 .collect(
                         Collectors.toMap(Setting::getName, Setting::getValue)
                 );
+
+        // Get the secret value for the optional billing provider or you'll always
+        // be testing for empty against the encrypted hash of the "N/A" sentinel string
+        AppConfig appConfig = toAppConfig(appSettings, getSecret("BILLING_API_KEY"));
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
+        return appConfig;
+    }
+
+    protected static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
+        AppConfig appConfig = null;
+
         Database database = null;
         if (Utils.isNotEmpty(appSettings.get("DB_ENGINE"))) {
             database = Database.builder()
@@ -511,20 +542,18 @@ public class SettingsServiceDAL {
                     .efs(efs)
                     .build();
         }
-        // Get the secret value for the optional billing provider to test for N/A
-        // or you'll always be testing for existence against the encrypted hash
+
         BillingProvider billingProvider = null;
-        Setting billingApiKey = getSecret("BILLING_API_KEY");
         if (billingApiKey != null) {
             String apiKey = billingApiKey.getValue();
-            if (Utils.isNotEmpty(apiKey) && !"N/A".equals(apiKey)) {
+            if (Utils.isNotEmpty(apiKey)) {
                 billingProvider = BillingProvider.builder()
                         .apiKey(appSettings.get("BILLING_API_KEY"))
                         .build();
             }
         }
 
-        AppConfig appConfig = AppConfig.builder()
+        appConfig = AppConfig.builder()
                 .name(appSettings.get("APP_NAME"))
                 .domainName(appSettings.get("DOMAIN_NAME"))
                 .sslCertArn(appSettings.get("SSL_CERT_ARN"))
@@ -541,16 +570,66 @@ public class SettingsServiceDAL {
                 .filesystem(filesystem)
                 .billing(billingProvider)
                 .build();
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
+
         return appConfig;
+    }
+
+    public void deleteAppConfig() {
+        long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsServiceDAL::deleteAppConfig");
+        // NOTE: Could also implement this like deleteTenantSettings by combining SettingsService::REQUIRED_PARAMS
+        // and SettingsService::READ_WRITE_PARAMS and building the Parameter Store path by hand to avoid the call(s)
+        // to getParameters before the call to deleteParameters
+        List<String> parametersToDelete = toSettings(getAppConfig()).stream()
+                .map(s -> toParameterStore(s).name())
+                .collect(Collectors.toList());
+        List<String> batch = new ArrayList<>();
+        try {
+            Iterator<String> it = parametersToDelete.iterator();
+            while (it.hasNext()) {
+                if (batch.size() < 10) {
+                    batch.add(it.next());
+                    // If parametersToDelete % 10 != 0, then be sure to make a request with the remainder
+                    if (!it.hasNext()) {
+                        DeleteParametersResponse response = ssm.deleteParameters(r ->
+                                r.names(batch)
+                        );
+                        LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
+                        if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
+                            LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
+                        }
+                        // We've reached the end of the request input
+                        break;
+                    }
+                } else {
+                    // Batch has reached max size of 10, make the request
+                    DeleteParametersResponse response = ssm.deleteParameters(r ->
+                            r.names(batch)
+                    );
+                    LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
+                    if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
+                        LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
+                    }
+                    // Clear the batch so we can fill it up for the next request
+                    batch.clear();
+                }
+            }
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:DeleteParameters error", ssmError);
+            LOGGER.error(Utils.getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
+        return;
     }
 
     public static Setting fromParameterStore(Parameter parameter) {
         Setting setting = null;
         if (parameter != null) {
             String parameterStoreName = parameter.name();
-            if (Utils.isBlank(parameterStoreName)) {
+            if (Utils.isEmpty(parameterStoreName)) {
                 throw new RuntimeException("Can't get Setting name for blank Parameter Store name [" + parameter.toString() + "]");
             }
             String settingName = null;
@@ -573,8 +652,8 @@ public class SettingsServiceDAL {
     }
 
     public static Parameter toParameterStore(Setting setting) {
-        if (setting == null || Utils.isBlank(setting.getName())) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
+        if (setting == null || !Setting.isValidSettingName(setting.getName())) {
+            throw new RuntimeException("Can't create Parameter Store parameter with invalid Setting name");
         }
         String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName();
         String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
@@ -590,7 +669,7 @@ public class SettingsServiceDAL {
         Setting setting = null;
         if (parameter != null) {
             String parameterStoreName = parameter.name();
-            if (Utils.isBlank(parameterStoreName)) {
+            if (Utils.isEmpty(parameterStoreName)) {
                 throw new RuntimeException("Can't get Setting name for blank Parameter Store name");
             }
             String settingName = null;
@@ -602,7 +681,7 @@ public class SettingsServiceDAL {
                 settingName = regex.group(2);
             }
             if (settingName == null) {
-                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern");
+                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern " + SAAS_BOOST_TENANT_PATTERN.toString());
             }
             setting = Setting.builder()
                     .name(settingName)
@@ -616,7 +695,7 @@ public class SettingsServiceDAL {
     }
 
     public static Parameter toTenantParameterStore(UUID tenantId, Setting setting) {
-        if (setting == null || Utils.isBlank(setting.getName())) {
+        if (setting == null || Utils.isEmpty(setting.getName())) {
             throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
         }
         String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString() + "/" + setting.getName();
@@ -647,7 +726,10 @@ public class SettingsServiceDAL {
         settings.add(Setting.builder().name("MIN_COUNT").value(minCount).readOnly(false).build());
         String maxCount = appConfig.getMaxCount() != null ? appConfig.getMaxCount().toString() : null;
         settings.add(Setting.builder().name("MAX_COUNT").value(maxCount).readOnly(false).build());
-        settings.add(Setting.builder().name("CLUSTER_OS").value(appConfig.getOperatingSystem().name()).readOnly(false).build());
+        OperatingSystem os = appConfig.getOperatingSystem();
+        if (os != null) {
+            settings.add(Setting.builder().name("CLUSTER_OS").value(os.name()).readOnly(false).build());
+        }
         settings.add(Setting.builder().name("CLUSTER_INSTANCE_TYPE").value(appConfig.getInstanceType()).readOnly(false).build());
         SharedFilesystem filesystem = appConfig.getFilesystem();
         if (filesystem != null) {

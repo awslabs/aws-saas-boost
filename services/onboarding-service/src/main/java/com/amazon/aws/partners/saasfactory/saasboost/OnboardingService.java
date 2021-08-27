@@ -762,7 +762,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         // CloudFormation won't let you use dashes or underscores in Mapping second level key names
             // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
             // parameter before we send it in.
-            String clusterOS = settings.get("CLUSTER_OS").replace("_", "");
+            String clusterOS = settings.getOrDefault("CLUSTER_OS", "").replace("_", "");
 
             List<Parameter> templateParameters = new ArrayList<>();
             templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId.toString()).build());

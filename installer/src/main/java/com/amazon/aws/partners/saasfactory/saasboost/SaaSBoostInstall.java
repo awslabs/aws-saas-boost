@@ -15,425 +15,686 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.*;
-import com.amazonaws.services.s3.transfer.*;
-
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
-
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
-import software.amazon.awssdk.services.apigateway.model.CreateDeploymentRequest;
 import software.amazon.awssdk.services.apigateway.model.GetRestApisResponse;
 import software.amazon.awssdk.services.apigateway.model.RestApi;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.cloudformation.model.Parameter;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
-import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.*;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.*;
 import software.amazon.awssdk.services.lambda.LambdaClient;
-import software.amazon.awssdk.services.lambda.model.PublishVersionRequest;
-import software.amazon.awssdk.services.lambda.model.PublishVersionResponse;
-import software.amazon.awssdk.services.lambda.model.UpdateAliasRequest;
+import software.amazon.awssdk.services.lambda.model.InvocationType;
+import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 import software.amazon.awssdk.services.quicksight.QuickSightClient;
 import software.amazon.awssdk.services.quicksight.model.*;
 import software.amazon.awssdk.services.quicksight.model.ListUsersRequest;
 import software.amazon.awssdk.services.quicksight.model.ListUsersResponse;
 import software.amazon.awssdk.services.quicksight.model.Tag;
 import software.amazon.awssdk.services.quicksight.model.User;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
+import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SaaSBoostInstall {
-    private final static Region AWS_REGION = Region.of(System.getenv(SdkSystemSetting.AWS_REGION.environmentVariable()));
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SaaSBoostInstall.class);
+    private static final Region AWS_REGION = Region.of(System.getenv(SdkSystemSetting.AWS_REGION.environmentVariable()));
+    private static final String OS = System.getProperty("os.name").toLowerCase();
+    private static final String VERSION = getVersionInfo();
+
     private CloudFormationClient cfn;
-    private AmazonS3 s3;
-    private final static Logger LOGGER = LoggerFactory.getLogger(SaaSBoostInstall.class);
-    private String s3ArtifactBucket = null;
-    private String rootDir = null;
-    private String envName = null;
-    private String lambdaSourceFolder;
-    private String mavenCommand = "mvn";
-    private IamClient iam;
-    private String emailAddress = "";
-    private String domain = "";
-    private String metricsAndAnalytics;
-    private String meteringAndBilling;
-    private String dbPassword= "";
-    private String dbPasswordSSMParameter = "";
-    private static String OS = System.getProperty("os.name").toLowerCase();
-    private String webDir = "";
-    private QuickSightClient quickSightClient;
-    private String setupQuickSight;
-    private User quickSightUser;
-    private int installOption = 0;
-    private SsmClient ssm;
-    private DynamoDbClient ddb;
     private EcrClient ecr;
+    private IamClient iam;
+    private QuickSightClient quickSight;
+    private S3Client s3;
+    private SsmClient ssm;
     private StsClient sts;
+    private LambdaClient lambda;
+    private ApiGatewayClient apigw;
 
-    // This filter will only include files ending with .py
-    private final FilenameFilter zipFileFilter = new FilenameFilter() {
-        @Override
-        public boolean accept(File f, String name) {
-            return name.endsWith(".zip");
+    private final String accountId;
+    private String envName;
+    private Path workingDir;
+    private String s3ArtifactBucket;
+    private String lambdaSourceFolder = "lambdas";
+    private String stackName;
+    private Map<String, String> baseStackDetails = new HashMap<>();
+    private boolean useAnalyticsModule = false;
+    private boolean useQuickSight = false;
+    private String quickSightUsername;
+    private String quickSightUserArn;
+
+    protected enum ACTION {
+        INSTALL(1, "New AWS SaaS Boost install.", false),
+        ADD_ANALYTICS(2, "Install Metrics and Analytics into existing AWS SaaS Boost deployment.", true),
+        UPDATE_WEB_APP(3, "Update Web Application for existing AWS SaaS Boost deployment.", true),
+        UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
+        DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
+        CANCEL(6, "Exit installer.", false);
+        //DEBUG(7, "Debug", false);
+
+        private final int choice;
+        private final String prompt;
+        private final boolean existing;
+
+        ACTION(int choice, String prompt, boolean existing) {
+            this.choice = choice;
+            this.prompt = prompt;
+            this.existing = existing;
         }
-    };
 
-    // This filter will only include files ending with .yaml
-    private final FilenameFilter resourceFileFilter = new FilenameFilter() {
-        @Override
-        public boolean accept(File f, String name) {
-            return name.endsWith(".yaml");
+        public String getPrompt() {
+            return String.format("%2d. %s", choice, prompt);
         }
-    };
 
-    private Scanner input = null;
-    private String accountId = "";
-    private String VERSION = null;
-    private Region quickSightRegion;
-    private String activeDirectory = "n";
-    private String activeDirectoryPasswordParam = "";
-
-    public SaaSBoostInstall() {
-        try {
-            LOGGER.info("Version Info: " + getVersionInfo());
-        } catch (IOException ioe) {
-            LOGGER.error("Error getting VersionInfo", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+        public boolean isExisting() {
+            return existing;
         }
-        this.s3 = AmazonS3Client.builder()
-                .withCredentials(new DefaultAWSCredentialsProviderChain())
-                .withRegion(AWS_REGION.id()).build();
-        this.cfn = CloudFormationClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
 
-        this.ddb = DynamoDbClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        this.ecr = EcrClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        this.ssm = SsmClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-
-        //iam requires global region
-        this.iam = IamClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(Region.AWS_GLOBAL)
-                .build();
-
-        this.sts = StsClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(Region.AWS_GLOBAL)
-                .build();
-
-        input = new Scanner(System.in);
-    }
-
-    public String getVersionInfo() throws IOException {
-        String result = "";
-        InputStream inputStream = null;
-        String propFileName = "git.properties";
-        try {
-            Properties prop = new Properties();
-            inputStream = SaaSBoostInstall.class.getClassLoader().getResourceAsStream(propFileName);
-
-            if (inputStream != null) {
-                prop.load(inputStream);
-            } else {
-                throw new FileNotFoundException("property file '" + propFileName + "' not found in the classpath");
-            }
-
-            // get the property value and print it out
-            String tag = prop.getProperty("git.commit.id.describe");
-            String commitTime = prop.getProperty("git.commit.time");
-            result = tag + ", Commit time: " + commitTime;
-            VERSION = prop.getProperty("git.closest.tag.name");
-            if (null == VERSION || "".equals(VERSION)) {
-                outputMessage("Setting version to v0 as it is missing from the git properties file.");
-                VERSION = "v0";
-            }
-        } catch (FileNotFoundException e) {
-            outputMessage("Error setting Version from git.properties: " + e.getMessage());
-            outputMessage("Setting version to v0");
-            outputMessage(propFileName + " is generated by Maven build, check for a .git folder");
-            VERSION = "v0";
-        } finally {
-            if (null != inputStream) {
-                try {
-                    inputStream.close();
-                } catch (Exception e) {
-                    LOGGER.error("getVersionInfo: Error closing inputStream");
+        public static ACTION ofChoice(int choice) {
+            ACTION action = null;
+            for (ACTION a : ACTION.values()) {
+                if (a.choice == choice) {
+                    action = a;
+                    break;
                 }
             }
+            return action;
         }
-        return result;
     }
 
-    private static boolean isWindows() {
-        return (OS.indexOf("win") >= 0);
+    public SaaSBoostInstall() {
+        this.s3 = S3Client.create();
+        this.ecr = EcrClient.create();
+        this.ssm = SsmClient.create();
+        this.sts = StsClient.create();
+        this.lambda = LambdaClient.create();
+        this.quickSight = QuickSightClient.create();
+        // IAM doesn't have a IamClient::create... because it's in the global region?
+        this.iam = IamClient.builder().region(Region.AWS_GLOBAL).build();
+        // API Gateway and CloudFormation throttle pretty aggressively on api deployments and describe stack calls,
+        // so we'll make sure we have a retry policy in place.
+        this.apigw = ApiGatewayClient.builder()
+                .region(AWS_REGION)
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                    .retryPolicy(RetryPolicy.builder()
+                            .backoffStrategy(BackoffStrategy.defaultStrategy())
+                            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+                            .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
+                            .retryCondition(RetryCondition.defaultRetryCondition())
+                            .build()
+                    )
+                    .build()
+                )
+                .build();
+        this.cfn = CloudFormationClient.builder()
+                .region(AWS_REGION)
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                        .retryPolicy(RetryPolicy.builder()
+                                .backoffStrategy(BackoffStrategy.defaultStrategy())
+                                .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+                                .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
+                                .retryCondition(RetryCondition.defaultRetryCondition())
+                                .build()
+                        )
+                        .build()
+                )
+                .build();
+
+        accountId = sts.getCallerIdentity().account();
     }
 
-    private static boolean isMac() {
-        return (OS.indexOf("mac") >= 0);
-    }
-
-    public static void main(String[] args) throws IOException {
-        SaaSBoostInstall sbInstall = new SaaSBoostInstall();
+    public static void main(String[] args) {
+        SaaSBoostInstall installer = new SaaSBoostInstall();
         try {
-            sbInstall.start();
+            installer.start();
         } catch (Exception e) {
             outputMessage("===========================================================");
             outputMessage("Installation Error: " + e.getLocalizedMessage());
             outputMessage("Please see detailed log file saas-boost-install.log");
-            sbInstall.LOGGER.error(getFullStackTrace(e));
-            outputMessage(getFullStackTrace(e));
+            LOGGER.error(getFullStackTrace(e));
         }
     }
 
-    /*
-    Installs Metrics
-    Could be run after initial install
-     */
-    private void installMetrics(String sbStackName) throws IOException {
-        outputMessage("Metrics and Analytics will be deployed into an existing AWS SaaS Boost environment.\n");
-        boolean isValid = false;
-        if (null == sbStackName) {
-            try {
-                do {
-                    outputMessage("Enter name of the AWS SaaS Boost CloudFormation stack that has already been deployed (Ex. sb-dev): ");
-                    sbStackName = input.next().trim();
-                    if (null != sbStackName && !sbStackName.isEmpty()) {
-                        //validate the stackName exists
-                        isValid = loadSaaSBoostStack(sbStackName);
-                        if (!isValid) {
-                            outputMessage("Please try again.");
-                        }
-                    } else {
-                        outputMessage("Entered value is incorrect, please try again.");
-                    }
-                } while (!isValid);
+//    protected void debug() {
+//
+//    }
 
-                //check if the  metrics stack already exists
-                if (checkCloudFormationStack(sbStackName + "-metrics")) {
-                    outputMessage("AWS SaaS Boost Metrics stack with name: " + sbStackName + "-metrics is already deployed");
-                    System.exit(2);
-                };
+    public void start() {
+        outputMessage("===========================================================");
+        outputMessage("Welcome to the AWS SaaS Boost Installer");
+        outputMessage("Installer Version: " + VERSION);
 
-                //installing Metrics --> ask about quicksight.
-                isValid = false;
-                do {
-                    outputMessage("Would you like to setup Amazon Quicksight for Metrics and Analytics? You must have already registered for Quicksight in your account. (y or n)? : ");
-                    this.setupQuickSight = input.next();
-                    if ("y".equalsIgnoreCase(setupQuickSight) || "n".equalsIgnoreCase(setupQuickSight)) {
-                        isValid = true;
-                    } else {
-                        outputMessage("Entered value must be y or n, please try again.");
-                    }
-                } while (!isValid);
+        // Do we have Maven, Node and AWS CLI on the PATH?
+        checkEnvironment();
 
-                if ("y".equalsIgnoreCase(setupQuickSight)) {
-                    isValid = false;
-                    input.nextLine();
-                    do {
-                        outputMessage("Region where you registered for Amazon Quicksight identity (Press Enter for '" + AWS_REGION.id() + "'): ");
-                        String regionInput = input.nextLine().trim();
-                        //outputMessage("Input value is: " + quickSightUserInput);
-                        // Skip the newline
-                        //input.nextLine();
-                        if (regionInput == null || regionInput.equals("")) {
-                            quickSightRegion = AWS_REGION;
-                            isValid = true;
-                        } else {
-                            isValid = false;
-                            Region region = Region.of(regionInput);
-                            if (!Region.regions().contains(region)) {
-                                outputMessage("Entered value is not a region, please try again.");
-                            } else {
-                                isValid = true;
-                                quickSightRegion = region;
-                            }
-                        }
-                    } while (!isValid);
-                    //validate the user for quicksight
-                    List<User> users = getQuicksightUsers();
-                    Map<String, User> userMap = new HashMap<>();
-                    for (User user : users) {
-                        userMap.put(user.userName(), user);
-                    }
-                    if (users.isEmpty()) {
-                        outputMessage("No users found in Quicksight. Please register in your AWS Account and try install again.");
-                        System.exit(2);
-                    }
-
-                    isValid = false;
-                    //input.nextLine();
-                    do {
-                        outputMessage("Amazon Quicksight user name (Press Enter for '" + users.get(0).userName() + "'): ");
-                        String quickSightUserInput = input.nextLine().trim();
-                        //outputMessage("Input value is: " + quickSightUserInput);
-                        // Skip the newline
-                        //input.nextLine();
-                        if (quickSightUserInput == null || quickSightUserInput.equals("")) {
-                            quickSightUser = users.get(0);
-                            isValid = true;
-                        } else {
-                            isValid = false;
-                            if (!userMap.containsKey(quickSightUserInput)) {
-                                outputMessage("Entered value is not a valid Quicksight user in your account, please try again.");
-                            } else {
-                                quickSightUser = userMap.get(quickSightUserInput);
-                                isValid = true;
-                            }
-                        }
-                    } while (!isValid);
-                }
-
-                outputMessage("===========================================================");
-                outputMessage("");
-                outputMessage("Would you like to continue the Metrics and Analytics installation with the following options?");
-                outputMessage("Existing AWS SaaS Boost environment stack: " + sbStackName);
-                outputMessage("AWS SaaS Boost Environment Name: " + envName);
-
-                if (null != quickSightUser) {
-                    outputMessage("Amazon Quicksight user for setup of Metrics and Analytics: " + quickSightUser.userName());
-                } else {
-                    outputMessage("Amazon Quicksight user for setup of Metrics and Analytics: n/a");
-                }
-
-                isValid = false;
-                do {
-                    System.out.print("Enter y to continue or n to cancel: ");
-                    String continueInstall = input.next();
-                    if ("n".equalsIgnoreCase(continueInstall)) {
-                        outputMessage("Canceled installation of AWS SaaS Boost Metrics and Analytics");
-                        System.exit(2);
-                    } else if ("y".equalsIgnoreCase(continueInstall)) {
-                        outputMessage("Continuing installation of AWS SaaS Boost Metrics and Analytics");
-                        isValid = true;
-                    } else {
-                        outputMessage("Invalid option for continue installation: " + continueInstall + ", try again.");
-                    }
-                } while (!isValid);
-            } catch (Exception e) {
-                LOGGER.error(getFullStackTrace(e));
-                throw e;
+        ACTION installOption;
+        while (true) {
+            for (ACTION action : ACTION.values()) {
+                System.out.println(action.getPrompt());
             }
-            //S3 Bucket from params
-            LOGGER.info("Using S3 Artifact Bucket: " + this.s3ArtifactBucket);
-            LOGGER.info("Using Environment: " + this.envName);
-
-            //copy yaml files
-            outputMessage("Copy Metrics CloudFormation template to S3 artifact bucket");
-            List<String> fileNames = new ArrayList<>(Arrays.asList("saas-boost-metrics-analytics.yaml"));
-            copyTemplateFilesToS3(fileNames);
-        } else {
-            //need to fetch stack outputs
-            loadSaaSBoostStack(sbStackName);
+            System.out.print("Please select an option to continue (1-" + ACTION.values().length + "): ");
+            Integer option = Keyboard.readInt();
+            if (option != null) {
+                installOption = ACTION.ofChoice(option);
+                if (installOption != null) {
+                    break;
+                }
+            } else {
+                System.out.println("Invalid option specified, try again.");
+            }
         }
 
+        // If we're taking action on an existing install, load up the environment
+        if (installOption.isExisting()) {
+            loadExistingSaaSBoostEnvironment();
+        }
+
+        if (ACTION.CANCEL != installOption && ACTION.DELETE != installOption) {
+            this.workingDir = getWorkingDirectory();
+        }
+
+        switch (installOption) {
+            case INSTALL:
+                installSaaSBoost();
+                break;
+            case UPDATE:
+                updateSaaSBoost();
+                break;
+            case UPDATE_WEB_APP:
+                updateWebApp();
+                break;
+            case ADD_ANALYTICS:
+                this.useAnalyticsModule = true;
+                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module? You must have already registered for Quicksight in your account (y or n)? ");
+                this.useQuickSight = Keyboard.readBoolean();
+                if (this.useQuickSight) {
+                    getQuickSightUsername();
+                }
+                installAnalyticsModule();
+                break;
+            case DELETE:
+                deleteSaasBoostInstallation();
+                break;
+            case CANCEL:
+                cancel();
+                break;
+//            case DEBUG:
+//                debug();
+//                break;
+        }
+    }
+
+    protected void installSaaSBoost() {
+        LOGGER.info("Performing new installation of AWS SaaS Boost");
+
+        // Check if yarn.lock exists in the client/web folder
+        // If it doesn't, exit and ask them to run yarn which will download the NPM dependencies
+        // TODO We're doing this because downloading Node modules for the first time takes a while... is this necessary?
+        Path webClientDir = workingDir.resolve("client").resolve("web");
+        Path yarnLockFile = webClientDir.resolve("yarn.lock");
+        if (!Files.exists(yarnLockFile)) {
+            outputMessage("Please run 'yarn' command from " + webClientDir.toString() + " before running this installer.");
+            System.exit(2);
+        }
+
+        while (true) {
+            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
+            this.envName = Keyboard.readString();
+            if (validateEnvironmentName(this.envName)) {
+                break;
+            } else {
+                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
+            }
+        }
+
+        String emailAddress;
+        while (true) {
+            System.out.print("Enter the email address for your AWS SaaS Boost administrator: ");
+            emailAddress = Keyboard.readString();
+            if (validateEmail(emailAddress)) {
+                System.out.print("Enter the email address address again to confirm: ");
+                String emailAddress2 = Keyboard.readString();
+                if (emailAddress.equals(emailAddress2)) {
+                    break;
+                } else {
+                    outputMessage("Entered value for email address does not match " + emailAddress);
+                }
+            } else {
+                outputMessage("Entered value for email address is incorrect or wrong format, please try again.");
+            }
+        }
+
+        System.out.print("Would you like to install the metrics and analytics module of AWS SaaS Boost (y or n)? ");
+        this.useAnalyticsModule = Keyboard.readBoolean();
+
+        // If installing the analytics module, ask about QuickSight.
+        if (useAnalyticsModule) {
+            System.out.print("Would you like to setup Amazon Quicksight for the Analytics module? You must have already registered for Quicksight in your account (y or n)? ");
+            this.useQuickSight = Keyboard.readBoolean();
+        }
+        if (this.useQuickSight) {
+            getQuickSightUsername();
+        }
+
+        System.out.println("If your application runs on Windows and uses a shared file system, Active Directory is required.");
+        System.out.print("Would you like to provision AWS Directory Service to use with FSx for Windows File Server (y or n)? ");
+        boolean setupActiveDirectory = Keyboard.readBoolean();
+
+        System.out.println();
+        outputMessage("===========================================================");
+        outputMessage("");
+        outputMessage("Would you like to continue the installation with the following options?");
+        outputMessage("AWS Account: " + this.accountId);
+        outputMessage("AWS Region: " + AWS_REGION.toString());
+        outputMessage("AWS SaaS Boost Environment Name: " + this.envName);
+        outputMessage("Admin Email Address: " + emailAddress);
+        outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
+        if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
+            outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
+        } else {
+            outputMessage("Amazon QuickSight user for Analytics Module: N/A");
+        }
+        outputMessage("Setup AWS Directory Service for FSx for Windows File Server: " + setupActiveDirectory);
+
+        System.out.println();
+        System.out.print("Continue (y or n)? ");
+        boolean continueInstall = Keyboard.readBoolean();
+        if (!continueInstall) {
+            cancel();
+        }
+
+        System.out.println();
+        outputMessage("===========================================================");
+        outputMessage("Installing AWS SaaS Boost");
+        outputMessage("===========================================================");
+
+        // Check for the AWS managed service roles:
+        outputMessage("Checking for necessary AWS service linked roles");
+        setupAwsServiceRoles();
+
+        // Create the S3 artifacts bucket
+        outputMessage("Creating S3 artifacts bucket");
+        createS3ArtifactBucket();
+
+        // Copy the CloudFormation templates
+        outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+        copyTemplateFilesToS3();
+
+        // Compile all the source code
+        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+        processLambdas();
+
+        final String activeDirectoryPasswordParameterName = "/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD";
+        if (setupActiveDirectory) {
+            String activeDirectoryPassword = generatePassword(16);
+            LOGGER.info("Add SSM param ACTIVE_DIRECTORY_PASSWORD with password");
+            try {
+                ssm.putParameter(PutParameterRequest.builder()
+                        .name(activeDirectoryPasswordParameterName)
+                        .type(ParameterType.SECURE_STRING)
+                        .value(activeDirectoryPassword)
+                        .overwrite(true)
+                        .build()
+                );
+            } catch (SdkServiceException ssmError) {
+                LOGGER.error("ssm:PutParameter error", ssmError);
+                LOGGER.error(getFullStackTrace(ssmError));
+                throw ssmError;
+            }
+            outputMessage("Active Directory admin user password stored in secure SSM Parameter: " + activeDirectoryPasswordParameterName);
+        }
+
+        // Run CloudFormation create stack
+        outputMessage("Running CloudFormation");
+        this.stackName = "sb-" + envName;
+        createSaaSBoostStack(stackName, emailAddress, setupActiveDirectory, activeDirectoryPasswordParameterName);
+
+        // TODO if we capture the create complete event for the web bucket from the main SaaS Boost stack
+        // we could pop a message in a queue that we could listen to here and trigger the website build
+        // while the rest of the CloudFormation is finishing. Or, we could move this to a simple CodeBuild
+        // project and have CloudFormation own building/copying the web files to S3.
+        // Wait for completion and then build web app
+        outputMessage("Build website and upload to S3");
+        String webUrl = buildAndCopyWebApp();
+
+        if (useAnalyticsModule) {
+            LOGGER.info("Install metrics and analytics module");
+            installAnalyticsModule();
+        }
+
+        outputMessage("Check the admin email box for the temporary password.");
+        outputMessage("AWS SaaS Boost Artifacts Bucket: " + s3ArtifactBucket);
+        outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
+    }
+
+    protected void updateSaaSBoost() {
+        LOGGER.info("Perform Update of AWS SaaS Boost deployment");
+        outputMessage("******* W A R N I N G *******");
+        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test an updated install in a non-production environment\n" +
+                "before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
+        System.out.print("Enter y to continue with UPDATE of " + stackName + " or n to CANCEL: ");
+        boolean continueUpgrade = Keyboard.readBoolean();
+        if (!continueUpgrade) {
+            outputMessage("Canceled UPDATE of AWS SaaS Boost environment");
+            System.exit(2);
+        } else {
+            outputMessage("Continuing UPDATE of AWS SaaS Boost stack " + stackName);
+        }
+
+        // First, upload the (potentially) modified CloudFormation templates up to S3
+        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + this.s3ArtifactBucket);
+        copyTemplateFilesToS3();
+
+        // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
+        // different S3 folder as a way to force CloudFormation to update the function resources. After we copy the
+        // function code up to S3 in the new folder, we can delete the existing one to save space/money on S3.
+        String existingLambdaSourceFolder = this.lambdaSourceFolder;
+
+        // Now create a new S3 folder for the Lambda functions so that CloudFormation sees a change that will
+        // trigger an update function call to the Lambda service.
+        this.lambdaSourceFolder = "lambdas-" + DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDate.now());
+        outputMessage("Updating Lambda folder to " + this.lambdaSourceFolder);
+        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+        processLambdas();
+
+        // Update the analytics stack if needed
+        if (useAnalyticsModule) {
+            outputMessage("Update the Metrics and Analytics stack...");
+            updateMetricsStack();
+        }
+
+        // Get values for all the CloudFormation parameters including possibly new ones in the template file on disk
+        Path cloudFormationTemplate = workingDir.resolve(Path.of("resources", "saas-boost.yaml"));
+        if (!Files.exists(cloudFormationTemplate)) {
+            outputMessage("Unable to find file " + cloudFormationTemplate.toString());
+            System.exit(2);
+        }
+        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap(cloudFormationTemplate, this.baseStackDetails);
+
+        // Update the Lambda source folder to deploy updated code
+        outputMessage("Updating LambdaSourceFolder parameter to " + this.lambdaSourceFolder);
+        cloudFormationParamMap.put("LambdaSourceFolder", this.lambdaSourceFolder);
+
+        // Update the version number
+        outputMessage("Updating Version parameter to " + VERSION);
+        cloudFormationParamMap.put("Version", VERSION);
+
+        // Now call update stack
+        outputMessage("Executing CloudFormation update stack on: " + this.stackName);
+        updateCloudFormationStack(this.stackName, cloudFormationParamMap, "saas-boost.yaml");
+
+        // CloudFormation will not redeploy an API Gateway stage on update
+        outputMessage("Updating API Gateway deployment for stages");
+        try {
+            String publicApiName = "sb-public-api-" + this.envName;
+            String privateApiName = "sb-private-api-" + this.envName;
+            GetRestApisResponse response = apigw.getRestApis();
+            if (response.hasItems()) {
+                for (RestApi api : response.items()) {
+                    String apiName = api.name();
+                    boolean isPublicApi = publicApiName.equals(apiName);
+                    boolean isPrivateApi = privateApiName.equals(apiName);
+                    if (isPublicApi || isPrivateApi) {
+                        String stage = isPublicApi ? cloudFormationParamMap.get("PublicApiStage") : cloudFormationParamMap.get("PrivateApiStage");
+                        outputMessage("Updating API Gateway deployment for " + apiName + " to stage: " + stage);
+                        apigw.createDeployment(request -> request
+                                .restApiId(api.id())
+                                .stageName(stage)
+                        );
+                    }
+                }
+            }
+        } catch (SdkServiceException apigwError) {
+            LOGGER.error("apigateway error", apigwError);
+            LOGGER.error(getFullStackTrace(apigwError));
+            throw apigwError;
+        }
+
+        //build and copy the web site
+        buildAndCopyWebApp();
+
+        // Delete the old lambdas zip files
+        outputMessage("Delete files from previous Lambda folder: " + existingLambdaSourceFolder);
+        cleanUpS3(s3ArtifactBucket, existingLambdaSourceFolder);
+
+        outputMessage("Update of SaaS Boost environment " + this.envName + " complete.");
+    }
+
+    protected void deleteSaasBoostInstallation() {
+        // Confirm delete
+        outputMessage("****** W A R N I N G");
+        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and ALL deployed tenant resources will be deleted!");
+        while (true) {
+            System.out.print("Enter the SaaS Boost environment name to confirm: ");
+            String confirmEnvName = Keyboard.readString();
+            if (isNotBlank(confirmEnvName) && this.envName.equalsIgnoreCase(confirmEnvName)) {
+                System.out.println("SaaS Boost environment " + this.envName + " for AWS Account " + this.accountId + " in region " + AWS_REGION + " will be deleted. This action cannot be undone!");
+                break;
+            } else {
+                outputMessage("Entered value is incorrect, please try again.");
+            }
+        }
+
+        System.out.print("Are you sure you want to delete the SaaS Boost environment " + this.envName + "? Enter y to continue or n to cancel: ");
+        boolean continueDelete = Keyboard.readBoolean();
+        if (!continueDelete) {
+            outputMessage("Canceled Delete of AWS SaaS Boost environment");
+            System.exit(2);
+        } else {
+            outputMessage("Continuing Delete of AWS SaaS Boost environment " + this.envName);
+        }
+
+        // Delete all the provisioned tenants
+        List<LinkedHashMap<String, Object>> tenants = getProvisionedTenants();
+        for (LinkedHashMap<String, Object> tenant : tenants) {
+            outputMessage("Deleting AWS SaaS Boost tenant " + tenant.get("id"));
+            deleteProvisionedTenant(tenant);
+        }
+
+        // Clear all the images from ECR or CloudFormation won't be able to delete the repository
+        try {
+            GetParameterResponse parameterResponse = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/ECR_REPO"));
+            String ecrRepo = parameterResponse.parameter().value();
+            outputMessage("Deleting images from ECR repository " + ecrRepo);
+            deleteEcrImages(ecrRepo);
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:GetParameter error", ssmError);
+            LOGGER.error(getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+
+        // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
+        deleteApplicationConfig();
+
+        // This installer also creates some Parameter Store entries outside of CloudFormation
+        // TODO move these parameters to CloudFormation
+        try {
+            DeleteParametersResponse deleteParametersResponse = ssm.deleteParameters(request -> request.names(
+                    "/saas-boost/" + this.envName + "/ACTIVE_DIRECTORY_PASSWORD",
+                    "/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED",
+                    "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD"
+            ));
+        } catch (SdkServiceException ssmError) {
+            outputMessage("Failed to delete all Parameter Store entries");
+            LOGGER.error("ssm:DeleteParameters error", ssmError);
+            LOGGER.error(getFullStackTrace(ssmError));
+        }
+
+        // Delete the analytics stack if it exists
+        String analyticsStackName = analyticsStackName();
+        if (checkCloudFormationStack(analyticsStackName)) {
+            outputMessage("Deleting AWS SaaS Boost Analytics Module stack: " + analyticsStackName);
+            deleteCloudFormationStack(analyticsStackName);
+        }
+
+        // Delete the SaaS Boost stack
+        outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
+        deleteCloudFormationStack(this.stackName);
+
+        // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
+        LOGGER.info("Clean up s3 bucket: " + this.s3ArtifactBucket);
+        cleanUpS3(this.s3ArtifactBucket, null);
+        s3.deleteBucket(r -> r.bucket(this.s3ArtifactBucket));
+
+        outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
+    }
+
+    protected void installAnalyticsModule() {
+        LOGGER.info("Installing Analytics module into existing AWS SaaS Boost installation.");
+        outputMessage("Analytics will be deployed into the existing AWS SaaS Boost environment " + this.envName + ".");
+
+        String metricsStackName = analyticsStackName();
+        try {
+            DescribeStacksResponse metricsStackResponse = cfn.describeStacks(request -> request.stackName(metricsStackName));
+            if (metricsStackResponse.hasStacks()) {
+                outputMessage("AWS SaaS Boost Analytics stack with name: " + metricsStackName + " is already deployed");
+                System.exit(2);
+            }
+        } catch (CloudFormationException cfnError) {
+            // Calling describe-stacks on a stack name that doesn't exist is an exception
+            if (!cfnError.getMessage().contains("Stack with id " + metricsStackName + " does not exist")) {
+                LOGGER.error("cloudformation:DescribeStacks error {}", cfnError.getMessage());
+                LOGGER.error(getFullStackTrace(cfnError));
+                throw cfnError;
+            }
+        }
+
+        outputMessage("===========================================================");
+        outputMessage("");
+        outputMessage("Would you like to continue the Analytics module installation with the following options?");
+        outputMessage("Existing AWS SaaS Boost environment : " + envName);
+        if (useQuickSight) {
+            outputMessage("Amazon QuickSight user for Analytics Module: " + quickSightUsername);
+        } else {
+            outputMessage("Amazon QuickSight user for Analytics Module: N/A");
+        }
+
+        System.out.print("Continue (y or n)? ");
+        boolean continueInstall = Keyboard.readBoolean();
+        if (!continueInstall) {
+            outputMessage("Canceled installation of AWS SaaS Boost Analytics");
+            cancel();
+        }
+        outputMessage("Continuing installation of AWS SaaS Boost Analytics");
         outputMessage("===========================================================");
         outputMessage("Installing AWS SaaS Boost Metrics and Analytics Module");
         outputMessage("===========================================================");
 
-        //build lambdas
-        outputMessage("Build Metrics and Analytics Lambdas and copy zip files to S3 artifacts bucket...");
-        //custom/resources
-        final List<String> list = new ArrayList<>(Arrays.asList("redshift-table"));
-
-        //refresh s3 client
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
-                .withCredentials(new DefaultAWSCredentialsProviderChain())
-                .build();
-        buildAndCopyLambdas("resources" + File.separator + "custom-resources", list);
-
-        //create db password if metrics installed
-        if (null == dbPassword || dbPassword.isEmpty()) {
-            UUID uniqueId = UUID.randomUUID();
-            String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-            dbPassword = "Pass12" + parts[0];
-            //outputMessage("The database password for Redshift Metrics database is: " + this.dbPassword);
-        }
-
-        //create secure SSM parameter for password
-        ssm = SsmClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
-        LOGGER.info("Update SSM param REDSHIFT_MASTER_PASSWORD with dbPassword");
-        //*TODO: check if parameter exists and do not update if it exists.
-        software.amazon.awssdk.services.ssm.model.Parameter passwordParam = putParameter(toParameterStore("REDSHIFT_MASTER_PASSWORD", dbPassword ,true));
-        dbPasswordSSMParameter = passwordParam.name();
-        outputMessage("Redshift Database User Password stored in secure SSM Parameter: " + dbPasswordSSMParameter);
-
-        //execute CloudFormation
-        String stackName = sbStackName + "-metrics";
-        outputMessage("Execute the CloudFormation stack " + stackName + " for Metrics and Analytics");
-
-        createMetricsStack(stackName);
-
-        ssm = SsmClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
-        LOGGER.info("Update SSM param METRICS_ANALYTICS_DEPLOYED to true");
-        software.amazon.awssdk.services.ssm.model.Parameter updated = putParameter(toParameterStore("METRICS_ANALYTICS_DEPLOYED", "true", false));
-
-        Map<String, String> outputs = getMetricStackOutputs(stackName);
-        File file = new File(rootDir + File.separator + "metrics-analytics" +
-                File.separator + "deploy" + File.separator + "artifacts" +
-                File.separator + "metrics_redshift_jsonpath.json");
-        LOGGER.info("Copying json files for Metrics and Analytics from {} to {}", file.toString(), outputs.get("MetricsBucket"));
-        //refresh the client first
+        // Generate a password for the RedShift database if we don't already have one
+        String dbPassword = null;
+        String dbPasswordParam = "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD";
         try {
-            s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
-                    .withCredentials(new DefaultAWSCredentialsProviderChain())
-                    .build();
-            s3.putObject(outputs.get("MetricsBucket"), "metrics_redshift_jsonpath.json", file);
-        } catch (Exception e) {
-            outputMessage("Error with s3 copy of " + file.toString() + " to " + outputs.get("MetricsBucket"));
-            outputMessage(("Continuing with installation so you will need to manually upload that file."));
-            LOGGER.error((getFullStackTrace(e)));
+            GetParameterResponse existingDbPasswordResponse = ssm.getParameter(GetParameterRequest.builder()
+                    .name(dbPasswordParam)
+                    .withDecryption(true)
+                    .build()
+            );
+            // We actually need the secret value because we need to give it to QuickSight
+            dbPassword = existingDbPasswordResponse.parameter().value();
+            // And, we'll add the parameter version to the end of the name just in case it's greater than 1
+            // so that CloudFormation can properly fetch the secret value
+            dbPasswordParam = dbPasswordParam + ":" + existingDbPasswordResponse.parameter().version();
+            LOGGER.info("Reusing existing RedShift password for Analytics");
+        } catch (SdkServiceException noSuchParameter) {
+            LOGGER.info("Generating new random RedShift password for Analytics");
+            // Save the database password as a secret
+            dbPassword = generatePassword(16);
+            try {
+                LOGGER.info("Saving RedShift password secret to Parameter Store");
+                PutParameterResponse dbPasswordResponse = ssm.putParameter(PutParameterRequest.builder()
+                        .name(dbPasswordParam)
+                        .type(ParameterType.SECURE_STRING)
+                        .overwrite(true)
+                        .value(dbPassword)
+                        .build()
+                );
+            } catch (SdkServiceException ssmError) {
+                LOGGER.error("ssm:PutParamter error {}", ssmError.getMessage());
+                LOGGER.error(getFullStackTrace(ssmError));
+                throw ssmError;
+            }
+        }
+        outputMessage("Redshift Database User Password stored in secure SSM Parameter: " + dbPasswordParam);
+
+        // Run CloudFormation
+        outputMessage("Creating CloudFormation stack " + metricsStackName + " for Analytics Module");
+        String databaseName = "sb_analytics_" + this.envName.replaceAll("-", "_");
+        createMetricsStack(metricsStackName, dbPasswordParam, databaseName);
+
+        // TODO Why doesn't the CloudFormation template own this?
+        LOGGER.info("Update SSM param METRICS_ANALYTICS_DEPLOYED to true");
+        try {
+            PutParameterResponse response = ssm.putParameter(request -> request
+                    .name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED")
+                    .type(ParameterType.STRING)
+                    .overwrite(true)
+                    .value("true")
+            );
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:PutParameter error {}", ssmError.getMessage());
+            LOGGER.error(getFullStackTrace(ssmError));
+            throw ssmError;
         }
 
-        //setup the quicksight dataset
-        if ("y".equalsIgnoreCase(setupQuickSight)) {
-            outputMessage("Set up Amazon Quicksight for Metrics and Analytics");
+        // Upload the JSON path file for Redshift to the bucket provisioned by CloudFormation
+        Map<String, String> outputs = getMetricStackOutputs(metricsStackName);
+        String metricsBucket = outputs.get("MetricsBucket");
+        Path jsonPathFile = workingDir.resolve(Path.of("metrics-analytics", "deploy", "artifacts", "metrics_redshift_jsonpath.json"));
+
+        LOGGER.info("Copying json files for Metrics and Analytics from {} to {}", jsonPathFile.toString(), metricsBucket);
+        try {
+            PutObjectResponse s3Response = s3.putObject(PutObjectRequest.builder()
+                    .bucket(metricsBucket)
+                    .key("metrics_redshift_jsonpath.json")
+                    .contentType("text/json")
+                    .build(), RequestBody.fromFile(jsonPathFile)
+            );
+        } catch (SdkServiceException s3Error) {
+            LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
+            LOGGER.error(getFullStackTrace(s3Error));
+            outputMessage("Error copying " + jsonPathFile.toString() + " to " + metricsBucket);
+            // TODO Why don't we bail here if that file is required?
+            outputMessage("Continuing with installation so you will need to manually upload that file.");
+        }
+
+        // Setup the quicksight dataset
+        if (useQuickSight) {
+            outputMessage("Set up Amazon Quicksight for Analytics Module");
             try {
-                setupQuickSight(stackName, outputs);
+                // TODO does this fail if it's run more than once?
+                setupQuickSight(metricsStackName, outputs, dbPassword);
             } catch (Exception e) {
                 outputMessage("Error with setup of Quicksight datasource and dataset. Check log file.");
                 outputMessage("Message: " + e.getMessage());
@@ -443,1107 +704,330 @@ public class SaaSBoostInstall {
         }
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CloudFormationParameter {
-        String description;
-        String  type;
-        String minLength;
-        String defaultValue;
-        List<String> allowedValues;
-        String allowedPattern;
-
-        @JsonProperty("Default")
-        public String getDefaultValue() {
-            return defaultValue;
-        }
-
-        public void setDefaultValue(String defaultValue) {
-            this.defaultValue = defaultValue;
-        }
-        @JsonProperty("Description")
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        @JsonProperty("Type")
-        public String getType() {
-            return type;
-        }
-
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        @JsonProperty("MinLength")
-        public String getMinLength() {
-            return minLength;
-        }
-
-        public void setMinLength(String minLength) {
-            this.minLength = minLength;
-        }
-
-        @JsonProperty("AllowedValues")
-        public List getAllowedValues() {
-            return allowedValues;
-        }
-
-        public void setAllowedValues(List allowedValues) {
-            this.allowedValues = allowedValues;
-        }
-
-        @JsonProperty("AllowedPattern")
-        public String getAllowedPattern() {
-            return allowedPattern;
-        }
-
-        public void setAllowedPattern(String allowedPattern) {
-            this.allowedPattern = allowedPattern;
-        }
-
-        @Override
-        public String toString() {
-            return "Parameter{" +
-                    "description='" + description + '\'' +
-                    ", type='" + type + '\'' +
-                    ", minLength='" + minLength + '\'' +
-                    ", allowedValues='" + (null == allowedValues ? "" : Arrays.toString(allowedValues.toArray())) + '\'' +
-                    ", allowedPattern='" + allowedPattern + '\'' +
-                    '}';
-        }
-    }
-
-    private void updateSaaSBoost() throws IOException {
-        boolean isValid = false;
-        String stackName;
-        Map<String, String> stackParamsMap = new HashMap<>();
-        do {
-            System.out.print("Enter name of the AWS SaaS Boost CloudFormation stack that has already been deployed (Ex. sb-dev): ");
-            stackName = input.next().trim();
-            if (null != stackName && !stackName.isEmpty()) {
-                //validate the stackName exists
-                try {
-                    DescribeStacksResponse stacks = cfn.describeStacks(DescribeStacksRequest
-                            .builder()
-                            .stackName(stackName)
-                            .build()
-                    );
-                    if (stacks.stacks().isEmpty()) {
-                        outputMessage("No CloudFormation stack found with name: " + stackName);
-                    }
-                    Stack stack = stacks.stacks().get(0);
-                    for (Parameter parameter : stack.parameters()) {
-                        stackParamsMap.put(parameter.parameterKey(), parameter.parameterValue());
-                    }
-                    isValid = true;
-
-                } catch (Exception e) {
-                    outputMessage("Error loading parameters from CloudFormation stack " + stackName);
-                    LOGGER.error(getFullStackTrace(e));
-                    System.exit(2);
-                }
-
-                if (!isValid) {
-                    outputMessage("Stack " + stackName + " could not be loaded. Please enter a valid stack name.");
-                }
-            } else {
-                outputMessage("Entered value is incorrect, please try again.");
-            }
-        } while (!isValid);
-
-        isValid = false;
-        outputMessage("******* W A R N I N G *******");
-        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test out first in a test environment" +
-                "\n before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
-        do {
-            System.out.print("Enter y to continue with UPDATE of " + stackName + " or n to CANCEL: ");
-            String continueUpgrade = input.next();
-            if ("n".equalsIgnoreCase(continueUpgrade)) {
-                outputMessage("Canceled UPDATE of AWS SaaS Boost environment");
-                System.exit(2);
-            } else if ("y".equalsIgnoreCase(continueUpgrade)) {
-                outputMessage("Continuing UPDATE of AWS SaaS Boost stack " + stackName);
-                isValid = true;
-            } else {
-                outputMessage("Invalid option for continue update: " + continueUpgrade + ", try again.");
-            }
-        } while (!isValid);
-
-        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap("saas-boost.yaml", stackParamsMap);
-
-        this.s3ArtifactBucket = cloudFormationParamMap.get("SaaSBoostBucket");
-        this.envName = cloudFormationParamMap.get("Environment");
-
-        if (null == this.envName)    {
-            outputMessage("Environment parameter is null from existing stack");
-            System.exit(2);
-        } else if (null == this.s3ArtifactBucket) {
-            outputMessage("SaaSBoostBucket parameter is null from existing stack");
-            System.exit(2);
-        }
-
-
-
-        //copy yaml files
-        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + this.s3ArtifactBucket);
-        copyTemplateFilesToS3(new ArrayList<>());
-
-        String existingLambdaSourceFolder = cloudFormationParamMap.get("LambdaSourceFolder");
-
-        //build lambdas and copy to a new lambda_version folder
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm");
-        this.lambdaSourceFolder = "lambdas-" + sdf.format(new Date());
-
-        outputMessage("Build Lambdas and copy zip files to S3 artifacts bucket under " + lambdaSourceFolder +"...");
-        processLambdas(true);
-
-
-        //run CFN with the params and new lambda_version folder
-        outputMessage("Run update on CloudFormation stack: " + stackName);
-        //override the lambda source folder to deploy updated code
-        cloudFormationParamMap.put("LambdaSourceFolder", this.lambdaSourceFolder);
-
-        //update the version number
-        cloudFormationParamMap.put("Version", this.VERSION);
-
-        //check if the  metrics stack exists and update it
-        if (checkCloudFormationStack(stackName + "-metrics")) {
-            outputMessage("Update the Metrics and Analytics stack (" + stackName + "-metrics)...");
-            updateMetricsStack(stackName + "-metrics");
-        }
-
-        updateCloudFormationStack(stackName, cloudFormationParamMap, "saas-boost.yaml");
-
-/*        //update lambdas that need to have version incremented and alias updated.
-        try {
-            outputMessage("Update Lambda Aliases...");
-            updateLambdaAliases();
-        } catch (Exception e) {
-            outputMessage("Error updating Lambda Aliases");
-            LOGGER.error(getFullStackTrace(e));
-        }*/
-
-        //deploy the API Gateway to v1 stage
-        outputMessage("Updating API Gateway Deployment for Stages");
-        ApiGatewayClient apiGatewayClient = ApiGatewayClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-
-        GetRestApisResponse response = apiGatewayClient.getRestApis();
-        for (RestApi api : response.items()) {
-            //System.out.println(api);
-            try {
-                Thread.sleep((3000));
-            } catch (InterruptedException ie) {
-                //eat it
-            }
-            if (api.name().equalsIgnoreCase("sb-public-api-" + envName)) {
-                String stage = cloudFormationParamMap.get("PublicApiStage");
-                outputMessage("Update API Gateway deployment for " + api.name() + " to stage: " + stage);
-                apiGatewayClient.createDeployment(CreateDeploymentRequest.builder()
-                        .restApiId(api.id())
-                        .stageName(stage)
-                        .build());
-            } else if (api.name().equalsIgnoreCase("sb-private-api-" + envName)) {
-                String stage = cloudFormationParamMap.get("PrivateApiStage");
-                outputMessage("Update API Gateway deployment for " + api.name() + " to stage: " + stage);
-                apiGatewayClient.createDeployment(CreateDeploymentRequest.builder()
-                        .restApiId(api.id())
-                        .stageName(stage)
-                        .build());
-            }
-        }
-
-        //build and copy the web site
-        buildAndCopyWebApp();
-
-        //delete the old lambdas zip files
-        outputMessage("Delete files from previous Lambda folder: " + existingLambdaSourceFolder);
-        this.s3 = AmazonS3Client.builder()
-                .withCredentials(new DefaultAWSCredentialsProviderChain())
-                .withRegion(AWS_REGION.id()).build();
-        ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(s3ArtifactBucket).withPrefix(existingLambdaSourceFolder + "/");
-        ObjectListing listing = s3.listObjects(listObjectsRequest);
-        List<S3ObjectSummary> objects = listing.getObjectSummaries();
-        ArrayList<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<>();
-        for (S3ObjectSummary obj : objects) {
-            LOGGER.info("Key to delete: " + obj.getKey());
-            keys.add(new DeleteObjectsRequest.KeyVersion(obj.getKey()));
-        }
-        DeleteObjectsRequest request = new DeleteObjectsRequest(s3ArtifactBucket).withKeys(keys);
-        s3.deleteObjects(request);
-
-    }
-
-    //update the metrics stack
-    private void updateMetricsStack(String stackName) {
-        //load params map
-        Map<String, String> stackParamsMap = new LinkedHashMap<>();
-        try {
-            DescribeStacksResponse stacks = cfn.describeStacks(DescribeStacksRequest
-                    .builder()
-                    .stackName(stackName)
-                    .build()
-            );
-            if (stacks.stacks().isEmpty()) {
-                outputMessage("No CloudFormation stack found with name: " + stackName);
-                System.exit(2);
-            }
-            Stack stack = stacks.stacks().get(0);
-            LOGGER.info("Load parameters from existing stack: " + stackName);
-            for (Parameter parameter : stack.parameters()) {
-                LOGGER.info("Parameters from existing stack: " + stackName + ", Name: " + parameter.parameterKey() + " , Value: " + parameter.parameterKey());
-                stackParamsMap.put(parameter.parameterKey(), parameter.parameterValue());
-            }
-
-        } catch (Exception e) {
-            outputMessage("Error loading parameters from CloudFormation stack " + stackName);
-            LOGGER.error(getFullStackTrace(e));
-            System.exit(2);
-        }
-
-        try {
-            Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap("saas-boost-metrics-analytics.yaml", stackParamsMap);
-            //update the stack
-            updateCloudFormationStack(stackName, cloudFormationParamMap, "saas-boost-metrics-analytics.yaml");
-        } catch (Exception e) {
-            outputMessage("Error updating stack " + stackName + ", message: " + e.getMessage());
-            LOGGER.error(getFullStackTrace(e));
-            System.exit(2);
-        }
-    }
-
-    private Map<String, String> getCloudFormationParameterMap(String yamlFileName, Map<String, String> stackParamsMap) throws IOException {
-        boolean isValid;//Open CFN template yaml file and prompt for values of params that are not in existing stack
-        LOGGER.info("Build map of params FOR template " + yamlFileName);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-
-        final File sbStackFile = new File(this.rootDir + File.separator + "resources" + File.separator + yamlFileName);
-        if (!sbStackFile.exists()) {
-            outputMessage("Unable to find file " + this.rootDir + File.separator + "resources" + File.separator + yamlFileName);
-            System.exit(2);
-        }
-
-        Map<String, Object> map = mapper.readValue(sbStackFile, HashMap.class);
-        Map<String, Object> parameterObjectMap = (LinkedHashMap<String, Object>) map.get("Parameters");
-
-        ObjectMapper mapper1 = new ObjectMapper();
-        Map<String, Test.CloudFormationParameter> parameterMap = new LinkedHashMap<>();
-        Map<String, String> cloudFormationParamMap = new LinkedHashMap<>();
-
-        for(Map.Entry<String, Object> entry : parameterObjectMap.entrySet()) {
-            LOGGER.info("Parameter Name: " + entry.getKey());
-            Test.CloudFormationParameter p = mapper1.convertValue((Map) entry.getValue(), Test.CloudFormationParameter.class);
-            LOGGER.info("Parameter Values = " + p.toString());
-            parameterMap.put(entry.getKey(), p);
-
-            //set value from existing stack else Prompt for input
-            if (stackParamsMap.containsKey(entry.getKey())) {
-                LOGGER.info("Use existing value for Parameter: {} and don't prompt", entry.getKey());
-                cloudFormationParamMap.put(entry.getKey(), stackParamsMap.get(entry.getKey()));
-            } else {
-                String inputValue;
-                isValid = false;
-                if (null == p.defaultValue) {
-                    LOGGER.info("Prompt for a value for Parameter {} if default not specified", entry.getKey());
-                    do {
-                        System.out.print("Enter value for CloudFormation Parameter " + entry.getKey() + ": ");
-                        inputValue = input.next().trim();
-                        if (null == inputValue || inputValue.isEmpty()) {
-                            System.out.println("Entered value is incorrect");
-                        } else {
-                            isValid = true;
-                        }
-                    } while (!isValid);
-                    LOGGER.info("Using entered value: {} for Parameter: {}", inputValue, entry.getKey());
-                    cloudFormationParamMap.put(entry.getKey(), inputValue);
-                } else {
-                    input.nextLine();
-                    System.out.print("Enter value for CloudFormation Parameter " + entry.getKey() + " (Hit enter to accept default value of " + p.defaultValue + "): ");
-                    inputValue = input.nextLine().trim();
-                    if (null == inputValue || inputValue.isEmpty()) {
-                        inputValue = p.defaultValue;
-                    }
-                    LOGGER.info("Using entered value: {} for Parameter: {}", inputValue, entry.getKey());
-                    cloudFormationParamMap.put(entry.getKey(), inputValue);
-                }
-            }
-        }
-        return cloudFormationParamMap;
-    }
-
-    private void updateLambdaAliases() {
-        List<String> aliasFunctions = new ArrayList<>(Arrays.asList("settings-get-all", "settings-get-config"));
-        LambdaClient lambda = LambdaClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        for (String lambdaFunction : aliasFunctions) {
-            lambdaFunction = "sb-" + envName + "-" + lambdaFunction + "-" + AWS_REGION.id();
-            outputMessage("Updating Lambda Alias for function: " + lambdaFunction);
-            try {
-                //increment version
-                PublishVersionResponse response = lambda.publishVersion(PublishVersionRequest.builder().functionName(lambdaFunction).build());
-
-                //update lambda
-                lambda.updateAlias(UpdateAliasRequest.builder()
-                        .name("v1")
-                        .functionName(lambdaFunction)
-                        .functionVersion(response.version())
-                        .build());
-            } catch (Exception e) {
-                LOGGER.error("Error updating Lambda Alias " + lambdaFunction);
-                LOGGER.error(getFullStackTrace(e));
-            }
-        }
-    }
-
-    private void updateWebApp() throws IOException {
-        boolean isValid = false;
-        String stackName;
-        try {
-            do {
-                System.out.print("Enter name of the AWS SaaS Boost CloudFormation stack that has already been deployed (Ex. sb-dev): ");
-                stackName = input.next().trim();
-                if (null != stackName && !stackName.isEmpty()) {
-                    //validate the stackName exists
-                    isValid = loadSaaSBoostStack(stackName);
-                    if (!isValid) {
-                        outputMessage("Please try again.");
-                    }
-                } else {
-                    outputMessage("Entered value is incorrect, please try again.");
-                }
-            } while (!isValid);
-        } catch (Exception e) {
-            LOGGER.error(getFullStackTrace(e));
-            throw e;
-        }
-
-        if (null == this.envName) {
-            outputMessage("Environment parameter is null from existing stack");
-            System.exit(2);
-        }
-
+    protected void updateWebApp() {
+        LOGGER.info("Perform Update of the Web Application for AWS SaaS Boost");
         outputMessage("Build web app and copy files to S3 web bucket");
         String webUrl = buildAndCopyWebApp();
         outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
-        private void checkEnvironment() {
-/*        String awsRegion = System.getenv("AWS_REGION");
-        if (null == awsRegion || awsRegion.isEmpty()) {
-            outputMessage("AWS_REGION environment variable must be set.");
-            System.exit(2);
-        }*/
-
-        outputMessage("Checking maven, yarn and AWS CLI...");
-        try {
-            executeCommand("mvn -version", null, null);
-        } catch (Exception e) {
-            outputMessage("Could not execute 'mvn -version', please check your environment");
-            System.exit(2);
-        }
-
-        try {
-            executeCommand("yarn -version", null, null);
-        } catch (Exception e) {
-            outputMessage("Could not execute 'yarn -version', please check your environment.");
-            System.exit(2);
-        }
-
-        try {
-            executeCommand("aws --version", null, null);
-        } catch (Exception e) {
-            outputMessage("Could not execute 'aws --version', please check your environment.");
-            System.exit(2);
-        }
-
-        try {
-            executeCommand("aws sts get-caller-identity", null, null);
-        } catch (Exception e) {
-            outputMessage("Could not execute 'aws sts get-caller-identity', please check AWS CLI configuration.");
-            System.exit(2);
-        }
-
-//        outputMessage("===========================================================");
-        outputMessage("Environment Checks for maven, yarn, and AWS CLI PASSED.");
-        outputMessage("===========================================================");
+    protected void cancel() {
+        outputMessage("Cancelling.");
+        System.exit(0);
     }
 
-    private Map<String, String> baseStackOutputs = new HashMap<>();
-    private boolean loadSaaSBoostStack(String stackName) {
-        try {
-            DescribeStacksResponse stacks = cfn.describeStacks(DescribeStacksRequest
-                    .builder()
-                    .stackName(stackName)
-                    .build()
-            );
-            if (stacks.stacks().isEmpty()) {
-                outputMessage("No CloudFormation stack found with name: " + stackName);
-                return false;
+    protected static Path getWorkingDirectory() {
+        Path workingDir = Paths.get("");
+        String currentDir = workingDir.toAbsolutePath().toString();
+        LOGGER.info("Current dir = {}", currentDir);
+        while (true) {
+            System.out.print("Directory path of Saas Boost download (Press Enter for '" + currentDir + "'): ");
+            String saasBoostDirectory = Keyboard.readString();
+            if (isNotBlank(saasBoostDirectory)) {
+                workingDir = Path.of(saasBoostDirectory);
+            } else {
+                workingDir = Paths.get("");
             }
-            Stack stack = stacks.stacks().get(0);
-            for (Parameter parameter : stack.parameters()) {
-                if ("SaaSBoostBucket".equals(parameter.parameterKey())) {
-                    this.s3ArtifactBucket = parameter.parameterValue();
-                } else if ("Environment".equals(parameter.parameterKey())) {
-                    this.envName = parameter.parameterValue();
-                } else if ("LambdaSourceFolder".equals(parameter.parameterKey())) {
-                    this.lambdaSourceFolder = parameter.parameterValue();
+            if (Files.isDirectory(workingDir)) {
+                if (Files.isDirectory(workingDir.resolve("resources"))) {
+                    break;
+                } else {
+                    outputMessage("No resources directory found under " + workingDir.toAbsolutePath().toString() + ". Check path.");
                 }
+            } else {
+                outputMessage("Path: " + workingDir.toAbsolutePath().toString() + " is not a directory, try again.");
             }
-
-            //base stack outputs
-            // define list of outputs we require
-            List<String> outputList = new ArrayList<>(Arrays.asList("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1", "PrivateSubnet2", "EgressVpc", "LoggingBucket"));
-            for (Output output :  stack.outputs()) {
-                if (outputList.contains(output.outputKey())) {
-                    baseStackOutputs.put(output.outputKey(), output.outputValue());
-                    outputList.remove(output.outputKey());
-                }
-            }
-
-            if (outputList.size() > 0) {
-                outputMessage("Could not find outputs from stack for: " + Arrays.toString(outputList.toArray()));
-                return false;
-            }
-
-        } catch (Exception e) {
-            LOGGER.error(getFullStackTrace(e));
-            outputMessage("Error with loading stack resource. " + e.getMessage() );
-            outputMessage("Verify the stack exists and is for a AWS SaaS Boost environment.");
-            return false;
         }
-
-        if (null == this.s3ArtifactBucket || null == this.envName) {
-            outputMessage("CloudFormation Stack: " + stackName + " is missing parameters such as SaasBoostBucket and Environment");
-            return false;
-        }
-        return true;
+        LOGGER.info("Using directory {}", workingDir.toAbsolutePath().toString());
+        return workingDir;
     }
 
-    private void start() throws IOException {
-        outputMessage("===========================================================");
-        outputMessage("Welcome to the AWS SaaS Boost Installer");
-        outputMessage("Installer Version: " + getVersionInfo());
-
-        checkEnvironment();
-        accountId = sts.getCallerIdentity().account();
-
-        boolean isValid = false;
-
-         //get option of initial install or add metrics
-        do {
-            System.out.println("1. New AWS SaaS Boost install.");
-            System.out.println("2. Install Metrics and Analytics into existing AWS SaaS Boost deployment.");
-            System.out.println("3. Update Web Application for existing AWS SaaS Boost deployment.");
-            System.out.println("4. Update existing AWS SaaS Boost deployment.");
-            System.out.println("5. Delete existing AWS SaaS Boost deployment.");
-            System.out.println("6. Exit installer.");
-
-
-            System.out.print("Please select an option to continue (1-6): ");
-            this.installOption = input.nextInt();
-            if (installOption >= 1 && installOption <= 6) {
-                isValid = true;
+    protected void getQuickSightUsername() {
+        Region quickSightRegion;
+        while (true) {
+            System.out.print("Region where you registered for Amazon QuickSight (Press Enter for " + AWS_REGION.id() + "): ");
+            String quickSightAccountRegion = Keyboard.readString();
+            if (isBlank(quickSightAccountRegion)) {
+                quickSightRegion = AWS_REGION;
             } else {
-                System.out.println("Invalid option specified, try again.");
+                // Make sure we got a valid AWS region string
+                quickSightRegion = Region.regions().stream().filter(r -> r.id().equals(quickSightAccountRegion)).findAny().orElse(null);
             }
-        } while (!isValid);
-
-        input.nextLine();
-
-        if (6 == installOption) {
-            outputMessage("Installation canceled.");
-            System.exit(0);
-        }
-
-        if (5 == installOption) {
-            deleteSaasBoostInstallation();
-            return;
-        }
-
-        //get root directory of saas-boost download
-        String currentDir = Paths.get("").toAbsolutePath().toString();
-        LOGGER.info("Current dir = " + currentDir);
-        do {
-            System.out.print("Directory path of saas-boost download (Press Enter for '" + currentDir +"') :");
-            String dirVal = input.nextLine().trim();
-            if (dirVal == null || dirVal.equals("")) {
-                this.rootDir = currentDir;
-            } else {
-                this.rootDir = dirVal;
-            }
-            if (null != this.rootDir) {
-                try {
-                    File file = new File(this.rootDir);
-                    if (file.exists() && file.isDirectory()) {
-                        File resources = new File(this.rootDir + File.separator + "resources");
-                        if (resources.isDirectory()) {
-                            isValid = true;
-                        } else {
-                            outputMessage("No resources directory found under '" + this.rootDir + "'. Check path.");
-                        }
+            if (quickSightRegion != null) {
+                // Update the SDK client for the proper AWS region if we need to
+                if (!AWS_REGION.equals(quickSightRegion)) {
+                    quickSight = QuickSightClient.builder().region(quickSightRegion).build();
+                }
+                // See if there are QuickSight users in this account in this region
+                LinkedHashMap<String, User> quickSightUsers = getQuickSightUsers();
+                if (!quickSightUsers.isEmpty()) {
+                    String defaultQuickSightUsername = quickSightUsers.keySet().stream().findFirst().orElse(null);
+                    System.out.print("Amazon Quicksight user name (Press Enter for '" + defaultQuickSightUsername + "'): ");
+                    this.quickSightUsername = Keyboard.readString();
+                    if (isBlank(this.quickSightUsername)) {
+                        this.quickSightUsername = defaultQuickSightUsername;
                     }
-                } catch (Exception e) {
-                    LOGGER.error("Error with directory path: " + this.rootDir + ", " + e.getLocalizedMessage());
-                    LOGGER.error(getFullStackTrace(e));
-                }
-            }
-            if (!isValid) {
-                outputMessage("Path: " + this.rootDir + " is an invalid path, try again.");
-            }
-        } while (!isValid);
-
-
-        //set the webdir to be used for app build
-        this.webDir = this.rootDir + File.separator + "client" + File.separator + "web";
-
-        if (1 == installOption) {
-            LOGGER.info("Performing new installation of AWS SaaS Boost");
-            installSaaSBoost();
-            outputMessage("AWS SaaS Boost Artifacts Bucket: " + s3ArtifactBucket);
-            //create db password if metrics installed
-            if (getBoolean(metricsAndAnalytics)) {
-                outputMessage("The database password for Redshift Metrics database is stored in SSM Parameter" + dbPasswordSSMParameter);
-            }
-        } else if (2 == installOption) {
-            LOGGER.info("Performing installation of Metrics and Analytics module into existing AWS SaaS Boost installation.");
-            metricsAndAnalytics = "y";
-            installMetrics(null);
-            outputMessage("The database password for Redshift Metrics database is stored in SSM Parameter" + dbPasswordSSMParameter);
-        } else if (3 == installOption) {
-            LOGGER.info("Perform Update of the Web Application for AWS SaaS Boost");
-            updateWebApp();
-        } else if (4 == installOption) {
-            LOGGER.info("Perform Update of AWS SaaS Boost deployment");
-            updateSaaSBoost();
-        }
-    }
-
-    private void updateLambdas() throws IOException {
-        boolean isValid = false;
-        String stackName;
-        try {
-            do {
-                System.out.print("Enter name of the AWS SaaS Boost CloudFormation stack that has already been deployed (Ex. sb-dev): ");
-                stackName = input.next().trim();
-                if (null != stackName && !stackName.isEmpty()) {
-                    //validate the stackName exists
-                    isValid = loadSaaSBoostStack(stackName);
-                    if (!isValid) {
-                        outputMessage("Please try again.");
-                    }
-                } else {
-                    outputMessage("Entered value is incorrect, please try again.");
-                }
-            } while (!isValid);
-        } catch (Exception e) {
-            LOGGER.error(getFullStackTrace(e));
-            throw e;
-        }
-
-        if (null == this.envName) {
-            outputMessage("Environment parameter is null from existing stack");
-            System.exit(2);
-        }
-
-        outputMessage("Build Lambdas and copy zip files to S3 artifacts bucket under " + lambdaSourceFolder +"...");
-        processLambdas(true);
-
-/*
-        //update lambdas with an alias need to have version incremented and alias updated.
-        try {
-            outputMessage("Update Lambda Aliases...");
-            updateLambdaAliases();
-        } catch (Exception e) {
-            outputMessage("Error updating Lambda Aliases");
-            LOGGER.error(getFullStackTrace(e));
-        }
-*/
-
-        outputMessage("Completed update of Lambda functions for " + stackName);
-    }
-
-    private List<String> getProvisionedTenants() {
-        long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("getProvisionedTenants");
-        String TENANTS_TABLE="sb-" + this.envName + "-tenants";
-        List<String> tenants = new ArrayList<>();
-        try {
-            ScanResponse response = ddb.scan(request -> request
-                    .tableName(TENANTS_TABLE)
-                    .filterExpression("attribute_exists(onboarding) AND onboarding <> :created AND onboarding <> :failed")
-                    .expressionAttributeValues(Stream
-                            .of(
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":created", AttributeValue.builder().s("created").build()),
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":failed", AttributeValue.builder().s("failed").build())
-                            )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                    )
-            );
-            LOGGER.info("TenantServiceDAL::getProvisionedTenants returning " + response.items().size() + " provisioned tenants");
-            response.items().forEach(item ->
-                    tenants.add(item.get("id").s()));
-        } catch (DynamoDbException e) {
-            LOGGER.error("getProvisionedTenants " + getFullStackTrace(e));
-            if (null != e.getMessage() || !e.getMessage().contains("resource not found")) {
-                throw new RuntimeException(e);
-            } else {
-                LOGGER.info("No tenants records found");
-            }
-
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("getProvisionedTenants exec " + totalTimeMillis);
-        return tenants;
-    }
-
-
-    private void deleteSaasBoostInstallation() {
-        String sbStackName = null;
-        boolean isValid = false;
-        do {
-            System.out.print("Enter name of the AWS SaaS Boost CloudFormation stack you want to delete (Ex. sb-dev): ");
-            sbStackName = input.next().trim();
-            if (null != sbStackName && !sbStackName.isEmpty()) {
-                //validate the stackName exists
-                isValid = loadSaaSBoostStack(sbStackName);
-                if (!isValid) {
-                    outputMessage("Please try again.");
-                }
-            } else {
-                outputMessage("Entered value is incorrect, please try again.");
-            }
-        } while (!isValid);
-
-        //confirm delete by entering stack name again
-        outputMessage("****** W A R N I N G");
-        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and ALL deployed tenant resources will be deleted!");
-        do {
-            System.out.print("If are certain you want to DELETE the stack enter the stack name to confirm: ");
-            String confirmStackName = input.next().trim();
-            if (null != confirmStackName && !confirmStackName.isEmpty() && sbStackName.equalsIgnoreCase(confirmStackName)) {
-                System.out.println("CloudFormation stack: " + sbStackName + " will be deleted.");
-                isValid = true;
-            } else {
-                outputMessage("Entered value is incorrect, please try again.");
-            }
-        } while (!isValid);
-
-        //load tenants and delete each tenant stack
-        List<String> tenants = getProvisionedTenants();
-        for (String tenantId : tenants) {
-            String tenantStackId = "Tenant-" + tenantId.split("-")[0];
-            if (checkCloudFormationStack(tenantStackId)) {
-                outputMessage("Deleting AWS SaaS Boost Tenant stack: " + tenantStackId);
-                deleteCloudFormationStack(tenantStackId);
-            }
-        }
-
-        //clean up ECR repo
-        // format name of Export is saas-boost::sep14-us-west-2:tenantEcrRepoName
-        // or we can read from SSM  /saas-boost/$SAAS_BOOST_ENV/ECR_REPO
-        try {
-            GetParameterResponse parameterResponse = ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + this.envName + "/ECR_REPO").build());
-            String ecrRepo = parameterResponse.parameter().value();
-            outputMessage("SSM param for ECR_REPO: " + ecrRepo);
-            if (!deleteEcrImages(ecrRepo)) {
-                outputMessage("Error deleting images from ECR repo: " + ecrRepo);
-                System.exit(2);
-            };
-        } catch (Exception e) {
-            LOGGER.error(getFullStackTrace(e));
-            outputMessage("Unable to retrieve SSM Parameter /saas-boost/" + this.envName + "/ECR_REPO. Skip delete of Repo images.");
-            //System.exit(2);
-        }
-
-        //check for -metrics stack and delete it and wait
-        if (checkCloudFormationStack(sbStackName + "-metrics")) {
-            outputMessage("Deleting AWS SaaS Boost Metrics stack: " + sbStackName + "-metrics");
-            deleteCloudFormationStack(sbStackName + "-metrics");
-        }
-
-        //delete sbStack and wait
-        outputMessage("Deleting AWS SaaS Boost stack: " + sbStackName);
-        deleteCloudFormationStack(sbStackName);
-
-        //**TODO: delete all the params with /saas-boost/$ENV
-        //ssm.deleteParameters(DeleteParametersRequest.builder().names().build());
-
-        //delete the s3 artifacts bucket
-        //delete the old lambdas zip files
-
-        LOGGER.info("Clean up s3 bucket: " + s3ArtifactBucket);
-        this.s3 = AmazonS3Client.builder()
-                .withCredentials(new DefaultAWSCredentialsProviderChain())
-                .withRegion(AWS_REGION.id()).build();
-        ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(s3ArtifactBucket);
-        ObjectListing listing = s3.listObjects(listObjectsRequest);
-        ArrayList<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<>();
-        for (S3ObjectSummary obj : listing.getObjectSummaries()) {
-            LOGGER.info("Key to delete: " + obj.getKey());
-            keys.add(new DeleteObjectsRequest.KeyVersion(obj.getKey()));
-        }
-        if (!keys.isEmpty()) {
-            outputMessage("Delete files from s3 bucket: " + s3ArtifactBucket);
-            DeleteObjectsRequest request = new DeleteObjectsRequest(s3ArtifactBucket).withKeys(keys);
-            s3.deleteObjects(request);
-        }
-        outputMessage("Delete S3 bucket: " + s3ArtifactBucket);
-        s3.deleteBucket(s3ArtifactBucket);
-    }
-
-    private boolean deleteEcrImages(String ecrRepo) {
-        ListImagesResponse imagesResponse;
-        try {
-            imagesResponse = ecr.listImages(ListImagesRequest.builder().repositoryName(ecrRepo).build());
-        } catch (Exception e) {
-            LOGGER.error("Error with loading images for repo: " + ecrRepo, e);
-            return true;
-        }
-
-        LOGGER.info("Number of ECR images loaded: " + imagesResponse.imageIds().size());
-
-        if (!imagesResponse.imageIds().isEmpty()) {
-            try {
-                ecr.batchDeleteImage(BatchDeleteImageRequest.builder()
-                        .repositoryName(ecrRepo)
-                        .imageIds(imagesResponse.imageIds()).build());
-                return true;
-            } catch (Exception e) {
-                LOGGER.error("Error deleting ecr images from repo: " + ecrRepo, e);
-                return false;
-            }
-        } else {
-            outputMessage("No ECR images to delete");
-            return true;
-        }
-    }
-
-    /*
-    Initial installation of AWS SaaS Boost
-    */
-    private void installSaaSBoost() throws IOException {
-        boolean isValid = false;
-
-        //check if yarn.lock exists in the client/web folder
-        //yarn must be run manually before installation starts as it takes a while to download packages
-        String yarnLockFile = this.webDir + File.separator + "yarn.lock";
-        try {
-            File lockFile = new File(yarnLockFile);
-            if (!lockFile.exists()) {
-                outputMessage("Please run 'yarn' command from " + this.webDir + " before running this installer.");
-                System.exit(2);
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error with file path: " + yarnLockFile + ", " + e.getLocalizedMessage());
-            LOGGER.error(getFullStackTrace(e));
-            System.exit(2);
-        }
-
-        isValid = false;
-        do {
-            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
-            envName = input.next();
-            //outputMessage("You entered environment name: " + envName);
-//            if (null != envName && envName.length() <= 10 && envName.equals(envName.toLowerCase())) {
-              if (null != envName && validateEnvironmentName(envName)) {
-                isValid = true;
-            } else {
-                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters and lowercase, please try again.");
-            }
-        } while (!isValid);
-
-        isValid = false;
-        do {
-            System.out.print("Enter the email address for your AWS SaaS Boost administrator: ");
-            emailAddress = input.next();
-            //outputMessage("You entered email address: " + emailAddress);
-            if (null != emailAddress && validateEmail(emailAddress)) {
-                isValid = false;
-                System.out.print("Enter the email address address again to confirm: ");
-                String confirmEmail = input.next();
-                //outputMessage("You entered email address: " + emailAddress);
-                if (null != confirmEmail && emailAddress.equals(confirmEmail)) {
-                    isValid = true;
-                } else {
-                    outputMessage("Entered value for email address does not match " + emailAddress);
-                }
-            } else {
-                outputMessage("Entered value for email address is incorrect or wrong format, please try again.");
-            }
-        } while (!isValid);
-
-        String useDomain = "n";
-        isValid = false;
-        do {
-            System.out.print("Would you like to setup a domain in Route 53 as a Hosted Zone for the AWS SaaS Boost environment (y or n)? ");
-            useDomain = input.next();
-            if ("y".equalsIgnoreCase(useDomain) || "n".equalsIgnoreCase(useDomain)) {
-                //outputMessage("Use domain for tenants hosted on Route53: " + useSubdomain);
-                isValid = true;
-            } else {
-                outputMessage("Entered value is incorrect, please try again.");
-            }
-        } while (!isValid);
-
-        //if domain name is being used the lets get input of valid domain name.
-        if ("y".equalsIgnoreCase(useDomain)) {
-            isValid = false;
-            do {
-                System.out.print("Enter the domain to use (Ex. app.yourcompany.com): ");
-                this.domain = input.next();
-                isValid = validateDomain(domain);
-                if (!isValid) {
-                    outputMessage("The entered domain is an invalid format.");
-                }
-            } while (!isValid);
-        }
-
-        isValid = false;
-        do {
-            System.out.print("Would you like to install the metrics and analytics module of AWS SaaS Boost (y or n)? ");
-            metricsAndAnalytics = input.next();
-            if ("y".equalsIgnoreCase(metricsAndAnalytics) || "n".equalsIgnoreCase(metricsAndAnalytics)) {
-                //outputMessage("Install optional Metrics and Analytics: " + this.metricsAndAnalytics);
-                isValid = true;
-            } else {
-                outputMessage("Entered value must be y or n, please try again.");
-            }
-        } while (!isValid);
-
-        //if installing Metrics then ask about quick sight.
-        if ("y".equalsIgnoreCase(metricsAndAnalytics)) {
-            isValid = false;
-            do {
-                System.out.print("Would you like to setup Amazon Quicksight for Metrics and Analytics? You must have already registered for Quicksight in your account. (y or n)? : ");
-                this.setupQuickSight = input.next();
-                if ("y".equalsIgnoreCase(setupQuickSight) || "n".equalsIgnoreCase(setupQuickSight)) {
-                    isValid = true;
-                } else {
-                    outputMessage("Entered value must be y or n, please try again.");
-                }
-            } while (!isValid);
-        }
-
-        if ("y".equalsIgnoreCase(setupQuickSight)) {
-            isValid = false;
-            input.nextLine();
-            do {
-                System.out.print("Region where your registered for Amazon QuickSight identity (Press Enter for '" + AWS_REGION.id() + "'): ");
-                String regionInput = input.nextLine().trim();
-                //outputMessage("Input value is: " + quickSightUserInput);
-                // Skip the newline
-                //input.nextLine();
-                if (regionInput == null || regionInput.equals("")) {
-                    quickSightRegion = AWS_REGION;
-                    isValid = true;
-                } else {
-                    isValid = false;
-                    Region region = Region.of(regionInput);
-                    if (!Region.regions().contains(region)) {
-                        outputMessage("Entered value is not a region, please try again.");
+                    if (quickSightUsers.containsKey(this.quickSightUsername)) {
+                        this.quickSightUserArn = quickSightUsers.get(this.quickSightUsername).arn();
+                        break;
                     } else {
-                        isValid = true;
-                        quickSightRegion = region;
-                    }
-                }
-            } while (!isValid);
-
-            //validate the user for quicksight
-            List<User> users = getQuicksightUsers();
-            Map<String, User> userMap = new HashMap<>();
-            for (User user : users) {
-                userMap.put(user.userName(), user);
-            }
-            if (users.isEmpty()) {
-                outputMessage("No users found in Quicksignt. Please register in your AWS Account and try install again.");
-                System.exit(2);
-            }
-
-            isValid = false;
-            //input.nextLine();
-            do {
-                System.out.print("Amazon Quicksight user name (Press Enter for '" + users.get(0).userName() + "'): ");
-                String quickSightUserInput = input.nextLine().trim();
-                //outputMessage("Input value is: " + quickSightUserInput);
-                // Skip the newline
-                //input.nextLine();
-                if (quickSightUserInput == null || quickSightUserInput.equals("")) {
-                    quickSightUser = users.get(0);
-                    isValid = true;
-                } else {
-                    isValid = false;
-                    if (!userMap.containsKey(quickSightUserInput)) {
                         outputMessage("Entered value is not a valid Quicksight user in your account, please try again.");
-                    } else {
-                        quickSightUser = userMap.get(quickSightUserInput);
-                        isValid = true;
                     }
+                } else {
+                    outputMessage("No users found in QuickSight. Please register in your AWS Account and try install again.");
+                    System.exit(2);
                 }
-            } while (!isValid);
-        }
-
-        String inputFsx = "n";
-        isValid = false;
-        do {
-            System.out.println("");
-            System.out.println("If your application requires a FSX for Windows Filesystem, an Active Directory is required.");
-            System.out.print("Would you like to provision a Managed Active Directory to use with FSX for Windows Filesystem (y or n)? ");
-            inputFsx = input.next();
-            if ("y".equalsIgnoreCase(inputFsx) || "n".equalsIgnoreCase(inputFsx)) {
-                isValid = true;
-                activeDirectory = inputFsx;
             } else {
-                outputMessage("Entered value is incorrect, please try again.");
+                outputMessage("Entered value is not a region, please try again.");
             }
-        } while (!isValid);
-
-        //always install metering and billing
-        meteringAndBilling = "y";
-
-        outputMessage("===========================================================");
-        outputMessage("");
-        outputMessage("Would you like to continue the installation with the following options?");
-        outputMessage("AWS SaaS Boost Environment Name: " + envName);
-        outputMessage("Admin Email Address: " + emailAddress);
-        outputMessage("Route 53 Domain for AWS SaaS Boost environment: " + domain);
-        outputMessage("Install Metrics and Analytics: " + metricsAndAnalytics);
-        if ("y".equalsIgnoreCase(metricsAndAnalytics) && null != quickSightUser) {
-            outputMessage("Amazon Quicksight user for setup of Metrics and Analytics: " + quickSightUser.userName());
-        } else {
-            outputMessage("Amazon Quicksight user for setup of Metrics and Analytics: n/a");
         }
-        outputMessage("Setup Active Directory for FSX for Windows: " + activeDirectory);
-        // outputMessage("Install Metering and Billing: " + this.meteringAndBilling);
-
-
-        isValid = false;
-        do {
-            System.out.print("Enter y to continue or n to cancel: ");
-            String continueInstall = input.next();
-            if ("n".equalsIgnoreCase(continueInstall)) {
-                outputMessage("Canceled installation of AWS SaaS Boost");
-                System.exit(2);
-            } else if ("y".equalsIgnoreCase(continueInstall)) {
-                outputMessage("Continuing installation of AWS SaaS Boost");
-                isValid = true;
-            } else {
-                outputMessage("Invalid option for continue installation: " + continueInstall + ", try again.");
-            }
-        } while (!isValid);
-
-
-        outputMessage("===========================================================");
-        outputMessage("Installing AWS SaaS Boost");
-        outputMessage("===========================================================");
-
-
-        //check for the AWS Service Roles:
-        outputMessage("Check and Create AWS Service Roles");
-        setupAwsServiceRoles();
-
-        //create s3 bucket
-        outputMessage("Create S3 artifacts bucket");
-        createS3ArtifactBucket(envName);
-
-        //copy yaml files
-        outputMessage("Copy CloudFormation template files to S3 artifacts bucket");
-        copyTemplateFilesToS3(new ArrayList<>());
-
-        //build lambdas
-        this.lambdaSourceFolder = "lambdas";
-        outputMessage("Build Lambdas and copy zip files to S3 artifacts bucket...");
-        processLambdas(getBoolean(meteringAndBilling));
-
-        if (getBoolean(activeDirectory)) {
-            //create secure SSM parameter for password
-            UUID uniqueId = UUID.randomUUID();
-            String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-            String adPassword = "AdX43Bc" + parts[0];
-            ssm = SsmClient.builder()
-                    .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                    .region(AWS_REGION).build();
-            // /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED to true
-            LOGGER.info("Add SSM param ACTIVE_DIRECTORY_PASSWORD with password");
-            software.amazon.awssdk.services.ssm.model.Parameter passwordParam = putParameter(toParameterStore("ACTIVE_DIRECTORY_PASSWORD", adPassword ,true));
-            activeDirectoryPasswordParam = passwordParam.name();
-            outputMessage("Active Directory admin user password stored in secure SSM Parameter: " + activeDirectoryPasswordParam);
-
-/*            //put ACTIVE_DIRECTORY_CREDS -- to be used when CloudFormation supports FSX in task definition.
-            String creds = "{\"username\":\"admin\", \"password\":\"" + adPassword + "\"}";
-            software.amazon.awssdk.services.ssm.model.Parameter credsParam = putParameter(toParameterStore("ACTIVE_DIRECTORY_CREDS", creds ,true));
-            outputMessage("Active Directory creds stored in secure SSM Parameter: " + credsParam.name());*/
-
+        // If we changed the QuickSight SDK client region to look up the username, put it back
+        if (!AWS_REGION.equals(quickSightRegion)) {
+            quickSight = QuickSightClient.create();
         }
-
-        //execute cloudsformation
-        outputMessage("Execute the CloudFormation stack");
-        String stackName = "sb-" + envName;
-        createSaaSBoostStack(stackName);
-
-
-        //wait for completion and then build web app
-        outputMessage("Copy files to S3 web site bucket");
-        String webUrl = buildAndCopyWebApp();
-
-        if (getBoolean(metricsAndAnalytics)) {
-            LOGGER.info("Install metrics and analytics module");
-            installMetrics(stackName);
-        }
-
-        outputMessage("Check the admin email box for the temporary password.");
-        outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
-
-    private Map<String, String> getMetricStackOutputs(String stackName) {
-        //get the Redshift outputs from the metrics cloudformation stack
+    protected void updateMetricsStack() {
+        String analyticsStackName = analyticsStackName();
+        // Load up the existing parameters from CloudFormation
+        Map<String, String> stackParamsMap = new LinkedHashMap<>();
         try {
-            Map<String, String> outputs = new HashMap<>();
-            DescribeStacksResponse stacksResponse = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackName).build());
-            Stack stack = stacksResponse.stacks().get(0);
-            for (Output output : stack.outputs()) {
-                outputs.put(output.outputKey(), output.outputValue());
+            DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(analyticsStackName));
+            if (response.hasStacks() && !response.stacks().isEmpty()) {
+                Stack stack = response.stacks().get(0);
+                stackParamsMap = stack.parameters().stream()
+                        .collect(Collectors.toMap(Parameter::parameterKey, Parameter::parameterValue));
             }
-
-            if (null == outputs.get("RedshiftDatabaseName")
-                    || null == outputs.get("RedshiftEndpointAddress")
-                    || null == outputs.get("RedshiftCluster")
-                    || null == outputs.get("RedshiftEndpointPort")
-                    || null == outputs.get("MetricsBucket")) {
-                outputMessage("Error, missing one or more of the following outputs from CloudFormation stack: " + stackName);
-                outputMessage("RedshiftDatabaseName, RedshiftCluster, RedshiftEndpointAddress, RedshiftEndpointPort, MetricsBucket");
-                outputMessage(("Aborting the installation due to error"));
+        } catch (SdkServiceException cfnError) {
+            if (cfnError.getMessage().contains("does not exist")) {
+                outputMessage("Analytics module CloudFormation stack " + analyticsStackName + " not found.");
                 System.exit(2);
             }
-            return outputs;
-        } catch (Exception e) {
-            outputMessage("getMetricStackOutputs: Unable to load Metrics and Analytics CloudFormation stack: " + stackName);
-            LOGGER.error(getFullStackTrace(e));
+            LOGGER.error("cloudformation:DescribeStacks error", cfnError);
+            LOGGER.error(getFullStackTrace(cfnError));
+            throw cfnError;
+        }
+        // Update the parameter values if necessary to match the template file on disk
+        Path cloudFormationTemplate = workingDir.resolve(Path.of("resources", "saas-boost-metrics-analytics.yaml"));
+        if (!Files.exists(cloudFormationTemplate)) {
+            outputMessage("Unable to find file " + cloudFormationTemplate.toString());
             System.exit(2);
         }
-        return null;
+        Map<String, String> cloudFormationParamMap = getCloudFormationParameterMap(cloudFormationTemplate, stackParamsMap);
+        updateCloudFormationStack(stackName, cloudFormationParamMap, "saas-boost-metrics-analytics.yaml");
     }
 
-    private void setupQuickSight(String stackName, Map<String, String> outputs) {
-        final String accountNumber = sts.getCallerIdentity().account();
-        LOGGER.info("User for Quicksight: " + quickSightUser);
+    protected static Map<String, String> getCloudFormationParameterMap(Path cloudFormationTemplateFile, Map<String, String> stackParamsMap) {
+        // Open CFN template yaml file and prompt for values of params that are not in the existing stack
+        LOGGER.info("Building map of parameters for template " + cloudFormationTemplateFile);
+        Map<String, String> cloudFormationParamMap = new LinkedHashMap<>();
 
-        //refresh the client
-        quickSightClient = QuickSightClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-        LOGGER.info("Create data source in Quicksight for metrics Redshift table in Region: " + AWS_REGION.id());
-        CreateDataSourceResponse createDataSourceResponse = quickSightClient.createDataSource(CreateDataSourceRequest.builder()
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        try (InputStream cloudFormationTemplate = Files.newInputStream(cloudFormationTemplateFile)) {
+            LinkedHashMap<String, Object> template = mapper.readValue(cloudFormationTemplate, LinkedHashMap.class);
+            LinkedHashMap<String, Map<String, Object>> parameters = (LinkedHashMap<String, Map<String, Object>>) template.get("Parameters");
+            for (Map.Entry<String, Map<String, Object>> parameter : parameters.entrySet()) {
+                String parameterKey = parameter.getKey();
+                LinkedHashMap<String, Object> parameterProperties = (LinkedHashMap<String, Object>) parameter.getValue();
+
+                // For each parameter in the template file, set the value to any existing value
+                // otherwise prompt the user to set the value.
+                Object existingParameter = stackParamsMap.get(parameterKey);
+                if (existingParameter != null) {
+                    // We're running an update. Start with reusing the current value for this parameter.
+                    // The calling code can override this parameter's value before executing update stack.
+                    LOGGER.info("Reuse existing value for parameter {} => {}", parameterKey, existingParameter);
+                    cloudFormationParamMap.put(parameterKey, stackParamsMap.get(parameterKey));
+                } else {
+                    // This is a new parameter added to the template file on disk. Prompt the user for a value.
+                    Object defaultValue = parameterProperties.get("Default");
+                    String parameterType = (String) parameterProperties.get("Type");
+                    System.out.print("Enter a " + parameterType + " value for parameter " + parameterKey);
+                    if (defaultValue != null) {
+                        // No default value for this property
+                        System.out.print(". (Press Enter for '" + defaultValue + "'): ");
+                    } else {
+                        System.out.print(": ");
+                    }
+                    String enteredValue = Keyboard.readString();
+                    if (isEmpty(enteredValue) && defaultValue != null) {
+                        cloudFormationParamMap.put(parameterKey, String.valueOf(defaultValue));
+                        LOGGER.info("Using default value for parameter {} => {}", parameterKey, cloudFormationParamMap.get(parameterKey));
+                    } else if (isEmpty(enteredValue) && defaultValue == null) {
+                        cloudFormationParamMap.put(parameterKey, "");
+                        LOGGER.info("Using entered value for parameter {} => {}", parameterKey, cloudFormationParamMap.get(parameterKey));
+                    } else {
+                        cloudFormationParamMap.put(parameterKey, enteredValue);
+                        LOGGER.info("Using entered value for parameter {} => {}", parameterKey, cloudFormationParamMap.get(parameterKey));
+                    }
+                }
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error parsing YAML file from path", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
+        return cloudFormationParamMap;
+    }
+
+    protected List<LinkedHashMap<String, Object>> getProvisionedTenants() {
+        List<LinkedHashMap<String, Object>> provisionedTenants = new ArrayList<>();
+        final ObjectMapper mapper = new ObjectMapper();
+        try {
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("resource", "tenants/provisioned");
+            detail.put("method", "GET");
+            systemApiRequest.put("detail", detail);
+            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
+            try {
+                LOGGER.info("Invoking get provisioned tenants API");
+                InvokeResponse response = lambda.invoke(request -> request
+                        .functionName("sb-" + this.envName + "-private-api-client")
+                        .invocationType(InvocationType.REQUEST_RESPONSE)
+                        .payload(SdkBytes.fromByteArray(payload))
+                );
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    String responseBody = response.payload().asUtf8String();
+                    LOGGER.info("Response Body");
+                    LOGGER.info(responseBody);
+                    provisionedTenants = mapper.readValue(responseBody, ArrayList.class);
+                    LOGGER.info("Loaded " + provisionedTenants.size() + " tenants");
+                } else {
+                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                }
+            } catch (SdkServiceException lambdaError) {
+                LOGGER.error("lambda:Invoke error", lambdaError);
+                LOGGER.error(getFullStackTrace(lambdaError));
+                throw lambdaError;
+            }
+        } catch (IOException jacksonError) {
+            LOGGER.error("Error processing JSON", jacksonError);
+            LOGGER.error(getFullStackTrace(jacksonError));
+            throw new RuntimeException(jacksonError);
+        }
+        return provisionedTenants;
+    }
+
+    protected void deleteApplicationConfig() {
+        final ObjectMapper mapper = new ObjectMapper();
+        try {
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("resource", "settings/config");
+            detail.put("method", "DELETE");
+            systemApiRequest.put("detail", detail);
+            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
+            try {
+                LOGGER.info("Invoking delete application config API");
+                InvokeResponse response = lambda.invoke(request -> request
+                        .functionName("sb-" + this.envName + "-private-api-client")
+                        .invocationType(InvocationType.REQUEST_RESPONSE)
+                        .payload(SdkBytes.fromByteArray(payload))
+                );
+                if (!response.sdkHttpResponse().isSuccessful()) {
+                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                }
+            } catch (SdkServiceException lambdaError) {
+                LOGGER.error("lambda:Invoke error", lambdaError);
+                LOGGER.error(getFullStackTrace(lambdaError));
+                throw lambdaError;
+            }
+        } catch (IOException jacksonError) {
+            LOGGER.error("Error processing JSON", jacksonError);
+            LOGGER.error(getFullStackTrace(jacksonError));
+            throw new RuntimeException(jacksonError);
+        }
+    }
+
+    protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
+        // Arguably, the delete tenant API should be called here, but all it currently does is set the tenant status
+        // to disabled and then fire off an async event to delete the CloudFormation stack. We could do that, but we'd
+        // still need to either subscribe to the SNS topic for DELETE_COMPLETE notification or we'd need to cycle on
+        // describe stacks like we do elsewhere to wait for CloudFormation to finish. In either case, we need to know
+        // the stack name for the tenant.
+        // Also, this won't scale super well and could be parallelized...
+        String tenantStackName = "Tenant-" + ((String) tenant.get("id")).split("-")[0];
+        outputMessage("Deleteing tenant CloudFormation stack " + tenantStackName);
+        deleteCloudFormationStack(tenantStackName);
+    }
+
+    protected void deleteEcrImages(String ecrRepo) {
+        List<ImageIdentifier> imagesToDelete = new ArrayList<>();
+        LOGGER.info("Loading images from ECR repository " + ecrRepo);
+        String token = null;
+        do {
+            try {
+                ListImagesResponse response = ecr.listImages(ListImagesRequest.builder()
+                        .repositoryName(ecrRepo)
+                        .nextToken(token)
+                        .maxResults(1000)
+                        .build()
+                );
+                if (response.hasImageIds()) {
+                    response.imageIds().stream().forEachOrdered(imagesToDelete::add);
+                }
+                token = response.nextToken();
+            } catch (SdkServiceException ecrError) {
+                LOGGER.error("ecr:ListImages error", ecrError);
+                LOGGER.error(getFullStackTrace(ecrError));
+                throw ecrError;
+            }
+        } while (token != null);
+        LOGGER.info("Loaded " + imagesToDelete.size() + " images to delete");
+        if (!imagesToDelete.isEmpty()) {
+            try {
+                BatchDeleteImageResponse response = ecr.batchDeleteImage(request -> request.repositoryName(ecrRepo).imageIds(imagesToDelete));
+                if (response.hasImageIds()) {
+                    LOGGER.info("Deleted " + response.imageIds().size() + " images");
+                }
+                if (response.hasFailures()) {
+                    LOGGER.error("Error deleting images from ECR");
+                    response.failures().forEach(failure -> LOGGER.error("{} {}", failure.failureCodeAsString(), failure.failureReason()));
+                    throw new RuntimeException("ECR delete image failures " + response.failures().size());
+                }
+            } catch (SdkServiceException ecrError) {
+                LOGGER.error("ecr:batchDeleteImage error", ecrError);
+                LOGGER.error(getFullStackTrace(ecrError));
+                throw ecrError;
+            }
+        }
+    }
+
+    protected Map<String, String> getMetricStackOutputs(String stackName) {
+        // Get the Redshift outputs from the metrics CloudFormation stack
+        Map<String, String> outputs = null;
+        try {
+            DescribeStacksResponse stacksResponse = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackName).build());
+            outputs = stacksResponse.stacks().get(0).outputs().stream().collect(Collectors.toMap(Output::outputKey, Output::outputValue));
+            for (String requiredOutput : Arrays.asList("RedshiftDatabaseName", "RedshiftEndpointAddress", "RedshiftCluster", "RedshiftEndpointPort", "MetricsBucket")) {
+                if (outputs.get(requiredOutput) == null) {
+                    outputMessage("Error, CloudFormation stack: " + stackName + " missing required output: " + requiredOutput);
+                    outputMessage(("Aborting the installation due to error"));
+                    System.exit(2);
+                }
+            }
+        } catch (SdkServiceException cloudFormationError) {
+            LOGGER.error("cloudformation:DescribeStack error", cloudFormationError);
+            LOGGER.error(getFullStackTrace(cloudFormationError));
+            outputMessage("getMetricStackOutputs: Unable to load Metrics and Analytics CloudFormation stack: " + stackName);
+            System.exit(2);
+        }
+        return outputs;
+    }
+
+    protected void setupQuickSight(String stackName, Map<String, String> outputs, String dbPassword) {
+        /* TODO Note that this entire QuickSight setup is not owned by CloudFormation like most everything
+         * else and therefore won't be cleaned up properly when SaaS Boost is deleted/uninstalled.
+         */
+        LOGGER.info("User for QuickSight: " + this.quickSightUsername);
+        LOGGER.info("Create data source in QuickSight for metrics Redshift table in Region: " + AWS_REGION.id());
+        CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
                 .dataSourceId("sb-" + this.envName + "-metrics-source")
                 .name("sb-" + this.envName + "-metrics-source")
-                .awsAccountId(accountNumber)
+                .awsAccountId(accountId)
                 .type(DataSourceType.REDSHIFT)
                 .dataSourceParameters(DataSourceParameters.builder()
                         .redshiftParameters(RedshiftParameters.builder()
@@ -1551,51 +1035,54 @@ public class SaaSBoostInstall {
                                 .host(outputs.get("RedshiftEndpointAddress"))
                                 .clusterId(outputs.get("RedshiftCluster"))
                                 .port(Integer.valueOf(outputs.get("RedshiftEndpointPort")))
-                                .build())
-                        .build())
+                                .build()
+                        )
+                        .build()
+                )
                 .credentials(DataSourceCredentials.builder()
                         .credentialPair(CredentialPair.builder()
                                 .username("metricsadmin")
                                 .password(dbPassword)
-                                .build())
-                        .build())
+                                .build()
+                        )
+                        .build()
+                )
                 .permissions(ResourcePermission.builder()
-                        .principal(quickSightUser.arn())
+                        .principal(this.quickSightUserArn)
                         .actions("quicksight:DescribeDataSource","quicksight:DescribeDataSourcePermissions","quicksight:PassDataSource","quicksight:UpdateDataSource","quicksight:DeleteDataSource","quicksight:UpdateDataSourcePermissions")
-                        .build())
+                        .build()
+                )
                 .sslProperties(SslProperties.builder()
                         .disableSsl(false)
-                        .build())
+                        .build()
+                )
                 .tags(Tag.builder()
                         .key("Name")
                         .value(stackName)
-                        .build())
-                .build());
+                        .build()
+                )
+                .build()
+        );
 
-
-        //define the physical table for Quicksight
+        // Define the physical table for QuickSight
         List<InputColumn> inputColumns = new ArrayList<>();
-        List<String> stringCols = new ArrayList<>(Arrays.asList("type", "workload", "context", "tenant_id",
-                "tenant_name", "tenant_tier", "metric_name", "metric_unit", "meta_data"));
-        for (String col : stringCols) {
-            InputColumn inputColumn = InputColumn.builder()
-                    .name(col)
-                    .type(InputColumnDataType.STRING)
-                    .build();
-            inputColumns.add(inputColumn);
-        }
-
-        InputColumn inputColumn = InputColumn.builder()
+        Stream.of("type", "workload", "context", "tenant_id", "tenant_name", "tenant_tier", "metric_name", "metric_unit", "meta_data")
+                .map(column -> InputColumn.builder()
+                                .name(column)
+                                .type(InputColumnDataType.STRING)
+                                .build()
+                )
+                .forEachOrdered(inputColumns::add);
+        inputColumns.add(InputColumn.builder()
                 .name("metric_value")
                 .type(InputColumnDataType.INTEGER)
-                .build();
-        inputColumns.add(inputColumn);
-
-         inputColumn = InputColumn.builder()
+                .build()
+        );
+        inputColumns.add(InputColumn.builder()
                 .name("timerecorded")
                 .type(InputColumnDataType.DATETIME)
-                .build();
-        inputColumns.add(inputColumn);
+                .build()
+        );
 
         PhysicalTable physicalTable = PhysicalTable.builder()
                 .relationalTable(RelationalTable.builder()
@@ -1603,90 +1090,38 @@ public class SaaSBoostInstall {
                         .schema("public")
                         .name("sb_metrics")
                         .inputColumns(inputColumns)
-                        .build())
+                        .build()
+                )
                 .build();
 
         Map<String, PhysicalTable> physicalTableMap = new HashMap<>();
         physicalTableMap.put("string", physicalTable);
 
         LOGGER.info("Create dataset for sb_metrics table in Quicksight in Region " + AWS_REGION.id());
-
-        quickSightClient.createDataSet(CreateDataSetRequest.builder()
-                .awsAccountId(accountNumber)
+        quickSight.createDataSet(CreateDataSetRequest.builder()
+                .awsAccountId(accountId)
                 .dataSetId("sb-" + this.envName + "-metrics")
                 .name("sb-" + this.envName + "-metrics")
                 .physicalTableMap(physicalTableMap)
                 .importMode(DataSetImportMode.DIRECT_QUERY)
                 .permissions(ResourcePermission.builder()
-                        .principal(quickSightUser.arn())
+                        .principal(this.quickSightUserArn)
                         .actions("quicksight:DescribeDataSet","quicksight:DescribeDataSetPermissions","quicksight:PassDataSet","quicksight:DescribeIngestion","quicksight:ListIngestions","quicksight:UpdateDataSet","quicksight:DeleteDataSet","quicksight:CreateIngestion","quicksight:CancelIngestion","quicksight:UpdateDataSetPermissions")
-                        .build())
+                        .build()
+                )
                 .tags(Tag.builder()
                         .key("Name")
                         .value(stackName)
-                        .build())
-                .build());
-    }
-
-    private final static String SAAS_BOOST_PREFIX = "saas-boost";
-
-    private software.amazon.awssdk.services.ssm.model.Parameter toParameterStore(String settingName, String settingValue, boolean secure) {
-        if (settingName == null || settingName.isEmpty()) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
-        }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + envName + "/" + settingName;
-        String parameterValue = (settingValue == null || settingValue.isEmpty()) ? "N/A" : settingValue;
-        software.amazon.awssdk.services.ssm.model.Parameter parameter = software.amazon.awssdk.services.ssm.model.Parameter.builder()
-                .type(secure ? ParameterType.SECURE_STRING : ParameterType.STRING)
-//                .type(ParameterType.STRING)
-                .name(parameterName)
-                .value(parameterValue)
-                .build();
-        return parameter;
-    }
-
-    private software.amazon.awssdk.services.ssm.model.Parameter putParameter(software.amazon.awssdk.services.ssm.model.Parameter parameter) {
-        software.amazon.awssdk.services.ssm.model.Parameter updated = null;
-        try {
-            PutParameterResponse response = ssm.putParameter(request -> request
-                    .type(parameter.type())
-                    .overwrite(true)
-                    .name(parameter.name())
-                    .value(parameter.value())
-            );
-            updated = software.amazon.awssdk.services.ssm.model.Parameter.builder()
-                    .name(parameter.name())
-                    .value(parameter.value())
-                    .type(parameter.type())
-                    .version(response.version())
-                    .build();
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:PutParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return updated;
-    }
-
-    private boolean getParameter(String parameterName, boolean decrypt) {
-        try {
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name(parameterName)
-                    .withDecryption(decrypt).build()
-            );
-            return true;
-        } catch (ParameterNotFoundException pnf) {
-            LOGGER.warn("ssm:GetParameter parameter not found {}", parameterName);
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return false;
+                        .build()
+                )
+                .build()
+        );
     }
 
     /*
     Create Service Roles necessary for Tenant Stack Deployment
      */
-    private void setupAwsServiceRoles() {
+    protected void setupAwsServiceRoles() {
         /*
         aws iam get-role --role-name "AWSServiceRoleForElasticLoadBalancing" || aws iam create-service-linked-role --aws-service-name "elasticloadbalancing.amazonaws.com"
         aws iam get-role --role-name "AWSServiceRoleForECS" || aws iam create-service-linked-role --aws-service-name "ecs.amazonaws.com"
@@ -1696,234 +1131,342 @@ public class SaaSBoostInstall {
         aws iam get-role --role-name "AWSServiceRoleForAutoScaling" || aws iam create-service-linked-role --aws-service-name "autoscaling.amazonaws.com"        
         */
 
-        //check for the service role first
-        CreateServiceLinkedRoleResponse response;
+        Set<String> existingRoles = new HashSet<>();
+        ListRolesResponse rolesResponse = iam.listRoles(request -> request.pathPrefix("/aws-service-role"));
+        rolesResponse.roles().stream()
+                .map(Role::path)
+                .forEachOrdered(existingRoles::add);
+
         List<String> serviceRoles = new ArrayList<>(Arrays.asList("elasticloadbalancing.amazonaws.com", "ecs.amazonaws.com",
                 "ecs.application-autoscaling.amazonaws.com", "rds.amazonaws.com", "fsx.amazonaws.com", "autoscaling.amazonaws.com"));
-
-        ListRolesResponse rolesResponse = iam.listRoles(ListRolesRequest.builder().pathPrefix("/aws-service-role").build());
-        Set<String> existingRoles = new HashSet<>();
-        for (Role role : rolesResponse.roles()) {
-            existingRoles.add(role.path());
-        }
         for (String serviceRole : serviceRoles) {
-            try {
-                String path = String.format("/aws-service-role/%s/",serviceRole);
-                if (existingRoles.contains(path)) {
-                    LOGGER.info("Service role {} already exists", serviceRole);
-                    continue;
-                }
-                response = iam.createServiceLinkedRole(CreateServiceLinkedRoleRequest.builder()
-                        .awsServiceName(serviceRole)
-                        .build());
-                LOGGER.info("Service role {} created", serviceRole);
-            } catch (Exception e) {
-                LOGGER.error("setupAwsServiceRoles: Error with service role {}", serviceRole);
-                LOGGER.error(getFullStackTrace(e));
-                throw e;
-            }
-        }
-
-    }
-
-    private static boolean getBoolean (String val) {
-        if (null != val && "y".equalsIgnoreCase(val)) {
-            return true;
-        } else if (null != val && "n".equalsIgnoreCase(val)) {
-            return false;
-        } if (null != val && "true".equalsIgnoreCase(val)) {
-            return true;
-        } else if (null != val && "false".equalsIgnoreCase(val)) {
-            return false;
-        } else {
-            return false;
-        }
-    }
-
-    private void s3CopyFile(String filePath, String key) {
-        File file = new File(filePath);
-/*        PutObjectResponse response = s3.putObject(PutObjectRequest.builder()
-                .bucket(this.s3ArtifactBucket)
-                .key(key)
-                .build(), file);*/
-
-        s3.putObject(this.s3ArtifactBucket, key, file);
-    }
-
-    private void copyTemplateFilesToS3(List<String> fileNames) {
-        List<String> resourceFiles = listFiles(this.rootDir + File.separator + "resources", this.resourceFileFilter);
-        for(String fileName : resourceFiles) {
-            if (null == fileName || fileNames.isEmpty() || fileNames.contains(fileName)) {
-                final String resourceFileToCopy = this.rootDir + File.separator + "resources" + File.separator + fileName;
-                LOGGER.info("S3 copy of resource file {}", resourceFileToCopy);
-                s3CopyFile(resourceFileToCopy, fileName);
-            }
-        }
-    }
-
-    private static void printResults(Process process) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line = "";
-        while ((line = reader.readLine()) != null) {
-            LOGGER.info(line);
-        }
-    }
-
-    private static boolean validateEmail(String emailAddress) {
-        String regex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
-        //initialize the Pattern object
-        Pattern pattern = Pattern.compile(regex);
-        //searching for occurrences of regex
-        Matcher matcher = pattern.matcher(emailAddress);
-        return matcher.matches();
-    }
-
-    private static boolean validateEnvironmentName(String envName) {
-        String regex = "^[a-z0-9]*$";
-        if (envName.length() > 10) {
-            return false;
-        }
-        //initialize the Pattern object
-        Pattern pattern = Pattern.compile(regex);
-        //searching for occurrences of regex
-        Matcher matcher = pattern.matcher(envName);
-        return matcher.matches();
-    }
-
-    private static void outputMessage(String msg) {
-        LOGGER.info(msg);
-        System.out.println(msg);
-    } 
-
-    private void buildAndCopyLambdas(String dir, List<String> subDirs) throws IOException {
-        if (null == subDirs || subDirs.size() == 0) {
-            //build list of subdirs for this directory
-            subDirs = listFiles(this.rootDir + File.separator + dir, null);
-        }
-
-        outputMessage(" **> Build Lambdas under directory: " + dir);
-
-        //loop through subdirs and check for pom.xml and build the zip and copy to s3
-        String command = "mvn";
-        for (String subdir : subDirs) {
-            //check for pom.xml
-            String fileName = this.rootDir + File.separator + dir + File.separator + subdir + File.separator + "pom.xml";
-//            String osFilePath = getOSFilePath(fileName);
-            Path file = Paths.get(fileName);
-            if(!Files.exists(file)){
-                LOGGER.info("No {} file found ", fileName);
+            if (existingRoles.contains("/aws-service-role/" + serviceRole + "/")) {
+                LOGGER.info("Service role exists for {}", serviceRole);
                 continue;
             }
-
-            final String lambdaDir = this.rootDir + File.separator + dir +File.separator + subdir;
-            final String targetDir = lambdaDir + File.separator + "target";
-
-           //run maven command
-           try {
-               executeCommand(command, null, new File(lambdaDir));
-           } catch (IOException e) {
-               LOGGER.error("Error running maven for {}", fileName);
-               throw e;
-           }
-
-            //copy the zip file to s3
-            final List<String> zipFilesList = listFiles(targetDir, this.zipFileFilter);
-            if (zipFilesList.size() > 0) {
-                final String lambdaZipFileName = zipFilesList.get(0);
-                final String zipFilePath = targetDir + File.separator + lambdaZipFileName;
-                LOGGER.info("Found Zip file to copy: " + zipFilePath);
-                try {
-                    this.s3CopyFile(zipFilePath, this.lambdaSourceFolder + "/" + lambdaZipFileName);
-                } catch (RuntimeException e) {
-                    LOGGER.error("Error running copy for {}", zipFilePath);
-                    throw e;
-                }
+            LOGGER.info("Creating AWS service role in IAM for {}", serviceRole);
+            try {
+                CreateServiceLinkedRoleResponse response = iam.createServiceLinkedRole(request -> request.awsServiceName(serviceRole));
+            } catch (SdkServiceException iamError) {
+                LOGGER.error("iam:CreateServiceLinkedRole error", iamError);
+                LOGGER.error(getFullStackTrace(iamError));
+                throw iamError;
             }
         }
     }
 
-    private static String getOSFilePath(String filePath) {
-        //check what OS and format path
-        String  ret = "";
-        return ret;
+    protected void copyTemplateFilesToS3() {
+        final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.{yaml,yml}");
+        final Path resourcesDir = workingDir.resolve(Path.of("resources"));
+        try (Stream<Path> stream = Files.list(resourcesDir)) {
+            Set<Path> cloudFormationTemplates = stream
+                    .filter(filter::matches)
+                    .collect(Collectors.toSet());
+            outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
+            for (Path cloudFormationTemplate : cloudFormationTemplates) {
+                LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
+                try {
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(this.s3ArtifactBucket)
+                            .key(cloudFormationTemplate.getFileName().toString())
+                            .build(), RequestBody.fromFile(cloudFormationTemplate)
+                    );
+                } catch (SdkServiceException s3Error) {
+                    LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
+                    LOGGER.error(getFullStackTrace(s3Error));
+                    throw s3Error;
+                }
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error listing resources directory", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
     }
 
+    protected static void printResults(Process process) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line = "";
+            while ((line = reader.readLine()) != null) {
+                LOGGER.info(line);
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error reading from runtime exec process", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
+    }
 
-    private static List<String> listFiles(String path, FilenameFilter filter) {
+    protected static void outputMessage(String msg) {
+        LOGGER.info(msg);
+        System.out.println(msg);
+    }
 
-        // Creates an array in which we will store the names of files and directories
-        String[] pathnames;
-        List<String> files = new ArrayList<>();
-
-        // Creates a new File instance by converting the given pathname string
-        // into an abstract pathname
-        File f = new File(path);
-
-        // Populates the array with names of files and directories
-        pathnames = f.list(filter);
-        if (null == pathnames) {
-            outputMessage("Path: " + path + " has no files matching filter: " + filter + ". Check the install directory for missing files.");
+    protected static void checkEnvironment() {
+        outputMessage("Checking maven, yarn and AWS CLI...");
+        try {
+            executeCommand("mvn -version", null, null);
+        } catch (Exception e) {
+            outputMessage("Could not execute 'mvn -version', please check your environment");
             System.exit(2);
         }
-
-        // For each pathname in the pathnames array
-        for (String pathname : pathnames) {
-            // Print the names of files and directories
-            files.add(pathname);
+        try {
+            executeCommand("yarn -version", null, null);
+        } catch (Exception e) {
+            outputMessage("Could not execute 'yarn -version', please check your environment.");
+            System.exit(2);
         }
-
-        return files;
-
+        try {
+            executeCommand("aws --version", null, null);
+        } catch (Exception e) {
+            outputMessage("Could not execute 'aws --version', please check your environment.");
+            System.exit(2);
+        }
+        try {
+            executeCommand("aws sts get-caller-identity", null, null);
+        } catch (Exception e) {
+            outputMessage("Could not execute 'aws sts get-caller-identity', please check AWS CLI configuration.");
+            System.exit(2);
+        }
+        outputMessage("Environment Checks for maven, yarn, and AWS CLI PASSED.");
+        outputMessage("===========================================================");
     }
 
-    private void processLambdas(boolean buildMetering) throws IOException {
-        //layers
-        //This has to be in specific order because apigw-helper depends on utils
-        final List<String> layersList = new ArrayList<>(Arrays.asList("utils" , "apigw-helper"));
-        buildAndCopyLambdas("layers", layersList);
+    protected void loadExistingSaaSBoostEnvironment() {
+        this.envName = getExistingSaaSBoostEnvironment();
+        this.s3ArtifactBucket = getExistingSaaSBoostArtifactBucket();
+        this.lambdaSourceFolder = getExistingSaaSBoostLambdasFolder();
+        this.stackName = getExistingSaaSBoostStackName();
+        this.baseStackDetails = getExistingSaaSBoostStackDetails();
+        this.useAnalyticsModule = getExistingSaaSBoostAnalyticsDeployed();
+    }
 
-        //functions
-        buildAndCopyLambdas("functions", null);
+    protected String getExistingSaaSBoostEnvironment() {
+        LOGGER.info("Asking for existing SaaS Boost environment label");
+        String environment = null;
+        while (environment == null || environment.isBlank()) {
+            System.out.print("Please enter the existing SaaS Boost environment label: ");
+            environment = Keyboard.readString();
+            if (!validateEnvironmentName(environment)) {
+                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
+                environment = null;
+            }
+        }
+        try {
+            GetParameterResponse response = ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
+        } catch (SdkServiceException ssmError) {
+            outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
+            System.exit(2);
+        }
+        return environment;
+    }
 
-        //custom/resources
-        buildAndCopyLambdas("resources" + File.separator + "custom-resources", null);
+    protected static boolean validateEmail(String emailAddress) {
+        boolean valid = false;
+        if (emailAddress != null) {
+            valid = emailAddress.matches("^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$");
+        }
+        return valid;
+    }
 
-        //services
-        final List<String> services = new ArrayList<>(Arrays.asList(
-                "onboarding-service",
-                "tenant-service",
-                "user-service",
-                "settings-service",
-                "metric-service",
-                "quotas-service"));
-        buildAndCopyLambdas("services", services);
+    protected static boolean validateEnvironmentName(String envName) {
+        boolean valid = false;
+        if (envName != null) {
+            // Follows CloudFormation stack name rules but limits to 10 characters
+            valid = envName.matches("^[a-zA-Z](?:[a-zA-Z0-9-]){0,9}$");
+        }
+        return valid;
+    }
 
-        //metering and billing if defined
-        if (buildMetering) {
-            buildAndCopyLambdas("metering-billing", new ArrayList<>(Arrays.asList("lambdas")));
+//    protected static boolean validateDomain(String domainName) {
+//        boolean valid = false;
+//        if (domainName != null) {
+//            valid = domainName.matches("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$");
+//        }
+//        return valid;
+//    }
+
+    protected String getExistingSaaSBoostArtifactBucket() {
+        LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
+        String artifactsBucket = null;
+        if (isBlank(this.envName)) {
+            getExistingSaaSBoostEnvironment();
+        }
+        try {
+            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_BUCKET"));
+            artifactsBucket = response.parameter().value();
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
+            LOGGER.error(getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+        LOGGER.info("Loaded artifacts bucket {}", artifactsBucket);
+        return artifactsBucket;
+    }
+
+    protected String getExistingSaaSBoostStackName() {
+        LOGGER.info("Getting existing SaaS Boost CloudFormation stack name from Parameter Store");
+        String stackName = null;
+        if (isBlank(this.envName)) {
+            getExistingSaaSBoostEnvironment();
+        }
+        try {
+            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_STACK"));
+            stackName = response.parameter().value();
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
+            LOGGER.error(getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+        LOGGER.info("Loaded stack name {}", stackName);
+        return stackName;
+    }
+
+    protected String getExistingSaaSBoostLambdasFolder() {
+        LOGGER.info("Getting existing SaaS Boost Lambdas folder from Parameter Store");
+        String lambdasFolder = null;
+        if (isBlank(this.envName)) {
+            getExistingSaaSBoostEnvironment();
+        }
+        try {
+            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER"));
+            lambdasFolder = response.parameter().value();
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
+            LOGGER.error(getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+        LOGGER.info("Loaded Lambdas folder {}", lambdasFolder);
+        return lambdasFolder;
+    }
+
+    protected boolean getExistingSaaSBoostAnalyticsDeployed() {
+        LOGGER.info("Getting existing SaaS Boost Analytics module deployed from Parameter Store");
+        boolean analyticsDeployed = false;
+        if (isBlank(this.envName)) {
+            getExistingSaaSBoostEnvironment();
+        }
+        try {
+            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED"));
+            analyticsDeployed = Boolean.valueOf(response.parameter().value());
+        } catch (SdkServiceException ssmError) {
+            // TODO CloudFormation should own this parameter, not the installer... it's possible the parameter doesn't exist
+            // parameter not found is an exception
+            if (!ssmError.getMessage().contains("not found")) {
+                LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
+                LOGGER.error(getFullStackTrace(ssmError));
+                throw ssmError;
+            }
+        }
+        LOGGER.info("Loaded analytics deployed {}", analyticsDeployed);
+        return analyticsDeployed;
+    }
+
+    protected Map<String, String> getExistingSaaSBoostStackDetails() {
+        LOGGER.info("Getting CloudFormation stack details for SaaS Boost stack {}", this.stackName);
+        Map<String, String> details = new HashMap<>();
+        Collection<String> requiredOutputs = List.of("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1", "PrivateSubnet2", "EgressVpc", "LoggingBucket");
+        try {
+            DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(this.stackName));
+            if (response.hasStacks() && !response.stacks().isEmpty()) {
+                Stack stack = response.stacks().get(0);
+                Map<String, String> outputs = stack.outputs().stream()
+                        .filter(output -> requiredOutputs.contains(output.outputKey())) // TODO Should we just capture them all?
+                        .collect(Collectors.toMap(Output::outputKey, Output::outputValue));
+                for (String requiredOutput : requiredOutputs) {
+                    if (!outputs.containsKey(requiredOutput)) {
+                        outputMessage("Missing required CloudFormation stack output " + requiredOutput + " from stack " + this.stackName);
+                        System.exit(2);
+                    } else {
+                        LOGGER.info("Loaded required stack output {} -> {}", requiredOutput, outputs.get(requiredOutput));
+                    }
+                }
+                Map<String, String> parameters = stack.parameters().stream()
+                        .collect(Collectors.toMap(Parameter::parameterKey, Parameter::parameterValue));
+
+                details.putAll(parameters);
+                details.putAll(outputs);
+            }
+         } catch (SdkServiceException cfnError) {
+            LOGGER.error("cloudformation:DescribeStacks error", cfnError);
+            LOGGER.error(getFullStackTrace(cfnError));
+            throw cfnError;
+        }
+        return details;
+    }
+
+    protected void processLambdas() {
+        try {
+            List<Path> sourceDirectories = new ArrayList<>();
+
+            // This has to be in specific order because apigw-helper depends on utils
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
+
+            DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
+            functions.forEach(sourceDirectories::add);
+
+            DirectoryStream<Path> customResources = Files.newDirectoryStream(workingDir.resolve(Path.of("resources", "custom-resources")), Files::isDirectory);
+            customResources.forEach(sourceDirectories::add);
+
+            DirectoryStream<Path> services = Files.newDirectoryStream(workingDir.resolve(Path.of("services")), Files::isDirectory);
+            services.forEach(sourceDirectories::add);
+
+            sourceDirectories.add(workingDir.resolve(Path.of("metering-billing", "lambdas")));
+
+            final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.zip");
+            outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
+            for (Path sourceDirectory : sourceDirectories) {
+                if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
+                    executeCommand("mvn", null, sourceDirectory.toFile());
+                    final Path targetDir = sourceDirectory.resolve("target");
+                    try (Stream<Path> stream = Files.list(targetDir)) {
+                        Set<Path> lambdaSourcePackage = stream
+                                .filter(filter::matches)
+                                .collect(Collectors.toSet());
+                        for (Path zipFile : lambdaSourcePackage) {
+                            LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
+                            try {
+                                s3.putObject(PutObjectRequest.builder()
+                                        .bucket(this.s3ArtifactBucket)
+                                        .key(this.lambdaSourceFolder + "/" + zipFile.getFileName().toString())
+                                        .build(), RequestBody.fromFile(zipFile)
+                                );
+                            } catch (SdkServiceException s3Error) {
+                                LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
+                                LOGGER.error(getFullStackTrace(s3Error));
+                                throw s3Error;
+                            }
+                        }
+                    }
+                } else {
+                    LOGGER.warn("No POM file found in {}", sourceDirectory.toString());
+                }
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error processing Lambda source folders", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
         }
     }
 
-    private void createSaaSBoostStack(final String stackName) {
-        //Note - most params the default is used from the CloudFormation stack
+    protected void createSaaSBoostStack(final String stackName, String adminEmail, Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
+        // Note - most params the default is used from the CloudFormation stack
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
-        templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(emailAddress).build());
-        templateParameters.add(Parameter.builder().parameterKey("DomainName").parameterValue(domain).build());
+        templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(adminEmail).build());
         templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(s3ArtifactBucket).build());
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
-        templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(String.valueOf(getBoolean(activeDirectory))).build());
+        templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
 
-        // Now run the onboarding stack to provision the infrastructure SaaS Boost
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
-
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                             .stackName(stackName)
-                            .onFailure("DO_NOTHING")
-                            .timeoutInMinutes(90)
+                            //.onFailure("DO_NOTHING") // TODO bug on roll back?
+                            //.timeoutInMinutes(90)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                             .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost.yaml")
                             .parameters(templateParameters)
@@ -1932,17 +1475,12 @@ public class SaaSBoostInstall {
             stackId = cfnResponse.stackId();
             LOGGER.info("createSaaSBoostStack::stack id " + stackId);
 
-
             boolean stackCompleted = false;
-            long sleepTime = 5l;
+            long sleepTime = 5L;
             do {
-                //refresh client due to timeouts
-                cfn = CloudFormationClient.builder()
-                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                        .region(AWS_REGION).build();
-                DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
-                        .stackName(stackName)
-                        .build());
+                // TODO how can we set this on the SDK client itself?
+                cfn = CloudFormationClient.create(); // refresh client due to timeouts
+                DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
                 Stack stack = response.stacks().get(0);
                 if ("CREATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
                     outputMessage("CloudFormation Stack: " + stackName + " completed successfully.");
@@ -1955,73 +1493,59 @@ public class SaaSBoostInstall {
                     try {
                         Thread.sleep(sleepTime * 60 * 1000);
                     } catch (Exception e) {
-                        LOGGER.error("Error with sleep");
+                        LOGGER.error("Error pausing thread", e);
                     }
-                    sleepTime = 1; //set to 1 minute after kick off of 5 minute
+                    sleepTime = 1L; // Set to 1 minute after kick off of 5 minute
                 }
             } while (!stackCompleted);
-
-            //wait until the stack is created and output message stack is being created
         } catch (SdkServiceException cfnError) {
-            LOGGER.error("createSaaSBoostStack::createStack failed {}", cfnError.getMessage());
+            LOGGER.error("cloudformation error", cfnError);
             LOGGER.error(getFullStackTrace(cfnError));
             throw cfnError;
         }
     }
 
-    private void updateCloudFormationStack(final String stackName, final Map<String, String> paramsMap, String yamlFile) {
-        //params set for the stack
-        List<Parameter> templateParameters = new ArrayList<>();
-        for (Map.Entry<String, String> entry : paramsMap.entrySet()) {
-            LOGGER.info("Set CloudFormation Parameter: " + entry.getKey() + ", Value: " + entry.getValue());
-            templateParameters.add(Parameter.builder().parameterKey(entry.getKey()).parameterValue(entry.getValue()).build());
-        }
-        // Now run the onboarding stack to provision the infrastructure SaaS Boost
-        LOGGER.info("updateCloudFormationStack::update stack " + stackName);
+    protected void updateCloudFormationStack(final String stackName, final Map<String, String> paramsMap, String yamlFile) {
+        List<Parameter> templateParameters = paramsMap.entrySet().stream()
+                .map(entry -> Parameter.builder().parameterKey(entry.getKey()).parameterValue(entry.getValue()).build())
+                .collect(Collectors.toList());
 
-        String stackId = null;
+        LOGGER.info("Executing CloudFormation update stack for " + stackName);
         try {
-            UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
+            UpdateStackResponse updateStackResponse = cfn.updateStack(UpdateStackRequest.builder()
                     .stackName(stackName)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                     .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/" + yamlFile)
                     .parameters(templateParameters)
                     .build()
             );
-            stackId = cfnResponse.stackId();
-            LOGGER.info("updateCloudFormationStack::stack id " + stackId);
-
-
-            boolean stackCompleted = false;
-            long sleepTime = 3l;
-            do {
-                cfn = CloudFormationClient.builder()
-                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                        .region(AWS_REGION).build();
-                DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
-                        .stackName(stackName)
-                        .build());
+            String stackId = updateStackResponse.stackId();
+            LOGGER.info("Waiting for update stack to complete for " + stackId);
+            long sleepTime = 3L;
+            while (true) {
+                cfn = CloudFormationClient.create(); // TODO why does the client timeout and can we change that setting?
+                DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackId));
                 Stack stack = response.stacks().get(0);
-                if ("UPDATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation Stack: " + stackName + " completed successfully.");
-                    stackCompleted = true;
-                } else if ("UPDATE_ROLLBACK_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation Stack: " + stackName + " failed.");
+                String stackStatus = stack.stackStatusAsString();
+                if ("UPDATE_COMPLETE".equalsIgnoreCase(stackStatus)) {
+                    outputMessage("CloudFormation stack: " + stackName + " updated successfully.");
+                    break;
+                } else if ("UPDATE_ROLLBACK_COMPLETE".equalsIgnoreCase(stackStatus)) {
+                    outputMessage("CloudFormation stack: " + stackName + " update failed.");
                     throw new RuntimeException("Error with CloudFormation stack " + stackName + ". Check the events in the AWS CloudFormation Console");
                 } else {
+                    // TODO should we set an upper bound on this loop?
                     outputMessage("Awaiting Update of CloudFormation Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
                     try {
                         Thread.sleep(sleepTime * 60 * 1000);
                     } catch (Exception e) {
-                        LOGGER.error("Error with sleep");
+                        LOGGER.error("Error pausing thread", e);
                     }
-                    sleepTime = 1; //set to 1 minute after kick off of 5 minute
+                    sleepTime = 1L; //set to 1 minute after kick off of 5 minute
                 }
-            } while (!stackCompleted);
-
-            //wait until the stack is created and output message stack is being created
+            }
         } catch (SdkServiceException cfnError) {
-            if (null != cfnError && cfnError.getMessage().contains("No updates are to be performed")) {
+            if (cfnError.getMessage().contains("No updates are to be performed")) {
                 outputMessage("No Updates to be performed for Stack: " + stackName);
             } else {
                 LOGGER.error("updateCloudFormationStack::update stack failed {}", cfnError.getMessage());
@@ -2031,29 +1555,20 @@ public class SaaSBoostInstall {
         }
     }
 
-    private void createMetricsStack(final String stackName) {
+    protected void createMetricsStack(final String stackName, final String dbPasswordSSMParameter, final String databaseName) {
+        LOGGER.info("Creating CloudFormation stack {} with database name {}", stackName, databaseName);
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());
-//        templateParameters.add(Parameter.builder().parameterKey("ClusterType").parameterValue("multi-node").build());
-//        templateParameters.add(Parameter.builder().parameterKey("EncryptData").parameterValue(this.encryptData).build());
-//        templateParameters.add(Parameter.builder().parameterKey("KinesisBufferInterval").parameterValue("300").build());
-//        templateParameters.add(Parameter.builder().parameterKey("KinesisBufferSize").parameterValue("5").build());
         templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(this.lambdaSourceFolder).build());
-//        templateParameters.add(Parameter.builder().parameterKey("MetricDBUser").parameterValue("metricsadmin").build());
         templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSSMParameter).build());
-//        templateParameters.add(Parameter.builder().parameterKey("MetricUserPassword").parameterValue(dbPassword).build());
-//        templateParameters.add(Parameter.builder().parameterKey("MetricsTableName").parameterValue("metrics").build());
         templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(this.s3ArtifactBucket).build());
-        templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackOutputs.get("LoggingBucket")).build());
-        templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue("sbmetrics" + this.envName).build());
-
-        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet1").parameterValue(baseStackOutputs.get("PublicSubnet1")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet2").parameterValue(baseStackOutputs.get("PublicSubnet2")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet1").parameterValue(baseStackOutputs.get("PrivateSubnet1")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet2").parameterValue(baseStackOutputs.get("PrivateSubnet2")).build());
-
-        //vpc
-        templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(baseStackOutputs.get("EgressVpc")).build());
+        templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackDetails.get("LoggingBucket")).build());
+        templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue(databaseName).build());
+        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet1").parameterValue(baseStackDetails.get("PublicSubnet1")).build());
+        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet2").parameterValue(baseStackDetails.get("PublicSubnet2")).build());
+        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet1").parameterValue(baseStackDetails.get("PrivateSubnet1")).build());
+        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet2").parameterValue(baseStackDetails.get("PrivateSubnet2")).build());
+        templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(baseStackDetails.get("EgressVpc")).build());
 
         // Now run the  stack to provision the infrastructure for Metrics and Analytics
         LOGGER.info("createMetricsStack::stack " + stackName);
@@ -2062,9 +1577,8 @@ public class SaaSBoostInstall {
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                             .stackName(stackName)
-                            .onFailure("DO_NOTHING")
-                            .timeoutInMinutes(90)
- //                           .roleARN("arn:aws:iam::094057127497:role/sb-install-role-feb1")
+                            //.onFailure("DO_NOTHING") // TODO bug on roll back?
+                            //.timeoutInMinutes(90)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                             .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
                             .parameters(templateParameters)
@@ -2073,308 +1587,294 @@ public class SaaSBoostInstall {
             stackId = cfnResponse.stackId();
             LOGGER.info("createMetricsStack::stack id " + stackId);
 
-
             boolean stackCompleted = false;
-            long sleepTime = 5l;
-/*            if ("y".equalsIgnoreCase(this.metricsAndAnalytics)) {
-                sleepTime = 15l;
-            }*/
+            long sleepTime = 5L;
             do {
-                DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
-                        .stackName(stackName)
-                        .build());
+                DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
                 Stack stack = response.stacks().get(0);
                 if ("CREATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation Metrics Stack: " + stackName + " completed successfully.");
+                    outputMessage("CloudFormation stack: " + stackName + " completed successfully.");
                     stackCompleted = true;
                 } else if ("CREATE_FAILED".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation Metrics Stack: " + stackName + " failed.");
-                    throw new RuntimeException("Error with CloudFormation Metrics stack " + stackName + ". Check the events in the AWS CloudFormation Console");
+                    outputMessage("CloudFormation stack: " + stackName + " failed.");
+                    throw new RuntimeException("Error with CloudFormation stack " + stackName + ". Check the events in the AWS CloudFormation Console");
                 } else {
-                    outputMessage("Awaiting CloudFormation Metrics Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
+                    outputMessage("Awaiting CloudFormation Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
                     try {
                         Thread.sleep(sleepTime * 60 * 1000);
                     } catch (Exception e) {
                         LOGGER.error("Error with sleep");
                     }
-                    sleepTime = 1; //set to 1 minute after kick off of 5 minute
+                    sleepTime = 1L; //set to 1 minute after kick off of 5 minute
                 }
             } while (!stackCompleted);
-
-            //wait until the stack is created and output message stack is being created
         } catch (SdkServiceException cfnError) {
-            LOGGER.error("createMetricsStack::create stack failed {}", cfnError.getMessage());
+            LOGGER.error("cloudformation error", cfnError);
             LOGGER.error(getFullStackTrace(cfnError));
             throw cfnError;
         }
     }
 
-    private void deleteCloudFormationStack(final String stackName) {
-        // Now run the  stack to provision the infrastructure for Metrics and Analytics
-        LOGGER.info("deleteCloudFormationStack::delete stack " + stackName);
+    protected void deleteCloudFormationStack(final String stackName) {
         outputMessage("Deleting CloudFormation stack: " + stackName);
-
+        // Describe stacks won't return a response on stack name after it's deleted
+        // but it will return a response on the stack id or ARN.
         String stackId = null;
         try {
-            cfn.deleteStack(DeleteStackRequest.builder().stackName(stackName).build());
-
-            boolean stackCompleted = false;
-            long sleepTime = 5l;
-/*            if ("y".equalsIgnoreCase(this.metricsAndAnalytics)) {
-                sleepTime = 15l;
-            }*/
-            do {
-                //refresh the client
-                cfn = CloudFormationClient.builder()
-                        .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                        .region(AWS_REGION).build();
-                DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
-                        .stackName(stackName)
-                        .build());
-                Stack stack = response.stacks().get(0);
-                if ("DELETE_FAILED".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("Delete CloudFormation Stack: " + stackName + " failed.");
-                    throw new RuntimeException("Error with delete of CloudFormation stack " + stackName + ". Check the events in the AWS CloudFormation Console");
-                } else {
-                    outputMessage("Awaiting Delete CloudFormation Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
-                    try {
-                        Thread.sleep(sleepTime * 60 * 1000);
-                    } catch (Exception e) {
-                        LOGGER.error("Error with sleep");
-                    }
-                    sleepTime = 1; //set to 1 minute after kick off of 5 minute
-                }
-            } while (!stackCompleted);
-
+            DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
+            if (response.hasStacks()) {
+                stackId = response.stacks().get(0).stackId();
+            }
         } catch (SdkServiceException cfnError) {
-            if (null == cfnError.getMessage() || !cfnError.getMessage().contains("does not exist")) {
-                outputMessage("Error with deletion of CloudFormation stack: " + stackName + ", message: " + cfnError.getMessage());
-                LOGGER.error("deleteCloudFormationStack::deleteStack failed {}", cfnError.getMessage());
+            LOGGER.error("cloudformation:DescribeStacks error", cfnError);
+            LOGGER.error(getFullStackTrace(cfnError));
+            throw cfnError;
+        }
+        try {
+            cfn.deleteStack(request -> request.stackName(stackName));
+            long sleepTime = 5L;
+            while (true) {
+                //cfn = CloudFormationClient.create(); // TODO figure out how to extend the timeout in the client
+                try {
+                    DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackId).build());
+                    if (response.hasStacks()) {
+                        Stack stack = response.stacks().get(0);
+                        String stackStatus = stack.stackStatusAsString();
+                        if ("DELETE_COMPLETE".equals(stackStatus)) {
+                            outputMessage("Delete stack complete " + stackName);
+                            break;
+                        } else if ("DELETE_FAILED".equals(stackStatus)) {
+                            outputMessage("Delete CloudFormation Stack: " + stackName + " failed.");
+                            throw new RuntimeException("Error with delete of CloudFormation stack " + stackName + ". Check the events in the AWS CloudFormation Console");
+                        } else {
+                            outputMessage("Awaiting Delete CloudFormation Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
+                            try {
+                                Thread.sleep(sleepTime * 60 * 1000);
+                            } catch (Exception e) {
+                                LOGGER.error("Error pausing thread", e);
+                            }
+                            sleepTime = 1L; //set to 1 minute after kick off of 5 minute
+                        }
+                    } else {
+                        LOGGER.warn("No stacks described after delete for " + stackName);
+                        break;
+                    }
+                } catch (SdkServiceException cfnError) {
+                    if (!cfnError.getMessage().contains("does not exist")) {
+                        LOGGER.error("cloudformation:DescribeStacks error", cfnError);
+                        LOGGER.error(getFullStackTrace(cfnError));
+                        throw cfnError;
+                    }
+                }
+            }
+        } catch (SdkServiceException cfnError) {
+            LOGGER.error("cloudformation:DeleteStack error", cfnError);
+            LOGGER.error(getFullStackTrace(cfnError));
+            throw cfnError;
+        }
+    }
+
+    protected boolean checkCloudFormationStack (final String stackName) {
+        LOGGER.info("checkCloudFormationStack stack " + stackName);
+        boolean exists = false;
+        try {
+            DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
+            exists = (response.hasStacks() && !response.stacks().isEmpty());
+        } catch (SdkServiceException cfnError) {
+            if (!cfnError.getMessage().contains("does not exist")) {
+                LOGGER.error("cloudformation:DescribeStacks error", cfnError);
                 LOGGER.error(getFullStackTrace(cfnError));
                 throw cfnError;
             }
         }
+        return exists;
     }
 
-    private boolean checkCloudFormationStack (final String stackName) {
-        // Now run the  stack to provision the infrastructure for Metrics and Analytics
-        LOGGER.info("checkCloudFormationStack:: stack " + stackName);
-
-        String stackId = null;
-        try {
-            DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
-                    .stackName(stackName)
-                    .build());
-            Stack stack = response.stacks().get(0);
-            return true;
-        //wait until the stack is created and output message stack is being created
-        } catch (SdkServiceException cfnError) {
-            return false;
-        }
-    }
-
-
-    private static boolean validateDomain(String domainName) {
-        String regex = "^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$";
-        Pattern pattern = Pattern.compile(regex);
-        //searching for occurrences of regex
-        Matcher matcher = pattern.matcher(domainName);
-        return matcher.matches();
-    }
-
-    public void createS3ArtifactBucket(String envName) {
+    protected void createS3ArtifactBucket() {
         UUID uniqueId = UUID.randomUUID();
         String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
 
-        s3ArtifactBucket = "sb-" + envName + "-artifacts-" + parts[0] + "-" + parts[1];
+        this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
         LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
-        s3.createBucket(s3ArtifactBucket);
+        try {
+            CreateBucketResponse createResponse = s3.createBucket(request -> request
+                    .createBucketConfiguration(
+                            config -> config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id()))
+                    )
+                    .bucket(this.s3ArtifactBucket)
+            );
+            PutBucketEncryptionResponse encryptionResponse = s3.putBucketEncryption(request -> request
+                    .serverSideEncryptionConfiguration(
+                            config -> config.rules(rules -> rules
+                                    .applyServerSideEncryptionByDefault(encrypt -> encrypt
+                                            .sseAlgorithm(ServerSideEncryption.AES256)
+                                    )
+                            )
+                    )
+                    .bucket(this.s3ArtifactBucket)
+            );
+            PutBucketPolicyResponse policyResponse = s3.putBucketPolicy(request -> request
+                    .policy("{\n" +
+                            "    \"Version\": \"2012-10-17\",\n" +
+                            "    \"Statement\": [\n" +
+                            "        {\n" +
+                            "            \"Sid\": \"DenyNonHttps\",\n" +
+                            "            \"Effect\": \"Deny\",\n" +
+                            "            \"Principal\": \"*\",\n" +
+                            "            \"Action\": \"s3:*\",\n" +
+                            "            \"Resource\": [\n" +
+                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "/*\",\n" +
+                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "\"\n" +
+                            "            ],\n" +
+                            "            \"Condition\": {\n" +
+                            "                \"Bool\": {\n" +
+                            "                    \"aws:SecureTransport\": \"false\"\n" +
+                            "                }\n" +
+                            "            }\n" +
+                            "        }\n" +
+                            "    ]\n" +
+                            "}")
+                    .bucket(this.s3ArtifactBucket)
+            );
+        } catch (SdkServiceException s3Error) {
+            LOGGER.error("s3 error {}", s3Error.getMessage());
+            LOGGER.error(getFullStackTrace(s3Error));
+            throw s3Error;
+        }
 
-        //Set encryption for bucket
-        //CreateBucketRequest bucketRequest = new CreateBucketRequest(s3ArtifactBucket);
-        ServerSideEncryptionByDefault encryptionByDefault = new ServerSideEncryptionByDefault();
-        encryptionByDefault.setSSEAlgorithm("AES256");
-        ServerSideEncryptionConfiguration encryptionConfiguration = new ServerSideEncryptionConfiguration();
-        List<ServerSideEncryptionRule> rules = new ArrayList<>();
-        ServerSideEncryptionRule rule = new ServerSideEncryptionRule();
-        rule.setApplyServerSideEncryptionByDefault(encryptionByDefault);
-        rules.add(rule);
-        encryptionConfiguration.setRules(rules);
-        SetBucketEncryptionRequest encryptionRequest = new SetBucketEncryptionRequest();
-        encryptionRequest.setBucketName(s3ArtifactBucket);
-        encryptionRequest.setServerSideEncryptionConfiguration(encryptionConfiguration);
-        s3.setBucketEncryption(encryptionRequest);
-
-
-        String policy = "{\n" +
-                "    \"Version\": \"2012-10-17\",\n" +
-                "    \"Statement\": [\n" +
-                "        {\n" +
-                "            \"Sid\": \"DenyNonHttps\",\n" +
-                "            \"Effect\": \"Deny\",\n" +
-                "            \"Principal\": \"*\",\n" +
-                "            \"Action\": \"s3:*\",\n" +
-                "            \"Resource\": [\n" +
-                "                \"arn:aws:s3:::" + s3ArtifactBucket + "/*\",\n" +
-                "                \"arn:aws:s3:::" + s3ArtifactBucket + "\"\n" +
-                "            ],\n" +
-                "            \"Condition\": {\n" +
-                "                \"Bool\": {\n" +
-                "                    \"aws:SecureTransport\": \"false\"\n" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    ]\n" +
-                "}";
-        s3.setBucketPolicy(s3ArtifactBucket, policy);
-
-
-        //We will not set logging for the bucket as the access log bucket is not created.
-/*        BucketLoggingConfiguration loggingConfiguration = new BucketLoggingConfiguration();
-        loggingConfiguration.setDestinationBucketName();
-        loggingConfiguration.setLogFilePrefix();
-        SetBucketLoggingConfigurationRequest configRequest = new SetBucketLoggingConfigurationRequest(s3ArtifactBucket,
-                loggingConfiguration);
-        s3.setBucketLoggingConfiguration(configRequest);*/
-
-        outputMessage("Created S3 Artifact Bucket: " + s3ArtifactBucket);
-
+        outputMessage("Created S3 artifacts bucket: " + this.s3ArtifactBucket);
     }
 
-    private String buildAndCopyWebApp() throws IOException {
-        //build web app and copy
-        //Note that yarn command must have already been run in the client/web folder.
+    protected String buildAndCopyWebApp() {
+        Path webDir = workingDir.resolve(Path.of("client", "web"));
+        if (!Files.isDirectory(webDir)) {
+            outputMessage("Error, can't find client/web directory at " + webDir.toAbsolutePath().toString());
+            System.exit(2);
+        }
 
-        //list exports from stack
         /*
         REACT_APP_SIGNOUT_URI saas-boost::${ENVIRONMENT}-${AWS_REGION}:webUrl
         REACT_APP_CALLBACK_URI saas-boost::${ENVIRONMENT}-${AWS_REGION}:webUrl
-
         REACT_APP_COGNITO_USERPOOL saas-boost::${ENVIRONMENT}-${AWS_REGION}:userPoolId
         REACT_APP_CLIENT_ID saas-boost::${ENVIRONMENT}-${AWS_REGION}:userPoolClientId
         REACT_APP_COGNITO_USERPOOL_BASE_URI saas-boost::${ENVIRONMENT}-${AWS_REGION}:cognitoBaseUri
         REACT_APP_API_URI saas-boost::${ENVIRONMENT}-${AWS_REGION}:publicApiUrl
         WEB_BUCKET saas-boost::${ENVIRONMENT}-${AWS_REGION}:webBucket
-         */
-
-        if (null == webDir) {
-            outputMessage("Unexpected errors, webDir needs to be defined!");
-            System.exit(2);
-        }
-
-        //refresh the client
-        cfn = CloudFormationClient.builder()
-                .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                .region(AWS_REGION).build();
-
+        */
         String nextToken = null;
         Map<String, String> exportsMap = new HashMap<>();
-        do {
-            ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
-                    .nextToken(nextToken)
-                    .build());
-            nextToken = response.nextToken();
-            for (Export export : response.exports()) {
-                if (export.name().startsWith("saas-boost::" + envName)) {
-                    exportsMap.put(export.name(), export.value());
+        try {
+            do {
+                ListExportsResponse response = cfn.listExports(ListExportsRequest.builder()
+                        .nextToken(nextToken)
+                        .build());
+                nextToken = response.nextToken();
+                for (Export export : response.exports()) {
+                    if (export.name().startsWith("saas-boost::" + envName)) {
+                        exportsMap.put(export.name(), export.value());
+                    }
                 }
-            }
-        } while (null != nextToken);
+            } while (nextToken != null);
+        } catch (SdkServiceException cfnError) {
+            LOGGER.error("cloudformation:ListExports error", cfnError);
+            LOGGER.error(getFullStackTrace(cfnError));
+            throw cfnError;
+        }
 
         final String prefix = "saas-boost::" + envName + "-" + AWS_REGION.id() + ":";
 
-        //run yarn to build the react app
-        outputMessage("Start build of AWS SaaS Boost React web application with yarn ...");
-        ProcessBuilder pb;
-
-        if (isWindows()) {
-            pb = new ProcessBuilder("cmd", "/c", "yarn", "build");
-        } else {
-            pb = new ProcessBuilder("yarn", "build");
-        }
-
-        // Check to ensure the availability of the variable `prefix + "webUrl"` before proceeding to next step
-        if (!exportsMap.containsKey(prefix + "webUrl")) {
+        // We need to know the CloudFront distribution URL to continue
+        final String webUrl = exportsMap.get(prefix + "webUrl");
+        if (isEmpty(webUrl)) {
             outputMessage("Unexpected errors, CloudFormation export " + prefix + "webUrl not found");
             LOGGER.info("Available exports part of stack output" + String.join(", ", exportsMap.keySet()));
             System.exit(2);
         }
 
-        Map<String, String> env = pb.environment();
-        pb.directory(new File(webDir));
-        env.put("REACT_APP_SIGNOUT_URI",exportsMap.get(prefix + "webUrl"));
-        env.put("REACT_APP_CALLBACK_URI", exportsMap.get(prefix + "webUrl"));
-        env.put("REACT_APP_COGNITO_USERPOOL", exportsMap.get(prefix + "userPoolId"));
-        env.put("REACT_APP_CLIENT_ID", exportsMap.get(prefix + "userPoolClientId"));
-        env.put("REACT_APP_COGNITO_USERPOOL_BASE_URI", exportsMap.get(prefix + "cognitoBaseUri"));
-        env.put("REACT_APP_API_URI", exportsMap.get(prefix + "publicApiUrl"));
-        env.put("REACT_APP_AWS_ACCOUNT", accountId);
-        env.put("REACT_APP_ENVIRONMENT", envName);
-        env.put("REACT_APP_AWS_REGION", AWS_REGION.id());
+        // We need to know the S3 bucket to host the web files in to continue
+        final String webBucket = exportsMap.get(prefix + "webBucket");
+        if (isEmpty(webBucket)) {
+            outputMessage("Unexpected errors, CloudFormation export " + prefix + "webBucket not found");
+            LOGGER.info("Available exports part of stack output" + String.join(", ", exportsMap.keySet()));
+            System.exit(2);
+        }
 
-        pb.directory(new File(webDir));
-        //pb.redirectError()
-        Process process = pb.start();
-        printResults(process);
+        // Execute yarn build to generate the React app
+        outputMessage("Start build of AWS SaaS Boost React web application with yarn...");
+        ProcessBuilder pb;
+        Process process = null;
         try {
+            if (isWindows()) {
+                pb = new ProcessBuilder("cmd", "/c", "yarn", "build");
+            } else {
+                pb = new ProcessBuilder("yarn", "build");
+            }
+
+            Map<String, String> env = pb.environment();
+            pb.directory(webDir.toFile());
+            env.put("REACT_APP_SIGNOUT_URI", webUrl);
+            env.put("REACT_APP_CALLBACK_URI", webUrl);
+            env.put("REACT_APP_COGNITO_USERPOOL", exportsMap.get(prefix + "userPoolId"));
+            env.put("REACT_APP_CLIENT_ID", exportsMap.get(prefix + "userPoolClientId"));
+            env.put("REACT_APP_COGNITO_USERPOOL_BASE_URI", exportsMap.get(prefix + "cognitoBaseUri"));
+            env.put("REACT_APP_API_URI", exportsMap.get(prefix + "publicApiUrl"));
+            env.put("REACT_APP_AWS_ACCOUNT", accountId);
+            env.put("REACT_APP_ENVIRONMENT", envName);
+            env.put("REACT_APP_AWS_REGION", AWS_REGION.id());
+
+            process = pb.start();
+            printResults(process);
             process.waitFor();
             int exitValue = process.exitValue();
             if (exitValue != 0) {
-                throw new RuntimeException("Error building web application. Verify version of node is correct.");
+                throw new RuntimeException("Error building web application. Verify version of Node is correct.");
             }
             outputMessage("Completed build of AWS SaaS Boost React web application.");
-        } catch (InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             LOGGER.error(getFullStackTrace(e));
         } finally {
-            process.destroy();
+            if (process != null) {
+                process.destroy();
+            }
         }
 
-        //meta data to set cache control to no-store
-        ObjectMetadataProvider metaDataProvider = (file, meta) -> {
-            meta.setCacheControl("no-store");
-        };
-
-        //sync files to the web bucket
-        outputMessage("Copy AWS SaaS Boost web application files to s3 web bucket");
-        final String webBucket = exportsMap.get(prefix + "webBucket");
-        if (null == webBucket || webBucket.isEmpty()) {
-            throw new RuntimeException("CloudFormation export for '" + prefix + "webBucket' not found or is blank!");
-        }
-
-        //refresh the client
-        this.s3 = AmazonS3Client.builder().withRegion(AWS_REGION.id())
-                .withCredentials(new DefaultAWSCredentialsProviderChain())
-                .build();
-        TransferManager xferMgr = TransferManagerBuilder.standard()
-                .withS3Client(this.s3)
-                .build();
-        try {
-            MultipleFileUpload xfer = xferMgr.uploadDirectory(webBucket,
-                    null
-                    , new File(webDir + File.separator + "build")
-                    , true
-                    , metaDataProvider);
-
-            do {
+        // Sync files to the web bucket
+        outputMessage("Copying AWS SaaS Boost web application files to s3 web bucket");
+        Map<String, String> metadata = Stream
+                .of(new AbstractMap.SimpleEntry<>("Cache-Control", "no-store"))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Path yarnBuildDir = webDir.resolve(Path.of("build"));
+        List<Path> filesToUpload;
+        try (Stream<Path> stream = Files.walk(yarnBuildDir)) {
+            filesToUpload = stream.filter(Files::isRegularFile).collect(Collectors.toList());
+            outputMessage("Uploading " + filesToUpload.size() + " files to S3");
+            for (Path fileToUpload : filesToUpload) {
+                // Remove the parent client/web/build path from the S3 key
+                String key = fileToUpload.subpath(yarnBuildDir.getNameCount(), fileToUpload.getNameCount()).toString();
                 try {
-                    outputMessage(("Sleep 10 seconds for s3 file copy to complete"));
-                    Thread.sleep(10000);
-                } catch (InterruptedException e) {
-                    LOGGER.error(e.getLocalizedMessage());
+                    // TODO this really should be a delete and copy like aws s3 sync --delete
+                    LOGGER.info("Uploading to S3 " + fileToUpload.toString() + " -> " + key);
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(webBucket)
+                            .key(key)
+                            .metadata(metadata)
+                            .build(), RequestBody.fromFile(fileToUpload)
+                    );
+                } catch (SdkServiceException s3Error) {
+                    LOGGER.error("s3:PutObject error", s3Error);
+                    LOGGER.error(getFullStackTrace(s3Error));
+                    throw s3Error;
                 }
-            } while (!xfer.isDone());
-
-        } catch (AmazonServiceException e) {
-            LOGGER.error(e.getErrorMessage());
-            throw e;
-        } finally {
-            xferMgr.shutdownNow();
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error walking web app build directory", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
         }
-
-        return exportsMap.get(prefix + "webUrl");
+        return webUrl;
     }
 
-    private static void executeCommand(String command, String[] environment, File dir) throws IOException {
+    protected static void executeCommand(String command, String[] environment, File dir) {
         LOGGER.info("Executing Commands: " + command);
         if (null != dir) {
             LOGGER.info("Directory: " + dir.getPath());
@@ -2412,65 +1912,242 @@ public class SaaSBoostInstall {
         process.destroy();
     }
 
-    private static String[] runCommand(String cmd)throws IOException {
-        // The actual procedure for process execution:
-        //runCommand(String cmd);
-        // Create a list for storing output.
-        ArrayList list = new ArrayList();
-        // Execute a command and get its process handle
-        Process proc = Runtime.getRuntime().exec(cmd);
-        // Get the handle for the processes InputStream
-        InputStream istr = proc.getInputStream();
-        // Create a BufferedReader and specify it reads
-        // from an input stream.
-
-        BufferedReader br = new BufferedReader(new InputStreamReader(istr));
-        String str; // Temporary String variable
-        // Read to Temp Variable, Check for null then
-        // add to (ArrayList)list
-        while ((str = br.readLine()) != null)
-            list.add(str);
-        // Wait for process to terminate and catch any Exceptions.
+    protected LinkedHashMap<String, User> getQuickSightUsers() {
+        LOGGER.info("Load Quicksight users");
+        LinkedHashMap<String, User> users = new LinkedHashMap<>();
         try {
-            proc.waitFor();
+            String nextToken = null;
+            do {
+                ListUsersResponse response = quickSight.listUsers(ListUsersRequest.builder()
+                        .awsAccountId(accountId)
+                        .namespace("default")
+                        .nextToken(nextToken)
+                        .build()
+                );
+                if (response.hasUserList()) {
+                    for (User quickSightUser : response.userList()) {
+                        users.put(quickSightUser.userName(), quickSightUser);
+                    }
+                }
+                nextToken = response.nextToken();
+            } while (nextToken != null);
+        } catch (SdkServiceException quickSightError) {
+            LOGGER.error("quickSight:ListUsers error {}", quickSightError.getMessage());
+            LOGGER.error(getFullStackTrace(quickSightError));
+            throw quickSightError;
         }
-        catch (InterruptedException e) {
-            System.err.println("Process was interrupted");
-        }
-        // Note: proc.exitValue() returns the exit value.
-        // (Use if required)
-        br.close(); // Done.
-        // Convert the list to a string and return
-        return (String[])list.toArray(new String[0]);
+        LOGGER.info("Completed load of QuickSight users");
+        return users;
     }
 
-    private static String getFullStackTrace(Exception e) {
+    protected String analyticsStackName() {
+        return this.stackName + "-analytics";
+    }
+
+    protected void cleanUpS3(String bucket, String prefix) {
+        // The list of objects in the bucket to delete
+        List<ObjectIdentifier> toDelete = new ArrayList<>();
+        if (isNotEmpty(prefix) && !prefix.endsWith("/")) {
+            prefix = prefix + "/";
+        }
+        GetBucketVersioningResponse versioningResponse = s3.getBucketVersioning(request -> request.bucket(bucket));
+        if (BucketVersioningStatus.ENABLED == versioningResponse.status() || BucketVersioningStatus.SUSPENDED == versioningResponse.status()) {
+            LOGGER.info("Bucket " + bucket + " is versioned (" + versioningResponse.status() + ")");
+            ListObjectVersionsResponse listObjectResponse;
+            String keyMarker = null;
+            String versionIdMarker = null;
+            do {
+                ListObjectVersionsRequest request;
+                if (isNotBlank(keyMarker) && isNotBlank(versionIdMarker)) {
+                    request = ListObjectVersionsRequest.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .keyMarker(keyMarker)
+                            .versionIdMarker(versionIdMarker)
+                            .build();
+                } else if (isNotBlank(keyMarker)) {
+                    request = ListObjectVersionsRequest.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .keyMarker(keyMarker)
+                            .build();
+                } else {
+                    request = ListObjectVersionsRequest.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .build();
+                }
+                listObjectResponse = s3.listObjectVersions(request);
+                keyMarker = listObjectResponse.nextKeyMarker();
+                versionIdMarker = listObjectResponse.nextVersionIdMarker();
+                listObjectResponse.versions()
+                        .stream()
+                        .map(version ->
+                                ObjectIdentifier.builder()
+                                        .key(version.key())
+                                        .versionId(version.versionId())
+                                        .build()
+                        )
+                        .forEachOrdered(toDelete::add);
+            } while (listObjectResponse.isTruncated());
+        } else {
+            LOGGER.info("Bucket " + bucket + " is not versioned (" + versioningResponse.status() + ")");
+            ListObjectsV2Response listObjectResponse;
+            String token = null;
+            do {
+                ListObjectsV2Request request;
+                if (isNotBlank(token)) {
+                    request = ListObjectsV2Request.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .continuationToken(token)
+                            .build();
+                } else {
+                    request = ListObjectsV2Request.builder()
+                            .bucket(bucket)
+                            .prefix(prefix)
+                            .build();
+                }
+                listObjectResponse = s3.listObjectsV2(request);
+                token = listObjectResponse.nextContinuationToken();
+                listObjectResponse.contents()
+                        .stream()
+                        .map(obj ->
+                                ObjectIdentifier.builder()
+                                        .key(obj.key())
+                                        .build()
+                        )
+                        .forEachOrdered(toDelete::add);
+            } while (listObjectResponse.isTruncated());
+        }
+        if (!toDelete.isEmpty()) {
+            LOGGER.info("Deleting " + toDelete.size() + " objects");
+            final int maxBatchSize = 1000;
+            int batchStart = 0;
+            int batchEnd = 0;
+            while (batchEnd < toDelete.size()) {
+                batchStart = batchEnd;
+                batchEnd += maxBatchSize;
+                if (batchEnd > toDelete.size()) {
+                    batchEnd = toDelete.size();
+                }
+                Delete delete = Delete.builder()
+                        .objects(toDelete.subList(batchStart, batchEnd))
+                        .build();
+                DeleteObjectsResponse deleteResponse = s3.deleteObjects(builder -> builder
+                        .bucket(bucket)
+                        .delete(delete)
+                        .build()
+                );
+                LOGGER.info("Cleaned up " + deleteResponse.deleted().size() + " objects in bucket " + bucket);
+            }
+        } else {
+            LOGGER.info("Bucket " + bucket + " is empty. No objects to clean up.");
+        }
+    }
+
+    public static String getFullStackTrace(Exception e) {
         final StringWriter sw = new StringWriter();
         final PrintWriter pw = new PrintWriter(sw, true);
         e.printStackTrace(pw);
         return sw.getBuffer().toString();
     }
 
-    private List<User> getQuicksightUsers() {
-        LOGGER.info("Load Quicksight users");
-        if (null == quickSightClient) {
-            quickSightClient = QuickSightClient.builder()
-                    .credentialsProvider(DefaultCredentialsProvider.builder().build())
-                    .region(quickSightRegion).build();
+    public static String getVersionInfo() {
+        String result = "";
+        String propFileName = "git.properties";
+        try (InputStream inputStream = SaaSBoostInstall.class.getClassLoader().getResourceAsStream(propFileName)) {
+            Properties prop = new Properties();
+            prop.load(inputStream);
+
+            String tag = prop.getProperty("git.commit.id.describe");
+            String commitTime = prop.getProperty("git.commit.time");
+            LOGGER.info("{}, Commit time: {}", tag, commitTime);
+
+            result = prop.getProperty("git.closest.tag.name");
+            if (isBlank(result)) {
+                // TODO is there a bug on version being blank?
+                if (isNotBlank(tag)) {
+                    // Fall back to git describe --tags --always for untagged repositories
+                    result = tag.replaceAll("-dirty$", "");
+                    LOGGER.warn("Setting version to {} because the repository is untagged.", result);
+                }
+                if (isBlank(result)) {
+                    LOGGER.warn("Setting version to v0 because it can't be determined from the git.properties file.");
+                    result = "v0";
+                }
+            } else {
+                LOGGER.info("Setting version to {}", result);
+            }
+        } catch (NullPointerException | IOException e) {
+            outputMessage("Error loading git.properties: " + e.getMessage());
+            outputMessage(propFileName + " is generated by a Maven build plugin. Check for a .git folder in the same directory as the Maven POM file.");
+            result = "v0";
+            outputMessage("Setting version to " + result);
+        }
+        return result;
+    }
+
+    public static boolean isWindows() {
+        return (OS.contains("win"));
+    }
+
+    public static boolean isMac() {
+        return (OS.contains("mac"));
+    }
+
+    public static boolean isEmpty(String str) {
+        return (str == null || str.isEmpty());
+    }
+
+    public static boolean isBlank(String str) {
+        return (str == null || str.isBlank());
+    }
+
+    public static boolean isNotEmpty(String str) {
+        return !isEmpty(str);
+    }
+
+    public static boolean isNotBlank(String str) {
+        return !isBlank(str);
+    }
+
+    /**
+     * Generate a random password that matches the password policy of the Cognito user pool
+     * @return a random password that matches the password policy of the Cognito user pool
+     */
+    public static String generatePassword (int passwordLength) {
+        if (passwordLength < 8) {
+            throw new IllegalArgumentException("Invalid password length. Minimum of 8 characters is required.");
         }
 
-        List<User> users = new ArrayList<>();
-        String nextToken;
-        do{
-            ListUsersResponse response  = quickSightClient.listUsers(ListUsersRequest.builder()
-                    .awsAccountId(accountId)
-                    .namespace("default")
-                    .build());
-            nextToken = response.nextToken();
-            users.addAll(response.userList());
-        } while (null != nextToken);
+        // Split the classes of characters into separate buckets so we can be sure to use
+        // the correct amount of each type
+        final char[][] chars = {
+                {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'},
+                {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'},
+                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'},
+                {'!', '#', '$', '%', '&', '*', '+', '-', '.', ':', '=', '?', '^', '_'}
+        };
 
-        LOGGER.info("Completed load of Quicksight users");
-        return users;
+        Random random = new Random();
+        StringBuilder password = new StringBuilder(passwordLength);
+
+        // Randomly select one character from each of the required character types
+        ArrayList<Integer> requiredCharacterBuckets = new ArrayList<>(3);
+        requiredCharacterBuckets.add(0, 0);
+        requiredCharacterBuckets.add(1, 1);
+        requiredCharacterBuckets.add(2, 2);
+        while (!requiredCharacterBuckets.isEmpty()) {
+            Integer randomRequiredCharacterBucket = requiredCharacterBuckets.remove(random.nextInt(requiredCharacterBuckets.size()));
+            password.append(chars[randomRequiredCharacterBucket][random.nextInt(chars[randomRequiredCharacterBucket].length)]);
+        }
+
+        // Fill out the rest of the password with randomly selected characters
+        for (int i = 0; i < passwordLength - requiredCharacterBuckets.size(); i++) {
+            int characterBucket = random.nextInt(chars.length);
+            password.append(chars[characterBucket][random.nextInt(chars[characterBucket].length)]);
+        }
+        return password.toString();
     }
 }

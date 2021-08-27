@@ -15,7 +15,11 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-public class AppConfigHelper {
+public final class AppConfigHelper {
+
+    private AppConfigHelper() {
+        // No one should instantiate us
+    }
 
     public static boolean isDomainChanged(AppConfig existing, AppConfig altered) {
         return (

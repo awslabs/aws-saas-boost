@@ -19,15 +19,17 @@ import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "storageGb",
-        "throughputMbs",
-        "backupRetentionDays",
-        "dailyBackupTime",
-        "weeklyMaintenanceTime",
-        "windowsMountDrive"
-})
+import java.util.Objects;
+
+//@JsonInclude(JsonInclude.Include.NON_NULL)
+//@JsonPropertyOrder({
+//        "storageGb",
+//        "throughputMbs",
+//        "backupRetentionDays",
+//        "dailyBackupTime",
+//        "weeklyMaintenanceTime",
+//        "windowsMountDrive"
+//})
 @JsonDeserialize(builder = FsxFilesystem.Builder.class)
 public class FsxFilesystem {
 
@@ -75,8 +77,36 @@ public class FsxFilesystem {
         return windowsMountDrive;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final FsxFilesystem other = (FsxFilesystem) obj;
+        return (
+                ((storageGb == null && other.storageGb == null) || (storageGb != null && storageGb.equals(other.storageGb)))
+                && ((throughputMbs == null && other.throughputMbs == null) || (throughputMbs != null && throughputMbs.equals(other.throughputMbs)))
+                && ((backupRetentionDays == null && other.backupRetentionDays == null) || (backupRetentionDays != null && backupRetentionDays.equals(other.backupRetentionDays)))
+                && ((dailyBackupTime == null && other.dailyBackupTime == null) || (dailyBackupTime != null && dailyBackupTime.equals(other.dailyBackupTime)))
+                && ((weeklyMaintenanceTime == null && other.weeklyMaintenanceTime == null) || (weeklyMaintenanceTime != null && weeklyMaintenanceTime.equals(other.weeklyMaintenanceTime)))
+                && ((windowsMountDrive == null && other.windowsMountDrive == null) || (windowsMountDrive != null && windowsMountDrive.equals(other.windowsMountDrive)))
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(storageGb, throughputMbs, backupRetentionDays, dailyBackupTime, weeklyMaintenanceTime, windowsMountDrive);
+    }
+
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-   // @JsonIgnoreProperties(value = {"filesystemLifecycle"})
     public static final class Builder {
         private Integer storageGb;
         private Integer throughputMbs;
