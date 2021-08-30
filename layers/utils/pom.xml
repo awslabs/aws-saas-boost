@@ -136,12 +136,4 @@ limitations under the License.
             <version>2.13.76</version>
         </dependency>
     </dependencies>
-
-    <distributionManagement>
-        <repository>
-            <id>project.local-repo</id>
-            <url>${project.local-repo.url}</url>
-        </repository>
-    </distributionManagement>
-
 </project>

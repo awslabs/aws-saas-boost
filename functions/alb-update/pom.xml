@@ -168,12 +168,4 @@ limitations under the License.
             </exclusions>
         </dependency>
     </dependencies>
-
-    <repositories>
-        <repository>
-            <id>project.local-repo</id>
-            <url>${project.local-repo.url}</url>
-        </repository>
-    </repositories>
-
 </project>

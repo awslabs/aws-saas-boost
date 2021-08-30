@@ -153,12 +153,4 @@ limitations under the License.
             <version>2.13.3</version>
         </dependency>
     </dependencies>
-
-    <repositories>
-        <repository>
-            <id>project.local-repo</id>
-            <url>${project.local-repo.url}</url>
-        </repository>
-    </repositories>
-
 </project>

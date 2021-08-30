@@ -141,12 +141,4 @@ limitations under the License.
             </exclusions>
         </dependency>
     </dependencies>
-
-    <distributionManagement>
-        <repository>
-            <id>project.local-repo</id>
-            <url>${project.local-repo.url}</url>
-        </repository>
-    </distributionManagement>
-
 </project>
