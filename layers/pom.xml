@@ -23,4 +23,20 @@
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <configuration>
+                        <attach>false</attach>
+                        <descriptors>
+                            <descriptor>src/main/resources/lambda-layer-assembly.xml</descriptor>
+                        </descriptors>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>

@@ -24,14 +24,15 @@
     </modules>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
+        <!-- plugin versions -->
+        <assembly.version>3.1.1</assembly.version>
+        <checkstyle.version>3.1.2</checkstyle.version>
+        <spotbugs.version>4.3.0</spotbugs.version>
         <!-- dependency versions -->
         <slf4j-api.version>1.7.21</slf4j-api.version>
         <slf4j-log4j12.version>1.7.21</slf4j-log4j12.version>
         <aws-java-sdk.version>1.11.852</aws-java-sdk.version>
         <junit.version>5.7.1</junit.version>
-        <spotbugs.version>4.3.0</spotbugs.version>
-        <checkstyle.version>3.1.2</checkstyle.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -45,6 +46,29 @@
     </dependencyManagement>
     <build>
         <defaultGoal>clean package</defaultGoal>
+        <!-- this defines default plugin configuration when referenced by all inheriting modules -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <version>${assembly.version}</version>
+                    <configuration>
+                        <descriptors>
+                            <descriptor>src/main/resources/lambda-assembly.xml</descriptor>
+                        </descriptors>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>single</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <!-- this defines plugins that will be run at the specified phase for all inheriting modules -->
         <plugins>
             <plugin>
