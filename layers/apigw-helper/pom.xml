@@ -17,8 +17,12 @@ limitations under the License.
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
-    <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+    <parent>
+        <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+        <artifactId>saasboost-layers</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../</relativePath>
+    </parent>
     <artifactId>ApiGatewayHelper</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -31,8 +35,7 @@ limitations under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.local-repo.path>${basedir}/../../local-maven-repo</project.local-repo.path>
-        <project.local-repo.url>file:${project.local-repo.path}</project.local-repo.url>
+        <checkstyle.maxAllowedViolations>26</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -98,24 +101,6 @@ limitations under the License.
                         <phase>install</phase>
                         <goals>
                             <goal>install-file</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.0.0-M1</version>
-                <configuration>
-                    <file>${project.build.directory}/${project.artifactId}.jar</file>
-                    <url>${project.local-repo.url}</url>
-                    <repositoryId>project.local-repo</repositoryId>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>deploy</phase>
-                        <goals>
-                            <goal>deploy-file</goal>
                         </goals>
                     </execution>
                 </executions>

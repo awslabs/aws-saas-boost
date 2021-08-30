@@ -17,7 +17,12 @@ limitations under the License.
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.amazonaws.partners.saasfactory.metering</groupId>
+    <parent>
+        <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+        <artifactId>saasboost-metering-billing</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../</relativePath>
+    </parent>
     <artifactId>BillingService</artifactId>
     <version>1.0</version>
     <packaging>jar</packaging>
@@ -31,6 +36,7 @@ limitations under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <checkstyle.maxAllowedViolations>218</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
