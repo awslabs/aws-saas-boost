@@ -38,7 +38,6 @@ limitations under the License.
     </properties>
 
     <build>
-        <defaultGoal>clean deploy</defaultGoal>
         <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>

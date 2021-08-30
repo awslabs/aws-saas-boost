@@ -44,6 +44,7 @@
         </dependencies>
     </dependencyManagement>
     <build>
+        <defaultGoal>clean package</defaultGoal>
         <!-- this defines plugins that will be run at the specified phase for all inheriting modules -->
         <plugins>
             <plugin>
