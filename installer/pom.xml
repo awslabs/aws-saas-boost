@@ -31,7 +31,6 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws.java.sdk.version>2.13.68</aws.java.sdk.version>
     </properties>
 

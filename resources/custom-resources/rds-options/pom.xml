@@ -33,7 +33,6 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <checkstyle.maxAllowedViolations>48</checkstyle.maxAllowedViolations>
     </properties>
 

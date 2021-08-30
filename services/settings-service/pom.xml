@@ -34,8 +34,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <checkstyle.maxAllowedViolations>152</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>199</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
