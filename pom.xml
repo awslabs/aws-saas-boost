@@ -20,6 +20,7 @@
         <module>installer</module>
         <module>layers</module>
         <module>metering-billing</module>
+        <module>metrics-analytics</module>
         <module>services</module>
     </modules>
     <properties>
