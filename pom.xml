@@ -27,6 +27,8 @@
         <!-- plugin versions -->
         <assembly.version>3.1.1</assembly.version>
         <checkstyle.version>3.1.2</checkstyle.version>
+        <compiler.version>3.8.1</compiler.version>
+        <compiler.java.version>11</compiler.java.version>
         <spotbugs.version>4.3.0</spotbugs.version>
         <!-- dependency versions -->
         <slf4j-api.version>1.7.21</slf4j-api.version>
@@ -49,6 +51,17 @@
         <!-- this defines default plugin configuration when referenced by all inheriting modules -->
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${compiler.version}</version>
+                    <configuration>
+                        <source>${compiler.java.version}</source>
+                        <target>${compiler.java.version}</target>
+                        <encoding>UTF-8</encoding>
+                        <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                    </configuration>
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>

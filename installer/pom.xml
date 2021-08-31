@@ -18,8 +18,12 @@ limitations under the License.
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
-    <groupId>com.amazonaws.partners.saasfactory.saasboost</groupId>
+    <parent>
+        <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+        <artifactId>saasboost</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../</relativePath>
+    </parent>
     <artifactId>SaaSBoostInstall</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -32,6 +36,7 @@ limitations under the License.
 
     <properties>
         <aws.java.sdk.version>2.13.68</aws.java.sdk.version>
+        <checkstyle.maxAllowedViolations>154</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -41,13 +46,6 @@ limitations under the License.
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.6.0</version>
-                <configuration>
-                    <source>11</source>
-                    <target>11</target>
-                    <encoding>UTF-8</encoding>
-                    <forceJavacCompilerUse>true</forceJavacCompilerUse>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
