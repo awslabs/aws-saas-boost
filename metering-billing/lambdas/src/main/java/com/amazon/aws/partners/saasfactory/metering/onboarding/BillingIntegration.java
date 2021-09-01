@@ -303,7 +303,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
                                 .build();
                 customer = Customer.create(params);
                 //create the subscription
-                createStripeSubscription(customer, planEnum, tenantId,false);
+                createStripeSubscription(customer, planEnum, tenantId);
                 LOGGER.info("provisionTenantInStripe: Customer created with id: " + customer.getId());
             } catch (StripeException e) {
                 LOGGER.error("provisionTenantInStripe: Error creating Customer for Tenant: " + tenantId);
@@ -351,7 +351,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
                 return;
             }
 
-            createStripeSubscription(customer, planEnum, tenantId,true);
+            createStripeSubscription(customer, planEnum, tenantId);
         }
     }
 
@@ -428,7 +428,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     For the metered products, a message is sent to Event Bus to add that record to the Dynanamo table mapping
      the Tenant internal product code to the Stripe Subscription id which is unique for each tenant and product.
      */
-    private void createStripeSubscription(Customer customer, SubscriptionPlan plan, String fullTenantId, boolean existingCustomer) throws StripeException{
+    private void createStripeSubscription(Customer customer, SubscriptionPlan plan, String fullTenantId) throws StripeException{
         //get the PRICE ID for the product code of the plan.  This is for the monthly subscription
         final String planPriceId = getPriceId(plan.name());
         List<SubscriptionCreateParams.Item> items = new ArrayList<>();
