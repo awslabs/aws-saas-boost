@@ -983,7 +983,7 @@ public class SaaSBoostInstall {
                 if (response.hasImageIds()) {
                     LOGGER.info("Deleted " + response.imageIds().size() + " images");
                 }
-                if (response.hasFailures()) {
+                if (response.hasFailures() && !response.failures().isEmpty()) {
                     LOGGER.error("Error deleting images from ECR");
                     response.failures().forEach(failure -> LOGGER.error("{} {}", failure.failureCodeAsString(), failure.failureReason()));
                     throw new RuntimeException("ECR delete image failures " + response.failures().size());
@@ -1313,6 +1313,9 @@ public class SaaSBoostInstall {
         try {
             GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_STACK"));
             stackName = response.parameter().value();
+        } catch (ParameterNotFoundException paramStoreError) {
+            LOGGER.warn("Parameter /saas-boost/" + this.envName + "/SAAS_BOOST_STACK not found setting to default 'sb-" + this.envName + "'");
+            stackName = "sb-" + this.envName;
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
             LOGGER.error(getFullStackTrace(ssmError));
@@ -1331,6 +1334,9 @@ public class SaaSBoostInstall {
         try {
             GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER"));
             lambdasFolder = response.parameter().value();
+        } catch (ParameterNotFoundException paramStoreError) {
+            LOGGER.warn("Parameter /saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER not found setting to default 'lambdas'");
+            lambdasFolder = "lambdas";
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
             LOGGER.error(getFullStackTrace(ssmError));
