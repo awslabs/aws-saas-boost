@@ -50,7 +50,7 @@ public class AlbSetListenerRule implements RequestHandler<Map<String, Object>, O
     }
 
     @Override
-	public Object handleRequest(Map<String, Object> event, Context context) {
+    public Object handleRequest(Map<String, Object> event, Context context) {
         Utils.logRequestEvent(event);
 
         String source = (String) event.get("source");
