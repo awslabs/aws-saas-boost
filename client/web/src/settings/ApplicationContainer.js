@@ -39,6 +39,10 @@ import { selectDbOptions, selectOsOptions, selectDbUploadUrl } from '../options/
 import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks';
 
 export function ApplicationContainer(props) {
+  const EFS = 'EFS';
+  const FSX = 'FSX';
+  const LINUX = 'LINUX';
+
   const dispatch = useDispatch();
   const settings = useSelector(selectAllSettings);
   const loading = useSelector(selectLoading);
@@ -113,6 +117,15 @@ export function ApplicationContainer(props) {
     updateConfiguration(formValues);
   };
 
+  const getFormattedTime = (timeString) => {
+    // Expecting timeString to be HH:MM:SS
+    let parts = timeString.split(':');
+    if (parts.length === 3) {
+      parts = parts.splice(0, 2); //Trim the trailing :00. Server doesn't need seconds
+    }
+    return parts.join(':');
+  };
+
   const updateConfiguration = async (values) => {
     const isMatch = (pw, encryptedPw) => {
       return encryptedPw.substring(0, 8) === pw;
@@ -131,15 +144,16 @@ export function ApplicationContainer(props) {
         ...rest
       } = values;
       let { filesystemLifecycle, ...cleanedFs } = filesystem;
-      let { weeklyMaintenanceDay, ...cleanedFsx } = cleanedFs.fsx;
+      let { weeklyMaintenanceDay, weeklyMaintenanceTime: time, ...cleanedFsx } = cleanedFs.fsx;
+      const weeklyTime = getFormattedTime(time);
       const fsx = {
         ...cleanedFsx,
-        weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${cleanedFsx.weeklyMaintenanceTime}`,
+        weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
       };
       cleanedFs = {
         ...cleanedFs,
-        efs: cleanedFs.fileSystemType === 'EFS' ? cleanedFs.efs : null,
-        fsx: cleanedFs.fileSystemType === 'FSX' ? fsx : null,
+        efs: cleanedFs.fileSystemType === EFS ? cleanedFs.efs : null,
+        fsx: cleanedFs.fileSystemType === FSX ? fsx : null,
       };
       const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database;
       // If we detected an encrypted password coming in, and it looks like they haven't changed it
@@ -157,7 +171,7 @@ export function ApplicationContainer(props) {
         filesystem: provisionFS ? cleanedFs : null,
         database: provisionDb ? cleanedDb : null,
         billing: provisionBilling ? billing : null,
-        operatingSystem: operatingSystem === 'LINUX' ? 'LINUX' : windowsVersion,
+        operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
       };
       if (!!file && file.name && provisionDb) {
         await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }));
