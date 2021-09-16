@@ -556,6 +556,7 @@ Resources:
                   - lambda:Get*
                   - lambda:CreateFunction
                   - lambda:InvokeFunction
+                  - lambda:UpdateFunctionCode
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
               - Effect: Allow

@@ -18,6 +18,8 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonDeserialize(builder = BillingProvider.Builder.class)
 public class BillingProvider {
 
@@ -42,13 +44,18 @@ public class BillingProvider {
             return true;
         }
         // Same type?
-        if (obj == null || !(obj instanceof BillingProvider)) {
+        if (getClass() != obj.getClass()) {
             return false;
         }
         final BillingProvider other = (BillingProvider) obj;
         return (
                 (apiKey == null && other.apiKey == null) || (apiKey != null && apiKey.equals(other.apiKey))
         );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(apiKey);
     }
 
     public static Builder builder() {

@@ -105,6 +105,7 @@ for svc in onboarding-service tenant-service user-service settings-service metri
 done
 
 cd "${SAAS_BOOST_ROOT_DIR}"
+mvn
 find . -type f -name '*-lambda.zip' -exec aws s3 cp {} s3://$S3_BUCKET/lambdas/ \;
 
 cd "${CURRENT_DIR}"

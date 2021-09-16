@@ -540,19 +540,35 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
-  # SettingsServiceGetAppConfigVersion:
-  #   Type: AWS::Lambda::Version
-  #   Properties:
-  #     FunctionName: !Ref SettingsServiceGetAppConfig
-  #     Description: v1
-  # SettingsServiceGetAppConfigAlias:
-  #   Type: AWS::Lambda::Alias
-  #   Properties:
-  #     FunctionName: !Ref SettingsServiceGetAppConfig
-  #     FunctionVersion: !GetAtt SettingsServiceGetAppConfigVersion.Version
-  #     Name: v1
-  #     ProvisionedConcurrencyConfig:
-  #       ProvisionedConcurrentExecutions: 1
+  SettingsServiceDeleteAppConfigLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-delete-config
+      RetentionInDays: 30
+  SettingsServiceDeleteAppConfig:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-settings-delete-config
+      Role: !GetAtt SettingsServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::deleteAppConfig
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Settings"
   SettingsServiceParamStoreRefLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -639,6 +655,9 @@ Outputs:
   SettingsServiceUpdateAppConfigArn:
     Description: Settings Service update application configuration Lambda ARN
     Value: !GetAtt SettingsServiceUpdateAppConfig.Arn
+  SettingsServiceDeleteAppConfigArn:
+    Description: Settings Service delete application configuration Lambda ARN
+    Value: !GetAtt SettingsServiceDeleteAppConfig.Arn
   SettingsServiceTenantGetAllArn:
     Description: Settings Service get all settings for a tenant Lambda ARN
     Value: !GetAtt SettingsServiceTenantGetAll.Arn

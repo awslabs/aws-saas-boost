@@ -61,7 +61,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "SAAS_BOOST_ENVIRONMENT", "SAAS_BOOST_STACK", "SAAS_BOOST_LAMBDAS_FOLDER")
     );
     final static List<String> READ_WRITE_PARAMS = Collections.unmodifiableList(
-            Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN","COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK", "APP_NAME",
+            Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK", "APP_NAME",
                     "FILE_SYSTEM_MOUNT_POINT", "FILE_SYSTEM_ENCRYPT", "FILE_SYSTEM_LIFECYCLE", "MIN_COUNT", "MAX_COUNT", "DB_ENGINE",
                     "DB_VERSION", "DB_PARAM_FAMILY", "DB_INSTANCE_TYPE", "DB_NAME", "DB_HOST", "DB_PORT", "DB_MASTER_USERNAME",
                     "DB_MASTER_PASSWORD", "DB_BOOTSTRAP_FILE", "METRICS_STREAM", "BILLING_API_KEY", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
@@ -721,6 +721,34 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::updateAppConfig exec " + totalTimeMillis);
+        return response;
+    }
+    
+    public APIGatewayProxyResponseEvent deleteAppConfig(Map<String, Object> event, Context context) {
+        if (Utils.warmup(event)) {
+            //LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+        }
+
+        long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsService::deleteAppConfig");
+        Utils.logRequestEvent(event);
+        APIGatewayProxyResponseEvent response = null;
+
+        try {
+            dal.deleteAppConfig();
+            response = new APIGatewayProxyResponseEvent()
+            .withHeaders(CORS)
+            .withStatusCode(200);
+        } catch (Exception e) {
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(400)
+                    .withBody("{\"message\":\"Error deleting application settings.\"}");
+        }
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsService::deleteAppConfig exec " + totalTimeMillis);
         return response;
     }
 

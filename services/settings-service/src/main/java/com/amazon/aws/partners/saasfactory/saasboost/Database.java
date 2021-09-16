@@ -19,6 +19,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonDeserialize(builder = Database.Builder.class)
 public class Database {
 
@@ -182,6 +184,37 @@ public class Database {
 
     public String getBootstrapFilename() {
         return bootstrapFilename;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Database other = (Database) obj;
+        return (
+                ((version == null && other.version == null) || (version != null && version.equals(other.version)))
+                && ((family == null && other.family == null) || (family != null && family.equals(other.family)))
+                && ((database == null && other.database == null) || (database != null && database.equalsIgnoreCase(other.database)))
+                && ((username == null && other.username == null) || (username != null && username.equals(other.username)))
+                && ((password == null && other.password == null) || (password != null && password.equals(other.password)))
+                && ((bootstrapFilename == null && other.bootstrapFilename == null) || (bootstrapFilename != null && bootstrapFilename.equals(other.bootstrapFilename)))
+                && (engine == other.engine)
+                && (instance == other.instance)
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, family, database, username, password, bootstrapFilename, engine, instance);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

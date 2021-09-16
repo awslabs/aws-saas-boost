@@ -73,24 +73,19 @@ Metadata:
 Parameters:
   ActiveDirectoryId:
     Description: Enter the ID of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
-    Default: 'd-9a672bc07a'
     Type: String
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
-    Default: oct12
   TenantId:
     Description: Enter the ID of the Tenant
-    Default: '123456a1-fsx'
     Type: String
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-    Default: sb-oct12-artifacts-e7389e84-cdae
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
-    Default: lambdas-2020-10-12-15-26
   BackupRetention:
     Description: Specify the number of days to retain automatic backups.
       Setting this value to 0 disables the creation of automatic backups. The maximum retention period
@@ -120,11 +115,9 @@ Parameters:
   PrivateSubnet1ID:
     Description: Choose the ID of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
     Type: AWS::EC2::Subnet::Id
-    Default: subnet-067360e9c05a47d82
   PrivateSubnet2ID:
     Description: Choose the ID of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd).
     Type: AWS::EC2::Subnet::Id
-    Default: subnet-0eae0ed414c44eda3
   StorageCapacity:
     Default: 32
     Description: Specify the storage capacity of the file system being created, in gibibytes.
@@ -143,7 +136,6 @@ Parameters:
   VPCID:
     Description: Choose the ID of the VPC (e.g., vpc-0343606e).
     Type: AWS::EC2::VPC::Id
-    Default: vpc-00ceb8abdee3d728d
   WeeklyMaintenanceTime:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
      Default: '7:02:00'
@@ -209,7 +201,6 @@ Resources:
     Properties:
       AliasName:
         Fn::Join: ['', ['alias/tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
-#      !Sub "alias/${AWS::StackName}"
       TargetKeyId: !Ref FSxKMSKey
   FSxSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
