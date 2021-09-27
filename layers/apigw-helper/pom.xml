@@ -28,13 +28,13 @@ limitations under the License.
     <packaging>jar</packaging>
     <licenses>
         <license>
-            <name>MIT No Attribution License (MIT-0)</name>
-            <url>https://spdx.org/licenses/MIT-0.html</url>
+            <name>Apache-2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>26</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>24</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
