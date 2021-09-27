@@ -26,16 +26,13 @@ jobs:
       #     java-version: '11'
       #     distribution: 'adopt'
 
-      - name: Run Compilation Check
-        run: mvn clean compile -DskipTests -Dcheckstyle.skip -Dspotbugs.skip
+      - name: Maven Compile, Test, Install
+        run: mvn install -Dcheckstyle.skip -Dspotbugs.skip
 
-      - name: Run Unit Tests
-        run: mvn test -Dcheckstyle.skip -Dspotbugs.skip
-
-      - name: Run Spotbugs Check
+      - name: Spotbugs Check
         run: mvn spotbugs:check
 
-      - name: Run Code Style Check
+      - name: Code Style Check
         run: mvn checkstyle:check
 
   Build-WebClient:
