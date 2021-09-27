@@ -57,7 +57,8 @@
             <property name="allowByTailComment" value="true"/>
             <property name="allowNonPrintableEscapes" value="true"/>
         </module>
-        <module name="AvoidStarImport"/>
+        <!-- In the interest of easily onboarding new users, we've decided to allow star imports -->
+        <!--<module name="AvoidStarImport"/>-->
         <module name="OneTopLevelClass"/>
         <module name="NoLineWrap">
             <property name="tokens" value="PACKAGE_DEF, IMPORT, STATIC_IMPORT"/>
