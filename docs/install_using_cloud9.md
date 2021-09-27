@@ -2,7 +2,7 @@
 
 By default, Cloud9 inherits the AWS permissions for the user or role which you are logged into the AWS Console as. Make sure that role has full admin permissions necessary to install AWS SaaS Boost.
 
-1.	Login to AWS Console and create an AWS Cloud9 environment using Amazon Linux 2 and instance type with at least 4GB RAM. For example, choose Other instance type and then select T2 or T3 medium.
+1.	Login to AWS Console and create an AWS Cloud9 environment using Amazon Linux 2 and an instance type with at least 4GB RAM. For example, choose Other instance type and then select T2 or T3 medium.
 
 2.	Launch the Cloud9 environment by clicking the Open IDE button.
 
