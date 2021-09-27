@@ -19,7 +19,9 @@ git clone https://github.com/awslabs/aws-saas-boost.git aws-saas-boost
 ```
 5.	Install Apache Maven
 ```
-sudo yum install -y maven
+sudo wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
+sudo sed -i s/\$releasever/6/g /etc/yum.repos.d/epel-apache-maven.repo
+sudo yum install -y apache-maven
 ```
 
 6.	Set default Java version back to Amazon Corretto 11 (select option 1 for both)
