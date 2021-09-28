@@ -1,0 +1,177 @@
+
+# Copyright 2020 Daniel Cortez Stevenson
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Original: https://gist.github.com/daniel-cortez-stevenson/
+# modified: https://github.com/AffiTheCreator
+#
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: SaaS Boost Tenant Onboarding AWS Elasticsearch Service (ES)
+Parameters:
+  TenantId:
+    Description: The GUID for the tenant
+    Type: String
+  VPC:
+    Description: VPC id for this tenant
+    Type: AWS::EC2::VPC::Id
+  # PrivateSubnetA:
+  #   Description: Private subnet for ES
+  #   Type: AWS::EC2::Subnet::Id
+  SubnetPublicA:
+    Description: Public subnet for ES
+    Type: AWS::EC2::Subnet::Id
+  # PrivateSubnetB:
+  #   Description: Private subnet for EFS mount target
+  #   Type: AWS::EC2::Subnet::Id
+  ECSSecurityGroup:
+    Description: Source security group for ECS to access EFS
+    Type: AWS::EC2::SecurityGroup::Id
+  CustomEndpointEnabled:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  EnforceHTTPS:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  ESPortHTTP:
+    Type: String
+    Default: '80'
+  ESPortHTTPS:
+    Type: String
+    Default: '443'
+  ESPort:
+    Type: String
+  TLSSecurityPolicy:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  ElasticsearchName:
+    Description: The name of the AWS Elasticsearch Service deployment.
+    Type: String
+    ConstraintDescription: Must be a valid AWS ES domain name prefix. The name must start with a
+      lowercase letter and must be between 3 and 28 characters. Valid characters
+      are a-z (lowercase only), 0-9, and - (hyphen).
+    AllowedPattern: '[a-z][a-z0-9\\-]+' 
+  ElasticsearchVersion:
+    Default: '6.2'
+    Type: String
+    ConstraintDescription: Must be an allowed AWS ES version (Major.Minor)
+    AllowedValues: ['7.9', '7.8', '7.7', '7.4', '7.1', '6.8', '6.7', '6.5', '6.4', '6.3', '6.2', '6.0', '5.6', '5.5'] # aws es list-elasticsearch-versions --query "ElasticsearchVersions[]"
+  ElasticsearchDataInstanceType:
+    Description: Instance type for data nodes.
+    Type: String
+    Default: 'r5.2xlarge.elasticsearch'
+  NumberOfMasterNodes:
+    Description: How many dedicated master nodes you want to have. 3 is recommended.
+    Type: Number
+    Default: 3
+  NumberOfDataNodes:
+    Description: How many data nodes you want to have. Multiples of your number of availability zones (2) is recommended.
+    Type: Number
+    Default: '2'
+    MinValue: '1'
+    MaxValue: '20'
+  EBSEnabled:
+    Description: 'Specifies whether Amazon EBS volumes are attached to data nodes in the Amazon ES domain (some instance types come with instance store that you can use instead).'
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+  EBSVolumeSize:
+    Description: 'The size of the EBS volume for each data node. The minimum and maximum size of an EBS volume depends on the EBS volume type and the instance type to which it is attached.'
+    Type: Number
+    Default: '10'
+Conditions:
+  EnforceHTTPS_false: !Equals [ !Ref "EnforceHTTPS", "false" ]
+
+Resources:
+  ESSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-es-sg']]
+      GroupDescription: Elasticsearch Security Group
+      VpcId: !Ref VPC
+  ESSecurityGroupIngressECS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ESSecurityGroup
+      IpProtocol: tcp
+      # To review !! 
+      FromPort: !If [EnforceHTTPS_false, !Ref ESPortHTTP, !Ref ESPortHTTPS]
+      ToPort: !If [EnforceHTTPS_false, !Ref ESPortHTTP, !Ref ESPortHTTPS]
+      SourceSecurityGroupId: !Ref ECSSecurityGroup
+
+  ElasticsearchDomain:
+    DependsOn: ESSecurityGroup
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      DomainName: !Ref ElasticsearchName
+      DomainEndpointOptions: 
+        EnforceHTTPS: !Ref EnforceHTTPS
+      EBSOptions:
+        EBSEnabled: !Ref EBSEnabled
+        Iops: 0
+        VolumeSize: !Ref EBSVolumeSize
+        VolumeType: standard
+      ElasticsearchClusterConfig:
+        InstanceCount: !Ref NumberOfDataNodes
+        InstanceType: !Ref ElasticsearchDataInstanceType
+        ZoneAwarenessEnabled: false
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      VPCOptions:
+        SubnetIds:
+          - !Ref SubnetPublicA
+          # - !Ref PrivateSubnetB
+        SecurityGroupIds:
+        - !Ref ESSecurityGroup
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: '*'
+          Action: "es:*"
+          Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ElasticsearchName}/*"
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+
+Outputs:
+  Arn:
+    Value: !GetAtt ElasticsearchDomain.Arn    
+  ESDomainArn:
+    Value: !GetAtt ElasticsearchDomain.DomainArn
+  ESDomainEndpoint:
+    Description: Elasticsearch endpoint
+    Value: !GetAtt ElasticsearchDomain.DomainEndpoint
+  ESClusterName:
+    Description: The Elasticsearch Cluster
+    Value: !Ref ElasticsearchName
+  ESClusterPort:
+    Description: Listening Port of Elasticsearch cluster 
+    Value: !Ref ESPortHTTP
+  ESClusterPortDefault:
+    Description: Typicaly when migrating an on-premises elastricsearch(ES) stack to a cloud cluster the application that uses ES will need 2 ports, this bypasses such requirement   
+    Value: !Ref ESPortHTTPS
+  # ESSubnetID:
+  #   Description: VPC Subnet ID for Elasticsearch Cluster 
+  #   Value: !Ref PrivateSubnetA
+
+...
