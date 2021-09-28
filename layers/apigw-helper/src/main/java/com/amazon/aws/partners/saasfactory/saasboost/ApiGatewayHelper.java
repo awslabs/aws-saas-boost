@@ -43,12 +43,12 @@ import java.util.stream.Collectors;
 
 public class ApiGatewayHelper {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(ApiGatewayHelper.class);
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
-    private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
-    private final static Aws4Signer SIG_V4 = Aws4Signer.create();
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiGatewayHelper.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
+    private static final Aws4Signer SIG_V4 = Aws4Signer.create();
     private static SdkHttpClient HTTP_CLIENT = ApacheHttpClient.builder().build();
-    private final static StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);;
+    private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
 
     private ApiGatewayHelper() {
         if (Utils.isBlank(AWS_REGION)) {
