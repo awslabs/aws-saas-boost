@@ -1433,10 +1433,14 @@ public class SaaSBoostInstall {
             executeCommand("mvn --non-recursive install", null, workingDir.toAbsolutePath().toFile());
 
             // Because the parent pom for the layers modules defines its own artifact name
-            // we have to build from the parent pom or maven won't be able to find the individual
-            // artifacts in the local maven cache. The parent pom will build the modules in the
-            // correct order (utils first).
-            sourceDirectories.add(workingDir.resolve(Path.of("layers")));
+            // we have to build from the parent pom or maven won't be able to find the
+            // artifact in the local maven cache.
+            executeCommand("mvn --non-recursive install", null, workingDir.resolve(Path.of("layers")).toFile());
+
+            // Now add the separate layers directories to the list so we can upload the lambda
+            // package to S3 below. Build utils before anything else.
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
 
             DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
             functions.forEach(sourceDirectories::add);
