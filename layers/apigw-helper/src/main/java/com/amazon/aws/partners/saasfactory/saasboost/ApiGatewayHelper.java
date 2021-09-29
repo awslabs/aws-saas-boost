@@ -84,10 +84,12 @@ public class ApiGatewayHelper {
 //        LOGGER.info(buffer.toString());
 
         LOGGER.info("Calling REST API " + apiExecuteRequest.httpRequest().getUri());
-        String responseBody = null;
+        BufferedReader responseReader = null;
+        String responseBody;
         try {
             HttpExecuteResponse apiResponse = HTTP_CLIENT.prepareRequest(apiExecuteRequest).call();
-            responseBody = new BufferedReader(new InputStreamReader(apiResponse.responseBody().get())).lines().collect(Collectors.joining());
+            responseReader = new BufferedReader(new InputStreamReader(apiResponse.responseBody().get(), StandardCharsets.UTF_8));
+            responseBody = responseReader.lines().collect(Collectors.joining());
             LOGGER.info(responseBody);
             if (!apiResponse.httpResponse().isSuccessful()) {
                 throw new Exception("{\"statusCode\":" + apiResponse.httpResponse().statusCode() + ", \"message\":\"" + apiResponse.httpResponse().statusText().get() + "\"}");
@@ -96,6 +98,10 @@ public class ApiGatewayHelper {
             LOGGER.error("HTTP Client error {}", ioe.getMessage());
             LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
+        } finally {
+            if (responseReader != null) {
+                responseReader.close();
+            }
         }
 
         return responseBody;
@@ -163,7 +169,7 @@ public class ApiGatewayHelper {
                     .roleSessionName((Utils.isNotBlank(context)) ? context : SAAS_BOOST_ENV)
             );
 
-            AssumedRoleUser assumedUser = response.assumedRoleUser();
+            //AssumedRoleUser assumedUser = response.assumedRoleUser();
             //LOGGER.info("Assumed IAM User {}", assumedUser.arn());
             //LOGGER.info("Assumed IAM Role {}", assumedUser.assumedRoleId());
 
