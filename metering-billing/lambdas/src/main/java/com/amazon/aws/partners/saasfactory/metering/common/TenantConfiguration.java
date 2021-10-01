@@ -15,13 +15,7 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.common;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.slf4j.Logger;
-
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
@@ -30,6 +24,11 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.CONFIG_EXPRESSION_NAME;
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.CONFIG_EXPRESSION_VALUE;
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.CONFIG_INDEX_NAME_ENV_VARIABLE;
@@ -37,8 +36,8 @@ import static com.amazon.aws.partners.saasfactory.metering.common.Constants.CONF
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.PRIMARY_KEY_NAME;
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.SORT_KEY_NAME;
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.SUBSCRIPTION_MAPPING_ATTRIBUTE_NAME;
-import static com.amazon.aws.partners.saasfactory.metering.common.Constants.getEnvVariable;
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.formatTenantEntry;
+import static com.amazon.aws.partners.saasfactory.metering.common.Constants.getEnvVariable;
 
 public class TenantConfiguration {
 

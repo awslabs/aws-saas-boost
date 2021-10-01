@@ -30,7 +30,7 @@ limitations under the License.
 
     <properties>
         <java.version>1.8</java.version>
-        <checkstyle.maxAllowedViolations>38</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>25</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>

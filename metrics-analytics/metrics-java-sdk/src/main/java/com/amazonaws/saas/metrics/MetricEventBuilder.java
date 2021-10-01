@@ -16,9 +16,10 @@
 package com.amazonaws.saas.metrics;
 
 import com.amazonaws.saas.metrics.MetricEvent.Type;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Map;
 
 public class MetricEventBuilder {
     private static final Logger logger = LoggerFactory.getLogger(MetricEventBuilder.class);

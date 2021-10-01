@@ -15,26 +15,13 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.aggregation;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
+import com.amazon.aws.partners.saasfactory.metering.common.BillingEvent;
+import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
@@ -44,16 +31,20 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
-import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import software.amazon.awssdk.services.dynamodb.model.Update;
 
-import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
-import com.amazon.aws.partners.saasfactory.metering.common.BillingEvent;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.*;
-
 
 public class BillingEventAggregation implements RequestStreamHandler {
 

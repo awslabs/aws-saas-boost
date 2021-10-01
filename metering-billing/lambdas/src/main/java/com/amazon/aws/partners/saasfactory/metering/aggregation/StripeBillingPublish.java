@@ -15,6 +15,25 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.aggregation;
 
+
+import com.amazon.aws.partners.saasfactory.metering.common.AggregationEntry;
+import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
+import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
+import com.amazon.aws.partners.saasfactory.saasboost.ApiRequest;
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.UsageRecord;
+import com.stripe.net.RequestOptions;
+import com.stripe.param.UsageRecordCreateOnSubscriptionItemParams;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.*;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
@@ -23,34 +42,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiRequest;
-import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
-
-import software.amazon.awssdk.http.SdkHttpFullRequest;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException;
-import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
-import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
-import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
-import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
-import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
-
-import com.stripe.Stripe;
-import com.stripe.exception.StripeException;
-import com.stripe.model.UsageRecord;
-import com.stripe.net.RequestOptions;
-import com.stripe.param.UsageRecordCreateOnSubscriptionItemParams;
-
-import com.amazon.aws.partners.saasfactory.metering.common.AggregationEntry;
-import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
 
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.*;
 

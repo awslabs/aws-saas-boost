@@ -15,27 +15,24 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.billing;
 
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-
+import com.amazon.aws.partners.saasfactory.metering.common.BillingEvent;
+import com.amazon.aws.partners.saasfactory.metering.common.ProcessBillingEventException;
+import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
 import com.amazon.aws.partners.saasfactory.metering.onboarding.OnboardTenantProduct;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.amazonaws.services.lambda.runtime.Context;
-
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
-import com.amazon.aws.partners.saasfactory.metering.common.BillingEvent;
-import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
-import com.amazon.aws.partners.saasfactory.metering.common.ProcessBillingEventException;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.*;
 
