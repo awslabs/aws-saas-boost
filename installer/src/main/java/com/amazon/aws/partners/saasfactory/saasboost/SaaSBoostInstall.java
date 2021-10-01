@@ -1739,12 +1739,13 @@ public class SaaSBoostInstall {
         this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
         LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
         try {
-            s3.createBucket(request -> request
-                    .createBucketConfiguration(
-                            config -> config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id()))
-                    )
-                    .bucket(this.s3ArtifactBucket)
-            );
+            CreateBucketRequest.Builder createBucketRequestBuilder = CreateBucketRequest.builder();
+            if (!(AWS_REGION.equals(Region.AWS_GLOBAL) || AWS_REGION.equals(Region.US_EAST_1))) {
+                createBucketRequestBuilder.createBucketConfiguration(config ->
+                        config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id())));
+            }
+            createBucketRequestBuilder.bucket(this.s3ArtifactBucket);
+            s3.createBucket(createBucketRequestBuilder.build());
             s3.putBucketEncryption(request -> request
                     .serverSideEncryptionConfiguration(
                             config -> config.rules(rules -> rules
