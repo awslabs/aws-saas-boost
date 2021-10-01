@@ -100,7 +100,7 @@ public class SaaSBoostInstall {
         UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
         DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
         CANCEL(6, "Exit installer.", false);
-        //DEBUG(7, "Debug", false);
+//        DEBUG(7, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -187,9 +187,10 @@ public class SaaSBoostInstall {
         }
     }
 
-//    protected void debug() {
-//
-//    }
+    protected void debug() {
+//        getExistingSaaSBoostLambdasFolder();
+//        processLambdas();
+    }
 
     public void start() {
         outputMessage("===========================================================");
@@ -751,7 +752,11 @@ public class SaaSBoostInstall {
                 quickSightRegion = AWS_REGION;
             } else {
                 // Make sure we got a valid AWS region string
-                quickSightRegion = Region.regions().stream().filter(r -> r.id().equals(quickSightAccountRegion)).findAny().orElse(null);
+                quickSightRegion = Region.regions().stream().filter(request -> request
+                        .id()
+                        .equals(quickSightAccountRegion))
+                        .findAny()
+                        .orElse(null);
             }
             if (quickSightRegion != null) {
                 // Update the SDK client for the proper AWS region if we need to
@@ -1049,7 +1054,9 @@ public class SaaSBoostInstall {
                 )
                 .permissions(ResourcePermission.builder()
                         .principal(this.quickSightUserArn)
-                        .actions("quicksight:DescribeDataSource","quicksight:DescribeDataSourcePermissions","quicksight:PassDataSource","quicksight:UpdateDataSource","quicksight:DeleteDataSource","quicksight:UpdateDataSourcePermissions")
+                        .actions("quicksight:DescribeDataSource","quicksight:DescribeDataSourcePermissions",
+                                "quicksight:PassDataSource","quicksight:UpdateDataSource","quicksight:DeleteDataSource",
+                                "quicksight:UpdateDataSourcePermissions")
                         .build()
                 )
                 .sslProperties(SslProperties.builder()
@@ -1106,7 +1113,10 @@ public class SaaSBoostInstall {
                 .importMode(DataSetImportMode.DIRECT_QUERY)
                 .permissions(ResourcePermission.builder()
                         .principal(this.quickSightUserArn)
-                        .actions("quicksight:DescribeDataSet","quicksight:DescribeDataSetPermissions","quicksight:PassDataSet","quicksight:DescribeIngestion","quicksight:ListIngestions","quicksight:UpdateDataSet","quicksight:DeleteDataSet","quicksight:CreateIngestion","quicksight:CancelIngestion","quicksight:UpdateDataSetPermissions")
+                        .actions("quicksight:DescribeDataSet","quicksight:DescribeDataSetPermissions",
+                                "quicksight:PassDataSet","quicksight:DescribeIngestion","quicksight:ListIngestions",
+                                "quicksight:UpdateDataSet","quicksight:DeleteDataSet","quicksight:CreateIngestion",
+                                "quicksight:CancelIngestion","quicksight:UpdateDataSetPermissions")
                         .build()
                 )
                 .tags(Tag.builder()
@@ -1137,8 +1147,10 @@ public class SaaSBoostInstall {
                 .map(Role::path)
                 .forEachOrdered(existingRoles::add);
 
-        List<String> serviceRoles = new ArrayList<>(Arrays.asList("elasticloadbalancing.amazonaws.com", "ecs.amazonaws.com",
-                "ecs.application-autoscaling.amazonaws.com", "rds.amazonaws.com", "fsx.amazonaws.com", "autoscaling.amazonaws.com"));
+        List<String> serviceRoles = new ArrayList<>(Arrays.asList("elasticloadbalancing.amazonaws.com",
+                "ecs.amazonaws.com", "ecs.application-autoscaling.amazonaws.com", "rds.amazonaws.com",
+                "fsx.amazonaws.com", "autoscaling.amazonaws.com")
+        );
         for (String serviceRole : serviceRoles) {
             if (existingRoles.contains("/aws-service-role/" + serviceRole + "/")) {
                 LOGGER.info("Service role exists for {}", serviceRole);
@@ -1146,7 +1158,7 @@ public class SaaSBoostInstall {
             }
             LOGGER.info("Creating AWS service role in IAM for {}", serviceRole);
             try {
-                CreateServiceLinkedRoleResponse response = iam.createServiceLinkedRole(request -> request.awsServiceName(serviceRole));
+                iam.createServiceLinkedRole(request -> request.awsServiceName(serviceRole));
             } catch (SdkServiceException iamError) {
                 LOGGER.error("iam:CreateServiceLinkedRole error", iamError);
                 LOGGER.error(getFullStackTrace(iamError));
@@ -1253,7 +1265,7 @@ public class SaaSBoostInstall {
             }
         }
         try {
-            GetParameterResponse response = ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
+            ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
         } catch (SdkServiceException ssmError) {
             outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
             System.exit(2);
@@ -1290,10 +1302,12 @@ public class SaaSBoostInstall {
         LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
         String artifactsBucket = null;
         if (isBlank(this.envName)) {
-            getExistingSaaSBoostEnvironment();
+            this.envName = getExistingSaaSBoostEnvironment();
         }
         try {
-            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_BUCKET"));
+            GetParameterResponse response = ssm.getParameter(request -> request
+                    .name("/saas-boost/" + this.envName + "/SAAS_BOOST_BUCKET")
+            );
             artifactsBucket = response.parameter().value();
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
@@ -1308,10 +1322,12 @@ public class SaaSBoostInstall {
         LOGGER.info("Getting existing SaaS Boost CloudFormation stack name from Parameter Store");
         String stackName = null;
         if (isBlank(this.envName)) {
-            getExistingSaaSBoostEnvironment();
+            this.envName = getExistingSaaSBoostEnvironment();
         }
         try {
-            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_STACK"));
+            GetParameterResponse response = ssm.getParameter(request -> request
+                    .name("/saas-boost/" + this.envName + "/SAAS_BOOST_STACK")
+            );
             stackName = response.parameter().value();
         } catch (ParameterNotFoundException paramStoreError) {
             LOGGER.warn("Parameter /saas-boost/" + this.envName + "/SAAS_BOOST_STACK not found setting to default 'sb-" + this.envName + "'");
@@ -1329,10 +1345,12 @@ public class SaaSBoostInstall {
         LOGGER.info("Getting existing SaaS Boost Lambdas folder from Parameter Store");
         String lambdasFolder = null;
         if (isBlank(this.envName)) {
-            getExistingSaaSBoostEnvironment();
+            this.envName = getExistingSaaSBoostEnvironment();
         }
         try {
-            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER"));
+            GetParameterResponse response = ssm.getParameter(request -> request
+                    .name("/saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER")
+            );
             lambdasFolder = response.parameter().value();
         } catch (ParameterNotFoundException paramStoreError) {
             LOGGER.warn("Parameter /saas-boost/" + this.envName + "/SAAS_BOOST_LAMBDAS_FOLDER not found setting to default 'lambdas'");
@@ -1350,11 +1368,13 @@ public class SaaSBoostInstall {
         LOGGER.info("Getting existing SaaS Boost Analytics module deployed from Parameter Store");
         boolean analyticsDeployed = false;
         if (isBlank(this.envName)) {
-            getExistingSaaSBoostEnvironment();
+            this.envName = getExistingSaaSBoostEnvironment();
         }
         try {
-            GetParameterResponse response = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED"));
-            analyticsDeployed = Boolean.valueOf(response.parameter().value());
+            GetParameterResponse response = ssm.getParameter(request -> request
+                    .name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED")
+            );
+            analyticsDeployed = Boolean.parseBoolean(response.parameter().value());
         } catch (SdkServiceException ssmError) {
             // TODO CloudFormation should own this parameter, not the installer... it's possible the parameter doesn't exist
             // parameter not found is an exception
@@ -1405,7 +1425,20 @@ public class SaaSBoostInstall {
         try {
             List<Path> sourceDirectories = new ArrayList<>();
 
-            // This has to be in specific order because apigw-helper depends on utils
+            // The parent pom installs an artifact in the local maven cache that child projects
+            // expect to exist or you'll get a failed to read artifact descriptor error when you
+            // try to build them directly from the child pom. So, before we do anything, install
+            // just the parent pom into the local maven cache (and then we'll actually build the
+            // things we need to below)
+            executeCommand("mvn --non-recursive install", null, workingDir.toAbsolutePath().toFile());
+
+            // Because the parent pom for the layers modules defines its own artifact name
+            // we have to build from the parent pom or maven won't be able to find the
+            // artifact in the local maven cache.
+            executeCommand("mvn --non-recursive install", null, workingDir.resolve(Path.of("layers")).toFile());
+
+            // Now add the separate layers directories to the list so we can upload the lambda
+            // package to S3 below. Build utils before anything else.
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
 
@@ -1582,13 +1615,13 @@ public class SaaSBoostInstall {
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                            .stackName(stackName)
-                            //.onFailure("DO_NOTHING") // TODO bug on roll back?
-                            //.timeoutInMinutes(90)
-                            .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
-                            .parameters(templateParameters)
-                            .build()
+                    .stackName(stackName)
+                    //.onFailure("DO_NOTHING") // TODO bug on roll back?
+                    //.timeoutInMinutes(90)
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
+                    .parameters(templateParameters)
+                    .build()
             );
             stackId = cfnResponse.stackId();
             LOGGER.info("createMetricsStack::stack id " + stackId);
@@ -1642,7 +1675,10 @@ public class SaaSBoostInstall {
             while (true) {
                 //cfn = CloudFormationClient.create(); // TODO figure out how to extend the timeout in the client
                 try {
-                    DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackId).build());
+                    DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
+                            .stackName(stackId)
+                            .build()
+                    );
                     if (response.hasStacks()) {
                         Stack stack = response.stacks().get(0);
                         String stackStatus = stack.stackStatusAsString();
@@ -1703,13 +1739,13 @@ public class SaaSBoostInstall {
         this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
         LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
         try {
-            CreateBucketResponse createResponse = s3.createBucket(request -> request
+            s3.createBucket(request -> request
                     .createBucketConfiguration(
                             config -> config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id()))
                     )
                     .bucket(this.s3ArtifactBucket)
             );
-            PutBucketEncryptionResponse encryptionResponse = s3.putBucketEncryption(request -> request
+            s3.putBucketEncryption(request -> request
                     .serverSideEncryptionConfiguration(
                             config -> config.rules(rules -> rules
                                     .applyServerSideEncryptionByDefault(encrypt -> encrypt
@@ -1719,7 +1755,7 @@ public class SaaSBoostInstall {
                     )
                     .bucket(this.s3ArtifactBucket)
             );
-            PutBucketPolicyResponse policyResponse = s3.putBucketPolicy(request -> request
+            s3.putBucketPolicy(request -> request
                     .policy("{\n" +
                             "    \"Version\": \"2012-10-17\",\n" +
                             "    \"Statement\": [\n" +
@@ -1845,7 +1881,8 @@ public class SaaSBoostInstall {
         }
 
         // Sync files to the web bucket
-        outputMessage("Copying AWS SaaS Boost web application files to s3 web bucket");
+        outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
+        cleanUpS3(webBucket, "");
         Map<String, String> metadata = Stream
                 .of(new AbstractMap.SimpleEntry<>("Cache-Control", "no-store"))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

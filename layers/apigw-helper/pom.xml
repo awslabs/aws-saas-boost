@@ -52,27 +52,6 @@ limitations under the License.
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-install-plugin</artifactId>
-                <version>3.0.0-M1</version>
-                <configuration>
-                    <groupId>${project.groupId}</groupId>
-                    <artifactId>${project.artifactId}</artifactId>
-                    <version>${project.version}</version>
-                    <packaging>jar</packaging>
-                    <file>${project.build.directory}/${project.artifactId}.jar</file>
-                    <localRepositoryPath>${project.local-repo.path}</localRepositoryPath>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 
