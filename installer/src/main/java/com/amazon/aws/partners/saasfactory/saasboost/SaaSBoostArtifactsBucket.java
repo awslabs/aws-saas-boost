@@ -127,4 +127,8 @@ public class SaaSBoostArtifactsBucket {
         }
         return new SaaSBoostArtifactsBucket(s3, s3ArtifactBucketName, awsRegion);
     }
+
+    public String toString() {
+        return bucketName;
+    }
 }

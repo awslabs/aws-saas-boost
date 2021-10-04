@@ -348,7 +348,7 @@ public class SaaSBoostInstall {
         // Create the S3 artifacts bucket
         outputMessage("Creating S3 artifacts bucket");
         saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
-        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket.getBucketName());
+        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
         // Copy the CloudFormation templates
         outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
@@ -397,7 +397,7 @@ public class SaaSBoostInstall {
         }
 
         outputMessage("Check the admin email box for the temporary password.");
-        outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket.getBucketName());
+        outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
         outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
@@ -416,7 +416,7 @@ public class SaaSBoostInstall {
         }
 
         // First, upload the (potentially) modified CloudFormation templates up to S3
-        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + saasBoostArtifactsBucket.getBucketName());
+        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + saasBoostArtifactsBucket);
         copyTemplateFilesToS3();
 
         // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
@@ -566,7 +566,7 @@ public class SaaSBoostInstall {
         deleteCloudFormationStack(this.stackName);
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
-        LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket.getBucketName());
+        LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
         cleanUpS3(saasBoostArtifactsBucket.getBucketName(), null);
         s3.deleteBucket(r -> r.bucket(saasBoostArtifactsBucket.getBucketName()));
 
