@@ -22,10 +22,7 @@ import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.BucketLocationConstraint;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.*;
 
 import java.nio.file.Path;
 import java.util.UUID;
@@ -34,20 +31,22 @@ import static com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall.get
 
 public class SaaSBoostArtifactsBucket {
 
-    private static Logger LOGGER = LoggerFactory.getLogger(SaaSBoostArtifactsBucket.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SaaSBoostArtifactsBucket.class);
 
-    private final S3Client s3;
     private final String bucketName;
     private final Region region;
 
-    public SaaSBoostArtifactsBucket(S3Client s3, String bucketName, Region region) {
-        this.s3 = s3;
+    public SaaSBoostArtifactsBucket(String bucketName, Region region) {
         this.bucketName = bucketName;
         this.region = region;
     }
 
     public String getBucketName() {
         return bucketName;
+    }
+
+    public String toString() {
+        return getBucketName();
     }
 
     /**
@@ -59,8 +58,9 @@ public class SaaSBoostArtifactsBucket {
         return String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
     }
 
-    public void putFile(Path localPath, Path remotePath) {
+    public void putFile(S3Client s3, Path localPath, Path remotePath) {
         try {
+            LOGGER.debug("Putting {} to Artifacts bucket: {}", localPath, this);
             s3.putObject(PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(remotePath.toString())
@@ -87,17 +87,17 @@ public class SaaSBoostArtifactsBucket {
             }
             createBucketRequestBuilder.bucket(s3ArtifactBucketName);
             s3.createBucket(createBucketRequestBuilder.build());
-            s3.putBucketEncryption(request -> request
-                    .serverSideEncryptionConfiguration(
-                            config -> config.rules(rules -> rules
-                                    .applyServerSideEncryptionByDefault(encrypt -> encrypt
-                                            .sseAlgorithm(ServerSideEncryption.AES256)
-                                    )
-                            )
-                    )
+            s3.putBucketEncryption(PutBucketEncryptionRequest.builder()
                     .bucket(s3ArtifactBucketName)
-            );
-            s3.putBucketPolicy(request -> request
+                    .serverSideEncryptionConfiguration(ServerSideEncryptionConfiguration.builder()
+                            .rules(ServerSideEncryptionRule.builder()
+                                    .applyServerSideEncryptionByDefault(ServerSideEncryptionByDefault.builder()
+                                            .sseAlgorithm(ServerSideEncryption.AES256)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+            s3.putBucketPolicy(PutBucketPolicyRequest.builder()
                     .policy("{\n" +
                             "    \"Version\": \"2012-10-17\",\n" +
                             "    \"Statement\": [\n" +
@@ -119,16 +119,12 @@ public class SaaSBoostArtifactsBucket {
                             "    ]\n" +
                             "}")
                     .bucket(s3ArtifactBucketName)
-            );
+                    .build());
         } catch (SdkServiceException s3Error) {
             LOGGER.error("s3 error {}", s3Error.getMessage());
             LOGGER.error(getFullStackTrace(s3Error));
             throw s3Error;
         }
-        return new SaaSBoostArtifactsBucket(s3, s3ArtifactBucketName, awsRegion);
-    }
-
-    public String toString() {
-        return bucketName;
+        return new SaaSBoostArtifactsBucket(s3ArtifactBucketName, awsRegion);
     }
 }

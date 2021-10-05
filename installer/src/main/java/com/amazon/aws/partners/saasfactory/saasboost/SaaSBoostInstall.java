@@ -1178,7 +1178,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
                 LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
-                saasBoostArtifactsBucket.putFile(cloudFormationTemplate, cloudFormationTemplate.getFileName());
+                saasBoostArtifactsBucket.putFile(s3, cloudFormationTemplate, cloudFormationTemplate.getFileName());
             }
         } catch (IOException ioe) {
             LOGGER.error("Error listing resources directory", ioe);
@@ -1306,7 +1306,7 @@ public class SaaSBoostInstall {
             throw ssmError;
         }
         LOGGER.info("Loaded artifacts bucket {}", artifactsBucket);
-        return new SaaSBoostArtifactsBucket(s3, artifactsBucket, AWS_REGION);
+        return new SaaSBoostArtifactsBucket(artifactsBucket, AWS_REGION);
     }
 
     protected String getExistingSaaSBoostStackName() {
@@ -1456,7 +1456,7 @@ public class SaaSBoostInstall {
                                 .collect(Collectors.toSet());
                         for (Path zipFile : lambdaSourcePackage) {
                             LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
-                            saasBoostArtifactsBucket.putFile(zipFile,
+                            saasBoostArtifactsBucket.putFile(s3, zipFile,
                                     Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
                         }
                     }
