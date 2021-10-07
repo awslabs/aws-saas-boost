@@ -50,9 +50,8 @@ public class SaaSBoostArtifactsBucket {
     }
 
     /**
-     *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-bucket-intro.html">S3 Documentation</a>
-     * @return
+     * @return the S3 URL the Bucket object represents
      */
     public String getBucketUrl() {
         return String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
