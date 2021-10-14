@@ -194,10 +194,6 @@ Parameters:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
     Default: 'G:'
     Type: String
-  FSxCredentials:
-    Description: Parameter Store or Secrets Manager ARN of the credentials to mount the FSx file share
-    Type: String
-    Default: ''
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
@@ -596,11 +592,6 @@ Resources:
                   - fsx:DescribeFileSystems
                 Resource:
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:saas-boost/win/ACTIVE_DIRECTORY_CREDENTIALS-TxX7II
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
