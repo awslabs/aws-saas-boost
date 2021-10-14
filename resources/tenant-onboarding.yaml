@@ -192,8 +192,12 @@ Parameters:
     Type: String
   FSxWindowsMountDrive:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
-    Default: G
+    Default: 'G:'
     Type: String
+  FSxCredentials:
+    Description: Parameter Store or Secrets Manager ARN of the credentials to mount the FSx file share
+    Type: String
+    Default: ''
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
@@ -587,6 +591,16 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_HOST
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_NAME
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/METRICS_STREAM
+              - Effect: Allow
+                Action:
+                  - fsx:DescribeFileSystems
+                Resource:
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:saas-boost/win/ACTIVE_DIRECTORY_CREDENTIALS-TxX7II
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -691,14 +705,12 @@ Resources:
           MountPoints:
             !If
               - ProvisionEFS
-              -
-                - ContainerPath: !Ref MountPoint
+              - - ContainerPath: !Ref MountPoint
                   SourceVolume: !GetAtt efs.Outputs.FileSystemId
               - !If
                 - ProvisionFsx
-                -
-                 - ContainerPath: !Ref MountPoint
-                   SourceVolume: fsxShare
+                - - ContainerPath: !Ref MountPoint
+                    SourceVolume: !GetAtt fsx.Outputs.FSxFileSystemID
                 - !Ref 'AWS::NoValue'
           LinuxParameters:
             Fn::If:
@@ -718,14 +730,12 @@ Resources:
       Volumes:
         !If
           - ProvisionEFS
-          -
-            - Name: !GetAtt efs.Outputs.FileSystemId
+          - - Name: !GetAtt efs.Outputs.FileSystemId
               EfsVolumeConfiguration:
                 FileSystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
             - ProvisionFsx
-            -
-              - Name: fsxShare
+            - - Name: !GetAtt fsx.Outputs.FSxFileSystemID
                 Host:
                   SourcePath: !Sub ${FSxWindowsMountDrive}\
             - !Ref 'AWS::NoValue'
@@ -887,8 +897,7 @@ Resources:
                 Action:
                   - ecs:DiscoverPollEndpoint
                 Resource: '*'
-####Added for FSX file system
-## this is to take place of AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies
+                # Same permissions as AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -918,7 +927,8 @@ Resources:
   ECSLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Condition: WindowsOS
-    ## Wait for Fsx before creating because FSX file system has to be provisioned for the mount
+    # Wait for FSx filesystem to be deployed before creating the launch configuration
+    # because we have to mount the file system prior to placing ECS Tasks on the host
     DependsOn:  FsxWaitCondition
     Metadata:
       Comment: 'packages -> groups -> users-> sources -> files -> commands -> services'
@@ -980,7 +990,7 @@ Resources:
                     - !Ref WIN2016FULL
       InstanceType: !Ref DockerHostInstanceType
       IamInstanceProfile: !Ref ECSInstanceProfile
-      #KeyName:
+      KeyName: windows-east
       AssociatePublicIpAddress: false
       SecurityGroups:
         - !Ref ECSSecurityGroup
@@ -999,6 +1009,7 @@ Resources:
             .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
 
             # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+            Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
             Import-Module ECSTools
             Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
 
@@ -1008,18 +1019,15 @@ Resources:
 
             Write-Output ("UseFsx value is ${UseFSx}")
             If ('${UseFSx}' -eq 'true')  {
-                # Add to domain
-                Write-Output ("Add computer to domain and map drive to ${FSxWindowsMountDrive}")
-                Write-Output ("Read SSM Parameters to join to domain")
+                Write-Output ("Getting SSM Parameters for the Active Directory domain")
                 $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
                 $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
                 $credential = New-Object System.Management.Automation.PSCredential($username,$password)
                 $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
                 $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
                 $ips = $ipdns.Split(",")
-                $ip1 = $ips[0]
 
-                Write-Output ("Add $ip1 as the DNS Server")
+                Write-Output ("Reading the existing VPC DNS Server IP")
                 # Get the VPC DNS server.
                 $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
 
@@ -1033,20 +1041,15 @@ Resources:
                 Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
 
                 # Join the domain
-                Write-Output ("Join Computer to Domain $directoryName")
+                Write-Output ("Joining domain $directoryName")
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                # $networkAdapter = Get-WmiObject Win32_NetworkAdapter -Filter "AdapterType = 'Ethernet 802.3'"
-                # $networkAdapterName = ($networkAdapter | Select-Object -First 1).NetConnectionID
-                # netsh.exe interface ipv4 add dnsservers name="$networkAdapterName" address=$ip1 index=1
-                # Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
-
-                Write-Output ("Setup mapping to file server")
+                Write-Output ("Getting FSx File Server domain name")
                 $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
                 $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
 
                 # Map the share to local drive letter
-                Write-Output ("Map $fileserverpath to ${FSxWindowsMountDrive}")
+                Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
                 New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
             }  # end if for UseFsx
 
@@ -1125,8 +1128,8 @@ Resources:
           Type: forward
       Port: 80
       Protocol: HTTP
+  # This rule necessary for disable tenant functionalty
   ALBRule:
-    #This rule necessary for disable tenant functionalty
     Condition: NoCertificate
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -1138,8 +1141,8 @@ Resources:
           Values: ['*']
       ListenerArn: !Ref ALBListener
       Priority: 1
+  # This rule necessary for disable tenant functionalty
   ALBSSLRule:
-    #This rule necessary for disable tenant functionalty
     Condition: HasCertificate
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -1310,24 +1313,18 @@ Resources:
                 FileName: imagedefinitions.json
               InputArtifacts:
                 - Name: imgdef
-
-#### Fsx changes
-# setup wait handle for dependency for launch config
   FsxWaitHandle:
     Condition: ProvisionFsx
     DependsOn: fsx
     Type: "AWS::CloudFormation::WaitConditionHandle"
-
   WaitHandle:
     Type: "AWS::CloudFormation::WaitConditionHandle"
-
   FsxWaitCondition:
     Type: "AWS::CloudFormation::WaitCondition"
     Properties:
       Handle: !If [ProvisionFsx, !Ref FsxWaitHandle, !Ref WaitHandle]
       Timeout: "1"
       Count: 0
-
   fsx:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFsx
@@ -1350,7 +1347,6 @@ Resources:
       - UpdateRouteTable
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-fsx.yaml
-      TimeoutInMinutes: 30
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
@@ -1366,7 +1362,6 @@ Resources:
         StorageCapacity: !Ref FSxStorageCapacity
         ThroughputCapacity: !Ref FSxThroughputCapacity
         FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
-
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
@@ -1374,7 +1369,6 @@ Resources:
       ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-efs.yaml
-      TimeoutInMinutes: 15
       Parameters:
         TenantId: !Ref TenantId
         VPC: !Ref VPC
@@ -1383,7 +1377,6 @@ Resources:
         ECSSecurityGroup: !Ref ECSSecurityGroup
         EncryptEFS: !Ref EncryptEFS
         EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
-
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
@@ -1408,7 +1401,6 @@ Resources:
       - UpdateRouteTable
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/tenant-onboarding-rds.yaml
-      TimeoutInMinutes: 30
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket

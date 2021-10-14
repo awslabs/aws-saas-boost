@@ -133,7 +133,7 @@ public class OnboardingServiceDAL {
             // object was persisted
             onboarding.setModified(LocalDateTime.now());
             Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
-            PutItemResponse response = ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
+            ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
         } catch (DynamoDbException e) {
             LOGGER.error("OnboardingServiceDAL::updateOnboarding " + Utils.getFullStackTrace(e));
             throw e;
@@ -197,7 +197,7 @@ public class OnboardingServiceDAL {
             onboarding.setCreated(now);
             onboarding.setModified(now);
             Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
-            PutItemResponse response = ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
+            ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
             long putItemTimeMillis = System.currentTimeMillis() - startTimeMillis;
             LOGGER.info("OnboardingServiceDAL::insertOnboarding PutItem exec " + putItemTimeMillis);
         } catch (DynamoDbException e) {
@@ -223,7 +223,7 @@ public class OnboardingServiceDAL {
             if (!fullScan.items().isEmpty()) {
                 for (Map<String, AttributeValue> item : fullScan.items()) {
                     // Make sure we're not trying to assign a CIDR block to a tenant that already has one
-                    if (item.containsKey("tenant_id") && tenantId.equals(item.get("tenant_id"))) {
+                    if (item.containsKey("tenant_id") && tenantId.equals(item.get("tenant_id").s())) {
                         cidrBlockAvailable = false;
                         break;
                     }

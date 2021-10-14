@@ -32,17 +32,17 @@ import java.util.stream.Stream;
 
 public class SettingsServiceDAL {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(SettingsServiceDAL.class);
-    private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
-    private final static String OPTIONS_TABLE = System.getenv("OPTIONS_TABLE");
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
+    private static final Logger LOGGER = LoggerFactory.getLogger(SettingsServiceDAL.class);
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
+    private static final String OPTIONS_TABLE = System.getenv("OPTIONS_TABLE");
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
 
     // Package private for testing
-    final static String SAAS_BOOST_PREFIX = "saas-boost";
+    static final String SAAS_BOOST_PREFIX = "saas-boost";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
-    final static Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
+    static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
     // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    final static Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+    static final Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
 
     private final SsmClient ssm;
     private DynamoDbClient ddb;
@@ -338,7 +338,7 @@ public class SettingsServiceDAL {
 
     private void deleteParameter(Parameter parameter) {
         try {
-            DeleteParameterResponse response = ssm.deleteParameter(request -> request
+            ssm.deleteParameter(request -> request
                     .name(parameter.name())
             );
         } catch (SdkServiceException ssmError) {

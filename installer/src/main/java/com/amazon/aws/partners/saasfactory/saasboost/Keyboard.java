@@ -25,6 +25,7 @@ public class Keyboard {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Keyboard.class);
     private static Scanner reader = new Scanner(System.in);
+
     static {
         reader.useDelimiter(System.lineSeparator());
     }
