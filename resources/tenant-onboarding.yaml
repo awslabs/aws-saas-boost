@@ -990,7 +990,7 @@ Resources:
                     - !Ref WIN2016FULL
       InstanceType: !Ref DockerHostInstanceType
       IamInstanceProfile: !Ref ECSInstanceProfile
-      KeyName: windows-east
+      #KeyName: !Ref 'AWS::NoValue'
       AssociatePublicIpAddress: false
       SecurityGroups:
         - !Ref ECSSecurityGroup
