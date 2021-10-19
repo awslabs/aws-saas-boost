@@ -69,7 +69,9 @@ public class AppConfig {
         return domainName;
     }
 
-    public String getSslCertArn() { return sslCertArn; }
+    public String getSslCertArn() {
+        return sslCertArn;
+    }
 
     public Integer getMinCount() {
         return minCount;

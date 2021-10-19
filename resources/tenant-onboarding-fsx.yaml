@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: '2010-09-09'
-Description: This template creates Amazon FSx for Windows File Server into private subnets in separate Availability Zones
-  inside a VPC and uses AWS Directory Service for Microsoft Active Directory or Self-Managed Active directory.
-#from https://github.com/aws-quickstart/quickstart-fsx-windows-file-server
+Description: AWS SaaS Boost Tenant Onboarding FSx for Windows File Server Extension
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -43,7 +41,7 @@ Metadata:
           - TenantId
     ParameterLabels:
       ActiveDirectoryId:
-        default: AWS Managed Microsoft AD ID
+        default: AWS Managed Microsoft AD Id
       TenantId:
         default: Id of the SaaS Boost Tenant
       BackupRetention:
@@ -53,13 +51,11 @@ Metadata:
       FSxEncryptionKey:
         default: Type of AWS KMS key used by FSx
       FSxExistingKeyID:
-        default: AWS KMS key ID
-      # DomainMembersSG:
-      #   default: Domain member security group ID
+        default: AWS KMS key Id
       PrivateSubnet1ID:
-        default: Private subnet 1 ID
+        default: Private subnet 1 Id
       PrivateSubnet2ID:
-        default: Private subnet 2 ID
+        default: Private subnet 2 Id
       StorageCapacity:
         default: Storage size
       ThroughputCapacity:
@@ -67,18 +63,18 @@ Metadata:
       FSxAllowedCIDR:
         default: CIDR range allowed to connect to Amazon FSx file system
       VPCID:
-        default: VPC ID
+        default: VPC Id
       WeeklyMaintenanceTime:
         default: Weekly maintenance start time
 Parameters:
   ActiveDirectoryId:
-    Description: Enter the ID of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
+    Description: Enter the Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
     Type: String
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
   TenantId:
-    Description: Enter the ID of the Tenant
+    Description: Enter the Id of the Tenant
     Type: String
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
@@ -109,14 +105,11 @@ Parameters:
     Description: If you chose the option to use an existing key, you must specify the KMS Key ID you want to use.
     Default: ''
     Type: String
-  # DomainMembersSG:
-  #   Description: Specify the ID of the security group that can exchange information with the domain controllers.
-  #   Type: String
   PrivateSubnet1ID:
-    Description: Choose the ID of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
+    Description: Choose the Id of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
     Type: AWS::EC2::Subnet::Id
   PrivateSubnet2ID:
-    Description: Choose the ID of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd).
+    Description: Choose the Id of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd).
     Type: AWS::EC2::Subnet::Id
   StorageCapacity:
     Default: 32
@@ -125,7 +118,7 @@ Parameters:
     Type: Number
   ThroughputCapacity:
     Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 -  2048.
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxAllowedCIDR:
@@ -134,7 +127,7 @@ Parameters:
     Description: Specify the CIDR block that is allowed access to FSx for Windows File Server.
     Type: String
   VPCID:
-    Description: Choose the ID of the VPC (e.g., vpc-0343606e).
+    Description: Choose the Id of the VPC (e.g., vpc-0343606e).
     Type: AWS::EC2::VPC::Id
   WeeklyMaintenanceTime:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone

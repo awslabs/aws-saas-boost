@@ -835,8 +835,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             try {
                 CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                         .stackName(stackName)
-                        .onFailure("DO_NOTHING")
-                        .timeoutInMinutes(60)
+                        .onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
+                        //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
                         .capabilitiesWithStrings("CAPABILITY_NAMED_IAM")
                         .notificationARNs(settings.get("ONBOARDING_SNS"))
                         .templateURL("https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/" + settings.get("ONBOARDING_TEMPLATE"))
@@ -889,8 +889,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             if (pipeline != null && pipeline.startsWith(prefix)) {
                 String tenantId = pipeline.substring(prefix.length());
                 Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-                tenantId = onboarding.getTenantId().toString();
                 if (onboarding != null) {
+                    tenantId = onboarding.getTenantId().toString();
                     LOGGER.info("OnboardingService::statusEventListener Updating Onboarding status for tenant " + tenantId + " to " + status);
                     onboarding = dal.updateStatus(onboarding.getId(), status);
                     response = new APIGatewayProxyResponseEvent()
@@ -1031,7 +1031,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
         if (onboarding != null) {
             LOGGER.info("OnboardingService::deleteTenant Updating Onboarding status for tenant " + onboarding.getTenantId() + " to DELETING");
-            onboarding = dal.updateStatus(onboarding.getId(), OnboardingStatus.deleting);
+            dal.updateStatus(onboarding.getId(), OnboardingStatus.deleting);
         }
 
         //Now lets delete the CloudFormation stack
@@ -1297,7 +1297,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
         }
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingService::resetDomainName");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -1368,7 +1368,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     }
 
     protected Map<String, Object> fetchSettingsForTenantUpdate(Context context) {
-        Map<String, Object> settings = new HashMap<>();
+        Map<String, Object> settings;
         try {
             String getSettingResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                     ApiGatewayHelper.getApiRequest(
@@ -1410,7 +1410,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             throw new IllegalStateException("Missing environment variable API_TRUST_ROLE");
         }
         long startMillis = System.currentTimeMillis();
-        Map<String, Object> valMap = new HashMap<>();
+        Map<String, Object> valMap;
         ApiRequest tenantsRequest = ApiRequest.builder()
                 .resource("quotas/check")
                 .method("GET")

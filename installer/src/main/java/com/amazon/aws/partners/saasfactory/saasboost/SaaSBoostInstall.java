@@ -1266,7 +1266,7 @@ public class SaaSBoostInstall {
         }
         try {
             ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
-        } catch (SdkServiceException ssmError) {
+        } catch (ParameterNotFoundException ssmError) {
             outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
             System.exit(2);
         }
@@ -1413,7 +1413,7 @@ public class SaaSBoostInstall {
                 details.putAll(parameters);
                 details.putAll(outputs);
             }
-         } catch (SdkServiceException cfnError) {
+        } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation:DescribeStacks error", cfnError);
             LOGGER.error(getFullStackTrace(cfnError));
             throw cfnError;
@@ -1594,12 +1594,12 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void createMetricsStack(final String stackName, final String dbPasswordSSMParameter, final String databaseName) {
+    protected void createMetricsStack(final String stackName, final String dbPasswordSsmParameter, final String databaseName) {
         LOGGER.info("Creating CloudFormation stack {} with database name {}", stackName, databaseName);
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());
         templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(this.lambdaSourceFolder).build());
-        templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSSMParameter).build());
+        templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSsmParameter).build());
         templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(this.s3ArtifactBucket).build());
         templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackDetails.get("LoggingBucket")).build());
         templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue(databaseName).build());
@@ -1739,9 +1739,11 @@ public class SaaSBoostInstall {
         this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
         LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
         try {
+            // Putting a location constraint on a N. Virginia regional bucket throws an error in S3
+            final BucketLocationConstraint bucketInRegion = "us-east-1".equals(AWS_REGION.id()) ? null : BucketLocationConstraint.fromValue(AWS_REGION.id());
             s3.createBucket(request -> request
                     .createBucketConfiguration(
-                            config -> config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id()))
+                            config -> config.locationConstraint(bucketInRegion)
                     )
                     .bucket(this.s3ArtifactBucket)
             );
