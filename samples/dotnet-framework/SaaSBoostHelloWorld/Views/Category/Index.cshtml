@@ -1,0 +1,82 @@
+﻿@*
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*@
+@model IEnumerable<SaaSBoostHelloWorld.Models.Category>
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Categories</title>
+    <link href="~/Content/bootstrap.min.css" rel="stylesheet">
+    <style type="text/css">
+        tr.clickable-row {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container pt-3">
+        <div class="row">
+            <div class="col-10">
+                <h2>Categories</h2>
+            </div>
+            <div class="col-2 align-self-center">
+                <a role="button" class="btn btn-success float-right" href="category/create">Add Category</a>
+            </div>
+        </div>
+        @if (!(String.IsNullOrEmpty(ViewData["msg"] as String)))
+        {
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-@(ViewData["css"])" alert-dismissible fade show" role="alert">
+                        <strong>@ViewData["msg"]</strong>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                </div>
+            </div>
+        }
+        <div class="row">
+            <table class="table table-hover">
+                <thead class="thead-light">
+                    <tr>
+                        <th style="width: 10%" scope="col">ID</th>
+                        <th style="width: 60%" scope="col">Name</th>
+                        <th style="width: 30%" scope="col"></th>
+                    </tr>
+                </thead>
+                @foreach (var category in Model)
+                {
+                    <tr>
+                        <th scope="row">@category.Id</th>
+                        <td>@category.Name</td>
+                        <td><div class="float-right"><a role="button" class="btn btn-info" href="category/edit/@category.Id">Edit</a> <a role="button" class="btn btn-danger" href="category/delete/@category.Id">Delete</a></div></td>
+                    </tr>
+                }
+            </table>
+        </div>
+    </div>
+    <script src="~/Scripts/jquery-3.5.1.min.js"></script>
+    <script src="~/Scripts/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function ($) {
+            $(".clickable-row").click(function () {
+                window.location.assign($(this).data("href"));
+            });
+        });
+    </script>
+</body>
+</html>
