@@ -28,6 +28,7 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPref
 # Make a directory to save the LogMonitor files in.
 # LogMonitor doesn't like to read files from the root of a drive, so we need a subfolder. Match this to your log file config.
 # Make sure your LogMonitorConfig.json file is UTF-8 encoded with no BOM or LogMonitor.exe will fail to start.
+#
 # A couple of example LogMonitor configurations from Microsoft
 # https://raw.githubusercontent.com/microsoft/iis-docker/master/windowsservercore-insider/LogMonitorConfig.json
 # https://raw.githubusercontent.com/microsoft/windows-container-tools/master/LogMonitor/src/LogMonitor/sample-config-files/IIS/LogMonitorConfig.json
@@ -35,6 +36,9 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPref
 # Make a directory to use as the mount point for our SMB Mounts. Make sure to enter this as the "mount point" in the SaaS Boost application config.
 # SaaS Boost uses SMB Global Mappings to the FSx Windows File Share.
 # The FSx drive letter you choose will be mapped to the path entered as "mount point" in the application config.
+#
+# Make a directory for Log4Net to write the application log file to. This path needs to match whatever you set in Web.config.
+# Our LogMonitor config file also needs to refer to this path so it can relay the log entries to CloudWatch Logs.
 RUN Add-WindowsFeature Web-Server; `
     Add-WindowsFeature NET-Framework-45-ASPNET; `
     Add-WindowsFeature Web-Asp-Net45; `
@@ -56,9 +60,6 @@ RUN Add-WindowsFeature Web-Server; `
         } `
     ); `
     $downloads.ForEach({ Invoke-WebRequest -UseBasicParsing -Uri $psitem.uri -OutFile $psitem.outFile });
-
-# Move this down to the last Docker image layer
-#COPY LogMonitorConfig.json C:\LogMonitor\
 
 # Install Roslyn compilers
 RUN Invoke-WebRequest https://api.nuget.org/packages/microsoft.net.compilers.2.9.0.nupkg -OutFile C:\microsoft.net.compilers.2.9.0.zip; `
@@ -96,5 +97,6 @@ ENTRYPOINT ["C:\\LogMonitor\\LogMonitor.exe", "C:\\ServiceMonitor.exe", "w3svc"]
 ARG source
 WORKDIR /inetpub/wwwroot
 COPY ${source:-obj/Docker/publish} .
+
 # Use our LogMonitor configuration
 RUN move C:\inetpub\wwwroot\LogMonitorConfig.json c:\LogMonitor\
