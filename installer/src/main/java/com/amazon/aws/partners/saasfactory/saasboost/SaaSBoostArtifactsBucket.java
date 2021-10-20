@@ -97,26 +97,26 @@ public class SaaSBoostArtifactsBucket {
                             .build())
                     .build());
             s3.putBucketPolicy(PutBucketPolicyRequest.builder()
-                    .policy("{\n" +
-                            "    \"Version\": \"2012-10-17\",\n" +
-                            "    \"Statement\": [\n" +
-                            "        {\n" +
-                            "            \"Sid\": \"DenyNonHttps\",\n" +
-                            "            \"Effect\": \"Deny\",\n" +
-                            "            \"Principal\": \"*\",\n" +
-                            "            \"Action\": \"s3:*\",\n" +
-                            "            \"Resource\": [\n" +
-                            "                \"arn:aws:s3:::" + s3ArtifactBucketName + "/*\",\n" +
-                            "                \"arn:aws:s3:::" + s3ArtifactBucketName + "\"\n" +
-                            "            ],\n" +
-                            "            \"Condition\": {\n" +
-                            "                \"Bool\": {\n" +
-                            "                    \"aws:SecureTransport\": \"false\"\n" +
-                            "                }\n" +
-                            "            }\n" +
-                            "        }\n" +
-                            "    ]\n" +
-                            "}")
+                    .policy("{\n"
+                            + "    \"Version\": \"2012-10-17\",\n"
+                            + "    \"Statement\": [\n"
+                            + "        {\n"
+                            + "            \"Sid\": \"DenyNonHttps\",\n"
+                            + "            \"Effect\": \"Deny\",\n"
+                            + "            \"Principal\": \"*\",\n"
+                            + "            \"Action\": \"s3:*\",\n"
+                            + "            \"Resource\": [\n"
+                            + "                \"arn:aws:s3:::" + s3ArtifactBucketName + "/*\",\n"
+                            + "                \"arn:aws:s3:::" + s3ArtifactBucketName + "\"\n"
+                            + "            ],\n"
+                            + "            \"Condition\": {\n"
+                            + "                \"Bool\": {\n"
+                            + "                    \"aws:SecureTransport\": \"false\"\n"
+                            + "                }\n"
+                            + "            }\n"
+                            + "        }\n"
+                            + "    ]\n"
+                            + "}")
                     .bucket(s3ArtifactBucketName)
                     .build());
         } catch (SdkServiceException s3Error) {
