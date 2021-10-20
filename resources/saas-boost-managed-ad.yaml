@@ -12,9 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-AWSTemplateFormatVersion: "2010-09-09"
-Description: Amazon - Managed Microsoft Active Directory.
-#From https://github.com/aws-samples/amazon-ecs-gmsa
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Managed AD
 Metadata:
   "AWS::CloudFormation::Interface":
     ParameterGroups:
@@ -27,7 +26,6 @@ Metadata:
         Parameters:
           - VpcId
           - Subnets
-
 Parameters:
   Edition:
     Type: String
@@ -36,31 +34,23 @@ Parameters:
     AllowedValues:
       - Standard
       - Enterprise
-
   Subnets:
     Type: "List<AWS::EC2::Subnet::Id>"
-    #Type: String
     Description: The subnets to launch the Active Directory. Should be maximum of two subnets.
-
   VpcId:
-#    Type: "AWS::EC2::VPC::Id"
     Type: String
     Description: The VPC of the Active directory. Use the Linux worker nodes VPC.
-
   Environment:
     Description: 'SaaS Boost Environment'
     MaxLength: '30'
     MinLength: '1'
     Type: String
-
   ADPasswordParam:
     ConstraintDescription: please specify a valid Parameter Store name.
     Description: 'SSM Parameter name to use for AD User password:'
     MaxLength: '1024'
     MinLength: '1'
     Type: String
-
-
 Resources:
   ADDirectory:
     Type: AWS::DirectoryService::MicrosoftAD
@@ -72,16 +62,13 @@ Resources:
       VpcSettings:
         SubnetIds: !Ref Subnets
         VpcId: !Ref VpcId
-
   SSMParamMADIps:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
       Type: String
-      # save the ips
       Value:
        !Join [",", !GetAtt ADDirectory.DnsIpAddresses]
-
   SSMParamDirectoryName:
     Type: AWS::SSM::Parameter
     DependsOn: ADDirectory
@@ -89,29 +76,24 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
       Type: String
       Value: !Sub ${Environment}.${AWS::Region}.saasboost.com
-
   SSMParamUserName:
     Type: AWS::SSM::Parameter
     DependsOn: ADDirectory
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
       Type: String
-      # save the ips
       Value: !Sub ${Environment}.${AWS::Region}.saasboost.com\admin
-
   SSMParamDirectoryId:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_ID
       Type: String
-      # save the ips
       Value: !Ref ADDirectory
 Outputs:
   DirectoryAlias:
     Description: Directory alias.
     Value:
       !GetAtt ADDirectory.Alias
-
   DnsIpAddresses:
     Description: The IP addresses of the DNS servers for the directory.
     Value:

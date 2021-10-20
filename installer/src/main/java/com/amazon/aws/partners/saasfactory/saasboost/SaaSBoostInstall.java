@@ -1257,7 +1257,7 @@ public class SaaSBoostInstall {
         }
         try {
             ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
-        } catch (SdkServiceException ssmError) {
+        } catch (ParameterNotFoundException ssmError) {
             outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
             System.exit(2);
         }
@@ -1404,7 +1404,7 @@ public class SaaSBoostInstall {
                 details.putAll(parameters);
                 details.putAll(outputs);
             }
-         } catch (SdkServiceException cfnError) {
+        } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation:DescribeStacks error", cfnError);
             LOGGER.error(getFullStackTrace(cfnError));
             throw cfnError;
@@ -1576,7 +1576,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void createMetricsStack(final String stackName, final String dbPasswordSSMParameter, final String databaseName) {
+    protected void createMetricsStack(final String stackName, final String dbPasswordSsmParameter, final String databaseName) {
         LOGGER.info("Creating CloudFormation stack {} with database name {}", stackName, databaseName);
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());

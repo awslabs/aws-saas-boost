@@ -39,6 +39,9 @@ public class BillingProvider {
 
     @Override
     public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
         // Same reference?
         if (this == obj) {
             return true;

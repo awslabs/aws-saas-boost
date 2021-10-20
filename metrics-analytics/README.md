@@ -1,12 +1,11 @@
 # Steps to Deploy the Metrics & Analytics Stack
 
 
-1. The resources for the Metrics and Analytics soluitons are deployed with the SaaS Boost install by specyfing option of Y for DEPLOYMETRICS.  This will deploy a delivery stream inside Amazon Kinesis Firehose, an S3 bucket and a Amazon Redshift Cluster.
+1. The resources for the Metrics and Analytics solutions are deployed with the SaaS Boost install by specifying option of Y for DEPLOYMETRICS.  This will deploy a delivery stream inside Amazon Kinesis Firehose, an S3 bucket and a Amazon Redshift Cluster.
 
 2. Register for Quicksight inside your AWS account. You can select Standard. Choose the region where you deployed SaaS Boost if it is available. Check the option for Enable autodiscovery of data and users in your Amazon Redshift, Amazon RDS, and AWS IAM services. Once your account is created, You will want to select the option to include Redshift as a datasource.
 
-3. The Java installer will setup the datasource and dataset in Quicksight if the option was selected at time of installation. If not, you can run 
-run setup-s3-quicksight.py to create datasource and dataset, in order to connect Quicksight to the metrics table inside Redshift cluster. You will need boto3 library installed for Python and your AWS access key.
+3. The Java installer will setup the datasource and dataset in Quicksight if the option was selected at time of installation. If not, you can run setup-s3-quicksight.py to create datasource and dataset, in order to connect Quicksight to the metrics table inside Redshift cluster. You will need boto3 library installed for Python and your AWS access key.
 ```
 python3 setup-s3-quicksight.py
 ```

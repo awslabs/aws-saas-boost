@@ -305,6 +305,8 @@ Resources:
                 Action:
                   - ssm:Get*
                   - ssm:PutParameter
+                  # This is for the AD stack -- need to figure out why update DNS wants to delete its SSM params
+                  - ssm:DeleteParameter
                 Resource:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
                   - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
@@ -494,6 +496,7 @@ Resources:
                   - elasticfilesystem:PutFileSystemPolicy
                   - elasticfilesystem:PutLifecycleConfiguration
                   - fsx:CreateFileSystem
+                  - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
@@ -565,6 +568,12 @@ Resources:
                   - ec2:AuthorizeSecurityGroupEgress
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+              # This is for the AD stack -- need to figure out why update DNS wants to delete the directory
+              - Effect: Allow
+                Action:
+                  - ds:DeleteDirectory
+                Resource:
+                  - !Sub arn:aws:ds:${AWS::Region}:${AWS::AccountId}:directory/*
   OnboardingServiceDeleteTenantExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -715,6 +724,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - iam:DeleteInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/Tenant-*
               - Effect: Allow
@@ -782,6 +792,7 @@ Resources:
                   - autoscaling:DeleteTags
                   - application-autoscaling:DeregisterScalableTarget
                   - ecs:DeleteCluster
+                  - ecs:DescribeTaskDefinition
                   - ecs:DeregisterTaskDefinition
                   - ecs:UntagResource
                   - elasticloadbalancing:Describe*
