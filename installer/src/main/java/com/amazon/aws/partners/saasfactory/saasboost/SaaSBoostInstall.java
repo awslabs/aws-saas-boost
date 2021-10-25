@@ -128,7 +128,6 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        LOGGER.error("\n\n\n\n======================\n\n\n\nAWS_REGION: {}\n\n\n\n=================\n\n\n", AWS_REGION);
         awsClientBuilderFactory = BoostAwsClientBuilderFactory.builder()
                 .region(AWS_REGION)
                 .build();

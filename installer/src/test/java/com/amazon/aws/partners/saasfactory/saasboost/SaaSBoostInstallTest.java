@@ -18,9 +18,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
