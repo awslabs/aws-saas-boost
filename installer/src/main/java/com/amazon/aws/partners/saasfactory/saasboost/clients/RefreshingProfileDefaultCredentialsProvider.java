@@ -16,8 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.clients;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -109,12 +107,14 @@ public class RefreshingProfileDefaultCredentialsProvider implements AwsCredentia
             return this;
         }
 
-        public RefreshingProfileDefaultCredentialsProvider.Builder reuseLastProviderEnabled(Boolean reuseLastProviderEnabled) {
+        public RefreshingProfileDefaultCredentialsProvider.Builder reuseLastProviderEnabled(
+                Boolean reuseLastProviderEnabled) {
             this.reuseLastProviderEnabled = reuseLastProviderEnabled;
             return this;
         }
 
-        public RefreshingProfileDefaultCredentialsProvider.Builder asyncCredentialUpdateEnabled(Boolean asyncCredentialUpdateEnabled) {
+        public RefreshingProfileDefaultCredentialsProvider.Builder asyncCredentialUpdateEnabled(
+                Boolean asyncCredentialUpdateEnabled) {
             this.asyncCredentialUpdateEnabled = asyncCredentialUpdateEnabled;
             return this;
         }

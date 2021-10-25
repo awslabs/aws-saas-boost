@@ -36,7 +36,7 @@ limitations under the License.
 
     <properties>
         <aws.java.sdk.version>2.13.68</aws.java.sdk.version>
-        <checkstyle.maxAllowedViolations>500</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>138</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
