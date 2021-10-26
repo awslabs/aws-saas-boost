@@ -80,6 +80,8 @@ public class SaaSBoostArtifactsBucket {
         LOGGER.info("Creating S3 Artifact Bucket {}", s3ArtifactBucketName);
         try {
             CreateBucketRequest.Builder createBucketRequestBuilder = CreateBucketRequest.builder();
+            // LocationConstraint is not valid in US_EAST_1
+            // https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/model/BucketLocationConstraint.html
             if (!(awsRegion.equals(Region.AWS_GLOBAL) || awsRegion.equals(Region.US_EAST_1))) {
                 createBucketRequestBuilder.createBucketConfiguration(config ->
                         config.locationConstraint(BucketLocationConstraint.fromValue(awsRegion.id())));
