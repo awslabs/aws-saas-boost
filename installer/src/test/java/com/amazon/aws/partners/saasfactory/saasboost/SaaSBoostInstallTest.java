@@ -83,8 +83,6 @@ public class SaaSBoostInstallTest {
 
     @Test
     public void testGetCloudFormationParameterMap() throws Exception {
-        System.out.println("testGetCloudFormationParameterMap");
-
         // The input map represents the existing CloudFormation parameter values.
         // These will either be the template defaults, or they will be the parameter
         // values read from a created stack with the describeStacks call.

@@ -84,7 +84,7 @@ public class SaaSBoostInstall {
     private final String accountId;
     private String envName;
     private Path workingDir;
-    private String s3ArtifactBucket;
+    private SaaSBoostArtifactsBucket saasBoostArtifactsBucket;
     private String lambdaSourceFolder = "lambdas";
     private String stackName;
     private Map<String, String> baseStackDetails = new HashMap<>();
@@ -347,7 +347,8 @@ public class SaaSBoostInstall {
 
         // Create the S3 artifacts bucket
         outputMessage("Creating S3 artifacts bucket");
-        createS3ArtifactBucket();
+        saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
         // Copy the CloudFormation templates
         outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
@@ -396,7 +397,7 @@ public class SaaSBoostInstall {
         }
 
         outputMessage("Check the admin email box for the temporary password.");
-        outputMessage("AWS SaaS Boost Artifacts Bucket: " + s3ArtifactBucket);
+        outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
         outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
@@ -415,7 +416,7 @@ public class SaaSBoostInstall {
         }
 
         // First, upload the (potentially) modified CloudFormation templates up to S3
-        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + this.s3ArtifactBucket);
+        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + saasBoostArtifactsBucket);
         copyTemplateFilesToS3();
 
         // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
@@ -488,7 +489,7 @@ public class SaaSBoostInstall {
 
         // Delete the old lambdas zip files
         outputMessage("Delete files from previous Lambda folder: " + existingLambdaSourceFolder);
-        cleanUpS3(s3ArtifactBucket, existingLambdaSourceFolder);
+        cleanUpS3(saasBoostArtifactsBucket.getBucketName(), existingLambdaSourceFolder);
 
         outputMessage("Update of SaaS Boost environment " + this.envName + " complete.");
     }
@@ -565,9 +566,9 @@ public class SaaSBoostInstall {
         deleteCloudFormationStack(this.stackName);
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
-        LOGGER.info("Clean up s3 bucket: " + this.s3ArtifactBucket);
-        cleanUpS3(this.s3ArtifactBucket, null);
-        s3.deleteBucket(r -> r.bucket(this.s3ArtifactBucket));
+        LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
+        cleanUpS3(saasBoostArtifactsBucket.getBucketName(), null);
+        s3.deleteBucket(r -> r.bucket(saasBoostArtifactsBucket.getBucketName()));
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
     }
@@ -1177,17 +1178,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
                 LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
-                try {
-                    s3.putObject(PutObjectRequest.builder()
-                            .bucket(this.s3ArtifactBucket)
-                            .key(cloudFormationTemplate.getFileName().toString())
-                            .build(), RequestBody.fromFile(cloudFormationTemplate)
-                    );
-                } catch (SdkServiceException s3Error) {
-                    LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
-                    LOGGER.error(getFullStackTrace(s3Error));
-                    throw s3Error;
-                }
+                saasBoostArtifactsBucket.putFile(s3, cloudFormationTemplate, cloudFormationTemplate.getFileName());
             }
         } catch (IOException ioe) {
             LOGGER.error("Error listing resources directory", ioe);
@@ -1246,7 +1237,7 @@ public class SaaSBoostInstall {
 
     protected void loadExistingSaaSBoostEnvironment() {
         this.envName = getExistingSaaSBoostEnvironment();
-        this.s3ArtifactBucket = getExistingSaaSBoostArtifactBucket();
+        this.saasBoostArtifactsBucket = getExistingSaaSBoostArtifactBucket();
         this.lambdaSourceFolder = getExistingSaaSBoostLambdasFolder();
         this.stackName = getExistingSaaSBoostStackName();
         this.baseStackDetails = getExistingSaaSBoostStackDetails();
@@ -1298,7 +1289,7 @@ public class SaaSBoostInstall {
 //        return valid;
 //    }
 
-    protected String getExistingSaaSBoostArtifactBucket() {
+    protected SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket() {
         LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
         String artifactsBucket = null;
         if (isBlank(this.envName)) {
@@ -1315,7 +1306,7 @@ public class SaaSBoostInstall {
             throw ssmError;
         }
         LOGGER.info("Loaded artifacts bucket {}", artifactsBucket);
-        return artifactsBucket;
+        return new SaaSBoostArtifactsBucket(artifactsBucket, AWS_REGION);
     }
 
     protected String getExistingSaaSBoostStackName() {
@@ -1465,17 +1456,8 @@ public class SaaSBoostInstall {
                                 .collect(Collectors.toSet());
                         for (Path zipFile : lambdaSourcePackage) {
                             LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
-                            try {
-                                s3.putObject(PutObjectRequest.builder()
-                                        .bucket(this.s3ArtifactBucket)
-                                        .key(this.lambdaSourceFolder + "/" + zipFile.getFileName().toString())
-                                        .build(), RequestBody.fromFile(zipFile)
-                                );
-                            } catch (SdkServiceException s3Error) {
-                                LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
-                                LOGGER.error(getFullStackTrace(s3Error));
-                                throw s3Error;
-                            }
+                            saasBoostArtifactsBucket.putFile(s3, zipFile,
+                                    Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
                         }
                     }
                 } else {
@@ -1494,7 +1476,7 @@ public class SaaSBoostInstall {
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
         templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(adminEmail).build());
-        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(s3ArtifactBucket).build());
+        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
@@ -1507,7 +1489,7 @@ public class SaaSBoostInstall {
                             //.onFailure("DO_NOTHING") // TODO bug on roll back?
                             //.timeoutInMinutes(90)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost.yaml")
+                            .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
                             .parameters(templateParameters)
                             .build()
             );
@@ -1554,7 +1536,7 @@ public class SaaSBoostInstall {
             UpdateStackResponse updateStackResponse = cfn.updateStack(UpdateStackRequest.builder()
                     .stackName(stackName)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/" + yamlFile)
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + yamlFile)
                     .parameters(templateParameters)
                     .build()
             );
@@ -1600,7 +1582,7 @@ public class SaaSBoostInstall {
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());
         templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(this.lambdaSourceFolder).build());
         templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSsmParameter).build());
-        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(this.s3ArtifactBucket).build());
+        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackDetails.get("LoggingBucket")).build());
         templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue(databaseName).build());
         templateParameters.add(Parameter.builder().parameterKey("PublicSubnet1").parameterValue(baseStackDetails.get("PublicSubnet1")).build());
@@ -1619,7 +1601,7 @@ public class SaaSBoostInstall {
                     //.onFailure("DO_NOTHING") // TODO bug on roll back?
                     //.timeoutInMinutes(90)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost-metrics-analytics.yaml")
                     .parameters(templateParameters)
                     .build()
             );
@@ -1730,63 +1712,6 @@ public class SaaSBoostInstall {
             }
         }
         return exists;
-    }
-
-    protected void createS3ArtifactBucket() {
-        UUID uniqueId = UUID.randomUUID();
-        String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-
-        this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
-        LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
-        try {
-            // Putting a location constraint on a N. Virginia regional bucket throws an error in S3
-            final BucketLocationConstraint bucketInRegion = "us-east-1".equals(AWS_REGION.id()) ? null : BucketLocationConstraint.fromValue(AWS_REGION.id());
-            s3.createBucket(request -> request
-                    .createBucketConfiguration(
-                            config -> config.locationConstraint(bucketInRegion)
-                    )
-                    .bucket(this.s3ArtifactBucket)
-            );
-            s3.putBucketEncryption(request -> request
-                    .serverSideEncryptionConfiguration(
-                            config -> config.rules(rules -> rules
-                                    .applyServerSideEncryptionByDefault(encrypt -> encrypt
-                                            .sseAlgorithm(ServerSideEncryption.AES256)
-                                    )
-                            )
-                    )
-                    .bucket(this.s3ArtifactBucket)
-            );
-            s3.putBucketPolicy(request -> request
-                    .policy("{\n" +
-                            "    \"Version\": \"2012-10-17\",\n" +
-                            "    \"Statement\": [\n" +
-                            "        {\n" +
-                            "            \"Sid\": \"DenyNonHttps\",\n" +
-                            "            \"Effect\": \"Deny\",\n" +
-                            "            \"Principal\": \"*\",\n" +
-                            "            \"Action\": \"s3:*\",\n" +
-                            "            \"Resource\": [\n" +
-                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "/*\",\n" +
-                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "\"\n" +
-                            "            ],\n" +
-                            "            \"Condition\": {\n" +
-                            "                \"Bool\": {\n" +
-                            "                    \"aws:SecureTransport\": \"false\"\n" +
-                            "                }\n" +
-                            "            }\n" +
-                            "        }\n" +
-                            "    ]\n" +
-                            "}")
-                    .bucket(this.s3ArtifactBucket)
-            );
-        } catch (SdkServiceException s3Error) {
-            LOGGER.error("s3 error {}", s3Error.getMessage());
-            LOGGER.error(getFullStackTrace(s3Error));
-            throw s3Error;
-        }
-
-        outputMessage("Created S3 artifacts bucket: " + this.s3ArtifactBucket);
     }
 
     protected String buildAndCopyWebApp() {
