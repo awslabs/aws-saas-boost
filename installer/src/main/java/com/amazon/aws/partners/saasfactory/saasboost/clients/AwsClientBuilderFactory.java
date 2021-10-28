@@ -39,7 +39,7 @@ import software.amazon.awssdk.services.ssm.SsmClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.StsClientBuilder;
 
-public class BoostAwsClientBuilderFactory {
+public class AwsClientBuilderFactory {
 
     private static final AwsCredentialsProvider DEFAULT_CREDENTIALS_PROVIDER =
             RefreshingProfileDefaultCredentialsProvider.builder().build();
@@ -47,7 +47,7 @@ public class BoostAwsClientBuilderFactory {
     private final Region awsRegion;
     private final AwsCredentialsProvider credentialsProvider;
 
-    private BoostAwsClientBuilderFactory(Builder builder) {
+    private AwsClientBuilderFactory(Builder builder) {
         // passing no region or a null region to any of the AWS Client Builders
         // leads to the default region from the configured profile being used
         this.awsRegion = builder.defaultRegion;
@@ -76,7 +76,9 @@ public class BoostAwsClientBuilderFactory {
     }
 
     public IamClientBuilder iamBuilder() {
-        return decorateBuilderWithDefaults(IamClient.builder());
+        // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
+        // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+        return decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
     }
 
     public LambdaClientBuilder lambdaBuilder() {
@@ -121,8 +123,8 @@ public class BoostAwsClientBuilderFactory {
             return this;
         }
 
-        public BoostAwsClientBuilderFactory build() {
-            return new BoostAwsClientBuilderFactory(this);
+        public AwsClientBuilderFactory build() {
+            return new AwsClientBuilderFactory(this);
         }
     }
 }

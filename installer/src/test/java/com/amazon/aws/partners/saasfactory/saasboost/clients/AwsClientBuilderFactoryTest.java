@@ -28,7 +28,7 @@ import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
-public class BoostAwsClientBuilderFactoryTest {
+public class AwsClientBuilderFactoryTest {
 
     private static final Region DEFAULT_EXPECTED_REGION = null;
     private static final Class<? extends AwsCredentialsProvider> DEFAULT_EXPECTED_CREDENTIALS_PROVIDER_CLASS =
@@ -52,20 +52,20 @@ public class BoostAwsClientBuilderFactoryTest {
     public void buildFactoryWithNoRegion() {
         // this test verifies that a null region is automatically filled with the default profile region
         // in the SDK. this is assumed by the BoostAwsClientBuilderFactory and will fail should that behavior change
-        BoostAwsClientBuilderFactory.builder().build().quickSightBuilder().build();
+        AwsClientBuilderFactory.builder().build().quickSightBuilder().build();
     }
 
     @Test
     public void verifyBuildersHaveDefaults() {
         // for each builder, verify it has region and credentials provider as expected
-        runBoostAwsClientBuilderFactoryTest(BoostAwsClientBuilderFactory.builder().build(),
+        runBoostAwsClientBuilderFactoryTest(AwsClientBuilderFactory.builder().build(),
                 DEFAULT_EXPECTED_REGION, DEFAULT_EXPECTED_CREDENTIALS_PROVIDER_CLASS);
     }
 
     @Test
     public void verifyBuilderRegionOverridden() {
         Region expectedRegion = Region.AF_SOUTH_1;
-        runBoostAwsClientBuilderFactoryTest(BoostAwsClientBuilderFactory.builder().region(expectedRegion).build(),
+        runBoostAwsClientBuilderFactoryTest(AwsClientBuilderFactory.builder().region(expectedRegion).build(),
                 expectedRegion, DEFAULT_EXPECTED_CREDENTIALS_PROVIDER_CLASS);
     }
 
@@ -73,14 +73,14 @@ public class BoostAwsClientBuilderFactoryTest {
     public void verifyBuilderCredentialProviderOverridden() {
         Class<? extends AwsCredentialsProvider> expectedCredentialsProviderClass = DefaultCredentialsProvider.class;
         runBoostAwsClientBuilderFactoryTest(
-                BoostAwsClientBuilderFactory.builder()
+                AwsClientBuilderFactory.builder()
                         .credentialsProvider(DefaultCredentialsProvider.create())
                         .build(),
                 DEFAULT_EXPECTED_REGION, expectedCredentialsProviderClass);
     }
 
     private void runBoostAwsClientBuilderFactoryTest(
-            BoostAwsClientBuilderFactory factory,
+            AwsClientBuilderFactory factory,
             Region expectedRegion,
             Class<? extends AwsCredentialsProvider> expectedCredentialsProviderClass) {
         ArgumentCaptor<AwsCredentialsProvider> credentialsProviderArgumentCaptor =

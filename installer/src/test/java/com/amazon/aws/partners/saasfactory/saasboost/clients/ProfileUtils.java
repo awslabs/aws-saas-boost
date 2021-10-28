@@ -16,14 +16,14 @@ public class ProfileUtils {
                                              AwsCredentials newCredentials)
             throws IOException {
         // this will automatically create the file if it does not already exist
-        FileWriter updatingOutputStream = new FileWriter(filename, false);
-        writeProfileToFileWriter(
-                Profile.builder()
-                        .name(profile)
-                        .properties(propertiesFromCredentials(newCredentials))
-                        .build(),
-                updatingOutputStream);
-        updatingOutputStream.close();
+        try (FileWriter updatingOutputStream = new FileWriter(filename, false)) {
+            writeProfileToFileWriter(
+                    Profile.builder()
+                            .name(profile)
+                            .properties(propertiesFromCredentials(newCredentials))
+                            .build(),
+                    updatingOutputStream);
+        }
     }
 
     private static void writeProfileToFileWriter(Profile profile, FileWriter fileWriter) throws IOException {

@@ -15,7 +15,7 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.clients.BoostAwsClientBuilderFactory;
+import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
@@ -65,7 +65,7 @@ public class SaaSBoostInstall {
     private static final String OS = System.getProperty("os.name").toLowerCase();
     private static final String VERSION = getVersionInfo();
 
-    private final BoostAwsClientBuilderFactory awsClientBuilderFactory;
+    private final AwsClientBuilderFactory awsClientBuilderFactory;
     private final ApiGatewayClient apigw;
     private final CloudFormationClient cfn;
     private final EcrClient ecr;
@@ -128,15 +128,14 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        awsClientBuilderFactory = BoostAwsClientBuilderFactory.builder()
+        awsClientBuilderFactory = AwsClientBuilderFactory.builder()
                 .region(AWS_REGION)
                 .build();
 
         apigw = awsClientBuilderFactory.apiGatewayBuilder().build();
         cfn = awsClientBuilderFactory.cloudFormationBuilder().build();
         ecr = awsClientBuilderFactory.ecrBuilder().build();
-        iam = awsClientBuilderFactory.iamBuilder()
-                .region(Region.AWS_GLOBAL).build();
+        iam = awsClientBuilderFactory.iamBuilder().build();
         lambda = awsClientBuilderFactory.lambdaBuilder().build();
         quickSight = awsClientBuilderFactory.quickSightBuilder().build();
         s3 = awsClientBuilderFactory.s3Builder().build();
