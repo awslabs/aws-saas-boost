@@ -1,3 +1,5 @@
+#escape=`
+
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
@@ -12,33 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#escape=`
-
-#Depending on the operating system of the host machines(s) that will build or run the containers, the image specified in the FROM statement may need to be changed.
-#For more information, please see https://aka.ms/containercompat 
-
-#FROM mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2019
-#FROM mcr.microsoft.com/windows/servercore/iis/insider:windowsservercore-10.0.19035.1
-FROM mcr.microsoft.com/dotnet/framework/runtime:4.8-windowsservercore-ltsc2019
-
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
-
-# First, Install IIS and ASP.NET
+# Depending on the operating system of the host machines(s) that will build or run the containers, the image specified in the FROM statement may need to be changed.
+# For more information, please see https://aka.ms/containercompat 
+#
+# This Dockerfile expands on the ideas from the Windows Insider Dockerfile for the LogMonitor project
+# (see https://techcommunity.microsoft.com/t5/containers/windows-containers-log-monitor-opensource-release/ba-p/973947)
+#
+# First, Install IIS and ASP.NET and delete the default IIS web app.
 #
 # Make a directory to save the LogMonitor files in.
 # LogMonitor doesn't like to read files from the root of a drive, so we need a subfolder. Match this to your log file config.
 # Make sure your LogMonitorConfig.json file is UTF-8 encoded with no BOM or LogMonitor.exe will fail to start.
 #
-# A couple of example LogMonitor configurations from Microsoft
+# A couple of example LogMonitor configurations from Microsoft:
 # https://raw.githubusercontent.com/microsoft/iis-docker/master/windowsservercore-insider/LogMonitorConfig.json
 # https://raw.githubusercontent.com/microsoft/windows-container-tools/master/LogMonitor/src/LogMonitor/sample-config-files/IIS/LogMonitorConfig.json
+#
+# Make a directory for Log4Net to write the application log file to. This path needs to match whatever you set in Web.config.
+# Our LogMonitor config file also needs to refer to this path so it can relay the log entries to CloudWatch Logs.
 #
 # Make a directory to use as the mount point for our SMB Mounts. Make sure to enter this as the "mount point" in the SaaS Boost application config.
 # SaaS Boost uses SMB Global Mappings to the FSx Windows File Share.
 # The FSx drive letter you choose will be mapped to the path entered as "mount point" in the application config.
-#
-# Make a directory for Log4Net to write the application log file to. This path needs to match whatever you set in Web.config.
-# Our LogMonitor config file also needs to refer to this path so it can relay the log entries to CloudWatch Logs.
+
+FROM mcr.microsoft.com/dotnet/framework/runtime:4.8-windowsservercore-ltsc2019
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
 RUN Add-WindowsFeature Web-Server; `
     Add-WindowsFeature NET-Framework-45-ASPNET; `
     Add-WindowsFeature Web-Asp-Net45; `
