@@ -58,10 +58,12 @@ public class Onboarding {
     }
 
     public void setZipFileUrl(String zipFileUrl) {
-        this.zipFileUrl= zipFileUrl;
+        this.zipFileUrl = zipFileUrl;
     }
 
-    public String getZipFileUrl() { return zipFileUrl;}
+    public String getZipFileUrl() {
+        return zipFileUrl;
+    }
 
     public LocalDateTime getCreated() {
         return created;

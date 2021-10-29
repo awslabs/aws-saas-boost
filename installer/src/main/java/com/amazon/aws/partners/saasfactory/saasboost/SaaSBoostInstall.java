@@ -15,19 +15,14 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.SdkSystemSetting;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
-import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
@@ -54,7 +49,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
-import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
 import java.nio.file.*;
@@ -71,20 +65,21 @@ public class SaaSBoostInstall {
     private static final String OS = System.getProperty("os.name").toLowerCase();
     private static final String VERSION = getVersionInfo();
 
-    private CloudFormationClient cfn;
-    private EcrClient ecr;
-    private IamClient iam;
+    private final AwsClientBuilderFactory awsClientBuilderFactory;
+    private final ApiGatewayClient apigw;
+    private final CloudFormationClient cfn;
+    private final EcrClient ecr;
+    private final IamClient iam;
+    // TODO do we need to reassign the quicksight client between getQuickSightUsername and setupQuicksight?
     private QuickSightClient quickSight;
-    private S3Client s3;
-    private SsmClient ssm;
-    private StsClient sts;
-    private LambdaClient lambda;
-    private ApiGatewayClient apigw;
+    private final S3Client s3;
+    private final SsmClient ssm;
+    private final LambdaClient lambda;
 
     private final String accountId;
     private String envName;
     private Path workingDir;
-    private String s3ArtifactBucket;
+    private SaaSBoostArtifactsBucket saasBoostArtifactsBucket;
     private String lambdaSourceFolder = "lambdas";
     private String stackName;
     private Map<String, String> baseStackDetails = new HashMap<>();
@@ -133,46 +128,20 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        this.s3 = S3Client.create();
-        this.ecr = EcrClient.create();
-        this.ssm = SsmClient.create();
-        this.sts = StsClient.create();
-        this.lambda = LambdaClient.create();
-        this.quickSight = QuickSightClient.create();
-        // IAM doesn't have a IamClient::create... because it's in the global region?
-        this.iam = IamClient.builder().region(Region.AWS_GLOBAL).build();
-        // API Gateway and CloudFormation throttle pretty aggressively on api deployments and describe stack calls,
-        // so we'll make sure we have a retry policy in place.
-        this.apigw = ApiGatewayClient.builder()
+        awsClientBuilderFactory = AwsClientBuilderFactory.builder()
                 .region(AWS_REGION)
-                .credentialsProvider(DefaultCredentialsProvider.create())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                    .retryPolicy(RetryPolicy.builder()
-                            .backoffStrategy(BackoffStrategy.defaultStrategy())
-                            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                            .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
-                            .retryCondition(RetryCondition.defaultRetryCondition())
-                            .build()
-                    )
-                    .build()
-                )
-                .build();
-        this.cfn = CloudFormationClient.builder()
-                .region(AWS_REGION)
-                .credentialsProvider(DefaultCredentialsProvider.create())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .retryPolicy(RetryPolicy.builder()
-                                .backoffStrategy(BackoffStrategy.defaultStrategy())
-                                .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                                .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
-                                .retryCondition(RetryCondition.defaultRetryCondition())
-                                .build()
-                        )
-                        .build()
-                )
                 .build();
 
-        accountId = sts.getCallerIdentity().account();
+        apigw = awsClientBuilderFactory.apiGatewayBuilder().build();
+        cfn = awsClientBuilderFactory.cloudFormationBuilder().build();
+        ecr = awsClientBuilderFactory.ecrBuilder().build();
+        iam = awsClientBuilderFactory.iamBuilder().build();
+        lambda = awsClientBuilderFactory.lambdaBuilder().build();
+        quickSight = awsClientBuilderFactory.quickSightBuilder().build();
+        s3 = awsClientBuilderFactory.s3Builder().build();
+        ssm = awsClientBuilderFactory.ssmBuilder().build();
+
+        accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
     }
 
     public static void main(String[] args) {
@@ -347,7 +316,8 @@ public class SaaSBoostInstall {
 
         // Create the S3 artifacts bucket
         outputMessage("Creating S3 artifacts bucket");
-        createS3ArtifactBucket();
+        saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
         // Copy the CloudFormation templates
         outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
@@ -396,7 +366,7 @@ public class SaaSBoostInstall {
         }
 
         outputMessage("Check the admin email box for the temporary password.");
-        outputMessage("AWS SaaS Boost Artifacts Bucket: " + s3ArtifactBucket);
+        outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
         outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
     }
 
@@ -415,7 +385,7 @@ public class SaaSBoostInstall {
         }
 
         // First, upload the (potentially) modified CloudFormation templates up to S3
-        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + this.s3ArtifactBucket);
+        outputMessage("Copy CloudFormation template files to S3 artifacts bucket " + saasBoostArtifactsBucket);
         copyTemplateFilesToS3();
 
         // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
@@ -488,7 +458,7 @@ public class SaaSBoostInstall {
 
         // Delete the old lambdas zip files
         outputMessage("Delete files from previous Lambda folder: " + existingLambdaSourceFolder);
-        cleanUpS3(s3ArtifactBucket, existingLambdaSourceFolder);
+        cleanUpS3(saasBoostArtifactsBucket.getBucketName(), existingLambdaSourceFolder);
 
         outputMessage("Update of SaaS Boost environment " + this.envName + " complete.");
     }
@@ -565,9 +535,9 @@ public class SaaSBoostInstall {
         deleteCloudFormationStack(this.stackName);
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
-        LOGGER.info("Clean up s3 bucket: " + this.s3ArtifactBucket);
-        cleanUpS3(this.s3ArtifactBucket, null);
-        s3.deleteBucket(r -> r.bucket(this.s3ArtifactBucket));
+        LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
+        cleanUpS3(saasBoostArtifactsBucket.getBucketName(), null);
+        s3.deleteBucket(r -> r.bucket(saasBoostArtifactsBucket.getBucketName()));
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
     }
@@ -745,6 +715,7 @@ public class SaaSBoostInstall {
 
     protected void getQuickSightUsername() {
         Region quickSightRegion;
+        QuickSightClient oldClient = null;
         while (true) {
             System.out.print("Region where you registered for Amazon QuickSight (Press Enter for " + AWS_REGION.id() + "): ");
             String quickSightAccountRegion = Keyboard.readString();
@@ -761,7 +732,8 @@ public class SaaSBoostInstall {
             if (quickSightRegion != null) {
                 // Update the SDK client for the proper AWS region if we need to
                 if (!AWS_REGION.equals(quickSightRegion)) {
-                    quickSight = QuickSightClient.builder().region(quickSightRegion).build();
+                    oldClient = quickSight;
+                    quickSight = awsClientBuilderFactory.quickSightBuilder().region(quickSightRegion).build();
                 }
                 // See if there are QuickSight users in this account in this region
                 LinkedHashMap<String, User> quickSightUsers = getQuickSightUsers();
@@ -787,8 +759,8 @@ public class SaaSBoostInstall {
             }
         }
         // If we changed the QuickSight SDK client region to look up the username, put it back
-        if (!AWS_REGION.equals(quickSightRegion)) {
-            quickSight = QuickSightClient.create();
+        if (oldClient != null) {
+            quickSight = oldClient;
         }
     }
 
@@ -1177,17 +1149,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
                 LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
-                try {
-                    s3.putObject(PutObjectRequest.builder()
-                            .bucket(this.s3ArtifactBucket)
-                            .key(cloudFormationTemplate.getFileName().toString())
-                            .build(), RequestBody.fromFile(cloudFormationTemplate)
-                    );
-                } catch (SdkServiceException s3Error) {
-                    LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
-                    LOGGER.error(getFullStackTrace(s3Error));
-                    throw s3Error;
-                }
+                saasBoostArtifactsBucket.putFile(s3, cloudFormationTemplate, cloudFormationTemplate.getFileName());
             }
         } catch (IOException ioe) {
             LOGGER.error("Error listing resources directory", ioe);
@@ -1246,7 +1208,7 @@ public class SaaSBoostInstall {
 
     protected void loadExistingSaaSBoostEnvironment() {
         this.envName = getExistingSaaSBoostEnvironment();
-        this.s3ArtifactBucket = getExistingSaaSBoostArtifactBucket();
+        this.saasBoostArtifactsBucket = getExistingSaaSBoostArtifactBucket();
         this.lambdaSourceFolder = getExistingSaaSBoostLambdasFolder();
         this.stackName = getExistingSaaSBoostStackName();
         this.baseStackDetails = getExistingSaaSBoostStackDetails();
@@ -1266,7 +1228,7 @@ public class SaaSBoostInstall {
         }
         try {
             ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
-        } catch (SdkServiceException ssmError) {
+        } catch (ParameterNotFoundException ssmError) {
             outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
             System.exit(2);
         }
@@ -1298,7 +1260,7 @@ public class SaaSBoostInstall {
 //        return valid;
 //    }
 
-    protected String getExistingSaaSBoostArtifactBucket() {
+    protected SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket() {
         LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
         String artifactsBucket = null;
         if (isBlank(this.envName)) {
@@ -1315,7 +1277,7 @@ public class SaaSBoostInstall {
             throw ssmError;
         }
         LOGGER.info("Loaded artifacts bucket {}", artifactsBucket);
-        return artifactsBucket;
+        return new SaaSBoostArtifactsBucket(artifactsBucket, AWS_REGION);
     }
 
     protected String getExistingSaaSBoostStackName() {
@@ -1413,7 +1375,7 @@ public class SaaSBoostInstall {
                 details.putAll(parameters);
                 details.putAll(outputs);
             }
-         } catch (SdkServiceException cfnError) {
+        } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation:DescribeStacks error", cfnError);
             LOGGER.error(getFullStackTrace(cfnError));
             throw cfnError;
@@ -1465,17 +1427,8 @@ public class SaaSBoostInstall {
                                 .collect(Collectors.toSet());
                         for (Path zipFile : lambdaSourcePackage) {
                             LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
-                            try {
-                                s3.putObject(PutObjectRequest.builder()
-                                        .bucket(this.s3ArtifactBucket)
-                                        .key(this.lambdaSourceFolder + "/" + zipFile.getFileName().toString())
-                                        .build(), RequestBody.fromFile(zipFile)
-                                );
-                            } catch (SdkServiceException s3Error) {
-                                LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
-                                LOGGER.error(getFullStackTrace(s3Error));
-                                throw s3Error;
-                            }
+                            saasBoostArtifactsBucket.putFile(s3, zipFile,
+                                    Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
                         }
                     }
                 } else {
@@ -1494,7 +1447,7 @@ public class SaaSBoostInstall {
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
         templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(adminEmail).build());
-        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(s3ArtifactBucket).build());
+        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
@@ -1507,7 +1460,7 @@ public class SaaSBoostInstall {
                             //.onFailure("DO_NOTHING") // TODO bug on roll back?
                             //.timeoutInMinutes(90)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost.yaml")
+                            .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
                             .parameters(templateParameters)
                             .build()
             );
@@ -1517,8 +1470,6 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 5L;
             do {
-                // TODO how can we set this on the SDK client itself?
-                cfn = CloudFormationClient.create(); // refresh client due to timeouts
                 DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
                 Stack stack = response.stacks().get(0);
                 if ("CREATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
@@ -1554,7 +1505,7 @@ public class SaaSBoostInstall {
             UpdateStackResponse updateStackResponse = cfn.updateStack(UpdateStackRequest.builder()
                     .stackName(stackName)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/" + yamlFile)
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + yamlFile)
                     .parameters(templateParameters)
                     .build()
             );
@@ -1562,7 +1513,6 @@ public class SaaSBoostInstall {
             LOGGER.info("Waiting for update stack to complete for " + stackId);
             long sleepTime = 3L;
             while (true) {
-                cfn = CloudFormationClient.create(); // TODO why does the client timeout and can we change that setting?
                 DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackId));
                 Stack stack = response.stacks().get(0);
                 String stackStatus = stack.stackStatusAsString();
@@ -1594,13 +1544,13 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void createMetricsStack(final String stackName, final String dbPasswordSSMParameter, final String databaseName) {
+    protected void createMetricsStack(final String stackName, final String dbPasswordSsmParameter, final String databaseName) {
         LOGGER.info("Creating CloudFormation stack {} with database name {}", stackName, databaseName);
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());
         templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(this.lambdaSourceFolder).build());
-        templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSSMParameter).build());
-        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(this.s3ArtifactBucket).build());
+        templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSsmParameter).build());
+        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackDetails.get("LoggingBucket")).build());
         templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue(databaseName).build());
         templateParameters.add(Parameter.builder().parameterKey("PublicSubnet1").parameterValue(baseStackDetails.get("PublicSubnet1")).build());
@@ -1619,7 +1569,7 @@ public class SaaSBoostInstall {
                     //.onFailure("DO_NOTHING") // TODO bug on roll back?
                     //.timeoutInMinutes(90)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .templateURL("https://" + this.s3ArtifactBucket + ".s3.amazonaws.com/saas-boost-metrics-analytics.yaml")
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost-metrics-analytics.yaml")
                     .parameters(templateParameters)
                     .build()
             );
@@ -1673,7 +1623,6 @@ public class SaaSBoostInstall {
             cfn.deleteStack(request -> request.stackName(stackName));
             long sleepTime = 5L;
             while (true) {
-                //cfn = CloudFormationClient.create(); // TODO figure out how to extend the timeout in the client
                 try {
                     DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                             .stackName(stackId)
@@ -1730,61 +1679,6 @@ public class SaaSBoostInstall {
             }
         }
         return exists;
-    }
-
-    protected void createS3ArtifactBucket() {
-        UUID uniqueId = UUID.randomUUID();
-        String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-
-        this.s3ArtifactBucket = "sb-" + this.envName + "-artifacts-" + parts[0] + "-" + parts[1];
-        LOGGER.info("Make S3 Artifact Bucket {}", this.s3ArtifactBucket);
-        try {
-            s3.createBucket(request -> request
-                    .createBucketConfiguration(
-                            config -> config.locationConstraint(BucketLocationConstraint.fromValue(AWS_REGION.id()))
-                    )
-                    .bucket(this.s3ArtifactBucket)
-            );
-            s3.putBucketEncryption(request -> request
-                    .serverSideEncryptionConfiguration(
-                            config -> config.rules(rules -> rules
-                                    .applyServerSideEncryptionByDefault(encrypt -> encrypt
-                                            .sseAlgorithm(ServerSideEncryption.AES256)
-                                    )
-                            )
-                    )
-                    .bucket(this.s3ArtifactBucket)
-            );
-            s3.putBucketPolicy(request -> request
-                    .policy("{\n" +
-                            "    \"Version\": \"2012-10-17\",\n" +
-                            "    \"Statement\": [\n" +
-                            "        {\n" +
-                            "            \"Sid\": \"DenyNonHttps\",\n" +
-                            "            \"Effect\": \"Deny\",\n" +
-                            "            \"Principal\": \"*\",\n" +
-                            "            \"Action\": \"s3:*\",\n" +
-                            "            \"Resource\": [\n" +
-                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "/*\",\n" +
-                            "                \"arn:aws:s3:::" + this.s3ArtifactBucket + "\"\n" +
-                            "            ],\n" +
-                            "            \"Condition\": {\n" +
-                            "                \"Bool\": {\n" +
-                            "                    \"aws:SecureTransport\": \"false\"\n" +
-                            "                }\n" +
-                            "            }\n" +
-                            "        }\n" +
-                            "    ]\n" +
-                            "}")
-                    .bucket(this.s3ArtifactBucket)
-            );
-        } catch (SdkServiceException s3Error) {
-            LOGGER.error("s3 error {}", s3Error.getMessage());
-            LOGGER.error(getFullStackTrace(s3Error));
-            throw s3Error;
-        }
-
-        outputMessage("Created S3 artifacts bucket: " + this.s3ArtifactBucket);
     }
 
     protected String buildAndCopyWebApp() {

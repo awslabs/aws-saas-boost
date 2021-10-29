@@ -35,8 +35,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <aws.java.sdk.version>2.13.68</aws.java.sdk.version>
-        <checkstyle.maxAllowedViolations>126</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>138</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -113,6 +112,12 @@ limitations under the License.
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.12.4</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

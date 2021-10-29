@@ -83,7 +83,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
     private final S3Presigner presigner;
 
     public SettingsService() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing environment variable AWS_REGION");
         }
@@ -116,7 +116,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         List<Setting> settings = new ArrayList<>();
         Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
@@ -153,7 +153,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
@@ -179,7 +179,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
@@ -205,7 +205,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
@@ -233,7 +233,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateSetting");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -286,7 +286,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
 
         Map<String, String> params = (Map) event.get("pathParameters");
@@ -316,7 +316,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
@@ -353,7 +353,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateTenantSetting");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -402,7 +402,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::deleteTenantSettings");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -436,7 +436,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::configOptions");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -516,7 +516,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::getAppConfig");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -541,10 +541,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::setAppConfig");
-        //LOGGER.info(event.toString());
-        //Utils.logRequestEvent(event);
+        Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
 
         try {
@@ -618,7 +617,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateAppConfig");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -730,7 +729,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::deleteAppConfig");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
