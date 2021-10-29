@@ -15,6 +15,21 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import software.amazon.awssdk.services.athena.AthenaClient;
+import software.amazon.awssdk.services.athena.model.AthenaException;
+import software.amazon.awssdk.services.athena.model.ColumnInfo;
+import software.amazon.awssdk.services.athena.model.Datum;
+import software.amazon.awssdk.services.athena.model.GetQueryExecutionRequest;
+import software.amazon.awssdk.services.athena.model.GetQueryExecutionResponse;
+import software.amazon.awssdk.services.athena.model.GetQueryResultsRequest;
+import software.amazon.awssdk.services.athena.model.GetQueryResultsResponse;
+import software.amazon.awssdk.services.athena.model.QueryExecutionContext;
+import software.amazon.awssdk.services.athena.model.QueryExecutionState;
+import software.amazon.awssdk.services.athena.model.ResultConfiguration;
+import software.amazon.awssdk.services.athena.model.Row;
+import software.amazon.awssdk.services.athena.model.StartQueryExecutionRequest;
+import software.amazon.awssdk.services.athena.model.StartQueryExecutionResponse;
+import software.amazon.awssdk.services.athena.paginators.GetQueryResultsIterable;
 import software.amazon.awssdk.utils.StringUtils;
 
 import java.math.BigDecimal;
@@ -26,25 +41,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
-
-import software.amazon.awssdk.services.athena.AthenaClient;
-import software.amazon.awssdk.services.athena.model.QueryExecutionContext;
-import software.amazon.awssdk.services.athena.model.ResultConfiguration;
-import software.amazon.awssdk.services.athena.model.StartQueryExecutionRequest;
-import software.amazon.awssdk.services.athena.model.StartQueryExecutionResponse;
-import software.amazon.awssdk.services.athena.model.AthenaException;
-import software.amazon.awssdk.services.athena.model.GetQueryExecutionRequest;
-import software.amazon.awssdk.services.athena.model.GetQueryExecutionResponse;
-import software.amazon.awssdk.services.athena.model.QueryExecutionState;
-import software.amazon.awssdk.services.athena.model.GetQueryResultsRequest;
-import software.amazon.awssdk.services.athena.model.GetQueryResultsResponse;
-import software.amazon.awssdk.services.athena.model.ColumnInfo;
-import software.amazon.awssdk.services.athena.model.Row;
-import software.amazon.awssdk.services.athena.model.Datum;
-import software.amazon.awssdk.services.athena.paginators.GetQueryResultsIterable;
-import java.util.List;
 
 public class MetricHelper {
     public static final long SLEEP_AMOUNT_IN_MS = 500;

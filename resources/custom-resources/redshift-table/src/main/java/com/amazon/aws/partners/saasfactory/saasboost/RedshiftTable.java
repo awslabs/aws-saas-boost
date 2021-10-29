@@ -15,12 +15,15 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+// import com.amazon.redshift.jdbc42.Driver;  //keep this just make sure jar is present
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.ssm.SsmClient;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -31,9 +34,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.*;
-import com.amazon.redshift.jdbc42.Driver;  //keep this just make sure jar is present
-import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.ssm.SsmClient;
 
 public class RedshiftTable implements RequestHandler<Map<String, Object>, Object> {
 

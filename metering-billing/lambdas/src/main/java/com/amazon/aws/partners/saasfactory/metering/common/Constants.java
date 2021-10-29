@@ -16,19 +16,12 @@
 package com.amazon.aws.partners.saasfactory.metering.common;
 
 import org.slf4j.Logger;
-
-import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.core.SdkSystemSetting;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
-import java.time.Instant;
 
 public final class Constants {
 

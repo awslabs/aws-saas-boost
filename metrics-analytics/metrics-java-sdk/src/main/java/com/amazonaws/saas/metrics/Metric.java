@@ -17,6 +17,7 @@ package com.amazonaws.saas.metrics;
 
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.Objects;
 
 public class Metric {
