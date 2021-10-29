@@ -15,19 +15,14 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.SdkSystemSetting;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
-import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
@@ -54,7 +49,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
-import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
 import java.nio.file.*;
@@ -71,15 +65,16 @@ public class SaaSBoostInstall {
     private static final String OS = System.getProperty("os.name").toLowerCase();
     private static final String VERSION = getVersionInfo();
 
-    private CloudFormationClient cfn;
-    private EcrClient ecr;
-    private IamClient iam;
+    private final AwsClientBuilderFactory awsClientBuilderFactory;
+    private final ApiGatewayClient apigw;
+    private final CloudFormationClient cfn;
+    private final EcrClient ecr;
+    private final IamClient iam;
+    // TODO do we need to reassign the quicksight client between getQuickSightUsername and setupQuicksight?
     private QuickSightClient quickSight;
-    private S3Client s3;
-    private SsmClient ssm;
-    private StsClient sts;
-    private LambdaClient lambda;
-    private ApiGatewayClient apigw;
+    private final S3Client s3;
+    private final SsmClient ssm;
+    private final LambdaClient lambda;
 
     private final String accountId;
     private String envName;
@@ -133,46 +128,20 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        this.s3 = S3Client.create();
-        this.ecr = EcrClient.create();
-        this.ssm = SsmClient.create();
-        this.sts = StsClient.create();
-        this.lambda = LambdaClient.create();
-        this.quickSight = QuickSightClient.create();
-        // IAM doesn't have a IamClient::create... because it's in the global region?
-        this.iam = IamClient.builder().region(Region.AWS_GLOBAL).build();
-        // API Gateway and CloudFormation throttle pretty aggressively on api deployments and describe stack calls,
-        // so we'll make sure we have a retry policy in place.
-        this.apigw = ApiGatewayClient.builder()
+        awsClientBuilderFactory = AwsClientBuilderFactory.builder()
                 .region(AWS_REGION)
-                .credentialsProvider(DefaultCredentialsProvider.create())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                    .retryPolicy(RetryPolicy.builder()
-                            .backoffStrategy(BackoffStrategy.defaultStrategy())
-                            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                            .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
-                            .retryCondition(RetryCondition.defaultRetryCondition())
-                            .build()
-                    )
-                    .build()
-                )
-                .build();
-        this.cfn = CloudFormationClient.builder()
-                .region(AWS_REGION)
-                .credentialsProvider(DefaultCredentialsProvider.create())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .retryPolicy(RetryPolicy.builder()
-                                .backoffStrategy(BackoffStrategy.defaultStrategy())
-                                .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
-                                .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
-                                .retryCondition(RetryCondition.defaultRetryCondition())
-                                .build()
-                        )
-                        .build()
-                )
                 .build();
 
-        accountId = sts.getCallerIdentity().account();
+        apigw = awsClientBuilderFactory.apiGatewayBuilder().build();
+        cfn = awsClientBuilderFactory.cloudFormationBuilder().build();
+        ecr = awsClientBuilderFactory.ecrBuilder().build();
+        iam = awsClientBuilderFactory.iamBuilder().build();
+        lambda = awsClientBuilderFactory.lambdaBuilder().build();
+        quickSight = awsClientBuilderFactory.quickSightBuilder().build();
+        s3 = awsClientBuilderFactory.s3Builder().build();
+        ssm = awsClientBuilderFactory.ssmBuilder().build();
+
+        accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
     }
 
     public static void main(String[] args) {
@@ -746,6 +715,7 @@ public class SaaSBoostInstall {
 
     protected void getQuickSightUsername() {
         Region quickSightRegion;
+        QuickSightClient oldClient = null;
         while (true) {
             System.out.print("Region where you registered for Amazon QuickSight (Press Enter for " + AWS_REGION.id() + "): ");
             String quickSightAccountRegion = Keyboard.readString();
@@ -762,7 +732,8 @@ public class SaaSBoostInstall {
             if (quickSightRegion != null) {
                 // Update the SDK client for the proper AWS region if we need to
                 if (!AWS_REGION.equals(quickSightRegion)) {
-                    quickSight = QuickSightClient.builder().region(quickSightRegion).build();
+                    oldClient = quickSight;
+                    quickSight = awsClientBuilderFactory.quickSightBuilder().region(quickSightRegion).build();
                 }
                 // See if there are QuickSight users in this account in this region
                 LinkedHashMap<String, User> quickSightUsers = getQuickSightUsers();
@@ -788,8 +759,8 @@ public class SaaSBoostInstall {
             }
         }
         // If we changed the QuickSight SDK client region to look up the username, put it back
-        if (!AWS_REGION.equals(quickSightRegion)) {
-            quickSight = QuickSightClient.create();
+        if (oldClient != null) {
+            quickSight = oldClient;
         }
     }
 
@@ -1499,8 +1470,6 @@ public class SaaSBoostInstall {
             boolean stackCompleted = false;
             long sleepTime = 5L;
             do {
-                // TODO how can we set this on the SDK client itself?
-                cfn = CloudFormationClient.create(); // refresh client due to timeouts
                 DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
                 Stack stack = response.stacks().get(0);
                 if ("CREATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
@@ -1544,7 +1513,6 @@ public class SaaSBoostInstall {
             LOGGER.info("Waiting for update stack to complete for " + stackId);
             long sleepTime = 3L;
             while (true) {
-                cfn = CloudFormationClient.create(); // TODO why does the client timeout and can we change that setting?
                 DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackId));
                 Stack stack = response.stacks().get(0);
                 String stackStatus = stack.stackStatusAsString();
@@ -1655,7 +1623,6 @@ public class SaaSBoostInstall {
             cfn.deleteStack(request -> request.stackName(stackName));
             long sleepTime = 5L;
             while (true) {
-                //cfn = CloudFormationClient.create(); // TODO figure out how to extend the timeout in the client
                 try {
                     DescribeStacksResponse response = cfn.describeStacks(DescribeStacksRequest.builder()
                             .stackName(stackId)
