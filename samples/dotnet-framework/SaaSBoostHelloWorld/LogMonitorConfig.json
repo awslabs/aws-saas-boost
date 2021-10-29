@@ -1,0 +1,49 @@
+{
+  "LogConfig": {
+    "sources": [
+      {
+        "type": "EventLog",
+        "startAtOldestRecord": true,
+        "eventFormatMultiLine": false,
+        "channels": [
+          {
+            "name": "system",
+            "level": "Information"
+          },
+          {
+            "name": "application",
+            "level": "Error"
+          }
+        ]
+      },
+      {
+        "type": "File",
+        "directory": "c:\\inetpub\\logs",
+        "filter": "*.log",
+        "includeSubdirectories": true
+      },
+      {
+        "type": "File",
+        "directory": "c:\\Logs",
+        "filter": "*.log",
+        "includeSubdirectories":  false
+      },
+      {
+        "type": "ETW",
+        "eventFormatMultiLine": false,
+        "providers": [
+          {
+            "providerName": "IIS: WWW Server",
+            "providerGuid": "3A2A4E84-4C21-4981-AE10-3FDA0D9B0F83",
+            "level": "Information"
+          },
+          {
+            "providerName": "Microsoft-Windows-IIS-Logging",
+            "providerGuid": "7E8AD27F-B271-4EA2-A783-A47BDE29143B",
+            "level": "Information"
+          }
+        ]
+      }
+    ]
+  }
+}

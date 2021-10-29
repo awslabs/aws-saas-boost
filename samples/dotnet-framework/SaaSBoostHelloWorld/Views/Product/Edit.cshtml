@@ -1,0 +1,104 @@
+﻿@*
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*@
+@using SaaSBoostHelloWorld.Models
+@model SaaSBoostHelloWorld.Models.Product
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Edit Product</title>
+    <link href="~/Content/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container pt-3">
+        <div class="row">
+            <div class="col">
+                <h2>Edit Product</h2>
+            </div>
+        </div>
+        @using (Html.BeginForm("Edit", "Product", FormMethod.Post, new { enctype = "multipart/form-data" }))
+        {
+            @Html.AntiForgeryToken()
+            @Html.HiddenFor(model => model.Id)
+            <div class="form-group row">
+                <div class="col-2">
+                    @Html.Label("Name", "Product", "col-form-label")
+                </div>
+                <div class="col-10">
+                    @Html.EditorFor(model => model.Name, new { htmlAttributes = new { @class = "form-control", @style = "width:auto", @placeholder = "Product Name" } })
+                    @Html.ValidationMessage("Name", ViewData["error"], "invalid-feedback")
+                </div>
+            </div>
+            <div class="form-group row">
+                <div class="col-2">
+                    @Html.Label("Sku", "SKU", "col-form-label")
+                </div>
+                <div class="col-10">
+                    @Html.EditorFor(model => model.Sku, new { htmlAttributes = new { @class = "form-control", @style = "width:auto", @placeholder = "SKU" } })
+                    @Html.ValidationMessage("Sku", ViewData["error"], "invalid-feedback")
+                </div>
+            </div>
+            <div class="form-group row">
+                <div class="col-2">
+                    @Html.Label("Price", "Price", "col-form-label")
+                </div>
+                <div class="col-10">
+                    @Html.EditorFor(model => model.Price, new { htmlAttributes = new { @class = "form-control", @style = "width:auto", @placeholder = "Price" } })
+                    @Html.ValidationMessage("Price", ViewData["error"], "invalid-feedback")
+                </div>
+            </div>
+            <div class="form-group row">
+                <div class="col-2">
+                    @Html.Label("Categories", "Categories", "col-form-label")
+                </div>
+                <div class="col-10">
+                    @{
+                        var categories = ViewData["categories"] as IList<Category>;
+                        var existingCategories = ViewData["existingCategories"] as IList<int>;
+                        for (int i = 0; i < categories.Count; i++)
+                        {
+                            var checkFor = "categories" + i;
+                            var formCheckCss = !(String.IsNullOrEmpty(ViewData["error"] as String)) ? "form-check is-invalid" : "form-check";
+                            var checkSelected = existingCategories.Contains(categories[i].Id) ? "checked" : "";
+                            <div class="@formCheckCss">
+                                <input name="categories" type="checkbox" class="form-check-input" value="@categories[i].Id" checked="@checkSelected" /> <label class="form-check-label" for="@checkFor">@categories[i].Name</label>
+                            </div>
+                        }
+                    }
+                </div>
+             </div>
+            <div class="form-group row">
+                <div class="col-2">
+                    <label for="file" class="col-form-label">Image</label>
+                </div>
+                <div class="col-10">
+                    @{var formFileCss = !(String.IsNullOrEmpty(ViewData["error"] as String)) ? "form-control-file is-invalid" : "form-control-file"; }
+                    <input type="file" class="@formFileCss" id="file" name="file" style="width:auto" />
+                    @Html.ValidationMessage("Image", ViewData["error"], "invalid-feedback")
+                </div>
+            </div>
+            <div class="form-group row">
+                <div class="col-10 offset-2">
+                    <a role="button" class="btn btn-secondary" href="/product/cancel">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+            </div>
+        }
+    </div>
+</body>
+</html>
