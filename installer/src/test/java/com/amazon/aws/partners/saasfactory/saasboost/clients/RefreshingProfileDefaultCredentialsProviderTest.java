@@ -100,6 +100,9 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
         System.setProperty(
                 ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(),
                 fakeProfileFilename);
+        System.setProperty(
+                ProfileFileSystemSetting.AWS_PROFILE.property(),
+                ProfileFileSystemSetting.AWS_PROFILE.defaultValue());
         DefaultCredentialsProvider defaultCredentialsProvider = DefaultCredentialsProvider.create();
         runUpdatingCredentialsProviderTest(defaultCredentialsProvider, false);
     }
@@ -113,6 +116,7 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
                 TEST_CREDENTIALS[0]);
         RefreshingProfileDefaultCredentialsProvider refreshingCredentialsProvider = RefreshingProfileDefaultCredentialsProvider.builder()
                 .profileFilename(fakeProfileFilename)
+                .profileName(ProfileFileSystemSetting.AWS_PROFILE.defaultValue())
                 .build();
         runUpdatingCredentialsProviderTest(refreshingCredentialsProvider, true);
     }
@@ -174,7 +178,9 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
                 SdkSystemSetting.AWS_SESSION_TOKEN.property(),
                 SdkSystemSetting.AWS_ROLE_SESSION_NAME.property(),
                 SdkSystemSetting.AWS_ROLE_ARN.property(),
-                SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE.property()
+                SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE.property(),
+                ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(),
+                ProfileFileSystemSetting.AWS_PROFILE.property()
         };
 
         private final Map<String,String> hiddenProperties;
