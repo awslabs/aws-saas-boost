@@ -311,7 +311,6 @@ Resources:
           DeploymentType: MULTI_AZ_1
           PreferredSubnetId: !Ref 'PrivateSubnet1ID'
           ThroughputCapacity: !Ref 'ThroughputCapacity'
-
 # need to get the DNSName for FSX for output
   FsxDnsNameRole:
     Type: AWS::IAM::Role
@@ -400,16 +399,14 @@ Resources:
     Properties:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref WindowsFSx
-
   SSMParamFilesystem:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
       Type: String
       Value: !GetAtt InvokeGetFsxDnsName.DnsName
-
 Outputs:
-  FSxFileSystemID:
+  FileSystemId:
     Description: File System ID for FSx for Windows File Server
     Value: !Ref WindowsFSx
   WindowsFSxSGID:

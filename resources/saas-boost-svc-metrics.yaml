@@ -339,6 +339,7 @@ Resources:
   PublishRequestCountMetricsEvent:
     Type: AWS::Events::Rule
     Properties:
+      Name: !Sub sb-${Environment}-metrics-count
       Description: A scheduled task to publish access log metrics to s3 web bucket
       # Run this every 30 minutes
       ScheduleExpression: "cron(0/30 * * * ? *)"
@@ -410,7 +411,7 @@ Resources:
   PublishResponseTimeMetricsEvent:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-publish-access-log-metrics-${Environment}
+      Name: !Sub sb-${Environment}-metrics-latency
       Description: A scheduled task to publish access log metrics to s3 web bucket
       # Run this every 30 minutes
       ScheduleExpression: "cron(0/30 * * * ? *)"
@@ -484,6 +485,7 @@ Resources:
   AddAthenaPartitionEvent:
     Type: AWS::Events::Rule
     Properties:
+      Name: !Sub sb-${Environment}-metrics-athena-partition
       Description: A scheduled task to add partition for access logs daily
       # Run at 00:01 every day
       ScheduleExpression: "cron(15 0 * * ? *)"

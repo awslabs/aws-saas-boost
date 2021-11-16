@@ -606,7 +606,7 @@ Resources:
               - !If
                 - ProvisionFsx
                 - - ContainerPath: !Ref MountPoint
-                    SourceVolume: !GetAtt fsx.Outputs.FSxFileSystemID
+                    SourceVolume: !GetAtt fsx.Outputs.FileSystemId
                 - !Ref 'AWS::NoValue'
           LinuxParameters:
             Fn::If:
@@ -631,7 +631,7 @@ Resources:
                 FileSystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
             - ProvisionFsx
-            - - Name: !GetAtt fsx.Outputs.FSxFileSystemID
+            - - Name: !GetAtt fsx.Outputs.FileSystemId
                 Host:
                   SourcePath: !Sub ${FSxWindowsMountDrive}\
             - !Ref 'AWS::NoValue'

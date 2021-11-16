@@ -79,8 +79,6 @@ Resources:
       Value: !Ref LambdaSourceFolder
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
-  #
-
   LoggingBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -118,7 +116,6 @@ Resources:
               - !Sub arn:aws:s3:::${LoggingBucket}
             Condition:
               Bool: { 'aws:SecureTransport': false }
-
   # Bucket needed for CodePipeline to drive tenant deployment workflow
   CodePipelineBucket:
     Type: AWS::S3::Bucket
@@ -155,7 +152,6 @@ Resources:
               - !Sub arn:aws:s3:::${CodePipelineBucket}
             Condition:
               Bool: { 'aws:SecureTransport': false }
-
   # Bucket for Access Logs for ALBs for Tenants
   ALBAccessLogs:
     Type: AWS::S3::Bucket
@@ -175,13 +171,9 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      # LoggingConfiguration:
-      #   DestinationBucketName: !Ref LoggingBucket
-      #   LogFilePrefix: ALBaccess-logs
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
-
   # Bucket for Athena output for access log queries
   AthenaOutput:
     Type: AWS::S3::Bucket
@@ -201,9 +193,6 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      # LoggingConfiguration:
-      #   DestinationBucketName: !Ref LoggingBucket
-      #   LogFilePrefix: athena-logs
       CorsConfiguration:
         CorsRules:
           - AllowedMethods:
@@ -228,6 +217,7 @@ Resources:
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket to host the admin console web application
+  # NOTE: The deny non-secure policy is in the web template.
   WebS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -247,8 +237,6 @@ Resources:
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
-  ##NOTE: The deny non-secure policy is in the web template.
-
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -268,6 +256,7 @@ Resources:
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     DependsOn:
+      - LoggingBucket
       - WebS3Bucket
       - CodePipelineBucket
       - AthenaOutput
@@ -349,11 +338,9 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Logs"
-
   InvokeClearCodePipelineBucket:
     Type: Custom::CustomResource
     DependsOn:
-      - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
@@ -361,7 +348,6 @@ Resources:
   InvokeClearAthenaBucket:
     Type: Custom::CustomResource
     DependsOn:
-      - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
@@ -369,7 +355,6 @@ Resources:
   InvokeClearAccessLogsBucket:
     Type: Custom::CustomResource
     DependsOn:
-      - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
@@ -377,21 +362,16 @@ Resources:
   InvokeClearWebsiteBucket:
     Type: Custom::CustomResource
     DependsOn:
-      - ClearBucket
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref WebS3Bucket
-  ##TODO: Do we want to clear the access logs bucket
+  # TODO: Do we want to clear the access logs bucket?
   InvokeClearLoggingBucket:
     Type: Custom::CustomResource
-    DependsOn:
-      - ClearBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref LoggingBucket
-
-##nested stacks
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -454,7 +434,6 @@ Resources:
   # To Do - merge this stuff into the billing template
   metering:
     Type: AWS::CloudFormation::Stack
-    DependsOn: core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-metering-billing.yaml
       Parameters:
@@ -468,7 +447,6 @@ Resources:
         PrivateApiStage: !Ref PrivateApiStage
   metrics:
     Type: AWS::CloudFormation::Stack
-    DependsOn: core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-metrics.yaml
       Parameters:
@@ -483,9 +461,6 @@ Resources:
         PrivateApiStage: !Ref PrivateApiStage
   onboarding:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - core
-      - tenant
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-onboarding.yaml
       Parameters:
@@ -512,9 +487,6 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
   settings:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - core
-      - web
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-settings.yaml
       Parameters:
@@ -529,7 +501,6 @@ Resources:
         CloudFrontDistribution: !GetAtt web.Outputs.CloudFrontDistributionUrl
   tenant:
     Type: AWS::CloudFormation::Stack
-    DependsOn: core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tenant.yaml
       Parameters:
@@ -543,7 +514,6 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - core
-      - web
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-user.yaml
       Parameters:
@@ -554,15 +524,6 @@ Resources:
         CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
   publicapi:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - core
-      - web
-      - billing
-      - metrics
-      - onboarding
-      - settings
-      - tenant
-      - user
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-public-api.yaml
       Parameters:
@@ -604,12 +565,6 @@ Resources:
         UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
   privateapi:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - core
-      - onboarding
-      - quota
-      - settings
-      - tenant
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-private-api.yaml
       Parameters:

@@ -1086,7 +1086,7 @@ Resources:
   OnboardingServiceDeleteTenantEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-onboarding-delete-rule
+      Name: !Sub sb-${Environment}-onboarding-delete
       Description: Delete provisioned tenant
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:
@@ -1141,7 +1141,7 @@ Resources:
   CodePipelineExecutionStateChangeEvent:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-tenant-pipeline
+      Name: !Sub sb-${Environment}-codepipeline-state
       EventPattern:
         source: ['aws.codepipeline']
         detail-type: ['CodePipeline Pipeline Execution State Change']

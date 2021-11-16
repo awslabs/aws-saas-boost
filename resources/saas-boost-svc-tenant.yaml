@@ -407,7 +407,7 @@ Resources:
   TenantServiceUpdateResourcesEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-tenants-update-resources
+      Name: !Sub sb-${Environment}-tenant-update-resources
       Description: Update list of resources after a tenant is provisioned
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:

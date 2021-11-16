@@ -420,14 +420,14 @@ Resources:
   SaaSBoostPublicApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub sb-public-api-${Environment}
+      Name: !Sub sb-${Environment}-public-api
       EndpointConfiguration:
         Types:
           - REGIONAL
   SaaSBoostPrivateApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub sb-private-api-${Environment}
+      Name: !Sub sb-${Environment}-private-api
       EndpointConfiguration:
         Types:
           - REGIONAL
@@ -529,7 +529,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       EventBusName: !Ref SaaSBoostEventBus
-      Name: !Sub sb-system-api-call-${Environment}
+      Name: !Sub sb-${Environment}-system-api-call
       State: ENABLED
       EventPattern:
         source: ['saas-boost']
