@@ -23,7 +23,7 @@ limitations under the License.
         <version>1.0.0</version>
         <relativePath>../</relativePath>
     </parent>
-    <artifactId>EcsDeploy</artifactId>
+    <artifactId>WorkloadDeploy</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -34,7 +34,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>17</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>7</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>

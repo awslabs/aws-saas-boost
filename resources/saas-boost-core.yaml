@@ -134,10 +134,10 @@ Resources:
       Runtime: java11
       Timeout: 600
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsDeploy
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.WorkloadDeploy
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/EcsDeploy-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/WorkloadDeploy-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer

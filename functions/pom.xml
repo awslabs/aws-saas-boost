@@ -15,7 +15,7 @@
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
         <module>alb-update</module>
-        <module>ecs-deploy</module>
+        <module>workload-deploy</module>
         <module>ecs-service-update</module>
         <module>ecs-shutdown-services</module>
         <module>ecs-startup-services</module>

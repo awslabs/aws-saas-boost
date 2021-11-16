@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -31,26 +32,27 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-public class EcsDeploy implements RequestHandler<Map<String, Object>, Object> {
+public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(EcsDeploy.class);
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
-    private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
-    private final static String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private final static String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private final static String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final Logger LOGGER = LoggerFactory.getLogger(WorkloadDeploy.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
+    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
+    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
+    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private S3Client s3;
     private CodePipelineClient codepipeline;
     private EcrClient ecr;
     private String codePipelineBucket;
 
-    public EcsDeploy() {
-        long startTimeMillis = System.currentTimeMillis();
+    public WorkloadDeploy() {
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -104,7 +106,7 @@ public class EcsDeploy implements RequestHandler<Map<String, Object>, Object> {
     }
 
     @Override
-	public Object handleRequest(Map<String, Object> event, Context context) {
+    public Object handleRequest(Map<String, Object> event, Context context) {
         Utils.logRequestEvent(event);
 
         // Is this event an ECR image action or a first-time deploy custom event?
@@ -122,7 +124,7 @@ public class EcsDeploy implements RequestHandler<Map<String, Object>, Object> {
                 SdkHttpFullRequest getTenantsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, provisionedTenants);
                 LOGGER.info("Fetching Provisioned tenants from tenants/provisioned");
                 try {
-                    String functionName = "sb-" + SAAS_BOOST_ENV + "-workload-deploy-" + AWS_REGION;
+                    String functionName = "sb-" + SAAS_BOOST_ENV + "-workload-deploy";
                     String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getTenantsApiRequest, API_TRUST_ROLE, functionName);
                     ArrayList<Map<String, Object>> getTenantsResponse = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
                     if (null == getTenantsResponse) {
@@ -248,7 +250,7 @@ public class EcsDeploy implements RequestHandler<Map<String, Object>, Object> {
             ZipOutputStream zip = new ZipOutputStream(stream);
             ZipEntry entry = new ZipEntry("imagedefinitions.json");
             zip.putNextEntry(entry);
-            zip.write(imagedefinitions.getBytes());
+            zip.write(imagedefinitions.getBytes(StandardCharsets.UTF_8));
             zip.closeEntry();
             zip.close();
             archive = stream.toByteArray();
@@ -266,8 +268,8 @@ public class EcsDeploy implements RequestHandler<Map<String, Object>, Object> {
             s3.putObject(PutObjectRequest.builder()
                             .bucket(codePipelineBucket)
                             .key(key)
-                            .build()
-                    , RequestBody.fromBytes(artifact)
+                            .build(),
+                    RequestBody.fromBytes(artifact)
             );
         } catch (SdkServiceException s3error) {
             LOGGER.error("s3:PutObject " + Utils.getFullStackTrace(s3error));
