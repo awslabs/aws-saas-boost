@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -29,13 +30,13 @@ import java.nio.charset.StandardCharsets;
 
 public class SystemRestApiClient implements RequestStreamHandler {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(SystemRestApiClient.class);
-    private final static String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private final static String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private final static String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final Logger LOGGER = LoggerFactory.getLogger(SystemRestApiClient.class);
+    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
+    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
+    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
 
     public SystemRestApiClient() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
         }
@@ -61,16 +62,18 @@ public class SystemRestApiClient implements RequestStreamHandler {
         LOGGER.info(Utils.toJson(event));
 
         try {
-            SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, event.getDetail());
-            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, context.getAwsRequestId());
+            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                    ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, event.getDetail()),
+                    API_TRUST_ROLE,
+                    context.getAwsRequestId()
+            );
             try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
                 writer.write(responseBody);
                 writer.flush();
             }
         } catch (Exception e) {
-            LOGGER.error(e.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
             throw new RuntimeException(e.getMessage());
         }
-        return;
     }
 }
