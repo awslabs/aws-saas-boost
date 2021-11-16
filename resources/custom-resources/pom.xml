@@ -20,6 +20,7 @@
         <module>fsx-dns-name</module>
         <module>rds-bootstrap</module>
         <module>rds-options</module>
-        <module>redshift-table</module>
+		<module>redshift-table</module>
+		<module>app-services-ecr-macro</module>
     </modules>
 </project>
