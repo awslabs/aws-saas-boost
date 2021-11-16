@@ -16,7 +16,7 @@
     <modules>
         <module>cidr-dynamodb</module>
         <module>clear-s3-bucket</module>
-        <module>disable-instance-protection</module>
+        <module>set-instance-protection</module>
         <module>fsx-dns-name</module>
         <module>rds-bootstrap</module>
         <module>rds-options</module>

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -31,17 +32,18 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class DisableInstanceProtection implements RequestHandler<Map<String, Object>, Object> {
+public class SetInstanceProtection implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(DisableInstanceProtection.class);
-    private AutoScalingClient autoScalingClient;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SetInstanceProtection.class);
+    private final AutoScalingClient autoScaling;
 
-    public DisableInstanceProtection() {
+    public SetInstanceProtection() {
         long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
-        this.autoScalingClient = Utils.sdkClient(AutoScalingClient.builder(), AutoScalingClient.SERVICE_NAME);
+        autoScaling = Utils.sdkClient(AutoScalingClient.builder(), AutoScalingClient.SERVICE_NAME);
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
+
     @Override
     public Object handleRequest(Map<String, Object> event, Context context) {
         Utils.logRequestEvent(event);
@@ -49,37 +51,40 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
         final String requestType = (String) event.get("RequestType");
         Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String autoScalingGroup = (String) resourceProperties.get("AutoScalingGroup");
-
+        final Boolean enableInstanceProtection = Boolean.valueOf((String) resourceProperties.get("Enable"));
         ExecutorService service = Executors.newSingleThreadExecutor();
         ObjectNode responseData = JsonNodeFactory.instance.objectNode();
-        LOGGER.info("Processing for Autoscaling group {}", autoScalingGroup);
+        LOGGER.info("Setting instance protection to {} for Autoscaling group {}", enableInstanceProtection, autoScalingGroup);
         try {
             Runnable r = () -> {
                 if ("Delete".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
-                    LOGGER.info("Request Type: " + requestType);
+                    LOGGER.info(requestType.toUpperCase());
                     try {
-                        DescribeAutoScalingGroupsResponse response = autoScalingClient.describeAutoScalingGroups(DescribeAutoScalingGroupsRequest.builder()
-                                .autoScalingGroupNames(autoScalingGroup)
-                                .build());
-
-                        LOGGER.info("Response for describe has {} Auto Scaling Groups", response.autoScalingGroups().size());
-
-                        if (!response.autoScalingGroups().isEmpty()) {
-                            AutoScalingGroup asgGroup = response.autoScalingGroups().get(0);
-                            List<String> instancesToUpdate = new ArrayList<>();
-                            for (Instance ec2Instance : asgGroup.instances()) {
-                                instancesToUpdate.add(ec2Instance.instanceId());
+                        DescribeAutoScalingGroupsResponse response = autoScaling.describeAutoScalingGroups(request ->
+                                request.autoScalingGroupNames(autoScalingGroup)
+                        );
+                        if (response.hasAutoScalingGroups()) {
+                            LOGGER.info("Auto scaling found {} groups for {}", response.autoScalingGroups().size(), autoScalingGroup);
+                            if (!response.autoScalingGroups().isEmpty()) {
+                                AutoScalingGroup asgGroup = response.autoScalingGroups().get(0);
+                                List<String> instancesToUpdate = new ArrayList<>();
+                                asgGroup.instances().forEach(ec2 -> instancesToUpdate.add(ec2.instanceId()));
+                                try {
+                                    autoScaling.setInstanceProtection(request -> request
+                                            .instanceIds(instancesToUpdate)
+                                            .protectedFromScaleIn(enableInstanceProtection)
+                                            .autoScalingGroupName(autoScalingGroup)
+                                    );
+                                    LOGGER.info("Disabled instance protection on {} instances.", instancesToUpdate.size());
+                                } catch (AutoScalingException e) {
+                                    LOGGER.error("autoscaling:SetInstanceProtection error", e);
+                                    LOGGER.error(Utils.getFullStackTrace(e));
+                                    responseData.put("Reason", "Error " + e.getMessage());
+                                    sendResponse(event, context, "FAILED", responseData);
+                                }
+                            } else {
+                                LOGGER.info("No auto scaling groups matched.");
                             }
-
-                            autoScalingClient.setInstanceProtection(SetInstanceProtectionRequest.builder()
-                                    .instanceIds(instancesToUpdate)
-                                    .protectedFromScaleIn(false)
-                                    .autoScalingGroupName(autoScalingGroup)
-                                    .build());
-
-                            LOGGER.info("Disabled instance protection on {} instances.", instancesToUpdate.size());
-                        } else {
-                            LOGGER.info("No autoscaling groups matched");
                         }
                     } catch (AutoScalingException e) {
                         LOGGER.error("DisableInstanceProtection::Error " + e.getMessage());
@@ -87,10 +92,10 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
                         responseData.put("Reason", "Error " + e.getMessage());
                         sendResponse(event, context, "FAILED", responseData);
                     }
-                    LOGGER.info("responseDate: " +  Utils.toJson(responseData));
+                    LOGGER.info("responseDate: " + Utils.toJson(responseData));
                     sendResponse(event, context, "SUCCESS", responseData);
-                } else if ("Create".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
-                    LOGGER.info("CREATE or UPDATE");
+                } else if ("Create".equalsIgnoreCase(requestType)) {
+                    LOGGER.info("CREATE");
                     sendResponse(event, context, "SUCCESS", responseData);
                 } else {
                     LOGGER.error("FAILED unknown requestType " + requestType);
@@ -113,15 +118,6 @@ public class DisableInstanceProtection implements RequestHandler<Map<String, Obj
         return null;
     }
 
-    /**
-     * Send a response to CloudFormation regarding progress in creating resource.
-     *
-     * @param event
-     * @param context
-     * @param responseStatus
-     * @param responseData
-     * @return
-     */
     public final Object sendResponse(final Map<String, Object> event, final Context context, final String responseStatus, ObjectNode responseData) {
         String responseUrl = (String) event.get("ResponseURL");
         LOGGER.info("ResponseURL: {}", responseUrl);

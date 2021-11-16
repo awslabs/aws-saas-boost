@@ -23,7 +23,7 @@ limitations under the License.
         <version>1.0.0</version>
         <relativePath>../</relativePath>
     </parent>
-    <artifactId>DisableInstanceProtection</artifactId>
+    <artifactId>SetInstanceProtection</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -33,7 +33,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>6</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>4</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -75,7 +75,7 @@ limitations under the License.
                     </includeOnlyProperties>
                     <commitIdGenerationMode>full</commitIdGenerationMode>
                     <dotGitDirectory>../../.git</dotGitDirectory>
-                    <failOnNoGitDirectory>false</failOnNoGitDirectory>                    
+                    <failOnNoGitDirectory>false</failOnNoGitDirectory>
                 </configuration>
             </plugin>
         </plugins>
@@ -91,7 +91,7 @@ limitations under the License.
             <artifactId>Utils</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
-<!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>

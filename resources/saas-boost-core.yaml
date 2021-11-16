@@ -800,6 +800,76 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "EcsStartupServices"
+  SetInstanceProtectionExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-set-instance-protection-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-set-instance-protection-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogStreams
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - autoscaling:DescribeAutoScalingInstances
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeTags
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - autoscaling:SetInstanceProtection
+                Resource: !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
+  SetInstanceProtectionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-set-instance-protection
+      RetentionInDays: 30
+  SetInstanceProtectionFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - SetInstanceProtectionLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-set-instance-protection
+      Role: !GetAtt SetInstanceProtectionExecRole.Arn
+      Runtime: java11
+      Timeout: 870
+      MemorySize: 640
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SetInstanceProtection
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SetInstanceProtection-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "SetInstanceProtection"
+  # Macro transform will add as many AWS::ECR::Repository resources as necessary
+  # based on the length of the list of ApplicationServices passed as a parameter
 Outputs:
   EcrRepository:
     Description: SaaS Boost ECR image repository

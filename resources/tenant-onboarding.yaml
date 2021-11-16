@@ -429,111 +429,16 @@ Resources:
     Properties:
       Handle: !If [WindowsOS, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
       Timeout: '1'
-      Count: 0       
-
-  DisableInstanceProtectionRole:
-    Type: AWS::IAM::Role
-    Condition: WindowsOS    
-    Properties:
-      RoleName: 
-        Fn::Join:
-          - ''
-          - - 'sb-'
-            - !Ref Environment
-            - '-disable-protection-role-tenant-'
-            - !Select [0, !Split ['-', !Ref TenantId]]
-            - '-'
-            - !Ref AWS::Region
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: 
-            Fn::Join:
-              - ''
-              - - 'sb-'
-                - !Ref Environment
-                - '-disable-protection-policy-tenant-'
-                - !Select [0, !Split ['-', !Ref TenantId]]
-                - '-'
-                - !Ref AWS::Region
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
-              - Effect: Allow
-                Action:
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                  - logs:CreateLogStream
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-              - Effect: Allow
-                Action:
-                  - autoscaling:DescribeAutoScalingInstances
-                  - autoscaling:DescribeAutoScalingGroups
-                  - autoscaling:DescribeTags
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - autoscaling:SetInstanceProtection
-                Resource:
-                  Fn::Join:
-                    - ""
-                    - - "arn:aws:autoscaling:*:"
-                      - !Ref "AWS::AccountId"
-                      - ":autoScalingGroup:*:autoScalingGroupName/tenant-"
-                      - !Select [0, !Split ['-', !Ref TenantId]]
-                      - "*"
-  DisableInstanceProtectionLogs:
-    Type: AWS::Logs::LogGroup
-    Condition: WindowsOS
-#    DeletionPolicy: Retain 
-#    UpdateReplacePolicy: Retain   
-    Properties:
-      LogGroupName:
-        Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]
-      RetentionInDays: 30
-  DisableInstanceProtectionFunction:
-    Type: AWS::Lambda::Function
-    Condition: WindowsOS    
-    DependsOn:
-      - DisableInstanceProtectionLogs
-    Properties:
-      FunctionName: 
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-disable-protection']]           
-      Role: !GetAtt DisableInstanceProtectionRole.Arn
-      Runtime: java11
-      Timeout: 870
-      MemorySize: 640
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.DisableInstanceProtection
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/DisableInstanceProtection-lambda.zip
-      Tags:
-        - Key: Tenant
-          Value: !Ref TenantId
-      Description: Disable instance protection to allow delete of Autoscaling group
+      Count: 0
   InvokeDisableInstanceProtection:
     Type: Custom::CustomResource
     Condition: WindowsOS
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !GetAtt DisableInstanceProtectionFunction.Arn     
-      AutoScalingGroup: !Ref ECSAutoScalingGroup     
-## end changes          
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
+      AutoScalingGroup: !Ref ECSAutoScalingGroup
+## end changes
 
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
