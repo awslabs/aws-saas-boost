@@ -16,15 +16,10 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-public enum OnboardingStatus {
-    created,
-    provisioning,
-    provisioned,
-    updating,
-    updated,
-    deploying,
-    deployed,
-    failed,
-    deleting,
-    deleted
+// TODO Make a marker interface of SaaSBoostEvent
+public enum OnboardingEvent {
+    ONBOARDING_REQUEST,
+    ONBOARDING_PROVISION,
+    ONBOARDING_FAILED,
+    ONBOARDING_STATUS_CHANGE
 }

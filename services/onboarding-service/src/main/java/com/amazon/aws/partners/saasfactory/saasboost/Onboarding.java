@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -29,24 +30,10 @@ public class Onboarding {
     private OnboardingStatus status;
     private UUID tenantId;
     private String tenantName;
-    private String stackId;
+    private String stackId; //TODO make this an array since we can't use nested stacks for the app services?
     private String zipFileUrl;
 
     public Onboarding() {
-    }
-
-    public Onboarding(UUID id, OnboardingStatus status) {
-        this(id, LocalDateTime.now(), LocalDateTime.now(), status, null, null, null);
-    }
-
-    public Onboarding(UUID id, LocalDateTime created, LocalDateTime modified, OnboardingStatus status, UUID tenantId, String tenantName, String stackId) {
-        this.id = id;
-        this.created = created;
-        this.modified = modified;
-        this.status = status;
-        this.tenantId = tenantId;
-        this.tenantName = tenantName;
-        this.stackId = stackId;
     }
 
     public UUID getId() {

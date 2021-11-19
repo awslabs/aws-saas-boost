@@ -1,0 +1,31 @@
+{
+  "name": "Multi Container",
+  "domainName": "",
+  "hostedZone": "",
+  "sslCertificate": "",
+  "billing": null,
+  "services": {
+    "main": {
+      "name": "main",
+      "description": "Main Service",
+      "public": true,
+      "path": "*",
+      "healthCheckURL": "/",
+      "operatingSystem": "LINUX",
+      "containerPort": 80,
+      "containerRepo": "sb-mc-core-1dpih9lvcvyuf-main-wdtjfgiradvj",
+      "containerTag": "latest",
+      "tiers": {
+        "default": {
+          "instanceType": "t3.medium",
+          "cpu": 512,
+          "memory": 1024,
+          "minCount": 1,
+          "maxCount": 2,
+          "database": null,
+          "filesystem": null
+        }
+      }
+    }
+  }
+}

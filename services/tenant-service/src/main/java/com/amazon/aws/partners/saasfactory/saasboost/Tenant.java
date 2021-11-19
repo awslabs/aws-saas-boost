@@ -30,15 +30,10 @@ public class Tenant {
     private LocalDateTime created;
     private LocalDateTime modified;
     private Boolean active = Boolean.FALSE;
+    private String tier;
     private String onboardingStatus;
     private String name;
     private String subdomain;
-    private Boolean overrideDefaults = Boolean.FALSE;
-    private String computeSize;
-    private Integer memory;
-    private Integer cpu;
-    private Integer minCount;
-    private Integer maxCount;
     private String planId;
     private Map<String, String> resources = new HashMap<>();
 
@@ -82,6 +77,14 @@ public class Tenant {
         this.active = active != null ? active : Boolean.FALSE;
     }
 
+    public String getTier() {
+        return tier;
+    }
+
+    public void setTier(String tier) {
+        this.tier = tier;
+    }
+
     public String getOnboardingStatus() {
         return onboardingStatus;
     }
@@ -104,54 +107,6 @@ public class Tenant {
 
     public void setSubdomain(String subdomain) {
         this.subdomain = subdomain;
-    }
-
-    public Boolean getOverrideDefaults() {
-        return overrideDefaults;
-    }
-
-    public void setOverrideDefaults(Boolean overrideDefaults) {
-        this.overrideDefaults = overrideDefaults != null ? overrideDefaults : Boolean.FALSE;
-    }
-
-    public String getComputeSize() {
-        return computeSize;
-    }
-
-    public void setComputeSize(String computeSize) {
-        this.computeSize = computeSize;
-    }
-
-    public Integer getMemory() {
-        return memory;
-    }
-
-    public void setMemory(Integer memory) {
-        this.memory = memory;
-    }
-
-    public Integer getCpu() {
-        return cpu;
-    }
-
-    public void setCpu(Integer cpu) {
-        this.cpu = cpu;
-    }
-
-    public Integer getMinCount() {
-        return minCount;
-    }
-
-    public void setMinCount(Integer minCount) {
-        this.minCount = minCount;
-    }
-
-    public Integer getMaxCount() {
-        return maxCount;
-    }
-
-    public void setMaxCount(Integer maxCount) {
-        this.maxCount = maxCount;
     }
 
     public String getPlanId() {

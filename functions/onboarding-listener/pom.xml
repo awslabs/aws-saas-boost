@@ -23,7 +23,7 @@ limitations under the License.
         <version>1.0.0</version>
         <relativePath>../</relativePath>
     </parent>
-    <artifactId>OnboardingNotification</artifactId>
+    <artifactId>OnboardingListener</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -34,7 +34,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>16</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>20</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -115,28 +115,8 @@ limitations under the License.
             <version>2.13.3</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-joda</artifactId>
-            <version>2.11.0</version>
-        </dependency>
-        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>cloudformation</artifactId>
-            <version>2.14.26</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>netty-nio-client</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>apache-client</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>lambda</artifactId>
             <version>2.14.26</version>
             <exclusions>
                 <exclusion>

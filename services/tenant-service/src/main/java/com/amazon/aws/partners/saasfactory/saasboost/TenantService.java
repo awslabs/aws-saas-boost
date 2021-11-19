@@ -316,45 +316,10 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             tenant = new Tenant();
             tenant.setName((String) input.get("name"));
             tenant.setActive((Boolean) input.get("active"));
+            tenant.setTier((String) input.get("tier"));
             tenant.setOnboardingStatus((String) input.get("onboardingStatus"));
             tenant.setSubdomain((String) input.get("subdomain"));
             tenant.setPlanId((String) input.get("planId"));
-            tenant.setOverrideDefaults((Boolean) input.get("overrideDefaults"));
-            if (tenant.getOverrideDefaults()) {
-                tenant.setComputeSize((String) input.get("computeSize"));
-                if (input.get("memory") != null) {
-                    try {
-                        tenant.setMemory((Integer) input.get("memory"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set memory to value {}", input.get("memory"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("cpu") != null) {
-                    try {
-                        tenant.setCpu((Integer) input.get("cpu"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set CPU to value {}", input.get("cpu"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("minCount") != null) {
-                    try {
-                        tenant.setMinCount((Integer) input.get("minCount"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set min task count to value {}", input.get("minCount"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("maxCount") != null) {
-                    try {
-                        tenant.setMaxCount((Integer) input.get("maxCount"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set max task count to value {}", input.get("maxCount"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-            }
         }
 
         if (tenant == null) {

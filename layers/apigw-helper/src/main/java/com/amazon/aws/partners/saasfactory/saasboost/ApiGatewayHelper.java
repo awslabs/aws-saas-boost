@@ -75,7 +75,6 @@ public class ApiGatewayHelper {
         apiRequest.contentStreamProvider().ifPresent(c -> requestBuilder.contentStreamProvider(c));
         HttpExecuteRequest apiExecuteRequest = requestBuilder.build();
 
-        LOGGER.info("Created HTTP request");
 //        StringBuilder buffer = new StringBuilder();
 //        for (Map.Entry<String, List<String>> header : apiExecuteRequest.httpRequest().headers().entrySet()) {
 //            buffer.append(header.getKey());
@@ -152,7 +151,6 @@ public class ApiGatewayHelper {
                 .signingRegion(Region.of(AWS_REGION))
                 .awsCredentials(getTemporaryCredentials(assumedRole, context))
                 .build();
-        LOGGER.info("Signing API Gateway request with IAM credentials");
         SdkHttpFullRequest signedApiRequest = SIG_V4.sign(apiRequest, sigV4Params);
         return signedApiRequest;
     }
@@ -181,7 +179,6 @@ public class ApiGatewayHelper {
                     temporaryCredentials.accessKeyId(),
                     temporaryCredentials.secretAccessKey(),
                     temporaryCredentials.sessionToken());
-            LOGGER.info("Generated temporary System credentials");
         } catch (SdkServiceException stsError) {
             LOGGER.error("sts::AssumeRole error {}", stsError.getMessage());
             LOGGER.error(Utils.getFullStackTrace(stsError));

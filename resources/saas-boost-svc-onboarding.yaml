@@ -39,12 +39,6 @@ Parameters:
   PrivateApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
-  TenantServiceInsert:
-    Description: Tenant Service Insert Lambda
-    Type: String
-  ECSRepository:
-    Description: SaaS Boost ECR image repository
-    Type: String
 Resources:
   SSMParamOnboardingTemplate:
     Type: AWS::SSM::Parameter
@@ -52,80 +46,6 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/ONBOARDING_TEMPLATE
       Type: String
       Value: tenant-onboarding.yaml
-  OnboardingWorkflowExecRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub sb-${Environment}-workflow-onboarding-role-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - states.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub sb-${Environment}-workflow-onboarding-policy-${AWS::Region}
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !Ref TenantServiceInsert
-                  - !GetAtt OnboardingServiceProvisionTenant.Arn
-              - Effect: Allow
-                Action:
-                  - xray:PutTraceSegments
-                  - xray:PutTelemetryRecords
-                  - xray:GetSamplingRules
-                  - xray:GetSamplingTargets
-                Resource: '*'
-  OnboardingWorkflow:
-    Type: AWS::StepFunctions::StateMachine
-    Properties:
-      StateMachineName: !Sub sb-${Environment}-onboarding
-      StateMachineType: STANDARD
-      RoleArn: !GetAtt OnboardingWorkflowExecRole.Arn
-      DefinitionString: !Sub |
-        {
-          "Comment": "SaaS Boost Tenant Onboarding Flow",
-          "StartAt": "InsertTenant",
-          "States": {
-            "InsertTenant": {
-              "Type": "Task",
-              "Resource": "${TenantServiceInsert}",
-              "InputPath": "$",
-              "ResultPath": "$.taskresult",
-              "TimeoutSeconds": 300,
-              "Next": "ProvisionTenant"
-            },
-            "ProvisionTenant": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:lambda:invoke",
-              "Parameters": {
-                "FunctionName": "${OnboardingServiceProvisionTenant.Arn}",
-                "Payload": {
-                  "body": {
-                    "onboardingId.$": "$.onboardingId",
-                    "tenant.$": "$.taskresult.body"
-                  }
-                }
-              },
-              "TimeoutSeconds": 300,
-              "End": true
-            }
-          }
-        }
-  SSMParamOnboardingWorkflow:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/ONBOARDING_WORKFLOW
-      Type: String
-      Value: !Ref OnboardingWorkflow
   OnboardingTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -270,20 +190,14 @@ Resources:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CidrBlockTable}
               - Effect: Allow
                 Action:
-                  - states:StartExecution
-                Resource:
-                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:sb-${Environment}-onboarding
-              - Effect: Allow
-                Action:
                   - cloudformation:CreateStack
                 Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Tenant-*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
               - Effect: Allow
                 Action:
                   - cloudformation:UpdateStack
                 Resource:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Tenant-*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -422,7 +336,7 @@ Resources:
                   - ecs:DescribeClusters
                   - ecs:PutClusterCapacityProviders                  
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
               - Effect: Allow
                 Action:
@@ -553,7 +467,7 @@ Resources:
                 Action:
                   - ecr:ListImages
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
                 Action:
                   - lambda:Get*
@@ -867,7 +781,7 @@ Resources:
                 Action:
                   - ecr:ListImages
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
                 Action:
                   - lambda:GetFunction
@@ -968,12 +882,11 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          ONBOARDING_WORKFLOW: !Ref OnboardingWorkflow
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-          ECR_REPO: !Ref ECSRepository
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -1039,6 +952,8 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -1046,7 +961,43 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-
+  OnboardingServiceProvisionAppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-provision-app
+      RetentionInDays: 30
+  OnboardingServiceProvisionApp:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-provision-app
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::provisionApplication
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Onboarding"
   OnboardingServiceDeleteTenantLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1082,7 +1033,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-
   OnboardingServiceDeleteTenantEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -1098,7 +1048,6 @@ Resources:
       Targets:
         - Arn: !GetAtt OnboardingServiceDeleteTenant.Arn
           Id: OnboardingServiceDeleteTenant
-
   OnboardingServiceDeleteTenantFunctionPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1106,7 +1055,6 @@ Resources:
       FunctionName: !GetAtt OnboardingServiceDeleteTenant.Arn
       Principal: events.amazonaws.com
       SourceArn: !GetAtt OnboardingServiceDeleteTenantEventRule.Arn
-
   OnboardingStatusListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1232,6 +1180,12 @@ Outputs:
   OnboardingServiceByIdArn:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Value: !GetAtt OnboardingServiceGetById.Arn
+  OnboardingServiceProvisionTenantArn:
+    Description: Onboarding Service provision tenant Lambda ARN
+    Value: !GetAtt OnboardingServiceProvisionTenant.Arn
+  OnboardingServiceProvisionAppArn:
+    Description: Onboarding Service provision application services Lambda ARN
+    Value: !GetAtt OnboardingServiceProvisionApp.Arn
   OnboardingServiceUpdateStatusArn:
     Description: Onboarding Service update status Lambda ARN
     Value: !GetAtt OnboardingServiceUpdateStatus.Arn

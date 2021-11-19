@@ -29,6 +29,7 @@ limitations under the License.
                 <include>com/amazon/aws/partners/saasfactory/**</include>
                 <include>log4j2.xml</include>
                 <include>git.properties</include>
+                <include>appConfig.json</include>
             </includes>
         </fileSet>
     </fileSets>

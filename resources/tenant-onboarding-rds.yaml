@@ -21,10 +21,10 @@ Parameters:
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-  LambdaSourceFolder:
-    Description: Folder for lambda source code to change on each deployment
-    Type: String
-    Default: lambdas
+  #LambdaSourceFolder:
+  #  Description: Folder for lambda source code to change on each deployment
+  #  Type: String
+  #  Default: lambdas
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -129,6 +129,7 @@ Resources:
           IpProtocol: '-1'
   EncryptionKey:
     Condition: SupportsEncryption
+    # Why is this retain?
     DeletionPolicy: Retain
     Type: AWS::KMS::Key
     Properties:
@@ -420,7 +421,12 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsBootstrap
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/RdsBootstrap-lambda.zip
+        S3Key: !Join
+          - ''
+          - - '{{resolve:ssm:/saas-boost/'
+            - !Ref Environment
+            - '/SAAS_BOOST_LAMBDAS_FOLDER}}'
+            - /RdsBootstrap-lambda.zip
       Tags:
         - Key: Tenant
           Value: !Ref TenantId

@@ -26,7 +26,7 @@ if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
 
-LAMBDA_CODE=OnboardingNotification-lambda.zip
+LAMBDA_CODE=OnboardingListener-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
@@ -48,7 +48,7 @@ fi
 
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-notify" 
+FUNCTIONS=("sb-${ENVIRONMENT}-onboarding-listener" 
         )
 
 for FUNCTION in ${FUNCTIONS[@]}; do

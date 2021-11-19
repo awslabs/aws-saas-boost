@@ -36,39 +36,6 @@ public class OnboardingServiceTest {
     }
 
     @Test
-    public void testValidateTenantOverrides() {
-        ComputeSize computeSize = null;
-        Integer memory = null;
-        Integer cpu = null;
-        Integer minCount = null;
-        Integer maxCount = null;
-
-        assertFalse("All nulls", (computeSize != null || memory != null || cpu != null || minCount != null || maxCount != null));
-        assertFalse("No overrides", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-
-        computeSize = ComputeSize.S;
-        assertFalse("Invalid ASG override", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-
-        computeSize = null;
-        memory = 2048;
-        minCount = 1;
-        maxCount = 2;
-        assertFalse("Invalid compute override", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-
-        cpu = 1024;
-        maxCount = null;
-        assertFalse("Invalid ASG override", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-
-        maxCount = 2;
-        assertTrue("Compute override", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-
-        memory = null;
-        cpu = null;
-        computeSize = ComputeSize.S;
-        assertTrue("T-Shirt override", OnboardingService.validateTenantOverrides(computeSize, memory, cpu, minCount, maxCount));
-    }
-
-    @Test
     public void parameterStoreBatchTest() {
         Map<String, String> SAAS_BOOST_PARAMS = Stream
                 .of(
@@ -133,16 +100,6 @@ public class OnboardingServiceTest {
             System.out.println(String.format("Loop %d. Start %d End %d", ++loop, batchStart, batchEnd));
             batch.forEach(System.out::println);
         }
-    }
-
-    @Test
-    @Ignore
-    public void testOnboardingJson() throws Exception {
-        Onboarding onboarding = new Onboarding();
-        onboarding.setId(UUID.randomUUID());
-        onboarding.setStackId("arn:aws:cloudformation:us-west-2:111111111111:stack/Tenant-1d733861/b14b18a0-ebb8-11ea-9b5a-0a8a148431ae");
-        String json = Utils.toJson(onboarding);
-        //System.out.println(json);
     }
 
     @Test

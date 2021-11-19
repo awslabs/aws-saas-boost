@@ -17,6 +17,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import java.util.*;
 
@@ -69,15 +70,11 @@ public class TenantServiceTest {
     }
 
     @Test
+    @Ignore
     public void testQuoteJson() throws Exception {
         System.out.println("testQuoteJson");
         Tenant tenant = new Tenant();
         tenant.setId(UUID.fromString(tenantId));
-        tenant.setComputeSize("L");
-        tenant.setMinCount(1);
-        tenant.setMaxCount(2);
-        tenant.setCpu(2048);
-        tenant.setMemory(4096);
 
         String json = Utils.toJson(tenant);
         String quoted = Utils.escapeJson(json);

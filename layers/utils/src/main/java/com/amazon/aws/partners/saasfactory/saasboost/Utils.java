@@ -39,10 +39,7 @@ import java.io.*;
 import java.net.URI;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class Utils {
@@ -262,6 +259,11 @@ public class Utils {
         if (event.containsKey("queryStringParameters")) {
             Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
             if (queryParams != null && "warmup".equals(queryParams.get("source"))) {
+                warmup = true;
+            }
+        } else if (event.containsKey("body")) {
+            Map<String, Object> body = Utils.fromJson((String) event.get("body"), HashMap.class);
+            if (body != null && body.containsKey("source") && "warmup".equals(body.get("source"))) {
                 warmup = true;
             }
         } else {

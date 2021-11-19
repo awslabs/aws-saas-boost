@@ -51,54 +51,34 @@ public class TenantServiceDALTest {
         tenant.setActive(Boolean.TRUE);
         tenant.setCreated(created);
         tenant.setModified(modified);
+        tenant.setTier("default");
         tenant.setName("Test Tenant");
         tenant.setOnboardingStatus("succeeded");
         tenant.setPlanId("Billing Plan");
         tenant.setSubdomain("test-tenant");
         tenant.setResources(resources);
-        tenant.setOverrideDefaults(Boolean.FALSE);
 
         Map<String, AttributeValue> expected = new HashMap<>();
         expected.put("id", AttributeValue.builder().s(tenantId.toString()).build());
         expected.put("active", AttributeValue.builder().bool(Boolean.TRUE).build());
         expected.put("created", AttributeValue.builder().s(created.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
         expected.put("modified", AttributeValue.builder().s(modified.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
+        expected.put("tier", AttributeValue.builder().s("default").build());
         expected.put("name", AttributeValue.builder().s("Test Tenant").build());
         expected.put("onboarding", AttributeValue.builder().s("succeeded").build());
         expected.put("subdomain", AttributeValue.builder().s("test-tenant").build());
         expected.put("planId", AttributeValue.builder().s("Billing Plan").build());
-        expected.put("overrideDefaults", AttributeValue.builder().bool(Boolean.FALSE).build());
         expected.put("resources", AttributeValue.builder().m(resources.entrySet()
                 .stream()
                 .collect(Collectors.toMap(
                         entry -> entry.getKey(),
                         entry -> AttributeValue.builder().s(entry.getValue()).build()
                 ))).build());
-
         Map<String, AttributeValue> actual = TenantServiceDAL.toAttributeValueMap(tenant);
 
         assertEquals("Size unequal", expected.size(), actual.size());
         expected.keySet().stream().forEach((key) -> {
             assertEquals("Value mismatch for '" + key + "'", expected.get(key), actual.get(key));
-        });
-
-        Integer min = 2;
-        Integer max = 4;
-        tenant.setOverrideDefaults(Boolean.TRUE);
-        tenant.setComputeSize("XL");
-        tenant.setMinCount(min);
-        tenant.setMaxCount(max);
-
-        expected.put("overrideDefaults", AttributeValue.builder().bool(Boolean.TRUE).build());
-        expected.put("computeSize", AttributeValue.builder().s("XL").build());
-        expected.put("minCount", AttributeValue.builder().n(min.toString()).build());
-        expected.put("maxCount", AttributeValue.builder().n(max.toString()).build());
-
-        Map<String, AttributeValue> customized = TenantServiceDAL.toAttributeValueMap(tenant);
-
-        assertEquals("Size unequal", expected.size(), customized.size());
-        expected.keySet().stream().forEach((key) -> {
-            assertEquals("Value mismatch for '" + key + "'", expected.get(key), customized.get(key));
         });
     }
 }

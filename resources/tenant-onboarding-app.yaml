@@ -1,0 +1,1069 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Tenant Onboarding Application Service
+Parameters:
+  Environment:
+    Description: Environment (test, uat, prod, etc.)
+    Type: String
+  TenantId:
+    Description: The GUID for the tenant
+    Type: String
+  ServiceName:
+    Description: Name for this application service
+    Type: String
+  ServiceResourceName:
+    Description: CloudFormation friendly version of the service name
+    Type: String
+  ContainerRepository:
+    Description: The name of the ECR repository hosting the container image
+    Type: String
+  ECSCluster:
+    Description: This tenant's container cluster
+    Type: String
+  PubliclyAddressable:
+    Description: Is this service publicly accessible from the Internet?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  PublicPathRoute:
+    Description: If this service is public, what path part routes to it?
+    Type: String
+    Default: '*'
+  SSLCertificateArn:
+    Description: The ACM ARN of the SSL certificate for the application's domain
+    Type: String
+    Default: ''
+  VPC:
+    Description: This tenant's VPC
+    Type: String
+  SubnetPrivateA:
+    Description: Private subnet in this tenant's VPC
+    Type: String
+  SubnetPrivateB:
+    Description: Private subnet in this tenant's VPC
+    Type: String
+  ECSLoadBalancer:
+    Description: The ARN of the ALB fronting the public services for this application
+    Type: String
+  ECSSecurityGroup:
+    Description: Source security group to grant access to the container cluster
+    Type: String
+  ContainerOS:
+    Description: Operating System to use for the Docker host
+    Type: String
+    # Can't have dashes or underscores in Mappings keys :(
+    AllowedValues: [WIN2019FULL, WIN2019CORE, WIN1909CORE, WIN2016FULL, LINUX]
+  ClusterInstanceType:
+    Description: EC2 instance type to use for non Fargate Docker hosts
+    Type: String
+    Default: t2.xlarge
+  TaskMemory:
+    Description: Fargate memory setting
+    Type: Number
+    AllowedValues: [512, 1024, 2048, 3072, 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576, 25600, 26624, 27648, 28672, 29696, 30720]
+    Default: 1024
+  TaskCPU:
+    Description: Fargate CPU setting
+    Type: Number
+    AllowedValues: [256, 512, 1024, 2048, 4096]
+    Default: 512
+  MinTaskCount:
+    Description: Desired count of concurrent tasks for this tenant
+    Type: Number
+    Default: 1
+  MaxTaskCount:
+    Description: Maximum count of concurrent tasks for this tenant (max size we can auto scale up to)
+    Type: Number
+    Default: 1
+  ContainerPort:
+    Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
+    Type: Number
+    Default: 80
+  ContainerHealthCheckPath:
+    Description: The destination on the Container for the Load Balancer to use for health checks
+    Type: String
+    Default: '/'
+  UseEFS:
+    Description: Deploy the EFS nested stack?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  MountPoint:
+    Description: Container mount point for EFS file system
+    Type: String
+  EncryptEFS:
+    Description: Turn on EFS encryption at rest?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  EFSLifecyclePolicy:
+    Description: Enable EFS IA lifecycle?
+    Type: String
+    AllowedValues:
+      - NEVER
+      - AFTER_7_DAYS
+      - AFTER_14_DAYS
+      - AFTER_30_DAYS
+      - AFTER_60_DAYS
+      - AFTER_90_DAYS
+    Default: NEVER
+  UseRDS:
+    Description: Deploy the RDS nested stack?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  RDSInstanceClass:
+    Description: The compute and memory capacity of the DB instance
+    Type: String
+  RDSEngine:
+    Description: The database engine
+    Type: String
+  RDSEngineVersion:
+    Description: The version number of the database engine to use
+    Type: String
+  RDSParameterGroupFamily:
+    Description: The database parameter group family supporting the engine and engine version. Only used for Aurora clusters.
+    Type: String
+  RDSMasterUsername:
+    Description: The master username for the database
+    Type: String
+  RDSMasterPasswordParam:
+    Description: The Parameter Store secure string parameter and version containing the master database password
+    Type: String
+  RDSPort:
+    Description: The TCP port to connect to the database on
+    Type: String
+  RDSDatabase:
+    Description: Optional. The name of the database to create.
+    Type: String
+  RDSBootstrap:
+    Description: Optional. The filename of the SQL bootstrap file.
+    Type: String
+  MetricsStream:
+    Description: Optional. The name of the Firehose delivery stream for the Analytics system.
+    Type: String
+  EventBus:
+    Description: Optional. SaaS boost Metering and Billing EventBridge bus.
+    Type: String
+  UseFSx:
+    Description: Deploy the FSX nested stack?
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+  FSxWeeklyMaintenanceTime:
+    Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
+    Default: '7:02:00'
+    Type: String
+  FSxStorageCapacity:
+    Default: 32
+    Description: Specify the storage capacity of the file system being created, in gibibytes.
+      Valid values are 32 GiB - 65,536 GiB. Consider choosing a higher value for greater capacity.
+    Type: Number
+  FSxThroughputCapacity:
+    Default: 8
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
+      Consider choosing a higher value for better performance.
+    Type: Number
+  FSxBackupRetention:
+    Description: Specify the number of days to retain automatic backups.
+      Setting this value to 0 disables the creation of automatic backups. The maximum retention period
+      for backups is 35 days.
+    Default: 7
+    Type: Number
+  FSxDailyBackupTime:
+    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
+    Default: '01:00'
+    Type: String
+  FSxWindowsMountDrive:
+    Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
+    Default: 'G:'
+    Type: String
+  # These params are here to read the image values from the public SSM. Leave the defaults.
+  WIN2019FULL:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-ECS_Optimized/image_id'
+  WIN2019CORE:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id'
+  WIN1909CORE:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/Windows_Server-1909-English-Core-ECS_Optimized/image_id'
+  WIN2016FULL:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'
+Conditions:
+  NoCertificate: !Equals [!Ref SSLCertificateArn, '']
+  HasCertificate: !Not
+    - Condition: NoCertificate
+  IsPublic: !Equals [!Ref PubliclyAddressable, 'true']
+  ProvisionEFS: !Equals [!Ref UseEFS, 'true']
+  ProvisionRDS: !Equals [!Ref UseRDS, 'true']
+  WindowsOS: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
+  ProvisionFsx: !And
+    - !Equals [!Ref UseFSx, 'true']
+    - Condition: WindowsOS
+  IsWin2019Full: !Equals [WIN2019FULL, !Ref ContainerOS]
+  IsWin2019Core: !Equals [WIN2019CORE, !Ref ContainerOS]
+  IsWin1909Core: !Equals [WIN1909CORE, !Ref ContainerOS]
+Resources:
+  CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Condition: WindowsOS
+    Properties:
+      Name: 
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-cp']]
+      AutoScalingGroupProvider:
+          AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+          ManagedScaling:
+            TargetCapacity: 100
+            Status: ENABLED
+          ManagedTerminationProtection: ENABLED          
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId                 
+  ClusterCapacityProviderAssociations:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Condition: WindowsOS
+    Properties:
+      Cluster: !Ref ECSCluster    
+      CapacityProviders:
+        - !Ref CapacityProvider
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !Ref CapacityProvider
+          Base: 0
+          Weight: 1
+  CapacityProviderWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: WindowsOS
+    DependsOn: ClusterCapacityProviderAssociations
+  ClusterCapacityAssociationWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [WindowsOS, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
+      Timeout: '1'
+      Count: 0
+  InvokeDisableInstanceProtection:
+    Type: Custom::CustomResource
+    Condition: WindowsOS
+    DependsOn:
+      - ECSService
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection     
+      AutoScalingGroup: !Ref ECSAutoScalingGroup
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_USERNAME
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_HOST
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_NAME
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/METRICS_STREAM
+              - Effect: Allow
+                Action:
+                  - fsx:DescribeFileSystems
+                Resource:
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Join: ['', ['/ecs/sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+      RetentionInDays: 30
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - firehose:PutRecord
+                  - firehose:PutRecordBatch
+                Resource:
+                  - !Sub arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
+              - Effect: Allow
+                Action:
+                  - events:DescribeEventBus
+                  - events:PutEvents
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:aws:s3:::'{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'/tenants/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      RequiresCompatibilities:
+        Fn::If:
+          - WindowsOS
+          - - EC2
+          - - FARGATE
+      Memory: !If [WindowsOS, !Ref 'AWS::NoValue', !Ref TaskMemory]
+      Cpu: !If [WindowsOS, !Ref 'AWS::NoValue', !Ref TaskCPU]
+      NetworkMode: !If [WindowsOS, !Ref 'AWS::NoValue', awsvpc]
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+      ContainerDefinitions:
+        - Name:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:latest
+          Cpu: !If [WindowsOS, !Ref TaskCPU, !Ref 'AWS::NoValue']
+          Memory: !If [WindowsOS, !Ref TaskMemory, !Ref 'AWS::NoValue']
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            Fn::If:
+              - ProvisionRDS
+              - - Name: AWS_REGION
+                  Value: !Ref AWS::Region
+                - Name: TENANT_ID
+                  Value: !Ref TenantId
+                - Name: SAAS_BOOST_BUCKET
+                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+                - Name: SAAS_BOOST_EVENT_BUS
+                  Value: !Ref EventBus
+                - Name: METRICS_STREAM
+                  Value: !Ref MetricsStream
+                - Name: DB_HOST
+                  Value: !GetAtt rds.Outputs.RdsEndpoint
+                - Name: DB_NAME
+                  Value: !Ref RDSDatabase
+              - - Name: AWS_REGION
+                  Value: !Ref AWS::Region
+                - Name: TENANT_ID
+                  Value: !Ref TenantId
+                - Name: SAAS_BOOST_BUCKET
+                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+                - Name: SAAS_BOOST_EVENT_BUS
+                  Value: !Ref EventBus
+                - Name: METRICS_STREAM
+                  Value: !Ref MetricsStream
+          MountPoints:
+            !If
+              - ProvisionEFS
+              - - ContainerPath: !Ref MountPoint
+                  SourceVolume: !GetAtt efs.Outputs.FileSystemId
+              - !If
+                - ProvisionFsx
+                - - ContainerPath: !Ref MountPoint
+                    SourceVolume: !GetAtt fsx.Outputs.FileSystemId
+                - !Ref 'AWS::NoValue'
+          LinuxParameters:
+            Fn::If:
+              - WindowsOS
+              - !Ref 'AWS::NoValue'
+              - InitProcessEnabled: true
+          Secrets:
+            Fn::If:
+              - ProvisionRDS
+              - - Name: DB_MASTER_USERNAME
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_USERNAME
+                - Name: DB_MASTER_PASSWORD
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                - Name: DB_PORT
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
+              - !Ref 'AWS::NoValue'
+      Volumes:
+        !If
+          - ProvisionEFS
+          - - Name: !GetAtt efs.Outputs.FileSystemId
+              EfsVolumeConfiguration:
+                FileSystemId: !GetAtt efs.Outputs.FileSystemId
+          - !If
+            - ProvisionFsx
+            - - Name: !GetAtt fsx.Outputs.FileSystemId
+                Host:
+                  SourcePath: !Sub ${FSxWindowsMountDrive}\
+            - !Ref 'AWS::NoValue'
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      RoleArn: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_ROLE}}'
+      ArtifactStore:
+        Location: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_BUCKET}}'
+        Type: S3
+      RestartExecutionOnUpdate: false
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_BUCKET}}'
+                S3ObjectKey:
+                  Fn::Join: ['', [!Ref TenantId, '/', 'tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: imgdef
+        - Name: Deploy
+          Actions:
+            - Name: PreDeployAction
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: '1'
+              RunOrder: 1
+              Configuration:
+                FunctionName: !Sub sb-${Environment}-update-ecs
+                UserParameters: !Sub '{"cluster":"${ECSCluster}","service":"${ECSService}","desiredCount":${MinTaskCount}}'
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ECS
+                Version: '1'
+              RunOrder: 2
+              Configuration:
+                ClusterName:
+                  Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                ServiceName:
+                  Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                FileName: imagedefinitions.json
+              InputArtifacts:
+                - Name: imgdef
+  FsxWaitHandle:
+    Condition: ProvisionFsx
+    DependsOn: fsx
+    Type: "AWS::CloudFormation::WaitConditionHandle"
+  WaitHandle:
+    Type: "AWS::CloudFormation::WaitConditionHandle"
+  FsxWaitCondition:
+    Type: "AWS::CloudFormation::WaitCondition"
+    Properties:
+      Handle: !If [ProvisionFsx, !Ref FsxWaitHandle, !Ref WaitHandle]
+      Timeout: "1"
+      Count: 0
+  # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
+  # Or we need an Target Group (Linux/Fargate)
+  # per https://aws.amazon.com/blogs/containers/managing-compute-for-amazon-ecs-clusters-with-capacity-providers/
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition:
+      WindowsOS
+    Properties:
+      AutoScalingGroupName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-asg']]
+      VPCZoneIdentifier:
+        - !Ref SubnetPrivateA
+        - !Ref SubnetPrivateB
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration 
+      NewInstancesProtectedFromScaleIn: true      
+      MinSize: '0'
+      MaxSize: '20'
+      DesiredCapacity: '0'
+      #Cooldown:
+      #HealthCheckGracePeriod: 60
+      #HealthCheckType:
+      #MetricsCollection:
+      #NotificationConfigurations:
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        #MinSuccessfulInstancesPercent: 0
+        MaxBatchSize: 1
+        PauseTime: PT5M
+        WaitOnResourceSignals: true
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+  ECSInstanceRole:
+    Type: AWS::IAM::Role
+    Condition: WindowsOS
+    Properties:
+      RoleName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-instance-role']]
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-instance-policy']]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeTags
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecs:DeregisterContainerInstance
+                  - ecs:RegisterContainerInstance
+                  - ecs:SubmitAttachmentStateChanges
+                  - ecs:SubmitContainerStateChange
+                  - ecs:SubmitTaskStateChange
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+              - Effect: Allow
+                Action:
+                  - ecs:Poll
+                  - ecs:StartTelemetrySession
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*
+                Condition:
+                  StringLike:
+                    ecs:cluster:
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+              - Effect: Allow
+                Action:
+                  - ecs:DiscoverPollEndpoint
+                Resource: '*'
+                # Same permissions as AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
+              - Effect: Allow
+                Action:
+                  - ds:CreateComputer
+                  - ds:DescribeDirectories
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Condition: WindowsOS
+    Properties:
+      Path: '/'
+      Roles:
+        - !Ref ECSInstanceRole
+  ECSLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Condition: WindowsOS
+    # Wait for FSx filesystem to be deployed before creating the launch configuration
+    # because we have to mount the file system prior to placing ECS Tasks on the host
+    DependsOn: FsxWaitCondition
+    Metadata:
+      Comment: 'packages -> groups -> users-> sources -> files -> commands -> services'
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            c:\cfn\cfn-hup.conf:
+              content:
+                Fn::Join:
+                  - ""
+                  - - "[main]"
+                    - "\n"
+                    - "stack="
+                    - !Ref "AWS::StackId"
+                    - "\n"
+                    - "region="
+                    - !Ref "AWS::Region"
+                    - "\n"
+            c:\cfn\hooks.d\cfn-auto-reloader.conf:
+              content:
+                Fn::Join:
+                  - ""
+                  - - "[cfn-auto-reloader-hook]"
+                    - "\n"
+                    - "triggers=post.update"
+                    - "\n"
+                    - "path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init"
+                    - "\n"
+                    - "action=cfn-init.exe -v -s "
+                    - !Ref "AWS::StackId"
+                    - " -r ECSLaunchConfiguration --region "
+                    - !Ref "AWS::Region"
+                    - "\n"
+          #commands:
+          #  01_import_powershell_module:
+          #    command: powershell.exe -Command Import-Module ECSTools
+          #  02_add_instance_to_cluster:
+          #    command: !Sub powershell.exe -Command Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole
+          #  03_set_awslogs_env_override:
+          #    command: powershell.exe -Command [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+          services:
+            windows:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - c:\cfn\cfn-hup.conf
+                  - c:\etc\cfn\hooks.d\cfn-auto-reloader.conf
+    Properties:
+      ImageId:
+        Fn::If:
+          - IsWin2019Full
+          - !Ref WIN2019FULL
+          - !If
+            - IsWin2019Core
+            - !Ref WIN2019CORE
+            - !If
+              - IsWin1909Core
+              - !Ref WIN1909CORE
+              - !Ref WIN2016FULL
+      InstanceType: !Ref ClusterInstanceType
+      IamInstanceProfile: !Ref ECSInstanceProfile
+      #KeyName: !Ref 'AWS::NoValue'
+      AssociatePublicIpAddress: false
+      SecurityGroups:
+        - !Ref ECSSecurityGroup
+      UserData:
+        Fn::Base64:
+          !Sub |
+            <powershell>
+            Start-Transcript -Path "C:\UserData.log" -Append
+            Write-Output ("Download and install the CloudWatch agent")
+            Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+
+            Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+
+            Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+            cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+            .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+
+            # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+            Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+            Import-Module ECSTools
+            Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+
+            # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+            [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+            Restart-Service AmazonECS
+
+            Write-Output ("UseFsx value is ${UseFSx}")
+            If ('${UseFSx}' -eq 'true')  {
+                Write-Output ("Getting SSM Parameters for the Active Directory domain")
+                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
+                $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
+                $credential = New-Object System.Management.Automation.PSCredential($username,$password)
+                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
+                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+                $ips = $ipdns.Split(",")
+
+                Write-Output ("Reading the existing VPC DNS Server IP")
+                # Get the VPC DNS server.
+                $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
+
+                # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
+                # VPC DNS server is the last one in the list.
+                $vpcdns = $dnsclient.ServerAddresses | select -last 1
+
+                # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
+                $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
+                Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
+                Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
+
+                # Join the domain
+                Write-Output ("Joining domain $directoryName")
+                Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
+
+                Write-Output ("Getting FSx File Server domain name")
+                $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
+                $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
+
+                # Map the share to local drive letter
+                Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
+                New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
+            }  # end if for UseFsx
+
+            Write-Output ("Cfn-init and signal completion")
+            # Now run the CloudFormation init config set
+            cfn-init.exe -v -s ${AWS::StackId} -r ECSLaunchConfiguration --region ${AWS::Region}
+
+            # And, finally signal CloudFormation that we're done setting up
+            cfn-signal.exe -e 0 --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+            Stop-Transcript
+            </powershell>
+            <persist>true</persist>
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: !Ref ContainerHealthCheckPath
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: !If [WindowsOS, instance, ip]
+      VpcId: !Ref VPC
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '86400'
+  ALBListenerSSL:
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ECSLoadBalancer
+      DefaultActions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref SSLCertificateArn
+  ALBListenerForwardSSL:
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: "redirect"
+          RedirectConfig:
+            Protocol: "HTTPS"
+            Port: '443'
+            Host: "#{host}"
+            Path: "/#{path}"
+            Query: "#{query}"
+            StatusCode: "HTTP_301"
+      Port: 80
+      Protocol: HTTP
+      LoadBalancerArn: !Ref ECSLoadBalancer
+  ALBListener:
+    Condition: NoCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ECSLoadBalancer
+      DefaultActions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Port: 80
+      Protocol: HTTP
+  # This rule necessary for disable tenant functionalty
+  ALBRule:
+    Condition: NoCertificate
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values: ['*']
+      ListenerArn: !Ref ALBListener
+      Priority: 1
+  # This rule necessary for disable tenant functionalty
+  ALBSSLRule:
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values: ['*']
+      ListenerArn: !Ref ALBListenerSSL
+      Priority: 1
+  ListenerSSLWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: HasCertificate
+    DependsOn: ALBListenerForwardSSL
+  ListenerWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: NoCertificate
+    DependsOn: ALBListener
+  ListenerWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [HasCertificate, !Ref ListenerSSLWaitHandle, !Ref ListenerWaitHandle]
+      Timeout: '1'
+      Count: 0    
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ListenerWaitCondition
+      - ClusterCapacityAssociationWaitCondition
+    Properties:
+      EnableExecuteCommand: !If [WindowsOS, false, true]
+      ServiceName:
+        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ECSTaskDefinition
+      LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
+      # Initially set DesiredCount to zero so the resource stabilizes
+      # CodePipeline will update it when deploying the task
+      DesiredCount: 0
+      NetworkConfiguration:
+        !If
+          - WindowsOS
+          - !Ref 'AWS::NoValue'
+          - AwsvpcConfiguration:
+              SecurityGroups:
+                - !Ref ECSSecurityGroup
+              Subnets:
+                - !Ref SubnetPrivateA
+                - !Ref SubnetPrivateB
+      # Role: The SaaS Boost installer makes sure the ECS service linked role is available
+      LoadBalancers:
+        - ContainerName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref ALBTargetGroup
+      CapacityProviderStrategy:
+        !If
+          - WindowsOS      
+          - - CapacityProvider: !Ref CapacityProvider
+              Base: 1
+              Weight: 1          
+          - !Ref 'AWS::NoValue'
+  ECSServiceAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - ECSService
+    Properties:
+      ResourceId: !Sub service/${ECSCluster}/${ECSService.Name}
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      MaxCapacity: !Ref MaxTaskCount
+      MinCapacity: !Ref MinTaskCount
+  ECSServiceCPUAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSServiceAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        ScaleOutCooldown: 60 # How long should we wait for a scale out activity to complete?
+        ScaleInCooldown: 120 # How long should we wait in between scale in activities?
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 65
+  ECSServiceMemoryAutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSServiceAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        ScaleOutCooldown: 60 # How long should we wait for a scale out activity to complete?
+        ScaleInCooldown: 120 # How long should we wait in between scale in activities?
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: 85
+  fsx:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionFsx
+    #Metadata:
+    #  ForceUpdate: !Ref LambdaSourceFolder
+    Properties:
+      TemplateURL: !Join
+        - ''
+        - - 'https://'
+          - '{{resolve:ssm:/saas-boost/'
+          - !Ref Environment
+          - '/SAAS_BOOST_BUCKET}}'
+          - '.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        TenantId: !Ref TenantId
+        ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID}}'
+        PrivateSubnet1ID: !Ref SubnetPrivateA
+        PrivateSubnet2ID: !Ref SubnetPrivateB
+        VPCID: !Ref VPC
+        SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+        #LambdaSourceFolder: !Ref LambdaSourceFolder
+        BackupRetention: !Ref FSxBackupRetention
+        DailyBackupTime: !Ref FSxDailyBackupTime
+        WeeklyMaintenanceTime: !Ref FSxWeeklyMaintenanceTime
+        StorageCapacity: !Ref FSxStorageCapacity
+        ThroughputCapacity: !Ref FSxThroughputCapacity
+        #FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
+  efs:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionEFS
+    #Metadata:
+    #  ForceUpdate: !Ref LambdaSourceFolder
+    Properties:
+      TemplateURL: !Join
+        - ''
+        - - 'https://'
+          - '{{resolve:ssm:/saas-boost/'
+          - !Ref Environment
+          - '/SAAS_BOOST_BUCKET}}'
+          - '.s3.amazonaws.com/tenant-onboarding-efs.yaml'
+      Parameters:
+        TenantId: !Ref TenantId
+        VPC: !Ref VPC
+        PrivateSubnetA: !Ref SubnetPrivateA
+        PrivateSubnetB: !Ref SubnetPrivateB
+        ECSSecurityGroup: !Ref ECSSecurityGroup
+        EncryptEFS: !Ref EncryptEFS
+        EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
+  rds:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionRDS
+    #Metadata:
+    #  ForceUpdate: !Ref LambdaSourceFolder
+    Properties:
+      TemplateURL: !Join
+        - ''
+        - - 'https://'
+          - '{{resolve:ssm:/saas-boost/'
+          - !Ref Environment
+          - '/SAAS_BOOST_BUCKET}}'
+          - '.s3.amazonaws.com/tenant-onboarding-rds.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+        #LambdaSourceFolder: !Ref LambdaSourceFolder
+        TenantId: !Ref TenantId
+        VPC: !Ref VPC
+        PrivateSubnetA: !Ref SubnetPrivateA
+        PrivateSubnetB: !Ref SubnetPrivateB
+        ECSSecurityGroup: !Ref ECSSecurityGroup
+        RDSInstanceClass: !Ref RDSInstanceClass
+        RDSEngine: !Ref RDSEngine
+        RDSEngineVersion: !Ref RDSEngineVersion
+        RDSParameterGroupFamily: !Ref RDSParameterGroupFamily
+        RDSMasterUsername: !Ref RDSMasterUsername
+        RDSMasterPasswordParam: !Ref RDSMasterPasswordParam
+        RDSPort: !Ref RDSPort
+        RDSDatabase: !Ref RDSDatabase
+        RDSBootstrap: !Ref RDSBootstrap
+Outputs:
+  RdsEndpoint:
+    Condition: ProvisionRDS
+    Description: RDS endpoint
+    Value: !GetAtt rds.Outputs.RdsEndpoint

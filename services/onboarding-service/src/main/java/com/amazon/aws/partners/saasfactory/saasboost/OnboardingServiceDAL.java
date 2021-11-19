@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
@@ -29,13 +30,13 @@ import java.util.stream.Stream;
 
 public class OnboardingServiceDAL {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(OnboardingServiceDAL.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingServiceDAL.class);
     private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String CIDR_BLOCK_TABLE = System.getenv("CIDR_BLOCK_TABLE");
     private final DynamoDbClient ddb;
 
     public OnboardingServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(ONBOARDING_TABLE)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_TABLE");
         }
@@ -46,7 +47,7 @@ public class OnboardingServiceDAL {
     }
 
     public List<Onboarding> getOnboardings() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboardings");
         List<Onboarding> onboardings = new ArrayList<>();
         try {
@@ -68,7 +69,7 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding getOnboarding(String onboardingId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboarding");
         Map<String, AttributeValue> item = null;
         try {
@@ -87,13 +88,13 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding getOnboardingByTenantId(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboardingByTenantId");
         Onboarding onboarding = null;
         try {
-            final int UUID_LENGTH = 36;
+            final int uuidLength = 36;
             String filter = null;
-            if (tenantId.length() < UUID_LENGTH) {
+            if (tenantId.length() < uuidLength) {
                 filter = "begins_with(tenant_id, :tenantId)";
             } else {
                 filter = "tenant_id = :tenantId";
@@ -101,9 +102,8 @@ public class OnboardingServiceDAL {
             ScanResponse scan = ddb.scan(ScanRequest.builder()
                     .tableName(ONBOARDING_TABLE)
                     .filterExpression(filter)
-                    .expressionAttributeValues(Stream
-                            .of(new AbstractMap.SimpleEntry<String, AttributeValue>(":tenantId", AttributeValue.builder().s(tenantId).build()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeValues(
+                            Collections.singletonMap(":tenantId", AttributeValue.builder().s(tenantId).build())
                     )
                     .build()
             );
@@ -126,7 +126,7 @@ public class OnboardingServiceDAL {
     // Choosing to do a replacement update as you might do in a RDBMS by
     // setting columns = NULL when they do not exist in the updated value
     public Onboarding updateOnboarding(Onboarding onboarding) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::updateOnboarding");
         try {
             // Created and Modified are owned by the DAL since they reflect when the
@@ -148,7 +148,7 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding updateStatus(UUID onboardingId, OnboardingStatus status) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::updateStatus");
         Onboarding updated = new Onboarding();
         updated.setId(onboardingId);
@@ -186,17 +186,26 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding insertOnboarding(Onboarding onboarding) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::insertOnboarding");
+
+        // Unique identifier is owned by the DAL
+        if (onboarding.getId() != null) {
+            throw new IllegalArgumentException("Can't insert a new onboarding record that already has an id");
+        }
         UUID onboardingId = UUID.randomUUID();
         onboarding.setId(onboardingId);
+
+        // We start in a created state
+        onboarding.setStatus(OnboardingStatus.created);
+
+        // Created and Modified are owned by the DAL since they reflect when the
+        // object was persisted
+        LocalDateTime now = LocalDateTime.now();
+        onboarding.setCreated(now);
+        onboarding.setModified(now);
+        Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
         try {
-            // Created and Modified are owned by the DAL since they reflect when the
-            // object was persisted
-            LocalDateTime now = LocalDateTime.now();
-            onboarding.setCreated(now);
-            onboarding.setModified(now);
-            Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
             ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
             long putItemTimeMillis = System.currentTimeMillis() - startTimeMillis;
             LOGGER.info("OnboardingServiceDAL::insertOnboarding PutItem exec " + putItemTimeMillis);
@@ -252,9 +261,8 @@ public class OnboardingServiceDAL {
                     .tableName(CIDR_BLOCK_TABLE)
                     .key(key)
                     .updateExpression("SET tenant_id = :tenantId")
-                    .expressionAttributeValues(Stream
-                            .of(new AbstractMap.SimpleEntry<String, AttributeValue>(":tenantId", AttributeValue.builder().s(tenantId).build()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeValues(
+                            Collections.singletonMap(":tenantId", AttributeValue.builder().s(tenantId).build())
                     )
                     .conditionExpression("attribute_not_exists(tenant_id)")
                     .returnValues(ReturnValue.ALL_NEW)

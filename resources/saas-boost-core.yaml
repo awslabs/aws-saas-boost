@@ -41,6 +41,12 @@ Parameters:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
     Default: v1
+  ApplicationServices:
+    Description: Comma separated list of application service names to create ECR repositories for
+    Type: String
+    Default: ''
+Transform:
+  - sb-app-services-macro
 Resources:
   SaaSBoostEventBus:
     Type: AWS::Events::EventBus
@@ -52,16 +58,6 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/EVENT_BUS
       Type: String
       Value: !Ref SaaSBoostEventBus
-  ECSRepository:
-    Type: AWS::ECR::Repository
-    # Properties:
-    #   RepositoryName: !Sub sb-${Environment}-repo
-  SSMParamECRRepository:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/ECR_REPO
-      Type: String
-      Value: !Ref ECSRepository
   WorkloadDeployLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -120,7 +116,7 @@ Resources:
                 Action:
                   - ecr:ListImages
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -154,10 +150,10 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "ECSDeploy"
-  CfnNotifyExecRole:
+  OnboardingListenerExecRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-notify-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-onboarding-listener-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -169,7 +165,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-notify-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-onboarding-listener-${AWS::Region}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -192,39 +188,33 @@ Resources:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
               - Effect: Allow
                 Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !GetAtt WorkloadDeployLambda.Arn
-              - Effect: Allow
-                Action:
                   - events:PutEvents
                 Resource:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
-  CfnNotifyLogs:
+  OnboardingListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-notify
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-listener
       RetentionInDays: 30
-  CfnNotifyLambda:
+  OnboardingListener:
     Type: AWS::Lambda::Function
-    DependsOn: CfnNotifyLogs
+    DependsOn: OnboardingListenerLogs
     Properties:
-      FunctionName: !Sub sb-${Environment}-notify
-      Role: !GetAtt CfnNotifyExecRole.Arn
+      FunctionName: !Sub sb-${Environment}-onboarding-listener
+      Role: !GetAtt OnboardingListenerExecRole.Arn
       Runtime: java11
       Timeout: 600
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingNotification
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingListener
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingNotification-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingListener-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          TENANT_DEPLOY_LAMBDA: !Ref WorkloadDeployLambda
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -232,32 +222,31 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-  CfnNotifyTopic:
+  OnboardingListenerTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: Tenant Onboarding Notifications
-      TopicName: !Sub sb-${Environment}-onboarding-notify
-      KmsMasterKeyId: alias/aws/sns  #use AWS managed key
-
-  CfnNotifySubscription:
+      DisplayName: Tenant Provisioning Notifications
+      TopicName: !Sub sb-${Environment}-onboarding-listener
+      KmsMasterKeyId: alias/aws/sns
+  OnboardingListenerSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: lambda
-      Endpoint: !GetAtt CfnNotifyLambda.Arn
-      TopicArn: !Ref CfnNotifyTopic
-  CfnNotifyPermission:
+      Endpoint: !GetAtt OnboardingListener.Arn
+      TopicArn: !Ref OnboardingListenerTopic
+  OnboardingListenerPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref CfnNotifyLambda
+      FunctionName: !Ref OnboardingListener
       Principal: sns.amazonaws.com
       Action: lambda:InvokeFunction
-      SourceArn: !Ref CfnNotifyTopic
+      SourceArn: !Ref OnboardingListenerTopic
   SSMParamOnboardingSNS:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/ONBOARDING_SNS
       Type: String
-      Value: !Ref CfnNotifyTopic
+      Value: !Ref OnboardingListenerTopic
   TenantCodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -290,7 +279,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecr:DescribeImages
-                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
+                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -387,36 +376,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "ECSDeploy"
-  CodePipelineUpdateEcsServicePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref CodePipelineUpdateEcsServiceLambda
-      Principal: codepipeline.amazonaws.com
-      Action: lambda:InvokeFunction
-      SourceArn: !GetAtt EcrImageActionEvent.Arn
-  EcrImageActionEvent:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub sb-${Environment}-workload-deploy
-      EventPattern:
-        source:
-          - aws.ecr
-        detail-type:
-          - ECR Image Action
-        detail:
-          repository-name:
-            - !Ref ECSRepository
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt WorkloadDeployLambda.Arn
-          Id: sb-deploy-lambda
-  EcrImageActionEventPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref WorkloadDeployLambda
-      Principal: events.amazonaws.com
-      Action: lambda:InvokeFunction
-      SourceArn: !GetAtt EcrImageActionEvent.Arn
   SaaSBoostPublicApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -871,21 +830,12 @@ Resources:
   # Macro transform will add as many AWS::ECR::Repository resources as necessary
   # based on the length of the list of ApplicationServices passed as a parameter
 Outputs:
-  EcrRepository:
-    Description: SaaS Boost ECR image repository
-    Value: !Ref ECSRepository
-  NotificationSnsTopic:
-    Description: SaaS Boost Onboarding CloudFormation notifications SNS Topic
-    Value: !Ref CfnNotifyTopic
   CodePipelineIamRole:
     Description: SaaS Boost tenant deploy CodePipeline IAM role
     Value: !GetAtt TenantCodePipelineRole.Arn
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Value: !Ref SaaSBoostEventBus
-  EcrRepoName:
-    Description: SaaS Boost ECR Repo Name
-    Value: !Ref ECSRepository
   SaaSBoostPublicApi:
     Description: SaaS Boost Public API
     Value: !Ref SaaSBoostPublicApi

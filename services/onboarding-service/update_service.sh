@@ -53,13 +53,13 @@ FUNCTIONS=(
 	"sb-${ENVIRONMENT}-onboarding-delete"
 	"sb-${ENVIRONMENT}-onboarding-listener"
 	"sb-${ENVIRONMENT}-onboarding-provision"
+	"sb-${ENVIRONMENT}-onboarding-provision-app"
 	"sb-${ENVIRONMENT}-onboarding-start"
 	"sb-${ENVIRONMENT}-onboarding-update-dns"
 	"sb-${ENVIRONMENT}-onboarding-update-status"
 	"sb-${ENVIRONMENT}-onboarding-update-tenant"
 	"sb-${ENVIRONMENT}-tenants-update-onboarding"
 )
-
 
 for FUNCTION in ${FUNCTIONS[@]}; do
 	#echo $FUNCTION

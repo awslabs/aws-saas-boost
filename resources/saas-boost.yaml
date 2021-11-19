@@ -36,6 +36,10 @@ Parameters:
     Description: The domain your workload is hosted at formatted as [env].[domain].[com]
     Type: String
     Default: ''
+  SSLCertificate:
+    Description: The AWS Certificate Manager ARN for the domain name
+    Type: String
+    Default: ''
   PublicApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost public API
     Type: String
@@ -56,6 +60,10 @@ Parameters:
   ADPasswordParam:
     Description: 'SSM Parameter name to use for AD User password:'
     Type: String
+  ApplicationServices:
+    Description: Comma separated list of application service names to create ECR repositories for
+    Type: String
+    Default: ''
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
 Resources:
@@ -372,6 +380,70 @@ Resources:
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref LoggingBucket
+  ApplicationServicesMacroExecutionRole:
+    Type: AWS::IAM::Role
+    DependsOn:
+      - ApplicationServicesMacroLogs
+    Properties:
+      RoleName: saas-boost-app-services-macro
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: saas-boost-app-services-macro
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  ApplicationServicesMacroLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/saas-boost-app-services-macro
+      RetentionInDays: 30
+  ApplicationServicesMacroFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApplicationServicesMacroLogs
+    Properties:
+      FunctionName: saas-boost-app-services-macro
+      Role: !GetAtt ApplicationServicesMacroExecutionRole.Arn
+      Runtime: java11
+      Timeout: 900
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesEcrMacro
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesEcrMacro-lambda.zip
+      Layers:
+         - !Ref SaaSBoostUtilsLayer
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Macro"
+  ApplicationServicesMacro:
+    Type: AWS::CloudFormation::Macro
+    Properties:
+      # Can't use a parameter as part of a macro name when you include it in another template
+      Name: saas-boost-app-services-macro
+      FunctionName: !GetAtt ApplicationServicesMacroFunction.Arn
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -381,6 +453,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         Environment: !Ref Environment
         DomainName: !Ref DomainName
+        SSLCertificate: !Ref SSLCertificate
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
@@ -420,6 +493,7 @@ Resources:
         CodePipelineBucket: !Ref CodePipelineBucket
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
+        ApplicationServices: !Ref ApplicationServices
   billing:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
@@ -472,8 +546,6 @@ Resources:
         SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
-        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
-        ECSRepository: !GetAtt core.Outputs.EcrRepository
   quota:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
@@ -573,10 +645,13 @@ Resources:
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPrivateApiRootResourceId
         PrivateApiStage: !Ref PrivateApiStage
         QuotasServiceCheck: !GetAtt quota.Outputs.QuotasServiceCheckArn
+        TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
         TenantServiceUpdateOnboarding: !GetAtt tenant.Outputs.TenantServiceUpdateOnboardingArn
+        OnboardingProvisionTenant: !GetAtt onboarding.Outputs.OnboardingServiceProvisionTenantArn
+        OnboardingProvisionApp: !GetAtt onboarding.Outputs.OnboardingServiceProvisionAppArn
         OnboardingStatusListener: !GetAtt onboarding.Outputs.OnboardingStatusListenerArn
         OnboardingUpdateDomain: !GetAtt onboarding.Outputs.OnboardingUpdateDomainArn
         OnboardingUpdateTenant: !GetAtt onboarding.Outputs.OnboardingUpdateTenantArn
@@ -588,6 +663,7 @@ Resources:
         SettingsServiceTenantUpdate: !GetAtt settings.Outputs.SettingsServiceTenantUpdateArn
         SettingsServiceTenantDelete: !GetAtt settings.Outputs.SettingsServiceTenantDeleteArn
         SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
+        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
   SSMParamMetricsAnalyticsDeployed:
     Type: AWS::SSM::Parameter
     Properties:
