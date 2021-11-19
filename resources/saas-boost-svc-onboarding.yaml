@@ -40,12 +40,6 @@ Parameters:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
 Resources:
-  SSMParamOnboardingTemplate:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/ONBOARDING_TEMPLATE
-      Type: String
-      Value: tenant-onboarding.yaml
   OnboardingTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -1058,12 +1052,12 @@ Resources:
   OnboardingStatusListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-listener
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-status
       RetentionInDays: 30
   OnboardingStatusListener:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-listener
+      FunctionName: !Sub sb-${Environment}-onboarding-status
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 600
