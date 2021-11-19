@@ -34,7 +34,7 @@ Parameters:
     Default: ''
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
-  HasSslCert: !Not [1equals [!Ref SSLCertificate, '']]
+  HasSslCert: !Not [!Equals [!Ref SSLCertificate, '']]
 Resources:
   # Route 53 hosted zone. This hosted zone's name servers will need to be added to primary
   HostedZone:

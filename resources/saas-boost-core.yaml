@@ -14,6 +14,8 @@
 # limitations under the License.
 AWSTemplateFormatVersion: 2010-09-09
 Description: AWS SaaS Boost Core Resources
+Transform:
+  - saas-boost-app-services-macro
 Parameters:
   Environment:
     Description: SaaS Boost environment name
@@ -45,8 +47,6 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
-Transform:
-  - sb-app-services-macro
 Resources:
   SaaSBoostEventBus:
     Type: AWS::Events::EventBus
