@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.amazon.aws.partners.saasfactory.saasboost;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -118,14 +119,16 @@ public class Database {
         }
     }
 
-    private RDS_ENGINE engine;
-    private RDS_INSTANCE instance;
-    private String version;
-    private String family;
-    private String database;
-    private String username;
-    private String password;
-    private String bootstrapFilename;
+    private final RDS_ENGINE engine;
+    private final RDS_INSTANCE instance;
+    private final String version;
+    private final String family;
+    private final String database;
+    private final String username;
+    private final String password;
+    private final String bootstrapFilename;
+
+    private String passwordParam;
 
     private Database(Builder builder) {
         this.engine = builder.engine;
@@ -136,10 +139,7 @@ public class Database {
         this.username = builder.username;
         this.password = builder.password;
         this.bootstrapFilename = builder.bootstrapFilename;
-    }
-
-    public static Builder builder() {
-        return new Builder();
+        this.passwordParam = builder.passwordParam;
     }
 
     public String getEngine() {
@@ -174,6 +174,7 @@ public class Database {
         return username;
     }
 
+    @JsonIgnore
     public String getPassword() {
         return password;
     }
@@ -184,6 +185,14 @@ public class Database {
 
     public String getBootstrapFilename() {
         return bootstrapFilename;
+    }
+
+    public String getPasswordParam() {
+        return passwordParam;
+    }
+
+    public void setPasswordParam(String passwordParam) {
+        this.passwordParam = passwordParam;
     }
 
     @Override
@@ -217,6 +226,10 @@ public class Database {
         return Objects.hash(version, family, database, username, password, bootstrapFilename, engine, instance);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     @JsonIgnoreProperties(value = {"engineName", "instanceClass", "port"})
     public static final class Builder {
@@ -228,6 +241,7 @@ public class Database {
         private String database;
         private String username;
         private String password;
+        private String passwordParam;
         private String bootstrapFilename;
 
         private Builder() {
@@ -273,6 +287,11 @@ public class Database {
 
         public Builder password(String password) {
             this.password = password;
+            return this;
+        }
+
+        public Builder passwordParam(String passwordParam) {
+            this.passwordParam = passwordParam;
             return this;
         }
 

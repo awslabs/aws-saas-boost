@@ -24,8 +24,9 @@ import java.util.regex.Pattern;
 @JsonDeserialize(builder = Setting.Builder.class)
 public class Setting {
 
-    private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_\\.-]+");
+    private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_/\\.-]+");
     private final String name;
+//    private final String parameterPath;
     private final String value;
     private boolean readOnly;
     private boolean secure;
@@ -120,7 +121,7 @@ public class Setting {
 
         public Builder name(String name) {
             if (!isValidSettingName(name)) {
-                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 3 symbols .-_ are allowed.");
+                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 4 symbols .-_/ are allowed.");
             }
             this.name = name;
             return this;

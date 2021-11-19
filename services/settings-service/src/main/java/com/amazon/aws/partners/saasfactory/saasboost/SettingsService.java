@@ -15,6 +15,9 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfigHelper;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.OperatingSystem;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
@@ -61,10 +64,11 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "SAAS_BOOST_ENVIRONMENT", "SAAS_BOOST_STACK", "SAAS_BOOST_LAMBDAS_FOLDER")
     );
     final static List<String> READ_WRITE_PARAMS = Collections.unmodifiableList(
-            Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK", "APP_NAME",
+            Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN", "APP_NAME", "METRICS_STREAM", "BILLING_API_KEY",
+                    "SERVICE_NAME", "IS_PUBLIC", "PATH", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK",
                     "FILE_SYSTEM_MOUNT_POINT", "FILE_SYSTEM_ENCRYPT", "FILE_SYSTEM_LIFECYCLE", "MIN_COUNT", "MAX_COUNT", "DB_ENGINE",
                     "DB_VERSION", "DB_PARAM_FAMILY", "DB_INSTANCE_TYPE", "DB_NAME", "DB_HOST", "DB_PORT", "DB_MASTER_USERNAME",
-                    "DB_MASTER_PASSWORD", "DB_BOOTSTRAP_FILE", "METRICS_STREAM", "BILLING_API_KEY", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
+                    "DB_MASTER_PASSWORD", "DB_BOOTSTRAP_FILE", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
                     //Added for FSX
                     "FILE_SYSTEM_TYPE", // EFS or FSX
                     "FSX_STORAGE_GB", // GB 32 to 65,536
@@ -74,6 +78,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "FSX_WEEKLY_MAINTENANCE_TIME",//d:HH:MM in UTC
                     "FSX_WINDOWS_MOUNT_DRIVE")
     );
+
     final static List<String> TENANT_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DB_HOST", "ALB")
     );
@@ -116,18 +121,25 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
+        LOGGER.info("getSettings recv: " + event);
+
         final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         List<Setting> settings = new ArrayList<>();
+        // ?key1=val1
         Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
+        // ?key2=val1&key=val2
         Map<String, List<String>> multiValueQueryParams = (Map<String, List<String>>) event.get("multiValueQueryStringParameters");
         // Only return one set of params
+        LOGGER.info("getSettings queryParams: "+ queryParams);
+        LOGGER.info("getSettings multiValueQueryParams: " + multiValueQueryParams);
         if (queryParams != null && queryParams.containsKey("readOnly")) {
-            if (Boolean.valueOf(queryParams.get("readOnly"))) {
-                settings = dal.getImmutableSettings();
-            } else {
-                settings = dal.getMutableSettings();
-            }
+            LOGGER.error("queryParams included readOnly, but we're ignoring readOnly!");
+//            if (Boolean.parseBoolean(queryParams.get("readOnly"))) {
+//                settings = dal.getImmutableSettings();
+//            } else {
+//                settings = dal.getMutableSettings();
+//            }
         }
         // Or, filter to return just a few params (ideally, less than 10)
         if (multiValueQueryParams != null && multiValueQueryParams.containsKey("setting")) {
@@ -623,7 +635,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         APIGatewayProxyResponseEvent response = null;
 
         try {
+            LOGGER.info("POEPPT updateAppConfig received " + event.get("body"));
             AppConfig updatedAppConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
+            LOGGER.info("POEPPT deserialized into " + updatedAppConfig);
             if (updatedAppConfig == null) {
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
@@ -686,10 +700,11 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                                 // The onboarding service update tenant call expects to be given the
                                 // values to use as parameters for the CloudFormation stack.
                                 // AppConfig will delegate to ComputeSize for memory and cpu if it's set.
-                                tenant.put("memory", updatedAppConfig.getDefaultMemory());
-                                tenant.put("cpu", updatedAppConfig.getDefaultCpu());
-                                tenant.put("minCount", updatedAppConfig.getMinCount());
-                                tenant.put("maxCount", updatedAppConfig.getMaxCount());
+                                // TODO POEPPT
+                                //tenant.put("memory", updatedAppConfig.getDefaultMemory());
+                                //tenant.put("cpu", updatedAppConfig.getDefaultCpu());
+                                //tenant.put("minCount", updatedAppConfig.getMinCount());
+                                //tenant.put("maxCount", updatedAppConfig.getMaxCount());
 
                                 LOGGER.info("Triggering update for tenant {}", tenant.get("id"));
                                 Map<String, Object> systemApiRequest = new HashMap<>();

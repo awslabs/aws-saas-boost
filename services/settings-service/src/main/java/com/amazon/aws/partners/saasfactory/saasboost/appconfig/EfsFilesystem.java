@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.amazon.aws.partners.saasfactory.saasboost;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;

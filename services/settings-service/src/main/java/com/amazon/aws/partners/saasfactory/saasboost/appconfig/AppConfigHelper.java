@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.amazon.aws.partners.saasfactory.saasboost;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 public final class AppConfigHelper {
 
@@ -57,27 +57,31 @@ public final class AppConfigHelper {
     }
 
     public static boolean isComputeChanged(AppConfig existing, AppConfig altered) {
-        int existingMemory = existing.getDefaultMemory() != null ? existing.getDefaultMemory() : -1;
-        int existingCpu = existing.getDefaultCpu() != null ? existing.getDefaultCpu() : -1;
-
-        int alteredMemory = altered.getDefaultMemory() != null ? altered.getDefaultMemory() : -1;
-        int alteredCpu = altered.getDefaultCpu() != null ? altered.getDefaultCpu() : -1;
-
-        return (
-                (existing.getComputeSize() != null && existing.getComputeSize() != altered.getComputeSize()) ||
-                (existing.getComputeSize() == null && altered.getComputeSize() != null) ||
-                (existingMemory != alteredMemory) ||
-                (existingCpu != alteredCpu)
-        );
+        return true;
+        // TODO POEPPT
+//        int existingMemory = existing.getDefaultMemory() != null ? existing.getDefaultMemory() : -1;
+//        int existingCpu = existing.getDefaultCpu() != null ? existing.getDefaultCpu() : -1;
+//
+//        int alteredMemory = altered.getDefaultMemory() != null ? altered.getDefaultMemory() : -1;
+//        int alteredCpu = altered.getDefaultCpu() != null ? altered.getDefaultCpu() : -1;
+//
+//        return (
+//                (existing.getComputeSize() != null && existing.getComputeSize() != altered.getComputeSize()) ||
+//                (existing.getComputeSize() == null && altered.getComputeSize() != null) ||
+//                (existingMemory != alteredMemory) ||
+//                (existingCpu != alteredCpu)
+//        );
     }
 
     public static boolean isAutoScalingChanged(AppConfig existing, AppConfig altered) {
-        int existingMin = existing.getMinCount() != null ? existing.getMinCount() : -1;
-        int existingMax = existing.getMaxCount() != null ? existing.getMaxCount() : -1;
-
-        int alteredMin = altered.getMinCount() != null ? altered.getMinCount() : -1;
-        int alteredMax = altered.getMaxCount() != null ? altered.getMaxCount() : -1;
-
-        return ((existingMin != alteredMin) || (existingMax != alteredMax));
+        return true;
+        // TODO POEPPT
+//        int existingMin = existing.getMinCount() != null ? existing.getMinCount() : -1;
+//        int existingMax = existing.getMaxCount() != null ? existing.getMaxCount() : -1;
+//
+//        int alteredMin = altered.getMinCount() != null ? altered.getMinCount() : -1;
+//        int alteredMax = altered.getMaxCount() != null ? altered.getMaxCount() : -1;
+//
+//        return ((existingMin != alteredMin) || (existingMax != alteredMax));
     }
 }
