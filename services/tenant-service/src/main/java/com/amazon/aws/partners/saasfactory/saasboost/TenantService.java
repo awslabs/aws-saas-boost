@@ -443,11 +443,16 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         }
         Tenant tenant = new Tenant();
         tenant.setId(UUID.fromString(tenantId));
-        Map<String, String> resourcesMap = Utils.fromJson((String) detail.get("resources"), HashMap.class);
+        Map<String, Object> resourcesMap = Utils.fromJson((String) detail.get("resources"), HashMap.class);
         if (null == resourcesMap) {
             throw new RuntimeException("Resources is invalid Json");
         }
-        tenant.setResources(resourcesMap);
+        Map<String, Tenant.Resource> resources = new HashMap<>();
+        for (Map.Entry<String, Object> resource : resourcesMap.entrySet()) {
+            Map<String, String> values = (Map<String, String>) resource.getValue();
+            resources.put(resource.getKey(), new Tenant.Resource(values.get("name"), values.get("arn"), values.get("consoleUrl")));
+        }
+        tenant.setResources(resources);
         return tenant;
     }
 

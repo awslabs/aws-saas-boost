@@ -29,16 +29,58 @@ import static org.junit.Assert.*;
 public class TenantServiceDALTest {
 
     private static UUID tenantId;
-    private static HashMap<String, String> resources;
+    private static HashMap<String, Tenant.Resource> resources;
 
     @BeforeClass
     public static void setup() throws Exception {
         tenantId = UUID.fromString("d1c1e3cc-962f-4f03-b4a8-d8a7c1f986c3");
 
         resources = new HashMap<>();
-        resources.put("alb", "http://my.alb2.com");
-        resources.put("ecs", "http://new.ecs2.com");
-        resources.put("rds", "http://new.rds2.com");
+        resources.put("VPC", new Tenant.Resource("vpc-0f28a79bbbcce70bb", "arn:aws:ec2:us-west-2:914245659875:vpc/vpc-0f28a79bbbcce70bb", "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#vpcs:search=vpc-0f28a79bbbcce70bb"));
+        resources.put("ECS_CLUSTER", new Tenant.Resource("sb-dev1-tenant-8541aceb", "arn:aws:ecs:us-west-2:914245659875:cluster/sb-dev1-tenant-8541aceb", "https://us-west-2.console.aws.amazon.com/ecs/home#/clusters/sb-dev1-tenant-8541aceb"));
+        resources.put("PRIVATE_SUBNET_A", new Tenant.Resource("subnet-03a78eb00d87a0bbf", "arn:aws:ec2:us-west-2:914245659875:subnet/subnet-03a78eb00d87a0bbf", "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-03a78eb00d87a0bbf"));
+
+//        {
+//            "id": "8541aceb-42dd-4eb3-a6d7-6aa5e4d76bea",
+//                "active": true,
+//                "resources": {
+//            "VPC": {
+//                "name": "vpc-0f28a79bbbcce70bb",
+//                        "arn": "arn:aws:ec2:us-west-2:914245659875:vpc/vpc-0f28a79bbbcce70bb",
+//                        "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#vpcs:search=vpc-0f28a79bbbcce70bb"
+//            },
+//            "PRIVATE_SUBNET_B": {
+//                "name": "subnet-0879274ebeb003611",
+//                        "arn": "arn:aws:ec2:us-west-2:914245659875:subnet/subnet-0879274ebeb003611",
+//                "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-0879274ebeb003611"
+//            },
+//            "ECS_CLUSTER": {
+//                "name": "sb-dev1-tenant-8541aceb",
+//                        "arn": "arn:aws:ecs:us-west-2:914245659875:cluster/sb-dev1-tenant-8541aceb",
+//                        "consoleUrl": "https://us-west-2.console.aws.amazon.com/ecs/home#/clusters/sb-dev1-tenant-8541aceb"
+//            },
+//            "CLOUDFORMATION": {
+//                "name": "sb-dev1-tenant-8541aceb",
+//                        "arn": "arn:aws:cloudformation:us-west-2:914245659875:stack/sb-dev1-tenant-8541aceb/1aa8fe70-49af-11ec-b0f9-06febf88c4a1",
+//                        "consoleUrl": "https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?filteringStatus=active&viewNested=true&hideStacks=false&stackId=arn:aws:cloudformation:us-west-2:914245659875:stack/sb-dev1-tenant-8541aceb/1aa8fe70-49af-11ec-b0f9-06febf88c4a1"
+//            },
+//            "ECS_SECURITY_GROUP": {
+//                "name": "sg-01741d50bfe787d2c",
+//                        "arn": "arn:aws:ec2:us-west-2:914245659875:security-group/sg-01741d50bfe787d2c",
+//                        "consoleUrl": "https://us-west-2.console.aws.amazon.com/ec2/v2/home?region=us-west-2#SecurityGroup:groupId=sg-01741d50bfe787d2c"
+//            },
+//            "PRIVATE_SUBNET_A": {
+//                "name": "subnet-03a78eb00d87a0bbf",
+//                        "arn": "arn:aws:ec2:us-west-2:914245659875:subnet/subnet-03a78eb00d87a0bbf",
+//                        "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-03a78eb00d87a0bbf"
+//            }
+//        },
+//            "tier": "default",
+//                "created": "2021-11-20T03:07:52.106186",
+//                "onboarding": "created",
+//                "name": "tenant one",
+//                "modified": "2021-11-22T17:36:11.818848"
+//        }
     }
 
     @Test
@@ -72,10 +114,16 @@ public class TenantServiceDALTest {
                 .stream()
                 .collect(Collectors.toMap(
                         entry -> entry.getKey(),
-                        entry -> AttributeValue.builder().s(entry.getValue()).build()
+                        entry -> AttributeValue.builder().m(
+                                Map.of(
+                                        "name", AttributeValue.builder().s(entry.getValue().getName()).build(),
+                                        "arn", AttributeValue.builder().s(entry.getValue().getArn()).build(),
+                                        "consoleUrl", AttributeValue.builder().s(entry.getValue().getConsoleUrl()).build()
+                                )).build()
                 ))).build());
-        Map<String, AttributeValue> actual = TenantServiceDAL.toAttributeValueMap(tenant);
 
+        Map<String, AttributeValue> actual = TenantServiceDAL.toAttributeValueMap(tenant);
+        System.out.println(Utils.toJson(actual));
         assertEquals("Size unequal", expected.size(), actual.size());
         expected.keySet().stream().forEach((key) -> {
             assertEquals("Value mismatch for '" + key + "'", expected.get(key), actual.get(key));

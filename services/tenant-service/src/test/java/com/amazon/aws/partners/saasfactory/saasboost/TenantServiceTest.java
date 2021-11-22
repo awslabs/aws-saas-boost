@@ -26,7 +26,7 @@ import static org.junit.Assert.*;
 public class TenantServiceTest {
 
     private static String tenantId;
-    private static HashMap<String, String> resources;
+    private static HashMap<String, Tenant.Resource> resources;
     private static Map<String, Object> event;
     private static Map<String, Object> eventDetail;
 
@@ -35,9 +35,9 @@ public class TenantServiceTest {
         tenantId = "d1c1e3cc-962f-4f03-b4a8-d8a7c1f986c3";
 
         resources = new HashMap<>();
-        resources.put("alb", "http://my.alb2.com");
-        resources.put("ecs", "http://new.ecs2.com");
-        resources.put("rds", "http://new.rds2.com");
+        resources.put("VPC", new Tenant.Resource("vpc-0f28a79bbbcce70bb", "arn:aws:ec2:us-west-2:914245659875:vpc/vpc-0f28a79bbbcce70bb", "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#vpcs:search=vpc-0f28a79bbbcce70bb"));
+        resources.put("ECS_CLUSTER", new Tenant.Resource("sb-dev1-tenant-8541aceb", "arn:aws:ecs:us-west-2:914245659875:cluster/sb-dev1-tenant-8541aceb", "https://us-west-2.console.aws.amazon.com/ecs/home#/clusters/sb-dev1-tenant-8541aceb"));
+        resources.put("PRIVATE_SUBNET_A", new Tenant.Resource("subnet-03a78eb00d87a0bbf", "arn:aws:ec2:us-west-2:914245659875:subnet/subnet-03a78eb00d87a0bbf", "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-03a78eb00d87a0bbf"));
 
         eventDetail = new HashMap<>();
         eventDetail.put("tenantId", tenantId);

@@ -642,20 +642,20 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
 
         // Fetch all of the services configured for this application
-        LOGGER.info("Calling settings service get config API");
-        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("settings/config")
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
-        //Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+//        LOGGER.info("Calling settings service get config API");
+//        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+//                ApiGatewayHelper.getApiRequest(
+//                        API_GATEWAY_HOST,
+//                        API_GATEWAY_STAGE,
+//                        ApiRequest.builder()
+//                                .resource("settings/config")
+//                                .method("GET")
+//                                .build()
+//                ),
+//                API_TRUST_ROLE,
+//                context.getAwsRequestId()
+//        );
+//        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         Map<String, Object> appConfig = null;
         try (InputStream json = getClass().getClassLoader().getResourceAsStream("appConfig.json")) {
             appConfig = Utils.fromJson(json, LinkedHashMap.class);
@@ -681,28 +681,16 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         String loadBalancerArn;
         String ecsCluster;
         String fsxDns;
-        // TODO rework the tenant object resources map to hold a rich object rather than just the AWS console URL
-        Map<String, String> tenantResources = (Map<String, String>) tenant.get("resources");
+        Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
         try {
-            String vpcConsole = tenantResources.get("VPC");
-            vpc = vpcConsole.substring(vpcConsole.indexOf("search=") + 7);
-
-            String privateSubnetAConsole = tenantResources.get("PRIVATE_SUBNET_A");
-            privateSubnetA = privateSubnetAConsole.substring(privateSubnetAConsole.indexOf("subnetId=") + 9);
-
-            String privateSubnetBConsole = tenantResources.get("PRIVATE_SUBNET_B");
-            privateSubnetB = privateSubnetBConsole.substring(privateSubnetBConsole.indexOf("subnetId=") + 9);
-
-            String ecsClusterConsole = tenantResources.get("ECS_CLUSTER");
-            ecsCluster = ecsClusterConsole.substring(ecsClusterConsole.indexOf("/clusters/") + 10);
-
-            String ecsSecurityGroupConsole = tenantResources.get("ECS_SECURITY_GROUP");
-            ecsSecurityGroup = ecsSecurityGroupConsole.substring(ecsSecurityGroupConsole.indexOf("groupId=") + 8);
-
-            loadBalancerArn = tenantResources.get("LOAD_BALANCER");
-
-            if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA)
-                    || Utils.isBlank(privateSubnetB) || Utils.isBlank(ecsCluster)) {
+            vpc = tenantResources.get("VPC").get("name");
+            privateSubnetA = tenantResources.get("PRIVATE_SUBNET_A").get("name");
+            privateSubnetB = tenantResources.get("PRIVATE_SUBNET_B").get("name");
+            ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
+            ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
+            loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
+            if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
+                    || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)) {
                 throw new IllegalArgumentException("Missing required tenant environment resources");
             }
         } catch (Exception e) {

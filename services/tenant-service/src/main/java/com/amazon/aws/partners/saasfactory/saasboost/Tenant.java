@@ -35,7 +35,7 @@ public class Tenant {
     private String name;
     private String subdomain;
     private String planId;
-    private Map<String, String> resources = new HashMap<>();
+    private Map<String, Resource> resources = new HashMap<>();
 
     public Tenant() {
     }
@@ -117,12 +117,52 @@ public class Tenant {
         this.planId = planId;
     }
 
-    public Map<String, String> getResources() {
+    public Map<String, Resource> getResources() {
         return resources;
     }
 
-    public void setResources(Map<String, String> resources) {
+    public void setResources(Map<String, Resource> resources) {
         this.resources = resources;
     }
 
+    public static class Resource {
+
+        String name;
+        String arn;
+        String consoleUrl;
+
+        public Resource() {
+            this(null, null, null);
+        }
+
+        public Resource(String name, String arn, String consoleUrl) {
+            this.name = name;
+            this.arn = arn;
+            this.consoleUrl = consoleUrl;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getArn() {
+            return arn;
+        }
+
+        public void setArn(String arn) {
+            this.arn = arn;
+        }
+
+        public String getConsoleUrl() {
+            return consoleUrl;
+        }
+
+        public void setConsoleUrl(String consoleUrl) {
+            this.consoleUrl = consoleUrl;
+        }
+    }
 }

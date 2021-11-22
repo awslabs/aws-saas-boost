@@ -110,9 +110,12 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
 //                String billingPlan = null;
 
                 // Gather up the AWS Console URLs for the resources we're interested in
-                Map<String, String> consoleResources = new HashMap<>();
-                consoleResources.put(AwsConsoleUrl.CLOUDFORMATION.name(),
-                        AwsConsoleUrl.CLOUDFORMATION.formatUrl(AWS_REGION, stackId));
+                Map<String, Map<String, String>> tenantResources = new HashMap<>();
+                tenantResources.put(AwsResource.CLOUDFORMATION.name(), Map.of(
+                        "name", stackName,
+                        "arn", stackId,
+                        "consoleUrl", AwsResource.CLOUDFORMATION.formatUrl(AWS_REGION, stackId))
+                );
 //
 //                for (Parameter parameter : stack.parameters()) {
 //                    if ("ContainerRepository".equals(parameter.parameterKey())) {
@@ -135,7 +138,7 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
 //                    }
 //                    if ("DNSName".equals(output.outputKey())) {
 //                        if (Utils.isNotBlank(output.outputValue())) {
-//                            consoleResources.put("LOAD_BALANCER_DNSNAME", output.outputValue());
+//                            tenantResources.put("LOAD_BALANCER_DNSNAME", output.outputValue());
 //                        }
 //                    }
 //                    if ("BillingPlan".equals(output.outputKey())) {
@@ -146,6 +149,9 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
 //                }
 
                 // And we need the resources from the stack
+                final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
+                final String partition = lambdaArn[1];
+                final String accountId = lambdaArn[4];
                 final String stackIdName = stackId;
                 ListStackResourcesResponse resources = cfn.listStackResources(req -> req.stackName(stackIdName));
 //                String pipeline = null;
@@ -158,42 +164,64 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
                     if ("CREATE_COMPLETE".equals(resourceStatus)) {
                         if ("AWS::EC2::SecurityGroup".equals(resourceType) && "ECSSecurityGroup".equals(logicalId)) {
                             LOGGER.info("Saving ECS Security Group {} {}", logicalId, physicalResourceId);
-                            consoleResources.put(AwsConsoleUrl.ECS_SECURITY_GROUP.name(),
-                                    AwsConsoleUrl.ECS_SECURITY_GROUP.formatUrl(AWS_REGION, physicalResourceId));
+                            tenantResources.put(AwsResource.ECS_SECURITY_GROUP.name(), Map.of(
+                                    "name", physicalResourceId,
+                                    "arn", AwsResource.ECS_SECURITY_GROUP.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                    "consoleUrl", AwsResource.ECS_SECURITY_GROUP.formatUrl(AWS_REGION, physicalResourceId))
+                            );
 //                        } else if ("AWS::CodePipeline::Pipeline".equals(resourceType)) {
 //                            pipeline = physicalResourceId;
-//                            consoleResources.put(AwsConsoleUrl.CODE_PIPELINE.name(), AwsConsoleUrl.CODE_PIPELINE.formatUrl(AWS_REGION, pipeline));
+//                            tenantResources.put(AwsConsoleUrl.CODE_PIPELINE.name(), AwsConsoleUrl.CODE_PIPELINE.formatUrl(AWS_REGION, pipeline));
 //                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
 //                            //this is the rds sub-stack so get the cluster and instance ids
-//                            getRdsResources(physicalResourceId, consoleResources);
+//                            getRdsResources(physicalResourceId, tenantResources);
                         } else if ("AWS::EC2::Subnet".equals(resourceType)) {
                             // Process all the subnet resources together because we only want the 2 private subnets and
                             // there are other subnets in the stack which would end up overwriting the values in the
                             // resources map with whatever subnet happens to be last in the stack summary.
                             if ("SubnetPrivateA".equals(logicalId)) {
                                 LOGGER.info("Saving Private Subnet {} {}", logicalId, physicalResourceId);
-                                consoleResources.put(AwsConsoleUrl.PRIVATE_SUBNET_A.name(),
-                                        AwsConsoleUrl.PRIVATE_SUBNET_A.formatUrl(AWS_REGION, physicalResourceId));
+                                tenantResources.put(AwsResource.PRIVATE_SUBNET_A.name(), Map.of(
+                                        "name", physicalResourceId,
+                                        "arn", AwsResource.PRIVATE_SUBNET_A.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                        "consoleUrl", AwsResource.PRIVATE_SUBNET_A.formatUrl(AWS_REGION, physicalResourceId))
+                                );
                             } else if ("SubnetPrivateB".equals(logicalId)) {
                                 LOGGER.info("Saving Private Subnet {} {}", logicalId, physicalResourceId);
-                                consoleResources.put(AwsConsoleUrl.PRIVATE_SUBNET_B.name(),
-                                        AwsConsoleUrl.PRIVATE_SUBNET_B.formatUrl(AWS_REGION, physicalResourceId));
+                                tenantResources.put(AwsResource.PRIVATE_SUBNET_B.name(), Map.of(
+                                        "name", physicalResourceId,
+                                        "arn", AwsResource.PRIVATE_SUBNET_B.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                        "consoleUrl", AwsResource.PRIVATE_SUBNET_B.formatUrl(AWS_REGION, physicalResourceId))
+                                );
                             }
                         } else {
                             // Match on the resource type and build the console url
-                            for (AwsConsoleUrl consoleUrl : AwsConsoleUrl.values()) {
-                                if (consoleUrl.getResourceType().equalsIgnoreCase(resourceType)) {
-                                    if ("AWS::ElasticLoadBalancingV2::Listener".equals(resourceType)) {
-                                        //the ALB physical id is the short tenant id
-                                        physicalResourceId = "tenant-" + tenantId.split("-")[0];
+                            for (AwsResource awsResource : AwsResource.values()) {
+                                String name = null;
+                                String arn = null;
+                                if (awsResource.getResourceType().equalsIgnoreCase(resourceType)) {
+                                    if ("AWS::ElasticLoadBalancingV2::LoadBalancer".equals(resourceType)) {
+                                        // CloudFormation returns the ARN for the physical id of the load balancer
+                                        // The console url can use the name of the load balancer as a search string
+                                        // and the name is the short tenant id
+                                        tenantResources.put(awsResource.name(), Map.of(
+                                                "name", physicalResourceId.substring(physicalResourceId.indexOf(":loadbalancer/") + 14),
+                                                "arn", physicalResourceId,
+                                                "consoleUrl", AwsResource.LOAD_BALANCER.formatUrl(AWS_REGION, "tenant-" + tenantId.split("-")[0]))
+                                        );
                                     } else if ("AWS::Logs::LogGroup".equals(resourceType)) {
                                         //need to replace / with $252F for the url path
-                                        physicalResourceId = physicalResourceId.replaceAll("/", Matcher.quoteReplacement("$252F"));
-                                    }
-                                    // Don't overwrite something we've already set
-                                    if (!consoleResources.containsKey(consoleUrl.name())) {
-                                        LOGGER.info("Saving {} {} {}", consoleUrl.name(), logicalId, physicalResourceId);
-                                        consoleResources.put(consoleUrl.name(), consoleUrl.formatUrl(AWS_REGION, physicalResourceId));
+                                        //physicalResourceId = physicalResourceId.replaceAll("/", Matcher.quoteReplacement("$252F"));
+                                    } else {
+                                        // Don't overwrite something we've already set
+                                        if (!tenantResources.containsKey(awsResource.name())) {
+                                            LOGGER.info("Saving {} {} {}", awsResource.name(), logicalId, physicalResourceId);
+                                            tenantResources.put(awsResource.name(), Map.of(
+                                                    "name", physicalResourceId,
+                                                    "arn", awsResource.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                                    "consoleUrl", awsResource.formatUrl(AWS_REGION, physicalResourceId))
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -234,7 +262,7 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
                 LOGGER.info("Updating tenant resources AWS console links");
                 Map<String, Object> updateConsoleResourcesEventDetail = new HashMap<>();
                 updateConsoleResourcesEventDetail.put("tenantId", tenantId);
-                updateConsoleResourcesEventDetail.put("resources", Utils.toJson(consoleResources));
+                updateConsoleResourcesEventDetail.put("resources", Utils.toJson(tenantResources));
                 publishEvent(updateConsoleResourcesEventDetail, UPDATE_TENANT_RESOURCES);
 
 //                // If there's a billing plan for this tenant, publish the event so they get
@@ -359,11 +387,11 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
             for (StackResourceSummary resource : resources.stackResourceSummaries()) {
                 String resourceType = resource.resourceType();
                 String physicalResourceId = resource.physicalResourceId();
-                AwsConsoleUrl url = null;
-                if (resourceType.equalsIgnoreCase(AwsConsoleUrl.RDS_INSTANCE.getResourceType())) {
-                    url = AwsConsoleUrl.RDS_INSTANCE;
-                } else if (resourceType.equalsIgnoreCase(AwsConsoleUrl.RDS_CLUSTER.getResourceType())) {
-                    url = AwsConsoleUrl.RDS_CLUSTER;
+                AwsResource url = null;
+                if (resourceType.equalsIgnoreCase(AwsResource.RDS_INSTANCE.getResourceType())) {
+                    url = AwsResource.RDS_INSTANCE;
+                } else if (resourceType.equalsIgnoreCase(AwsResource.RDS_CLUSTER.getResourceType())) {
+                    url = AwsResource.RDS_CLUSTER;
                 }
                 if (url != null) {
                     consoleResources.put(url.name(), url.formatUrl(AWS_REGION, physicalResourceId));
@@ -401,45 +429,63 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
         }
     }
 
-    enum AwsConsoleUrl {
+    enum AwsResource {
 
         RDS_CLUSTER("https://%s.console.aws.amazon.com/rds/home#database:id=%s;is-cluster=true",
+                "",
                 "AWS::RDS::DBCluster", false),
         RDS_INSTANCE("https://%s.console.aws.amazon.com/rds/home?region=%s#dbinstance:id=%s",
+                "",
                 "AWS::RDS::DBInstance", true),
         ECS_CLUSTER("https://%s.console.aws.amazon.com/ecs/home#/clusters/%s",
+                "arn:%s:ecs:%s:%s:cluster/%s",
                 "AWS::ECS::Cluster", false),
         ECS_CLUSTER_LOG_GROUP("https://%s.console.aws.amazon.com/cloudwatch/home?region=%s#logsV2:log-groups/log-group/%s",
+                "",
                 "AWS::Logs::LogGroup", true),
         VPC("https://%s.console.aws.amazon.com/vpc/home?region=%s#vpcs:search=%s",
+                "arn:%s:ec2:%s:%s:vpc/%s",
                 "AWS::EC2::VPC", true),
         PRIVATE_SUBNET_A("https://%s.console.aws.amazon.com/vpc/home?region=%s#SubnetDetails:subnetId=%s",
+                "arn:%s:ec2:%s:%s:subnet/%s",
                 "AWS::EC2::Subnet", true),
         PRIVATE_SUBNET_B("https://%s.console.aws.amazon.com/vpc/home?region=%s#SubnetDetails:subnetId=%s",
+                "arn:%s:ec2:%s:%s:subnet/%s",
                 "AWS::EC2::Subnet", true),
         CODE_PIPELINE("https://%s.console.aws.amazon.com/codesuite/codepipeline/pipelines/%s/view",
+                "",
                 "AWS::CodePipeline::Pipeline", false),
         ECR_REPO("https://%s.console.aws.amazon.com/ecr/repositories/%s/",
+                "",
                 "AWS::ECR::Repository", false),
-        ALB("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
-                "AWS::ElasticLoadBalancingV2::Listener", true),
-        CLOUDFORMATION("https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringText=&filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
+        LOAD_BALANCER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
+                "",
+                "AWS::ElasticLoadBalancingV2::LoadBalancer", true),
+        CLOUDFORMATION("https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
+                "",
                 "AWS::CloudFormation::Stack", true),
         ECS_SECURITY_GROUP("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#SecurityGroup:groupId=%s",
+                "arn:%s:ec2:%s:%s:security-group/%s",
                 "AWS::EC2::SecurityGroup", true);
 
         private final String urlFormat;
+        private final String arnFormat;
         private final String resourceType;
         private final boolean repeatRegion;
 
-        AwsConsoleUrl(String urlFormat, String resourceType, boolean repeatRegion) {
+        AwsResource(String urlFormat, String arnFormat, String resourceType, boolean repeatRegion) {
             this.urlFormat = urlFormat;
+            this.arnFormat = arnFormat;
             this.resourceType = resourceType;
             this.repeatRegion = repeatRegion;
         }
 
         public String getUrlFormat() {
             return this.urlFormat;
+        }
+
+        public String getArnFormat() {
+            return arnFormat;
         }
 
         public String getResourceType() {
@@ -460,6 +506,10 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
                 throw new RuntimeException(e);
             }
             return url;
+        }
+
+        public String formatArn(String partition, String region, String accountId, String resourceId) {
+            return String.format(this.arnFormat, partition, region, accountId, resourceId);
         }
     }
 }

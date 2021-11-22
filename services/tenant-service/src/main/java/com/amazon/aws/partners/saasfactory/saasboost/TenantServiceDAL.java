@@ -330,8 +330,21 @@ public class TenantServiceDAL {
                     .stream()
                     .collect(Collectors.toMap(
                             entry -> entry.getKey(),
-                            entry -> AttributeValue.builder().s(entry.getValue()).build()
-                    ))).build());
+                            entry -> AttributeValue.builder().m(
+                                    Map.of(
+                                            "name", AttributeValue.builder().s(entry.getValue().getName()).build(),
+                                            "arn", AttributeValue.builder().s(entry.getValue().getArn()).build(),
+                                            "consoleUrl", AttributeValue.builder().s(entry.getValue().getConsoleUrl()).build()
+                                    )).build()
+                            ))
+                    ).build()
+            );
+//            item.put("resources", AttributeValue.builder().m(tenant.getResources().entrySet()
+//                    .stream()
+//                    .collect(Collectors.toMap(
+//                            entry -> entry.getKey(),
+//                            entry -> AttributeValue.builder().s(entry.getValue()).build()
+//                    ))).build());
         }
         return item;
     }
@@ -390,7 +403,9 @@ public class TenantServiceDAL {
                             .stream()
                             .collect(Collectors.toMap(
                                     entry -> entry.getKey(),
-                                    entry -> entry.getValue().s()
+                                    entry -> new Tenant.Resource(entry.getValue().m().get("name").s(),
+                                            entry.getValue().m().get("arn").s(),
+                                            entry.getValue().m().get("consoleUrl").s())
                             ))
                     );
                 } catch (Exception e) {
