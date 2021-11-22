@@ -168,8 +168,8 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:PutRetentionPolicy
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/tenant*
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/tenant*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/sb-${Environment}-tenant*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
@@ -519,8 +519,8 @@ Resources:
                   - logs:PutRetentionPolicy
                   - logs:DeleteLogGroup
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/tenant*
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/tenant*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/sb-${Environment}-tenant*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
