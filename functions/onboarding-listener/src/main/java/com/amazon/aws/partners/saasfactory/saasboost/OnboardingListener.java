@@ -75,8 +75,7 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
         // Raw SNS message values are escaped JSON strings with \n instead of newlines and
         // single quotes instead of doubles around values
         for (String keyValue : message.split("\\n")) {
-            // Each line will look like Key='Value'
-            // For example ResourceStatus='CREATE_COMPLETE'
+            // Each line will look like Key='Value' e.g. ResourceStatus='CREATE_COMPLETE'
             // We'll be reckless and use substring instead of a regex to break it apart.
             String key = keyValue.substring(0, keyValue.indexOf("="));
             String value = keyValue.substring(keyValue.indexOf("=") + 2, keyValue.length() - 1);
@@ -233,21 +232,6 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
 
                 // Update the tenant resources map
                 LOGGER.info("Updating tenant resources AWS console links");
-//                //build string of the resources
-//                StringBuilder resourcesSb = new StringBuilder("{");
-//                String prefix = "";
-//                for (Map.Entry<String, String> entry : consoleResources.entrySet()) {
-//                    resourcesSb
-//                            .append(prefix)
-//                            .append("\"")
-//                            .append(entry.getKey())
-//                            .append("\":\"")
-//                            .append(entry.getValue())
-//                            .append("\"");
-//                    prefix = ",";
-//                }
-//                resourcesSb.append("}");
-//                LOGGER.info("Console Resources Map String:" + resourcesSb.toString());
                 Map<String, Object> updateConsoleResourcesEventDetail = new HashMap<>();
                 updateConsoleResourcesEventDetail.put("tenantId", tenantId);
                 updateConsoleResourcesEventDetail.put("resources", Utils.toJson(consoleResources));

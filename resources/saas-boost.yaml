@@ -263,12 +263,6 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
-    DependsOn:
-      - LoggingBucket
-      - WebS3Bucket
-      - CodePipelineBucket
-      - AthenaOutput
-      - ALBAccessLogs
     Properties:
       RoleName: !Sub sb-${Environment}-clear-bucket-role-${AWS::Region}
       Path: '/'
@@ -292,6 +286,7 @@ Resources:
                 Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
+                  - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
@@ -317,16 +312,16 @@ Resources:
                   - !Sub arn:aws:s3:::${AthenaOutput}/*
                   - !Sub arn:aws:s3:::${ALBAccessLogs}/*
                   - !Sub arn:aws:s3:::${LoggingBucket}/*
-  ClearBucketLogs:
-    Type: AWS::Logs::LogGroup
-    # For testing
-    #DeletionPolicy: Retain
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-clear-bucket
-      RetentionInDays: 30
+  #ClearBucketLogs:
+  #  Type: AWS::Logs::LogGroup
+  #  # For testing
+  #  #DeletionPolicy: Retain
+  #  Properties:
+  #    LogGroupName: !Sub /aws/lambda/sb-${Environment}-clear-bucket
+  #    RetentionInDays: 30
   ClearBucket:
     Type: AWS::Lambda::Function
-    DependsOn: ClearBucketLogs
+    #DependsOn: ClearBucketLogs
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-bucket
       Role: !GetAtt ClearBucketExecutionRole.Arn

@@ -133,7 +133,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -164,7 +163,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -195,7 +193,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -226,7 +223,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceEnableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -257,7 +253,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceDisableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -288,7 +283,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceTokenLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -319,7 +313,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
 Outputs:
   UserServiceGetAllArn:
     Description: User Service get all users Lambda ARN

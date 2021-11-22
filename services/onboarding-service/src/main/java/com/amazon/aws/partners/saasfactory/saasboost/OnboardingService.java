@@ -276,7 +276,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         // TODO: We should add check for CIDRs here!
         try {
             LOGGER.info("Check Service Quota Limits");
-            Map<String, Object> retMap = checkLimits();
+            Map<String, Object> retMap = checkLimits(context);
             Boolean passed = (Boolean) retMap.get("passed");
             String message = (String) retMap.get("message");
             if (!passed) {
@@ -543,7 +543,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .stackName(stackName)
                     .disableRollback(true) // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .notificationARNs(settings.get("TENANT_PROVISIONING_SNS"))
+                    .notificationARNs(settings.get("ONBOARDING_SNS"))
                     .templateURL("https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/tenant-onboarding.yaml")
                     .parameters(templateParameters)
                     .build()
@@ -903,7 +903,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                         //.onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
                         //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
                         .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                        //.notificationARNs(settings.get("TENANT_PROVISIONING_SNS"))
+                        //.notificationARNs(settings.get("ONBOARDING_SNS"))
                         .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding-app.yaml")
                         .parameters(templateParameters)
                         .build()
@@ -1471,7 +1471,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     /*
     Check deployed services against service quotas to make sure limits will not be exceeded.
      */
-    private Map<String, Object> checkLimits() throws Exception {
+    private Map<String, Object> checkLimits(Context context) throws Exception {
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing environment variable API_GATEWAY_HOST");
         }
@@ -1491,7 +1491,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         String responseBody;
         try {
             LOGGER.info("API call for quotas/check");
-            responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, "MetricsService-GetTenants");
+            responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, context.getAwsRequestId());
 //            LOGGER.info("API response for quoatas/check: " + responseBody);
             valMap = Utils.fromJson(responseBody, HashMap.class);
         } catch (Exception e) {
@@ -1531,7 +1531,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
     protected Map<String, String> getOnboardingTemplateSettings(Context context) {
         List<String> tenantOnboardingTemplateSettings = Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE",
-                "SSL_CERT", "TENANT_PROVISIONING_SNS", "SAAS_BOOST_BUCKET");
+                "SSL_CERT", "ONBOARDING_SNS", "SAAS_BOOST_BUCKET");
         StringBuilder resource = new StringBuilder("settings?");
         for (Iterator<String> iter = tenantOnboardingTemplateSettings.iterator(); iter.hasNext(); ) {
             resource.append("setting=");
