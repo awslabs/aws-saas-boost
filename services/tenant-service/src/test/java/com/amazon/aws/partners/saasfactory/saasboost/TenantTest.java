@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.junit.Test;
@@ -36,7 +37,7 @@ public class TenantTest {
         assertTrue("Succeeded tenants are provisioned", tenant.isProvisioned());
 
         String json = Utils.toJson(tenant);
-        assertTrue("Serialized tenant has provisioned property", json.indexOf("\"provisioned\":true") != -1);
+        assertTrue("Serialized tenant has provisioned property", json.contains("\"provisioned\":true"));
 
         Tenant deserialized = Utils.fromJson(json, Tenant.class);
         assertTrue("Deserialized tenant is provisioned", deserialized.isProvisioned());

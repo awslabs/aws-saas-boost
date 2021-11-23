@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,15 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true, value = {"hasBilling"})
 public class Tenant {
@@ -125,6 +124,50 @@ public class Tenant {
         this.resources = resources;
     }
 
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (this == obj) {
+            return true;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Tenant other = (Tenant) obj;
+
+        boolean resourcesEqual = resources != null && other.resources != null;
+        if (resourcesEqual) {
+            resourcesEqual = resources.size() == other.resources.size();
+            if (resourcesEqual) {
+                for (Map.Entry<String, Resource> resource : resources.entrySet()) {
+                    resourcesEqual = resource.getValue().equals(other.resources.get(resource.getKey()));
+                    if (!resourcesEqual) {
+                        break;
+                    }
+                }
+            }
+        }
+        return (
+                ((id == null && other.id == null) || (id != null && id.equals(other.id)))
+                && ((created == null && other.created == null) || (created != null && created.equals(other.created)))
+                && ((modified == null && other.modified == null) || (modified != null && modified.equals(other.modified)))
+                && ((active == null && other.active == null) || (active != null && active.equals(other.active)))
+                && ((tier == null && other.tier == null) || (tier != null && tier.equals(other.tier)))
+                && ((onboardingStatus == null && other.onboardingStatus == null) || (onboardingStatus != null && onboardingStatus.equals(other.onboardingStatus)))
+                && ((name == null && other.name == null) || (name != null && name.equals(other.name)))
+                && ((subdomain == null && other.subdomain == null) || (subdomain != null && subdomain.equals(other.subdomain)))
+                && ((planId == null && other.planId == null) || (planId != null && planId.equals(other.planId)))
+                && ((resources == null && other.resources == null) || resourcesEqual));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, planId)
+                + Arrays.hashCode(resources != null ? resources.keySet().toArray(new String[0]) : null)
+                + Arrays.hashCode(resources != null ? resources.values().toArray(new Resource[0]) : null);
+    }
+
     public static class Resource {
 
         String name;
@@ -163,6 +206,29 @@ public class Tenant {
 
         public void setConsoleUrl(String consoleUrl) {
             this.consoleUrl = consoleUrl;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (this == obj) {
+                return true;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final Resource other = (Resource) obj;
+            return (
+                    ((name == null && other.name == null) || (name != null && name.equals(other.name)))
+                    && ((arn == null && other.arn == null) || (arn != null && arn.equals(other.arn)))
+                    && ((consoleUrl == null && other.consoleUrl == null) || (consoleUrl != null && consoleUrl.equals(other.consoleUrl))));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, arn, consoleUrl);
         }
     }
 }

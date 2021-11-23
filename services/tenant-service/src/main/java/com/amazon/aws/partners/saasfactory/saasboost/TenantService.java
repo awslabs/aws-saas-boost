@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -32,8 +33,8 @@ import java.util.stream.Stream;
 
 public class TenantService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(TenantService.class);
-    private final static Map<String, String> CORS = Stream
+    private static final Logger LOGGER = LoggerFactory.getLogger(TenantService.class);
+    private static final Map<String, String> CORS = Stream
             .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
@@ -44,7 +45,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
     private final EventBridgeClient eventBridge;
 
     public TenantService() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing required environment variable TENANTS_TABLE");
         }
@@ -55,7 +56,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
     }
 
     @Override
-	public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
         //logRequestEvent(event);
         return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
     }
@@ -66,7 +67,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getTenants");
         //Utils.logRequestEvent(event);
         List<Tenant> tenants = dal.getOnboardedTenants();
@@ -85,7 +86,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getProvisionedTenants");
         //Utils.logRequestEvent(event);
 
@@ -112,7 +113,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -138,7 +139,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::updateTenant");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -185,7 +186,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::updateTenantOnboarding");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -226,7 +227,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::enableTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -240,7 +241,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
 
             // Send EventBridge message so we can take action on enable/disable
             Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenantId);
+            tenantStatusChangeDetails.put("tenantId", tenant.getId());
             tenantStatusChangeDetails.put("status", Boolean.TRUE);
             LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
             fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
@@ -261,7 +262,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::disableTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -275,7 +276,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
 
             // Send EventBridge message so we can take action on enable/disable
             Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenantId);
+            tenantStatusChangeDetails.put("tenantId", tenant.getId());
             tenantStatusChangeDetails.put("status", Boolean.FALSE);
             LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
             fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
@@ -296,7 +297,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::insertTenant");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -347,7 +348,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::deleteTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -417,7 +418,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::updateTenantResources");
         //Utils.logRequestEvent(event);
         Tenant tenant = parseTenantUpdateResourcesEvent(event);

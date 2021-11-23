@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
@@ -29,12 +30,12 @@ import java.util.stream.Stream;
 
 public class TenantServiceDAL {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(TenantServiceDAL.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(TenantServiceDAL.class);
     private static final String TENANTS_TABLE = System.getenv("TENANTS_TABLE");
     private final DynamoDbClient ddb;
 
     public TenantServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(TENANTS_TABLE)) {
             throw new IllegalStateException("Missing required environment variable TENANTS_TABLE");
         }
@@ -45,7 +46,7 @@ public class TenantServiceDAL {
     }
 
     public List<Tenant> getOnboardedTenants() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getTenants");
         List<Tenant> tenants = new ArrayList<>();
         try {
@@ -78,7 +79,7 @@ public class TenantServiceDAL {
     }
 
     public List<Tenant> getProvisionedTenants(Boolean customizedTenants) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getProvisionedTenants");
 
         // Get all tenants who haven't just started provisioning (created)
@@ -116,7 +117,7 @@ public class TenantServiceDAL {
     }
 
     public List<Tenant> getAllTenants() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getAllTenants");
         List<Tenant> tenants = new ArrayList<>();
         try {
@@ -138,7 +139,7 @@ public class TenantServiceDAL {
     }
 
     public Tenant getTenant(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getTenant {}", tenantId);
         Map<String, AttributeValue> item = null;
         try {
@@ -159,7 +160,7 @@ public class TenantServiceDAL {
     // Choosing to do a replacement update as you might do in a RDBMS by
     // setting columns = NULL when they do not exist in the updated value
     public Tenant updateTenant(Tenant tenant) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::updateTenant {}", tenant.getId());
         try {
             // Created and Modified are owned by the DAL since they reflect when the
@@ -177,7 +178,7 @@ public class TenantServiceDAL {
     }
 
     public Tenant updateTenantOnboarding(UUID tenantId, String onboardingStatus) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::updateTenantOnboarding {} {}", tenantId.toString(), onboardingStatus);
         Tenant updated = new Tenant();
         updated.setId(tenantId);
@@ -211,7 +212,7 @@ public class TenantServiceDAL {
     }
 
     public Tenant disableTenant(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::disableTenant");
         Tenant disabled = setStatus(tenantId, Boolean.FALSE);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -220,7 +221,7 @@ public class TenantServiceDAL {
     }
 
     public Tenant enableTenant(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::disableTenant");
         Tenant enabled = setStatus(tenantId, Boolean.TRUE);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -255,7 +256,7 @@ public class TenantServiceDAL {
     }
 
     public Tenant insertTenant(Tenant tenant) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::insertTenant {}", tenant.getName());
         UUID tenantId = UUID.randomUUID();
         tenant.setId(tenantId);
@@ -283,7 +284,7 @@ public class TenantServiceDAL {
     }
 
     public void deleteTenant(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::deleteTenant");
         try {
             Map<String, AttributeValue> key = new HashMap<>();
@@ -339,12 +340,6 @@ public class TenantServiceDAL {
                             ))
                     ).build()
             );
-//            item.put("resources", AttributeValue.builder().m(tenant.getResources().entrySet()
-//                    .stream()
-//                    .collect(Collectors.toMap(
-//                            entry -> entry.getKey(),
-//                            entry -> AttributeValue.builder().s(entry.getValue()).build()
-//                    ))).build());
         }
         return item;
     }
