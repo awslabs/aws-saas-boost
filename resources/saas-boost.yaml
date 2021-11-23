@@ -659,6 +659,7 @@ Resources:
         SettingsServiceTenantDelete: !GetAtt settings.Outputs.SettingsServiceTenantDeleteArn
         SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
+        SettingsServiceUpdateServiceConfig: !GetAtt settings.Outputs.SettingsServiceUpdateServiceConfigArn
   SSMParamMetricsAnalyticsDeployed:
     Type: AWS::SSM::Parameter
     Properties:

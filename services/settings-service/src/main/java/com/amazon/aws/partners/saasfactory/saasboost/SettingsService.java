@@ -18,9 +18,12 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfigHelper;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.OperatingSystem;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.fasterxml.jackson.core.TreeNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
@@ -763,6 +766,50 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::deleteAppConfig exec " + totalTimeMillis);
+        return response;
+    }
+
+    public APIGatewayProxyResponseEvent updateServiceConfig(Map<String, Object> event, Context context) {
+        if (Utils.warmup(event)) {
+            //LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+        }
+
+        final long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsService::updateServiceConfig");
+        Utils.logRequestEvent(event);
+        APIGatewayProxyResponseEvent response = null;
+
+        // PUT /settings/config/{serviceName}/{key}
+        Map<String, String> pathParameters = (Map) event.get("pathParameters");
+        String serviceName = pathParameters.get("serviceName");
+        String jsonKey = pathParameters.get("key");
+        String jsonValue = (String) event.get("body");
+        LOGGER.info("poeppt recv: " + serviceName);
+        LOGGER.info("poeppt recv: " + jsonKey);
+        LOGGER.info("poeppt recv: " + jsonValue);
+        // get AppConfig and alter the config
+        AppConfig existingAppConfig = dal.getAppConfig();
+        ServiceConfig requestedService = existingAppConfig.getServices().get(serviceName);
+        ServiceConfig editedService = null;
+        if (requestedService != null) {
+            TreeNode serviceJson = Utils.toJsonTree(requestedService);
+            String oldValue = null;
+            if (serviceJson.get(jsonKey).isValueNode()) {
+                oldValue = serviceJson.get(jsonKey).toString();
+                LOGGER.info("poeppt oldValue: " + oldValue);
+            }
+            LOGGER.info("poeppt before trying to update json: " + serviceJson);
+            serviceJson = ((ObjectNode)serviceJson.get(jsonKey)).put(jsonKey, jsonValue);
+            LOGGER.info("poeppt after trying to update json: " + serviceJson);
+            editedService = Utils.fromJson(Utils.toJson(serviceJson), ServiceConfig.class);
+            AppConfig newAppConfig = AppConfig.builder(existingAppConfig).addServiceConfig(editedService).build();
+            LOGGER.info("poeppt oldAppConfig: " + existingAppConfig);
+            LOGGER.info("poeppt newAppConfig: " + newAppConfig);
+            dal.setAppConfig(newAppConfig);
+        }
+
+        LOGGER.info("SettingsService::updateServiceConfig exec " + (System.currentTimeMillis() - startTimeMillis));
         return response;
     }
 

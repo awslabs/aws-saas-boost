@@ -42,6 +42,15 @@ public class AppConfig {
         return new Builder();
     }
 
+    public static Builder builder(AppConfig otherAppConfig) {
+        return new Builder()
+                .name(otherAppConfig.name)
+                .domainName(otherAppConfig.domainName)
+                .sslCertArn(otherAppConfig.sslCertArn)
+                .services(otherAppConfig.services)
+                .billing(otherAppConfig.billing);
+    }
+
     public String getName() {
         return name;
     }

@@ -569,6 +569,35 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
+  SettingsServiceUpdateServiceConfigLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-update-service-config
+      RetentionInDays: 30
+  SettingsServiceUpdateServiceConfig:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-settings-update-service-config
+      Role: !GetAtt SettingsServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateServiceConfig
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Settings"
   SettingsServiceParamStoreRefLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -631,9 +660,6 @@ Resources:
         - Key: "BoostService"
           Value: "Settings"
 Outputs:
-  # SettingsServiceGetAllAliasArn:
-  #   Description: Settings Service get all settings Lambda ARN
-  #   Value: !Ref SettingsServiceGetAllAlias
   SettingsServiceGetAllArn:
     Description: Settings Service get all settings Lambda ARN
     Value: !GetAtt SettingsServiceGetAll.Arn
@@ -646,9 +672,6 @@ Outputs:
   SettingsServiceGetAppConfigArn:
     Description: Settings Service get application configuration Lambda ARN
     Value: !GetAtt SettingsServiceGetAppConfig.Arn
-  # SettingsServiceGetAppConfigAliasArn:
-  #   Description: Settings Service get application configuration Lambda ARN
-  #   Value: !Ref SettingsServiceGetAppConfigAlias
   SettingsServiceSetAppConfigArn:
     Description: Settings Service set application configuration Lambda ARN
     Value: !GetAtt SettingsServiceSetAppConfig.Arn
@@ -658,6 +681,9 @@ Outputs:
   SettingsServiceDeleteAppConfigArn:
     Description: Settings Service delete application configuration Lambda ARN
     Value: !GetAtt SettingsServiceDeleteAppConfig.Arn
+  SettingsServiceUpdateServiceConfigArn:
+    Description: Settings Service update service configuration Lambda ARN
+    Value: !GetAtt SettingsServiceUpdateServiceConfig.Arn
   SettingsServiceTenantGetAllArn:
     Description: Settings Service get all settings for a tenant Lambda ARN
     Value: !GetAtt SettingsServiceTenantGetAll.Arn

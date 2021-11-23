@@ -88,6 +88,9 @@ Parameters:
   SettingsServiceGetAppConfig:
     Description: Settings Service get application configuration Lambda ARN
     Type: String
+  SettingsServiceUpdateServiceConfig:
+    Description: Settings Service update service configuration Lambda ARN
+    Type: String
 Resources:
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
@@ -773,6 +776,18 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref SettingsServiceResource
       PathPart: 'config'
+  SettingsServiceConfigServiceNameResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceConfigResource
+      PathPart: '{serviceName}'
+  SettingsServiceConfigServiceKeyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref SettingsServiceConfigServiceNameResource
+      PathPart: '{key}'
   SettingsServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1189,6 +1204,90 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+  SettingsServiceUpdateServiceConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceConfigServiceKeyResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdateServiceConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: { application/json: Empty }
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceUpdateServiceConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceUpdateServiceConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/settings/config/{serviceName}/{key}
+  SettingsServiceUpdateServiceConfigResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref SettingsServiceConfigServiceKeyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: { application/json: '' }
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: { application/json: Empty }
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+    SettingsServiceConfigResourceCORS:
+      Type: AWS::ApiGateway::Method
+      Properties:
+        RestApiId: !Ref PrivateApi
+        ResourceId: !Ref SettingsServiceConfigResource
+        HttpMethod: OPTIONS
+        AuthorizationType: NONE
+        Integration:
+          Type: MOCK
+          PassthroughBehavior: WHEN_NO_MATCH
+          IntegrationResponses:
+            - StatusCode: '200'
+              ResponseTemplates: { application/json: '' }
+              ResponseParameters:
+                method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,DELETE'"
+                method.response.header.Access-Control-Allow-Origin: "'*'"
+                method.response.header.Access-Control-Max-Age: "'3600'"
+                method.response.header.X-Requested-With: "'*'"
+          RequestTemplates:
+            application/json: '{"statusCode": 200}'
+        MethodResponses:
+          - StatusCode: '200'
+            ResponseModels: { application/json: Empty }
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: false
+              method.response.header.Access-Control-Allow-Methods: false
+              method.response.header.Access-Control-Allow-Origin: false
+              method.response.header.Access-Control-Max-Age: false
+              method.response.header.X-Requested-With: false
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -1223,6 +1322,7 @@ Resources:
       - SettingsServiceTenantSettingResourceCORS
       - SettingsServiceDeleteAppConfigMethod
       - SettingsServiceGetAppConfigMethod
+      - SettingsServiceUpdateServiceConfigMethod
       - SettingsServiceConfigResourceCORS
     Properties:
       RestApiId: !Ref PrivateApi
