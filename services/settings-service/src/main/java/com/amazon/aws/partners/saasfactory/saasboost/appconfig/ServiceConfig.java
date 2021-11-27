@@ -51,7 +51,20 @@ public class ServiceConfig {
         return new Builder();
     }
 
-    @JsonProperty(value="isPublic") // jackson tries to be smart..
+    public static Builder builder(ServiceConfig other) {
+        return new Builder()
+                .isPublic(other.isPublic())
+                .name(other.getName())
+                .path(other.getPath())
+                .tiers(other.getTiers())
+                .containerPort(other.getContainerPort())
+                .containerRepo(other.getContainerRepo())
+                .containerTag(other.getContainerTag())
+                .healthCheckURL(other.getHealthCheckURL())
+                .operatingSystem(other.getOperatingSystem());
+    }
+
+    @JsonProperty(value="isPublic") // jackson tries to be smart and call this "public"
     public Boolean isPublic() { return isPublic; }
 
     public String getName() {
@@ -64,6 +77,14 @@ public class ServiceConfig {
 
     public Integer getContainerPort() {
         return containerPort;
+    }
+
+    public String getContainerRepo() {
+        return containerRepo;
+    }
+
+    public String getContainerTag() {
+        return containerTag;
     }
 
     public String getHealthCheckURL() {
@@ -175,6 +196,11 @@ public class ServiceConfig {
                     this.operatingSystem = os;
                 }
             }
+            return this;
+        }
+
+        public Builder operatingSystem(OperatingSystem operatingSystem) {
+            this.operatingSystem = operatingSystem;
             return this;
         }
 

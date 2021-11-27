@@ -1258,36 +1258,6 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-    SettingsServiceConfigResourceCORS:
-      Type: AWS::ApiGateway::Method
-      Properties:
-        RestApiId: !Ref PrivateApi
-        ResourceId: !Ref SettingsServiceConfigResource
-        HttpMethod: OPTIONS
-        AuthorizationType: NONE
-        Integration:
-          Type: MOCK
-          PassthroughBehavior: WHEN_NO_MATCH
-          IntegrationResponses:
-            - StatusCode: '200'
-              ResponseTemplates: { application/json: '' }
-              ResponseParameters:
-                method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,DELETE'"
-                method.response.header.Access-Control-Allow-Origin: "'*'"
-                method.response.header.Access-Control-Max-Age: "'3600'"
-                method.response.header.X-Requested-With: "'*'"
-          RequestTemplates:
-            application/json: '{"statusCode": 200}'
-        MethodResponses:
-          - StatusCode: '200'
-            ResponseModels: { application/json: Empty }
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: false
-              method.response.header.Access-Control-Allow-Methods: false
-              method.response.header.Access-Control-Allow-Origin: false
-              method.response.header.Access-Control-Max-Age: false
-              method.response.header.X-Requested-With: false
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:

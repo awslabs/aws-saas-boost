@@ -1,6 +1,5 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;

@@ -22,6 +22,7 @@ import java.util.*;
 
 @JsonDeserialize(builder = AppConfig.Builder.class)
 public class AppConfig {
+    // public static final List<String>
 
     private String name;
     private String domainName;

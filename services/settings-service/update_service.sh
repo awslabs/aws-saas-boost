@@ -62,7 +62,7 @@ FUNCTIONS=("sb-${ENVIRONMENT}-settings-config-opts"
 	"sb-${ENVIRONMENT}-settings-update"
 	"sb-${ENVIRONMENT}-settings-get-all"
 	"sb-${ENVIRONMENT}-settings-get-config"
-	"sb-${ENVIRONMENT}-update-service-config"
+	"sb-${ENVIRONMENT}-settings-update-service-config"
 )
 
 for FX in "${FUNCTIONS[@]}"; do

@@ -638,9 +638,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         APIGatewayProxyResponseEvent response = null;
 
         try {
-            LOGGER.info("POEPPT updateAppConfig received " + event.get("body"));
             AppConfig updatedAppConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
-            LOGGER.info("POEPPT deserialized into " + updatedAppConfig);
             if (updatedAppConfig == null) {
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
@@ -774,6 +772,10 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
+        /*
+         * for updateServiceConfig there are only a set number of parameters we should allow to be updated
+         *
+         */
 
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateServiceConfig");
@@ -784,29 +786,29 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         Map<String, String> pathParameters = (Map) event.get("pathParameters");
         String serviceName = pathParameters.get("serviceName");
         String jsonKey = pathParameters.get("key");
-        String jsonValue = (String) event.get("body");
-        LOGGER.info("poeppt recv: " + serviceName);
-        LOGGER.info("poeppt recv: " + jsonKey);
-        LOGGER.info("poeppt recv: " + jsonValue);
+        String jsonValue = (String) Utils.fromJson((String) event.get("body"), HashMap.class).get("value");
+
         // get AppConfig and alter the config
         AppConfig existingAppConfig = dal.getAppConfig();
         ServiceConfig requestedService = existingAppConfig.getServices().get(serviceName);
         ServiceConfig editedService = null;
+        // the service they request to update must actually exist
         if (requestedService != null) {
             TreeNode serviceJson = Utils.toJsonTree(requestedService);
-            String oldValue = null;
-            if (serviceJson.get(jsonKey).isValueNode()) {
-                oldValue = serviceJson.get(jsonKey).toString();
-                LOGGER.info("poeppt oldValue: " + oldValue);
-            }
-            LOGGER.info("poeppt before trying to update json: " + serviceJson);
-            serviceJson = ((ObjectNode)serviceJson.get(jsonKey)).put(jsonKey, jsonValue);
-            LOGGER.info("poeppt after trying to update json: " + serviceJson);
+            serviceJson = ((ObjectNode) serviceJson).put(jsonKey, jsonValue);
             editedService = Utils.fromJson(Utils.toJson(serviceJson), ServiceConfig.class);
             AppConfig newAppConfig = AppConfig.builder(existingAppConfig).addServiceConfig(editedService).build();
-            LOGGER.info("poeppt oldAppConfig: " + existingAppConfig);
-            LOGGER.info("poeppt newAppConfig: " + newAppConfig);
             dal.setAppConfig(newAppConfig);
+            // return a success and the new app config?
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(200)
+                    .withBody(Utils.toJson(newAppConfig));
+        } else {
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(404)
+                    .withBody("{\"message\":\"Service not found.\"}");
         }
 
         LOGGER.info("SettingsService::updateServiceConfig exec " + (System.currentTimeMillis() - startTimeMillis));
