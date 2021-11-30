@@ -43,6 +43,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -772,34 +773,41 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
-        /*
-         * for updateServiceConfig there are only a set number of parameters we should allow to be updated
-         *
-         */
 
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateServiceConfig");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
 
+        final Map<String, BiFunction<ServiceConfig.Builder, String, ServiceConfig.Builder>> allowedKeys = Map.of(
+                "ECR_REPO", ServiceConfig.Builder::containerRepo
+        );
+
         // PUT /settings/config/{serviceName}/{key}
         Map<String, String> pathParameters = (Map) event.get("pathParameters");
         String serviceName = pathParameters.get("serviceName");
         String jsonKey = pathParameters.get("key");
-        String jsonValue = (String) Utils.fromJson((String) event.get("body"), HashMap.class).get("value");
 
+        if (!allowedKeys.containsKey(jsonKey)) {
+            // we only accept allowedKeys, 400 Bad Request otherwise
+            String errorMessage = String.format("Can only accept keys: %s", allowedKeys.keySet());
+            return new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(400)
+                    .withBody("{\"message\":\"" + errorMessage + ".\"}");
+        }
+
+        String jsonValue = (String) Utils.fromJson((String) event.get("body"), HashMap.class).get("value");
         // get AppConfig and alter the config
         AppConfig existingAppConfig = dal.getAppConfig();
         ServiceConfig requestedService = existingAppConfig.getServices().get(serviceName);
         ServiceConfig editedService = null;
+
         // the service they request to update must actually exist
         if (requestedService != null) {
-            TreeNode serviceJson = Utils.toJsonTree(requestedService);
-            serviceJson = ((ObjectNode) serviceJson).put(jsonKey, jsonValue);
-            editedService = Utils.fromJson(Utils.toJson(serviceJson), ServiceConfig.class);
+            editedService = allowedKeys.get(jsonKey).apply(ServiceConfig.builder(requestedService), jsonValue).build();
             AppConfig newAppConfig = AppConfig.builder(existingAppConfig).addServiceConfig(editedService).build();
             dal.setAppConfig(newAppConfig);
-            // return a success and the new app config?
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(200)
