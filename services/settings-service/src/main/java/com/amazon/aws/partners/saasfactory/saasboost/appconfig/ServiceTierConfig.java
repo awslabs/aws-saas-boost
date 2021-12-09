@@ -25,6 +25,10 @@ public class ServiceTierConfig {
         this.database = builder.database;
     }
 
+    public static ServiceTierConfig.Builder builder() {
+        return new ServiceTierConfig.Builder();
+    }
+
     public Database getDatabase() {
         return database;
     }
