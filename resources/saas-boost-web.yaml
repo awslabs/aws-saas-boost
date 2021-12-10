@@ -37,14 +37,16 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
+        Comment: Saas Boost Admin Console
+        DefaultRootObject: index.html
+        Enabled: true
+        IPV6Enabled: false
+        HttpVersion: http2
         Origins:
           - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
             Id: !Sub sb-${Environment}-s3-website
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
-        Enabled: true
-        Comment: Saas Boost Admin Console
-        DefaultRootObject: index.html
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -59,13 +61,19 @@ Resources:
             - PATCH
             - POST
             - PUT
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
           TargetOriginId: !Sub sb-${Environment}-s3-website
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          ViewerProtocolPolicy: allow-all
-        IPV6Enabled: true
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # CachingOptimized managed cache policy
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # CORS-S3Origin managed origin request policy
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
+          ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
   ConsoleUserPool:
