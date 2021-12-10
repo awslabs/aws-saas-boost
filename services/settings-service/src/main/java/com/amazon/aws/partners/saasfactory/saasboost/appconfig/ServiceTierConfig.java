@@ -5,21 +5,19 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 @JsonDeserialize(builder = ServiceTierConfig.Builder.class)
 public class ServiceTierConfig {
-    private final Integer minCount;
-    private final Integer maxCount;
-    private final ComputeSize computeSize;
-    private final Integer defaultCpu;
-    private final Integer defaultMemory;
+    private final Integer min;
+    private final Integer max;
+    private final Integer cpu;
+    private final Integer memory;
     private final String instanceType;
     private final SharedFilesystem filesystem;
     private final Database database;
 
     private ServiceTierConfig(Builder builder) {
-        this.minCount = builder.minCount;
-        this.maxCount = builder.maxCount;
-        this.computeSize = builder.computeSize;
-        this.defaultCpu = builder.defaultCpu;
-        this.defaultMemory = builder.defaultMemory;
+        this.min = builder.min;
+        this.max = builder.max;
+        this.cpu = builder.cpu;
+        this.memory = builder.memory;
         this.instanceType = builder.instanceType;
         this.filesystem = builder.filesystem;
         this.database = builder.database;
@@ -27,6 +25,30 @@ public class ServiceTierConfig {
 
     public static ServiceTierConfig.Builder builder() {
         return new ServiceTierConfig.Builder();
+    }
+
+    public Integer getMin() {
+        return min;
+    }
+
+    public Integer getMax() {
+        return max;
+    }
+
+    public Integer getCpu() {
+        return cpu;
+    }
+
+    public Integer getMemory() {
+        return memory;
+    }
+
+    public String getInstanceType() {
+        return instanceType;
+    }
+
+    public SharedFilesystem getFilesystem() {
+        return filesystem;
     }
 
     public Database getDatabase() {
@@ -39,11 +61,10 @@ public class ServiceTierConfig {
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {
-        private Integer minCount;
-        private Integer maxCount;
-        private ComputeSize computeSize;
-        private Integer defaultCpu;
-        private Integer defaultMemory;
+        private Integer min;
+        private Integer max;
+        private Integer cpu;
+        private Integer memory;
         private String instanceType;
         private SharedFilesystem filesystem;
         private Database database;
@@ -51,44 +72,33 @@ public class ServiceTierConfig {
         private Builder() {
         }
 
-        public Builder minCount(String minCount) {
-            this.minCount = minCount != null && !minCount.isEmpty() ? Integer.valueOf(minCount) : null;
+        public Builder min(String min) {
+            this.min = min != null && !min.isEmpty() ? Integer.valueOf(min) : null;
             return this;
         }
 
-        public Builder maxCount(String maxCount) {
-            this.maxCount = maxCount != null && !maxCount.isEmpty() ? Integer.valueOf(maxCount) : null;
+        public Builder max(String max) {
+            this.max = max != null && !max.isEmpty() ? Integer.valueOf(max) : null;
             return this;
         }
 
-        public Builder computeSize(String computeSize) {
-            if (computeSize != null && !computeSize.isEmpty()) {
-                try {
-                    this.computeSize = ComputeSize.valueOf(computeSize);
-                } catch (IllegalArgumentException e) {
-                    throw new RuntimeException(new IllegalArgumentException("Can't find ComputeSize for value " + computeSize));
-                }
-            }
+        public Builder cpu(Integer cpu) {
+            this.cpu = cpu;
             return this;
         }
 
-        public Builder defaultCpu(Integer defaultCpu) {
-            this.defaultCpu = defaultCpu;
+        public Builder cpu(String cpu) {
+            this.cpu = cpu != null && !cpu.isEmpty() ? Integer.valueOf(cpu) : null;
             return this;
         }
 
-        public Builder defaultCpu(String defaultCpu) {
-            this.defaultCpu = defaultCpu != null && !defaultCpu.isEmpty() ? Integer.valueOf(defaultCpu) : null;
+        public Builder memory(Integer memory) {
+            this.memory = memory;
             return this;
         }
 
-        public Builder defaultMemory(Integer defaultMemory) {
-            this.defaultMemory = defaultMemory;
-            return this;
-        }
-
-        public Builder defaultMemory(String defaultMemory) {
-            this.defaultMemory = defaultMemory != null && !defaultMemory.isEmpty() ? Integer.valueOf(defaultMemory) : null;
+        public Builder memory(String memory) {
+            this.memory = memory != null && !memory.isEmpty() ? Integer.valueOf(memory) : null;
             return this;
         }
 

@@ -16,6 +16,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -25,6 +26,7 @@ import java.util.Objects;
 @JsonDeserialize(builder = ServiceConfig.Builder.class)
 public class ServiceConfig {
 
+    @JsonProperty("public")
     private final Boolean isPublic;
     private final String name;
     private final String path;
@@ -64,7 +66,6 @@ public class ServiceConfig {
                 .operatingSystem(other.getOperatingSystem());
     }
 
-    @JsonProperty(value="isPublic") // jackson tries to be smart and call this "public"
     public Boolean isPublic() { return isPublic; }
 
     public String getName() {
@@ -131,6 +132,7 @@ public class ServiceConfig {
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {
 
+        @JsonProperty("public")
         private Boolean isPublic;
         private String name;
         private String path;
@@ -144,6 +146,7 @@ public class ServiceConfig {
         private Builder() {
         }
 
+        @JsonSetter("public")
         public Builder isPublic(Boolean isPublic) {
             this.isPublic = isPublic;
             return this;
