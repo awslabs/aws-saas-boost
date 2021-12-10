@@ -58,6 +58,7 @@ echo "Published new layer = $LAYER_VERSION_ARN"
 
 # Find all the functions for this SaaS Boost environment that have layers
 eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-\`)] | [?Layers != null] | [].FunctionName' --output text"\)
+FUNCTIONS=($FUNCTIONS)
 #echo "Updating ${#FUNCTIONS[@]} functions with new layer version"
 
 for FX in ${FUNCTIONS[@]}; do
