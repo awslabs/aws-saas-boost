@@ -605,6 +605,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             }
         } catch (Exception e) {
             LOGGER.error("Unable to parse incoming JSON");
+            LOGGER.error(Utils.getFullStackTrace(e));
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)

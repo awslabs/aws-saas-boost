@@ -101,15 +101,18 @@ public class SettingsServiceDAL {
                 );
                 nextToken = response.nextToken();
                 parameters.addAll(response.parameters());
+            } catch (ParameterNotFoundException notFoundException) {
+                LOGGER.warn("Can't find parameters for {}", parameterStorePathPrefix);
             } catch (SdkServiceException ssmError) {
-                LOGGER.error("ssm:GetParametersByPath error " + ssmError.getMessage());
+                LOGGER.error("ssm:GetParametersByPath error ", ssmError);
+                LOGGER.error(Utils.getFullStackTrace(ssmError));
                 throw ssmError;
             }
         } while (nextToken != null && !nextToken.isEmpty());
 
-        if (parameters.isEmpty()) {
-            throw new RuntimeException("Error loading Parameter Store SaaS Boost parameters: " + parameterStorePathPrefix);
-        }
+//        if (parameters.isEmpty()) {
+//            throw new RuntimeException("Error loading Parameter Store SaaS Boost parameters: " + parameterStorePathPrefix);
+//        }
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::getAllSettingsUnder {} Loaded {} parameters",
@@ -674,17 +677,18 @@ public class SettingsServiceDAL {
                 String dbPasswordSettingValue = null;
                 if (nameAndTierConfig.getValue().hasDatabase()) {
                     dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
-                }
-                // tiers are /saas-boost/env/app/serviceName/tierName/
-                Setting dbPasswordSetting = Setting.builder()
-                        .name(basePath + serviceConfig.getName() + "/"
-                                + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
-                        .value(dbPasswordSettingValue)
-                        .secure(true).readOnly(false).build();
-                settings.add(dbPasswordSetting);
 
-                // place the passwordParam so appConfig holders can find the password if they need it
-                nameAndTierConfig.getValue().getDatabase().setPasswordParam(toParameterStore(dbPasswordSetting).name());
+                    // tiers are /saas-boost/env/app/serviceName/tierName/
+                    Setting dbPasswordSetting = Setting.builder()
+                            .name(basePath + serviceConfig.getName() + "/"
+                                    + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
+                            .value(dbPasswordSettingValue)
+                            .secure(true).readOnly(false).build();
+                    settings.add(dbPasswordSetting);
+
+                    // place the passwordParam so appConfig holders can find the password if they need it
+                    nameAndTierConfig.getValue().getDatabase().setPasswordParam(toParameterStore(dbPasswordSetting).name());
+                }
             }
 
             settings.add(Setting.builder()
