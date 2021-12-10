@@ -516,6 +516,11 @@ Resources:
         PrivateApiStage: !Ref PrivateApiStage
   metrics:
     Type: AWS::CloudFormation::Stack
+    # Delete the metrics stack before clearing the S3 buckets because the metrics stack defines
+    # EventBridge timers that could write to the bucket after clearing but before deleting
+    DependsOn:
+      - InvokeClearAthenaBucket
+      - InvokeClearAccessLogsBucket
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-metrics.yaml
       Parameters:
