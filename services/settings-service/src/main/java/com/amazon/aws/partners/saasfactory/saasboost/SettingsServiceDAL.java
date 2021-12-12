@@ -15,7 +15,10 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.BillingProvider;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceTierConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -109,10 +112,6 @@ public class SettingsServiceDAL {
                 throw ssmError;
             }
         } while (nextToken != null && !nextToken.isEmpty());
-
-//        if (parameters.isEmpty()) {
-//            throw new RuntimeException("Error loading Parameter Store SaaS Boost parameters: " + parameterStorePathPrefix);
-//        }
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::getAllSettingsUnder {} Loaded {} parameters",
@@ -401,6 +400,7 @@ public class SettingsServiceDAL {
     public AppConfig setAppConfig(AppConfig appConfig) {
         long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::setAppConfig");
+        List<Setting> updatedAppConfigSettings = new ArrayList<>();
         for (Setting setting : toSettings(appConfig)) {
             LOGGER.info("Updating setting {} {} in app config", setting.getName(), setting.getValue());
             if (setting.isSecure()) {
@@ -419,11 +419,11 @@ public class SettingsServiceDAL {
                 }
             }
             LOGGER.info("Calling put parameter {}", setting.getName());
-            updateSetting(setting);
+            updatedAppConfigSettings.add(updateSetting(setting));
         }
         // Return a fresh copy of the config object to be sure all the encrypted
         // values are represented
-        appConfig = getAppConfig();
+        appConfig = appConfigFromSettings(updatedAppConfigSettings);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
         return appConfig;
@@ -432,27 +432,26 @@ public class SettingsServiceDAL {
     public AppConfig getAppConfig() {
         long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::getAppConfig");
-        Map<String, String> appSettings = getAppConfigSettings()
-                .stream()
-                .collect(
-                        Collectors.toMap(Setting::getName, Setting::getValue)
-                );
-
-        // Get the secret value for the optional billing provider or you'll always
-        // be testing for empty against the encrypted hash of the "N/A" sentinel string
-        AppConfig appConfig = toAppConfig(appSettings, getSecret("app/BILLING_API_KEY"));
-
+        AppConfig appConfig = appConfigFromSettings(getAppConfigSettings());
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
         return appConfig;
     }
 
+    public AppConfig appConfigFromSettings(List<Setting> appConfigSettings) {
+        // Get the secret value for the optional billing provider or you'll always
+        // be testing for empty against the encrypted hash of the "N/A" sentinel string
+        return toAppConfig(
+                appConfigSettings.stream()
+                        .collect(Collectors.toMap(Setting::getName, Setting::getValue)),
+                getSecret("BILLING_API_KEY"));
+    }
+
     private static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
-        LOGGER.info("SettingsServiceDAL:toAppConfig recv {}", appSettings);
         AppConfig.Builder appConfigBuilder = AppConfig.builder()
-                .name(appSettings.get("APP_NAME"))
-                .domainName(appSettings.get("DOMAIN_NAME"))
-                .sslCertArn(appSettings.get("SSL_CERT_ARN"));
+                .name(appSettings.get("app/APP_NAME"))
+                .domainName(appSettings.get("app/DOMAIN_NAME"))
+                .sslCertArn(appSettings.get("app/SSL_CERT_ARN"));
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
@@ -468,7 +467,7 @@ public class SettingsServiceDAL {
             String apiKey = billingApiKey.getValue();
             if (Utils.isNotEmpty(apiKey)) {
                 appConfigBuilder.billing(BillingProvider.builder()
-                        .apiKey(appSettings.get("BILLING_API_KEY"))
+                        .apiKey(apiKey)
                         .build());
             }
         }
@@ -584,7 +583,7 @@ public class SettingsServiceDAL {
                 throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost app pattern " + SAAS_BOOST_APP_PATTERN);
             }
             setting = Setting.builder()
-                    .name(settingName)
+                    .name("app/" + settingName)
                     .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
                     .readOnly(false)
                     .secure(ParameterType.SECURE_STRING == parameter.type())
@@ -592,19 +591,6 @@ public class SettingsServiceDAL {
                     .build();
         }
         return setting;
-    }
-
-    public static Parameter toAppParameterStore(Setting setting) {
-        if (setting == null || Utils.isEmpty(setting.getName())) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
-        }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/app/" + setting.getName();
-        String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
-        return Parameter.builder()
-                .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
-                .name(parameterName)
-                .value(parameterValue)
-                .build();
     }
 
     public static Setting fromTenantParameterStore(UUID tenantId, Parameter parameter) {
