@@ -15,6 +15,9 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public final class AppConfigHelper {
 
     private AppConfigHelper() {
@@ -83,5 +86,11 @@ public final class AppConfigHelper {
 //        int alteredMax = altered.getMaxCount() != null ? altered.getMaxCount() : -1;
 //
 //        return ((existingMin != alteredMin) || (existingMax != alteredMax));
+    }
+
+    public static Set<String> removedServices(AppConfig existing, AppConfig altered) {
+        Set<String> existingServices = new HashSet<String>(existing.getServices().keySet());
+        existingServices.removeAll(altered.getServices().keySet());
+        return existingServices;
     }
 }

@@ -15,6 +15,7 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -22,14 +23,12 @@ import java.util.*;
 
 @JsonDeserialize(builder = AppConfig.Builder.class)
 public class AppConfig {
-    // public static final List<String>
-
-    private String name;
-    private String domainName;
-    private String sslCertArn;
+    private final String name;
+    private final String domainName;
+    private final String sslCertArn;
     // ServiceConfig.getName() : ServiceConfig
-    private Map<String, ServiceConfig> services;
-    private BillingProvider billing;
+    private final Map<String, ServiceConfig> services;
+    private final BillingProvider billing;
 
     private AppConfig(Builder builder) {
         this.name = builder.name;
@@ -70,6 +69,11 @@ public class AppConfig {
 
     public Map<String, ServiceConfig> getServices() {
         return services;
+    }
+
+    @Override
+    public String toString() {
+        return Utils.toJson(this);
     }
 
     @Override

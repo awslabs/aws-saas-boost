@@ -43,14 +43,18 @@ public class SettingsServiceDAL {
 
     // Package private for testing
     static final String SAAS_BOOST_PREFIX = "saas-boost";
+    static final String APP_BASE_PATH = "app/";
+    static final String TENANT_BASE_PATH = "tenant/";
+    static final String PARAMETER_STORE_PREFIX = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
-    static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/(.+)$");
+    static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + "(.+)$");
     // e.g. /saas-boost/test/app/APP_NAME or /saas-boost/test/app/myService/SERVICE_JSON
-    static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/app/(.+)$");
+    static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + APP_BASE_PATH + "(.+)$");
     // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    static final Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})/(.+)$");
+    static final Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + TENANT_BASE_PATH
+            + "(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})/(.+)$");
 
-    private final SsmClient ssm;
+    private final ParameterStoreFacade parameterStore;
     private DynamoDbClient ddb;
 
     public SettingsServiceDAL() {
@@ -61,9 +65,10 @@ public class SettingsServiceDAL {
         if (Utils.isBlank(SAAS_BOOST_ENV)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_ENV");
         }
-        this.ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME);
+        SsmClient ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME);
         // Warm up SSM for cold start hack
-        this.ssm.getParametersByPath(request -> request.path("/" + SAAS_BOOST_PREFIX + "/JUNK"));
+        ssm.getParametersByPath(request -> request.path("/" + SAAS_BOOST_PREFIX + "/JUNK"));
+        parameterStore = new ParameterStoreFacade(ssm);
 
         if (Utils.isNotBlank(OPTIONS_TABLE)) {
             this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
@@ -74,45 +79,30 @@ public class SettingsServiceDAL {
     }
 
     public List<Setting> getAllSettings() {
-        return getAllParametersUnder("/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/", false)
-                .stream().map(SettingsServiceDAL::fromParameterStore).collect(Collectors.toList());
+        return getAllParametersUnder(PARAMETER_STORE_PREFIX, false)
+                .stream()
+                .map(SettingsServiceDAL::fromParameterStore)
+                .collect(Collectors.toList());
     }
 
     public List<Setting> getAppConfigSettings() {
-        return getAllParametersUnder("/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/app/", true)
-                .stream().map(SettingsServiceDAL::fromAppParameterStore).collect(Collectors.toList());
+        return getAllParametersUnder(PARAMETER_STORE_PREFIX + APP_BASE_PATH, true)
+                .stream()
+                .map(SettingsServiceDAL::fromAppParameterStore)
+                .collect(Collectors.toList());
     }
 
     public List<Setting> getTenantSettings(UUID tenantId) {
-        return getAllParametersUnder("/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString(), false)
-                .stream().map(parameter -> SettingsServiceDAL.fromTenantParameterStore(tenantId, parameter)).collect(Collectors.toList());
+        return getAllParametersUnder(PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString(), false)
+                .stream()
+                .map(parameter -> SettingsServiceDAL.fromTenantParameterStore(tenantId, parameter))
+                .collect(Collectors.toList());
     }
 
     public List<Parameter> getAllParametersUnder(String parameterStorePathPrefix, boolean recursive) {
         long startTimeMillis = System.currentTimeMillis();
-        List<Parameter> parameters = new ArrayList<>();
-        String nextToken = null;
-        do {
-            try {
-                GetParametersByPathResponse response = ssm.getParametersByPath(GetParametersByPathRequest
-                        .builder()
-                        .path(parameterStorePathPrefix)
-                        .recursive(recursive)
-                        .withDecryption(false) // don't expose secrets by default
-                        .nextToken(nextToken)
-                        .build()
-                );
-                nextToken = response.nextToken();
-                parameters.addAll(response.parameters());
-            } catch (ParameterNotFoundException notFoundException) {
-                LOGGER.warn("Can't find parameters for {}", parameterStorePathPrefix);
-            } catch (SdkServiceException ssmError) {
-                LOGGER.error("ssm:GetParametersByPath error ", ssmError);
-                LOGGER.error(Utils.getFullStackTrace(ssmError));
-                throw ssmError;
-            }
-        } while (nextToken != null && !nextToken.isEmpty());
-
+        boolean decrypt = false;
+        List<Parameter> parameters = parameterStore.getParametersByPath(parameterStorePathPrefix, recursive, decrypt);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::getAllSettingsUnder {} Loaded {} parameters",
                 parameterStorePathPrefix, parameters.size());
@@ -121,42 +111,16 @@ public class SettingsServiceDAL {
     }
 
     public List<Setting> getNamedSettings(List<String> namedSettings) {
-        List<Setting> settings = new ArrayList<>();
-        List<String> batch = new ArrayList<>();
         LOGGER.info("getNamedSettings");
         long startTime = System.currentTimeMillis();
-        try {
-            Iterator<String> it = namedSettings.iterator();
-            while (it.hasNext()) {
-                if (batch.size() < 10) {
-                    Parameter namedParameter = toParameterStore(Setting.builder().name(it.next()).build());
-                    batch.add(namedParameter.name());
-
-                    // If namedSettings % 10 != 0, then be sure to make a request with the remainder
-                    if (!it.hasNext()) {
-                        GetParametersResponse response = ssm.getParameters(request -> request.names(batch));
-                        for (Parameter parameter : response.parameters()) {
-                            settings.add(fromParameterStore(parameter));
-                        }
-                        // We've reached the end of the request input
-                        break;
-                    }
-                } else {
-                    // Batch has reached max size of 10, make the request
-                    GetParametersResponse response = ssm.getParameters(request -> request.names(batch));
-                    for (Parameter parameter : response.parameters()) {
-                        settings.add(fromParameterStore(parameter));
-                    }
-
-                    // Clear the batch so we can fill it up for the next request
-                    batch.clear();
-                }
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameters error", ssmError);
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            throw ssmError;
-        }
+        List<String> parameterNames = namedSettings
+                .stream()
+                .map(settingName -> toParameterStore(Setting.builder().name(settingName).build()).name())
+                .collect(Collectors.toList());
+        List<Setting> settings = parameterStore.getParameters(parameterNames)
+                .stream()
+                .map(SettingsServiceDAL::fromParameterStore)
+                .collect(Collectors.toList());
         long endTime = System.currentTimeMillis();
         LOGGER.info("getNamedSettings exec: {} ms", endTime - startTime);
         return settings;
@@ -171,27 +135,13 @@ public class SettingsServiceDAL {
     }
 
     public Setting getSetting(String settingName, boolean decrypt) {
-        Setting setting = null;
-        try {
-            Parameter parameter = toParameterStore(Setting.builder().name(settingName).build());
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name(parameter.name())
-                    .withDecryption(decrypt)
-            );
-            setting = fromParameterStore(response.parameter());
-        } catch (ParameterNotFoundException pnf) {
-            LOGGER.warn("ssm:GetParameter parameter not found for setting {}", settingName);
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return setting;
+        return fromParameterStore(parameterStore.getParameter(
+                toParameterStore(Setting.builder().name(settingName).build()).name(), decrypt));
     }
 
     public String getParameterStoreReference(String settingName) {
         Setting setting = getSetting(settingName);
-        String paramStoreRef = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName() + ":" + setting.getVersion();
-        return paramStoreRef;
+        return PARAMETER_STORE_PREFIX + setting.getName() + ":" + setting.getVersion();
     }
 
     public Setting getTenantSetting(UUID tenantId, String settingName) {
@@ -203,48 +153,23 @@ public class SettingsServiceDAL {
     }
 
     public Setting getTenantSetting(UUID tenantId, String settingName, boolean decrypt) {
-        Setting setting = null;
-        try {
-            Parameter parameter = toTenantParameterStore(tenantId, Setting.builder().name(settingName).build());
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name(parameter.name())
-                    .withDecryption(decrypt)
-            );
-            setting = fromTenantParameterStore(tenantId, response.parameter());
-        } catch (ParameterNotFoundException pnf) {
-            LOGGER.warn("ssm:GetParameter parameter not found for tenant {} setting {}", tenantId.toString(), settingName);
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error " + ssmError.getMessage());
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-        }
-        return setting;
+        return fromTenantParameterStore(tenantId, parameterStore.getParameter(
+                toTenantParameterStore(tenantId, Setting.builder().name(settingName).build()).name(), decrypt));
     }
 
     public Setting updateTenantSetting(UUID tenantId, Setting setting) {
-        Parameter updated = putParameter(toTenantParameterStore(tenantId, setting));
+        Parameter updated = parameterStore.putParameter(toTenantParameterStore(tenantId, setting));
         return fromTenantParameterStore(tenantId, updated);
     }
 
     public void deleteTenantSettings(UUID tenantId) {
         long startTimeMillis = System.currentTimeMillis();
 
-        String parameterStorePath = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString();
+        String parameterStorePath = PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString();
         List<String> parametersToDelete = SettingsService.TENANT_PARAMS.stream()
                 .map(s -> parameterStorePath + "/" + s)
                 .collect(Collectors.toList());
-
-        try {
-            DeleteParametersResponse response = ssm.deleteParameters(r ->
-                    r.names(parametersToDelete)
-            );
-            LOGGER.info("SettingsServiceDAL::deleteTenantSettings removed " + response.deletedParameters().toString());
-            if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                LOGGER.warn("SettingsServiceDAL::deleteTenantSettings invalid parameters " + response.invalidParameters().toString());
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameters error " + ssmError.getMessage());
-            throw ssmError;
-        }
+        parameterStore.deleteParameters(parametersToDelete);
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::deleteTenantSettings exec " + totalTimeMillis);
@@ -253,46 +178,12 @@ public class SettingsServiceDAL {
     }
 
     public Setting updateSetting(Setting setting) {
-        Parameter updated = putParameter(toParameterStore(setting));
+        Parameter updated = parameterStore.putParameter(toParameterStore(setting));
         return fromParameterStore(updated);
     }
 
     private void deleteSetting(Setting setting) {
-        deleteParameter(toParameterStore(setting));
-    }
-
-    private Parameter putParameter(Parameter parameter) {
-        Parameter updated = null;
-        try {
-            PutParameterResponse response = ssm.putParameter(request -> request
-                    .type(parameter.type())
-                    .overwrite(true)
-                    .name(parameter.name())
-                    .value(parameter.value())
-            );
-            updated = Parameter.builder()
-                    .name(parameter.name())
-                    .value(parameter.value())
-                    .type(parameter.type())
-                    .version(response.version())
-                    .build();
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:PutParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return updated;
-    }
-
-    public void deleteParameter(Parameter parameter) {
-        try {
-            ssm.deleteParameter(request -> request
-                    .name(parameter.name())
-            );
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return;
+        parameterStore.deleteParameter(toParameterStore(setting));
     }
 
     public List<Map<String, Object>> rdsOptions() {
@@ -449,9 +340,9 @@ public class SettingsServiceDAL {
 
     private static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
         AppConfig.Builder appConfigBuilder = AppConfig.builder()
-                .name(appSettings.get("app/APP_NAME"))
-                .domainName(appSettings.get("app/DOMAIN_NAME"))
-                .sslCertArn(appSettings.get("app/SSL_CERT_ARN"));
+                .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
+                .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
+                .sslCertArn(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
@@ -484,46 +375,17 @@ public class SettingsServiceDAL {
         List<String> parametersToDelete = toSettings(getAppConfig()).stream()
                 .map(s -> toParameterStore(s).name())
                 .collect(Collectors.toList());
-        List<String> batch = new ArrayList<>();
-        try {
-            Iterator<String> it = parametersToDelete.iterator();
-            while (it.hasNext()) {
-                if (batch.size() < 10) {
-                    batch.add(it.next());
-                    // If parametersToDelete % 10 != 0, then be sure to make a request with the remainder
-                    if (!it.hasNext()) {
-                        DeleteParametersResponse response = ssm.deleteParameters(r ->
-                                r.names(batch)
-                        );
-                        LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
-                        if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                            LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
-                        }
-                        // We've reached the end of the request input
-                        break;
-                    }
-                } else {
-                    // Batch has reached max size of 10, make the request
-                    DeleteParametersResponse response = ssm.deleteParameters(r ->
-                            r.names(batch)
-                    );
-                    LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
-                    if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                        LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
-                    }
-                    // Clear the batch so we can fill it up for the next request
-                    batch.clear();
-                }
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameters error", ssmError);
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            throw ssmError;
-        }
+
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
-        return;
+    }
+
+    public void deleteServiceConfig(AppConfig appConfig, String serviceName) {
+        parameterStore.deleteParameters(toSettings(appConfig.getServices().get(serviceName))
+                .stream()
+                .map(s -> toParameterStore(s).name())
+                .collect(Collectors.toList()));
     }
 
     public static Setting fromParameterStore(Parameter parameter) {
@@ -557,7 +419,7 @@ public class SettingsServiceDAL {
         if (setting == null || !Setting.isValidSettingName(setting.getName())) {
             throw new RuntimeException("Can't create Parameter Store parameter with invalid Setting name");
         }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName();
+        String parameterName = PARAMETER_STORE_PREFIX + setting.getName();
         String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
         Parameter parameter = Parameter.builder()
                 .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
@@ -583,7 +445,7 @@ public class SettingsServiceDAL {
                 throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost app pattern " + SAAS_BOOST_APP_PATTERN);
             }
             setting = Setting.builder()
-                    .name("app/" + settingName)
+                    .name(APP_BASE_PATH + settingName)
                     .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
                     .readOnly(false)
                     .secure(ParameterType.SECURE_STRING == parameter.type())
@@ -626,7 +488,7 @@ public class SettingsServiceDAL {
         if (setting == null || Utils.isEmpty(setting.getName())) {
             throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
         }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString() + "/" + setting.getName();
+        String parameterName = PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString() + "/" + setting.getName();
         String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
         return Parameter.builder()
                 .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
@@ -636,51 +498,26 @@ public class SettingsServiceDAL {
     }
 
     public static List<Setting> toSettings(AppConfig appConfig) {
-        final String basePath = "app/";
         List<Setting> settings = new ArrayList<>();
 
         settings.add(Setting.builder()
-                .name(basePath + "APP_NAME")
+                .name(APP_BASE_PATH + "APP_NAME")
                 .value(appConfig.getName())
                 .readOnly(false)
                 .build());
         settings.add(Setting.builder()
-                .name(basePath + "DOMAIN_NAME")
+                .name(APP_BASE_PATH + "DOMAIN_NAME")
                 .value(appConfig.getDomainName())
                 .readOnly(false)
                 .build());
         settings.add(Setting.builder()
-                .name(basePath + "SSL_CERT_ARN")
+                .name(APP_BASE_PATH + "SSL_CERT_ARN")
                 .value(appConfig.getSslCertArn())
                 .readOnly(false)
                 .build());
 
         for (ServiceConfig serviceConfig : appConfig.getServices().values()) {
-            // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
-            // but that means we need to create the DB_MASTER_PASSWORD for each ServiceTier, as some tiers
-            // may have databases, some may not, and all may have different passwords (for whatever reason)
-            for (Map.Entry<String, ServiceTierConfig> nameAndTierConfig : serviceConfig.getTiers().entrySet()) {
-                String dbPasswordSettingValue = null;
-                if (nameAndTierConfig.getValue().hasDatabase()) {
-                    dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
-
-                    // tiers are /saas-boost/env/app/serviceName/tierName/
-                    Setting dbPasswordSetting = Setting.builder()
-                            .name(basePath + serviceConfig.getName() + "/"
-                                    + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
-                            .value(dbPasswordSettingValue)
-                            .secure(true).readOnly(false).build();
-                    settings.add(dbPasswordSetting);
-
-                    // place the passwordParam so appConfig holders can find the password if they need it
-                    nameAndTierConfig.getValue().getDatabase().setPasswordParam(toParameterStore(dbPasswordSetting).name());
-                }
-            }
-
-            settings.add(Setting.builder()
-                    .name(basePath + serviceConfig.getName() + "/SERVICE_JSON")
-                    .value(Utils.toJson(serviceConfig))
-                    .readOnly(false).build());
+            settings.addAll(toSettings(serviceConfig));
         }
 
         String billingApiKeySettingValue = null;
@@ -688,11 +525,42 @@ public class SettingsServiceDAL {
             billingApiKeySettingValue = appConfig.getBilling().getApiKey();
         }
         settings.add(Setting.builder()
-                .name(basePath + "BILLING_API_KEY")
+                .name(APP_BASE_PATH + "BILLING_API_KEY")
                 .value(billingApiKeySettingValue)
                 .readOnly(false)
                 .secure(true)
                 .build());
+
+        return settings;
+    }
+
+    public static List<Setting> toSettings(ServiceConfig serviceConfig) {
+        List<Setting> settings = new ArrayList<>();
+        // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
+        // but that means we need to create the DB_MASTER_PASSWORD for each ServiceTier, as some tiers
+        // may have databases, some may not, and all may have different passwords (for whatever reason)
+        for (Map.Entry<String, ServiceTierConfig> nameAndTierConfig : serviceConfig.getTiers().entrySet()) {
+            String dbPasswordSettingValue = null;
+            if (nameAndTierConfig.getValue().hasDatabase()) {
+                dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
+
+                // tiers are /saas-boost/env/app/serviceName/tierName/
+                Setting dbPasswordSetting = Setting.builder()
+                        .name(APP_BASE_PATH + serviceConfig.getName() + "/"
+                                + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
+                        .value(dbPasswordSettingValue)
+                        .secure(true).readOnly(false).build();
+                settings.add(dbPasswordSetting);
+
+                // place the passwordParam so appConfig holders can find the password if they need it
+                nameAndTierConfig.getValue().getDatabase().setPasswordParam(toParameterStore(dbPasswordSetting).name());
+            }
+        }
+
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + serviceConfig.getName() + "/SERVICE_JSON")
+                .value(Utils.toJson(serviceConfig))
+                .readOnly(false).build());
 
         return settings;
     }

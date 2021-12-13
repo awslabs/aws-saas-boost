@@ -22,8 +22,6 @@ import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-import com.fasterxml.jackson.core.TreeNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
@@ -124,8 +122,6 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
-
-        LOGGER.info("getSettings recv: " + event);
 
         final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
@@ -596,6 +592,14 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         AppConfigHelper.isBillingFirstTime(currentAppConfig, appConfig)) {
                     LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
                     triggerBillingSetup();
+                }
+
+                Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, appConfig);
+                if (!removedServices.isEmpty()) {
+                    LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
+                    for (String serviceName : removedServices) {
+                        dal.deleteServiceConfig(currentAppConfig, serviceName);
+;                    }
                 }
 
                 response = new APIGatewayProxyResponseEvent()

@@ -26,12 +26,11 @@ public class Setting {
 
     private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_/\\.-]+");
     private final String name;
-//    private final String parameterPath;
     private final String value;
-    private boolean readOnly;
-    private boolean secure;
-    private Long version;
-    private String description;
+    private final boolean readOnly;
+    private final boolean secure;
+    private final Long version;
+    private final String description;
 
     private Setting(Builder builder) {
         this.name = builder.name;
@@ -76,6 +75,11 @@ public class Setting {
             valid = PARAMETER_STORE_REGEX.matcher(name).matches();
         }
         return valid;
+    }
+
+    @Override
+    public String toString() {
+        return Utils.toJson(this);
     }
 
     @Override
