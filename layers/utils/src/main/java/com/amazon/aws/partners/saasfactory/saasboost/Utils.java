@@ -291,4 +291,23 @@ public class Utils {
         }
         return version;
     }
+
+    public static boolean nullableEquals(Object o1, Object o2) {
+        // same reference or both null
+        if (o1 == o2) {
+            return true;
+        }
+
+        // if one is null but they aren't the same reference, they aren't equal
+        if (o1 == null || o2 == null) {
+            return false;
+        }
+
+        // if not the same class, not equal
+        if (o1.getClass() != o2.getClass()) {
+            return false;
+        }
+
+        return o1.equals(o2);
+    }
 }
