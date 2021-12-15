@@ -16,7 +16,6 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -27,7 +26,7 @@ import java.util.Objects;
 public class ServiceConfig {
 
     @JsonProperty("public")
-    private final Boolean isPublic;
+    private final Boolean publiclyAddressable;
     private final String name;
     private final String path;
     private final Map<String, ServiceTierConfig> tiers;
@@ -38,7 +37,7 @@ public class ServiceConfig {
     private final OperatingSystem operatingSystem;
 
     private ServiceConfig(Builder builder) {
-        this.isPublic = builder.isPublic;
+        this.publiclyAddressable = builder.publiclyAddressable;
         this.name = builder.name;
         this.path = builder.path;
         this.containerPort = builder.containerPort;
@@ -55,7 +54,7 @@ public class ServiceConfig {
 
     public static Builder builder(ServiceConfig other) {
         return new Builder()
-                .isPublic(other.isPublic())
+                .publiclyAddressable(other.isPublic())
                 .name(other.getName())
                 .path(other.getPath())
                 .tiers(other.getTiers())
@@ -66,7 +65,7 @@ public class ServiceConfig {
                 .operatingSystem(other.getOperatingSystem());
     }
 
-    public Boolean isPublic() { return isPublic; }
+    public Boolean isPublic() { return publiclyAddressable; }
 
     public String getName() {
         return name;
@@ -133,7 +132,7 @@ public class ServiceConfig {
     public static final class Builder {
 
         @JsonProperty("public")
-        private Boolean isPublic;
+        private Boolean publiclyAddressable;
         private String name;
         private String path;
         private Integer containerPort;
@@ -146,9 +145,8 @@ public class ServiceConfig {
         private Builder() {
         }
 
-        @JsonSetter("public")
-        public Builder isPublic(Boolean isPublic) {
-            this.isPublic = isPublic;
+        public Builder publiclyAddressable(Boolean publiclyAddressable) {
+            this.publiclyAddressable = publiclyAddressable;
             return this;
         }
 

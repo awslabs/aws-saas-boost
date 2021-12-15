@@ -12,8 +12,8 @@
       "path": "*",
       "healthCheckURL": "/",
       "operatingSystem": "LINUX",
-      "containerPort": 80,
-      "containerRepo": "sb-mc-core-1dpih9lvcvyuf-main-wdtjfgiradvj",
+      "containerPort": 7000,
+      "containerRepo": "sb-multi-core-1w3l9d459bkel-main-zsllekddfczb",
       "containerTag": "latest",
       "tiers": {
         "default": {

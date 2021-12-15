@@ -24,6 +24,10 @@ Parameters:
   HostedZoneId:
     Description: The hosted zone for this domain name
     Type: String
+  SSLCertificateArn:
+    Description: The ACM ARN of the SSL certificate for the application's domain
+    Type: String
+    Default: ''
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -41,6 +45,7 @@ Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
   HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
   HasSubDomainName: !Not [!Equals [!Ref TenantSubDomain, '']]
+  HasCertificate: !Not [!Equals [!Ref SSLCertificateArn, '']]
   CreateSubDomainAlias: !And 
     - !Condition HasDomainName
     - !Condition HasHostedZone
@@ -224,7 +229,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-alb-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-alb-sg']]
       GroupDescription: Access to the load balancer
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -240,7 +245,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-sg']]
       GroupDescription: Access to Containers
       VpcId: !Ref VPC
   ECSSecurityGroupIngress:
@@ -253,7 +258,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Scheme: internet-facing
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
@@ -283,6 +288,51 @@ Resources:
          DNSName: !Sub dualstack.${ApplicationLoadBalancer.DNSName}
          HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
          EvaluateTargetHealth: false
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+  HttpsListener:
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+      Certificates:
+        - CertificateArn: !Ref SSLCertificateArn
+  RedirectToHttpsListener:
+    Condition: HasCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: 443
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: HTTP_301
   # Onboarding service is responsible for invoking create stack for as many
   # services as this application has
 Outputs:

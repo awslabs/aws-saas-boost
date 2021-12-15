@@ -222,19 +222,16 @@ public class OnboardingServiceDAL {
         if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
             throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
         }
-        String cidrBlock = null;
+        String cidrBlock;
         try {
-            // Do both checks at once
             long scanStartTimeMillis = System.currentTimeMillis();
-            boolean cidrBlockAvailable = true;
             List<String> availableCidrBlocks = new ArrayList<>();
             ScanResponse fullScan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
             if (!fullScan.items().isEmpty()) {
                 for (Map<String, AttributeValue> item : fullScan.items()) {
                     // Make sure we're not trying to assign a CIDR block to a tenant that already has one
                     if (item.containsKey("tenant_id") && tenantId.equals(item.get("tenant_id").s())) {
-                        cidrBlockAvailable = false;
-                        break;
+                        throw new RuntimeException("CIDR block already assigned for tenant " + tenantId);
                     }
                     if (!item.containsKey("tenant_id")) {
                         availableCidrBlocks.add(item.get("cidr_block").s());
@@ -242,12 +239,8 @@ public class OnboardingServiceDAL {
                 }
                 // Make sure we have an open CIDR block left to assign
                 if (availableCidrBlocks.isEmpty()) {
-                    cidrBlockAvailable = false;
+                    throw new RuntimeException("No remaining CIDR blocks");
                 }
-            }
-            if (!cidrBlockAvailable) {
-                // We're out of CIDR blocks that we can assign to tenant VPCs
-                throw new RuntimeException("No remaining CIDR blocks");
             }
             long scanTotalTimeMillis = System.currentTimeMillis() - scanStartTimeMillis;
             LOGGER.info("OnboardingServiceDAL::assignCidrBlock scan " + scanTotalTimeMillis);

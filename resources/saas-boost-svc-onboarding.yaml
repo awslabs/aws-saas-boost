@@ -327,20 +327,22 @@ Resources:
                 Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
               - Effect: Allow
                 Action:
+                  - ecs:PutClusterCapacityProviders
+                  - ecs:DescribeCapacityProviders
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
+              - Effect: Allow
+                Action:
                   - ecs:DescribeClusters
-                  - ecs:PutClusterCapacityProviders                  
                 Resource:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
               - Effect: Allow
                 Action:
                   - ecs:CreateService
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                  - ecs:DescribeCapacityProviders
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - codepipeline:CreatePipeline
@@ -348,7 +350,7 @@ Resources:
                   - codepipeline:GetPipelineState
                   - codepipeline:UpdatePipeline
                 Resource:
-                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - route53:GetHostedZone
@@ -655,31 +657,29 @@ Resources:
                 Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
               - Effect: Allow
                 Action:
-                  - ecs:DescribeClusters
+                  - ecs:DescribeCapacityProviders
+                  - ecs:DeleteCapacityProvider
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - ecs:DescribeClusters
-                  - ecs:PutClusterCapacityProviders                  
+                  - ecs:DeleteCluster
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*                  
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*                  
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:DeleteService
-                  - ecs:DeleteCapacityProvider
-                  - ecs:DescribeCapacityProviders
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/tenant*                  
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - codepipeline:GetPipeline
                   - codepipeline:GetPipelineState
                   - codepipeline:DeletePipeline
                 Resource:
-                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - route53:GetHostedZone
@@ -948,6 +948,8 @@ Resources:
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          ONBOARDING_SNS:
+            Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/ONBOARDING_SNS}}']]
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

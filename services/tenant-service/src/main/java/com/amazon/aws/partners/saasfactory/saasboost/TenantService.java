@@ -306,27 +306,12 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         // Were we called from Step Functions or API Gateway?
         if (event.containsKey("body")) {
             tenant = Utils.fromJson((String) event.get("body"), Tenant.class);
-            if (null == tenant) {
-                throw new RuntimeException("Body is not a valid tenant json");
-            }
-        } else if (event.containsKey("tenant")) {
-            // It's already been deserialized to a Map by Lambda so we'd have
-            // to serialize to a string and then back out to a Tenant object
-            // if we wanted to use Jackson...
-            Map<String, Object> input = (Map<String, Object>) event.get("tenant");
-            tenant = new Tenant();
-            tenant.setName((String) input.get("name"));
-            tenant.setActive((Boolean) input.get("active"));
-            tenant.setTier((String) input.get("tier"));
-            tenant.setOnboardingStatus((String) input.get("onboardingStatus"));
-            tenant.setSubdomain((String) input.get("subdomain"));
-            tenant.setPlanId((String) input.get("planId"));
         }
-
         if (tenant == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
-                    .withHeaders(CORS);
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Invalid request body\"}");
         } else {
             // Create a new Tenant record in the database
             tenant = dal.insertTenant(tenant);

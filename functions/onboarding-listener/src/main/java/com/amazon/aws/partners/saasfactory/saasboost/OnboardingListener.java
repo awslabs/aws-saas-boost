@@ -207,8 +207,26 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
                                         tenantResources.put(awsResource.name(), Map.of(
                                                 "name", physicalResourceId.substring(physicalResourceId.indexOf(":loadbalancer/") + 14),
                                                 "arn", physicalResourceId,
-                                                "consoleUrl", AwsResource.LOAD_BALANCER.formatUrl(AWS_REGION, "tenant-" + tenantId.split("-")[0]))
+                                                "consoleUrl", AwsResource.LOAD_BALANCER.formatUrl(AWS_REGION, "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantId.split("-")[0]))
                                         );
+                                    } else if ("AWS::ElasticLoadBalancingV2::Listener".equals(resourceType)) {
+                                        if ("HttpListener".equals(logicalId)) {
+                                            LOGGER.info("Saving HTTP listener {} {}", logicalId, physicalResourceId);
+                                            tenantResources.put(AwsResource.HTTP_LISTENER.name(), Map.of(
+                                                    "name", physicalResourceId,
+                                                    "arn", physicalResourceId,
+                                                    // Same URL as the load balancer
+                                                    "consoleUrl", AwsResource.LOAD_BALANCER.formatUrl(AWS_REGION, "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantId.split("-")[0]))
+                                            );
+                                        } else if ("HttpsListener".equals(logicalId)) {
+                                            LOGGER.info("Saving HTTPS listener {} {}", logicalId, physicalResourceId);
+                                            tenantResources.put(AwsResource.HTTPS_LISTENER.name(), Map.of(
+                                                    "name", physicalResourceId,
+                                                    "arn", physicalResourceId,
+                                                    // Same URL as the load balancer
+                                                    "consoleUrl", AwsResource.LOAD_BALANCER.formatUrl(AWS_REGION, "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantId.split("-")[0]))
+                                            );
+                                        }
                                     } else if ("AWS::Logs::LogGroup".equals(resourceType)) {
                                         //need to replace / with $252F for the url path
                                         //physicalResourceId = physicalResourceId.replaceAll("/", Matcher.quoteReplacement("$252F"));
@@ -461,6 +479,12 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
         LOAD_BALANCER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
                 "",
                 "AWS::ElasticLoadBalancingV2::LoadBalancer", true),
+        HTTP_LISTENER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
+                "",
+                "AWS::ElasticLoadBalancingV2::Listener", true),
+        HTTPS_LISTENER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
+                "",
+                "AWS::ElasticLoadBalancingV2::Listener", true),
         CLOUDFORMATION("https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
                 "",
                 "AWS::CloudFormation::Stack", true),

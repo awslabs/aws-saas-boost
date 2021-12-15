@@ -69,6 +69,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
+    private static final String ONBOARDING_SNS = System.getenv("ONBOARDING_SNS");
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
     private final EcrClient ecr;
@@ -353,6 +354,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                         .withHeaders(CORS)
                         .withBody("{\"message\": \"Tenant insert API call failed.\"}");
             }
+            // Update the onboarding record with the new tenant id
+            onboarding.setTenantId(UUID.fromString((String) insertedTenant.get("id")));
+            onboarding = dal.updateOnboarding(onboarding);
 
             // Invoke the provisioning API async
             Map<String, Object> provision = new HashMap<>();
@@ -372,20 +376,6 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                         .withHeaders(CORS)
                         .withBody("{\"message\": \"Tenant provision API call failed.\"}");
             }
-//            ApiGatewayHelper.executeApiRequest(ApiGatewayHelper.getApiRequest(
-//                    ((Map<String, String>) event.get("headers")).get("Host"),
-//                    API_GATEWAY_STAGE,
-//                    ApiRequest.builder()
-//                            .resource("onboarding/provision")
-//                            .method("POST")
-//                            .headers(Collections.singletonMap(
-//                                    "Authorization",
-//                                    ((Map<String, String>) event.get("headers")).get("Authorization"))
-//                            )
-//                            .body(Utils.toJson(provisionRequest))
-//                            .build()
-//                    )
-//            );
         } catch (Exception e) {
             LOGGER.error("Error invoking API tenants");
             dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
@@ -448,6 +438,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         if (Utils.isBlank(SAAS_BOOST_ENV)) {
             throw new IllegalStateException("Missing required environment variable SAAS_BOOST_ENV");
         }
+        if (Utils.isBlank(SAAS_BOOST_BUCKET)) {
+            throw new IllegalArgumentException("Missing required environment variable SAAS_BOOST_BUCKET");
+        }
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
         }
@@ -456,6 +449,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
+        if (Utils.isBlank(ONBOARDING_SNS)) {
+            throw new IllegalArgumentException("Missing required environment variable ONBOARDING_SNS");
         }
 
         Utils.logRequestEvent(event);
@@ -481,20 +477,13 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .withBody("{\"message\": \"Invalid request body.\"}");
         }
 
-        // Get the settings needed for the tenant-onboarding template parameters
-        Map<String, String> settings;
-        try {
-            settings = getOnboardingTemplateSettings(context);
-        } catch (Exception e) {
+        Map<String, Object> appConfig = getAppConfig(context);
+        if (null == appConfig) {
             dal.updateStatus(onboardingId, OnboardingStatus.failed);
-            throw e;
-        }
-
-        // We can't continue if any of the SaaS Boost settings are blank
-        if (settings == null || settings.isEmpty()) {
-            LOGGER.error("One or more required SaaS Boost parameters is missing.");
-            dal.updateStatus(onboardingId, OnboardingStatus.failed);
-            throw new RuntimeException("SaaS Boost parameters are missing.");
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(400)
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Settings get app config API call failed.\"}");
         }
 
         // And parameters specific to this tenant
@@ -507,19 +496,22 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             throw e;
         }
 
-        String tenantSubdomain = (String) tenant.get("subdomain");
-        if (tenantSubdomain == null) {
-            tenantSubdomain = "";
-        }
+        String tenantSubdomain = Objects.toString(tenant.get("subdomain"), "");
+        String tier = Objects.toString(tenant.get("tier"), "default");
+
+        String domainName = Objects.toString(appConfig.get("domainName"), "");
+        String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
+        String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
 
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
-        templateParameters.add(Parameter.builder().parameterKey("DomainName").parameterValue(settings.get("DOMAIN_NAME")).build());
-        templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").parameterValue(settings.get("HOSTED_ZONE")).build());
+        templateParameters.add(Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build());
+        templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").parameterValue(hostedZone).build());
+        templateParameters.add(Parameter.builder().parameterKey("SSLCertificateArn").parameterValue(sslCertificateArn).build());
         templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("TenantSubDomain").parameterValue(tenantSubdomain).build());
         templateParameters.add(Parameter.builder().parameterKey("CidrPrefix").parameterValue(cidrPrefix).build());
-        templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue("").build());
+        templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue(tier).build());
 
         for (Parameter p : templateParameters) {
             if (p.parameterValue() == null) {
@@ -543,8 +535,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .stackName(stackName)
                     .disableRollback(true) // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .notificationARNs(settings.get("ONBOARDING_SNS"))
-                    .templateURL("https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/tenant-onboarding.yaml")
+                    .notificationARNs(ONBOARDING_SNS)
+                    .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding.yaml")
                     .parameters(templateParameters)
                     .build()
             );
@@ -641,27 +633,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .withBody("{\"message\": \"Can't fetch tenant " + tenantId + ".\"}");
         }
 
-        // Fetch all of the services configured for this application
-//        LOGGER.info("Calling settings service get config API");
-//        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-//                ApiGatewayHelper.getApiRequest(
-//                        API_GATEWAY_HOST,
-//                        API_GATEWAY_STAGE,
-//                        ApiRequest.builder()
-//                                .resource("settings/config")
-//                                .method("GET")
-//                                .build()
-//                ),
-//                API_TRUST_ROLE,
-//                context.getAwsRequestId()
-//        );
-//        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
-        Map<String, Object> appConfig = null;
-        try (InputStream json = getClass().getClassLoader().getResourceAsStream("appConfig.json")) {
-            appConfig = Utils.fromJson(json, LinkedHashMap.class);
-        } catch (IOException ioe) {
-            LOGGER.error("Error creating input stream from class resource appConfig.json", ioe);
-        }
+        Map<String, Object> appConfig = getAppConfig(context);
         if (null == appConfig) {
             dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
             return new APIGatewayProxyResponseEvent()
@@ -672,13 +644,14 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         String applicationName = (String) appConfig.get("name");
         String serviceDiscoveryService = applicationName.replaceAll("\\s+", "-").toLowerCase();
-        String sslCertificateArn = (String) appConfig.get("sslCertificate");
 
         String vpc;
         String privateSubnetA;
         String privateSubnetB;
         String ecsSecurityGroup;
         String loadBalancerArn;
+        String httpListenerArn;
+        String httpsListenerArn = ""; // might not have an HTTPS listener if they don't have an SSL certificate
         String ecsCluster;
         String fsxDns;
         Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
@@ -689,8 +662,13 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
             ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
             loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
+            httpListenerArn = tenantResources.get("HTTP_LISTENER").get("arn");
+            if (tenantResources.containsKey("HTTPS_LISTENER")) {
+                httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
+            }
             if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
-                    || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)) {
+                    || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)
+                    || Utils.isBlank(httpListenerArn)) { // OK if HTTPS listener is blank
                 throw new IllegalArgumentException("Missing required tenant environment resources");
             }
         } catch (Exception e) {
@@ -715,7 +693,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         List<String> applicationServiceStacks = new ArrayList<>();
 
-        Map<String, Object> services = (Map<String, Object>) ((Map<String, Object>) appConfig.get("application")).get("services");
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
         for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
             String serviceName = serviceConfig.getKey();
             String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
@@ -824,14 +802,16 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
             templateParameters.add(Parameter.builder().parameterKey("ServiceResourceName").parameterValue(serviceResourceName).build());
             templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
+            templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
             templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
             templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
-            templateParameters.add(Parameter.builder().parameterKey("SSLCertificateArn").parameterValue(sslCertificateArn).build());
             templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
             templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
             templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
             templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancer").parameterValue(loadBalancerArn).build());
+            templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpListener").parameterValue(httpListenerArn).build());
+            templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpsListener").parameterValue(httpsListenerArn).build());
             templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
             templateParameters.add(Parameter.builder().parameterKey("ContainerOS").parameterValue(clusterOS).build());
             templateParameters.add(Parameter.builder().parameterKey("ClusterInstanceType").parameterValue(clusterInstanceType).build());
@@ -880,7 +860,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             if (stackName.length() > 128) {
                 stackName = stackName.substring(0, 128);
             }
-            // Now run the onboarding stack to provision the infrastructure for this tenant
+            // Now run the onboarding stack to provision the infrastructure for this application service
             LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
 
             String stackId;
@@ -1515,6 +1495,31 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
             throw eventBridgeError;
         }
+    }
+
+    protected Map<String, Object> getAppConfig(Context context) {
+        // Fetch all of the services configured for this application
+        LOGGER.info("Calling settings service get config API");
+        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings/config")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+        // For testing until we've integrated
+        try (InputStream json = getClass().getClassLoader().getResourceAsStream("appConfigSingle.json")) {
+            appConfig = Utils.fromJson(json, LinkedHashMap.class);
+        } catch (IOException ioe) {
+            LOGGER.error("Error creating input stream from class resource appConfig.json", ioe);
+        }
+        return appConfig;
     }
 
     protected Map<String, String> getOnboardingTemplateSettings(Context context) {

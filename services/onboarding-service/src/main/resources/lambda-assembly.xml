@@ -30,6 +30,7 @@ limitations under the License.
                 <include>log4j2.xml</include>
                 <include>git.properties</include>
                 <include>appConfig.json</include>
+                <include>appConfigSingle.json</include>
             </includes>
         </fileSet>
     </fileSets>

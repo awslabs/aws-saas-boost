@@ -30,22 +30,22 @@ Parameters:
   ContainerRepository:
     Description: The name of the ECR repository hosting the container image
     Type: String
+  ContainerRepositoryTag:
+    Description: The container image tag in the ECR repository
+    Type: String
+    Default: latest 
   ECSCluster:
     Description: This tenant's container cluster
     Type: String
   PubliclyAddressable:
     Description: Is this service publicly accessible from the Internet?
     Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
+    AllowedValues: [true, false]
+    Default: false
   PublicPathRoute:
     Description: If this service is public, what path part routes to it?
     Type: String
     Default: '*'
-  SSLCertificateArn:
-    Description: The ACM ARN of the SSL certificate for the application's domain
-    Type: String
-    Default: ''
   VPC:
     Description: This tenant's VPC
     Type: String
@@ -57,6 +57,12 @@ Parameters:
     Type: String
   ECSLoadBalancer:
     Description: The ARN of the ALB fronting the public services for this application
+    Type: String
+  ECSLoadBalancerHttpListener:
+    Description: The ARN of the ALB listener for HTTP traffic
+    Type: String
+  ECSLoadBalancerHttpsListener:
+    Description: The ARN of the ALB listener for HTTPS traffic
     Type: String
   ECSSecurityGroup:
     Description: Source security group to grant access to the container cluster
@@ -91,24 +97,22 @@ Parameters:
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
-    Default: 80
   ContainerHealthCheckPath:
     Description: The destination on the Container for the Load Balancer to use for health checks
     Type: String
-    Default: '/'
   UseEFS:
     Description: Deploy the EFS nested stack?
     Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
+    AllowedValues: [true, false]
+    Default: false
   MountPoint:
     Description: Container mount point for EFS file system
     Type: String
   EncryptEFS:
     Description: Turn on EFS encryption at rest?
     Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
+    AllowedValues: [true, false]
+    Default: false
   EFSLifecyclePolicy:
     Description: Enable EFS IA lifecycle?
     Type: String
@@ -123,8 +127,8 @@ Parameters:
   UseRDS:
     Description: Deploy the RDS nested stack?
     Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
+    AllowedValues: [true, false]
+    Default: false
   RDSInstanceClass:
     Description: The compute and memory capacity of the DB instance
     Type: String
@@ -205,10 +209,11 @@ Parameters:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'
 Conditions:
-  NoCertificate: !Equals [!Ref SSLCertificateArn, '']
-  HasCertificate: !Not
-    - Condition: NoCertificate
   IsPublic: !Equals [!Ref PubliclyAddressable, 'true']
+  HasHttpsListener: !Not [!Equals [!Ref ECSLoadBalancerHttpsListener, '']]
+  IsPublicHttps: !And
+    - Condition: HasHttpsListener
+    - Condition: IsPublic
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
   WindowsOS: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
@@ -267,7 +272,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -280,7 +285,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-exec-', !Ref ServiceResourceName]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -330,7 +335,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -343,7 +348,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-task-', !Ref ServiceResourceName]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -376,7 +381,7 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       TaskRoleArn: !GetAtt ECSTaskRole.Arn
       RequiresCompatibilities:
@@ -392,8 +397,8 @@ Resources:
           Value: !Ref TenantId
       ContainerDefinitions:
         - Name:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:latest
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:${ContainerRepositoryTag}
           Cpu: !If [WindowsOS, !Ref TaskCPU, !Ref 'AWS::NoValue']
           Memory: !If [WindowsOS, !Ref TaskMemory, !Ref 'AWS::NoValue']
           PortMappings:
@@ -472,7 +477,7 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       RoleArn: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_ROLE}}'
       ArtifactStore:
         Location: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_BUCKET}}'
@@ -514,10 +519,8 @@ Resources:
                 Version: '1'
               RunOrder: 2
               Configuration:
-                ClusterName:
-                  Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
-                ServiceName:
-                  Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                ClusterName: !Ref ECSCluster
+                ServiceName: !Ref ECSService
                 FileName: imagedefinitions.json
               InputArtifacts:
                 - Name: imgdef
@@ -811,7 +814,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       HealthCheckProtocol: HTTP
       HealthCheckPath: !Ref ContainerHealthCheckPath
       HealthCheckIntervalSeconds: 30
@@ -829,47 +832,8 @@ Resources:
           Value: lb_cookie
         - Key: stickiness.lb_cookie.duration_seconds
           Value: '86400'
-  ALBListenerSSL:
-    Condition: HasCertificate
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ECSLoadBalancer
-      DefaultActions:
-        - TargetGroupArn: !Ref ALBTargetGroup
-          Type: forward
-      Port: 443
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref SSLCertificateArn
-  ALBListenerForwardSSL:
-    Condition: HasCertificate
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: "redirect"
-          RedirectConfig:
-            Protocol: "HTTPS"
-            Port: '443'
-            Host: "#{host}"
-            Path: "/#{path}"
-            Query: "#{query}"
-            StatusCode: "HTTP_301"
-      Port: 80
-      Protocol: HTTP
-      LoadBalancerArn: !Ref ECSLoadBalancer
-  ALBListener:
-    Condition: NoCertificate
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ECSLoadBalancer
-      DefaultActions:
-        - TargetGroupArn: !Ref ALBTargetGroup
-          Type: forward
-      Port: 80
-      Protocol: HTTP
-  # This rule necessary for disable tenant functionalty
   ALBRule:
-    Condition: NoCertificate
+    Condition: IsPublic
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
@@ -877,12 +841,12 @@ Resources:
           Type: forward
       Conditions:
         - Field: path-pattern
-          Values: ['*']
-      ListenerArn: !Ref ALBListener
+          Values:
+            - !Ref PublicPathRoute
+      ListenerArn: !Ref ECSLoadBalancerHttpListener
       Priority: 1
-  # This rule necessary for disable tenant functionalty
   ALBSSLRule:
-    Condition: HasCertificate
+    Condition: IsPublicHttps
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
@@ -890,32 +854,17 @@ Resources:
           Type: forward
       Conditions:
         - Field: path-pattern
-          Values: ['*']
-      ListenerArn: !Ref ALBListenerSSL
+          Values:
+            - !Ref PublicPathRoute
+      ListenerArn: !Ref ECSLoadBalancerHttpsListener
       Priority: 1
-  ListenerSSLWaitHandle:
-    Type: AWS::CloudFormation::WaitConditionHandle
-    Condition: HasCertificate
-    DependsOn: ALBListenerForwardSSL
-  ListenerWaitHandle:
-    Type: AWS::CloudFormation::WaitConditionHandle
-    Condition: NoCertificate
-    DependsOn: ALBListener
-  ListenerWaitCondition:
-    Type: AWS::CloudFormation::WaitCondition
-    Properties:
-      Handle: !If [HasCertificate, !Ref ListenerSSLWaitHandle, !Ref ListenerWaitHandle]
-      Timeout: '1'
-      Count: 0    
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
-      - ListenerWaitCondition
       - ClusterCapacityAssociationWaitCondition
     Properties:
       EnableExecuteCommand: !If [WindowsOS, false, true]
-      ServiceName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      ServiceName: !Ref ServiceResourceName
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition
       LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
@@ -935,7 +884,7 @@ Resources:
       # Role: The SaaS Boost installer makes sure the ECS service linked role is available
       LoadBalancers:
         - ContainerName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], !Ref ServiceResourceName]]
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref ALBTargetGroup
       CapacityProviderStrategy:
@@ -947,8 +896,6 @@ Resources:
           - !Ref 'AWS::NoValue'
   ECSServiceAutoScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
-    DependsOn:
-      - ECSService
     Properties:
       ResourceId: !Sub service/${ECSCluster}/${ECSService.Name}
       RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
