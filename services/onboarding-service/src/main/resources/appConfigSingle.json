@@ -3,7 +3,6 @@
   "domainName": "",
   "hostedZone": "",
   "sslCertificate": "",
-  "billing": null,
   "services": {
     "main": {
       "name": "main",
@@ -27,5 +26,6 @@
         }
       }
     }
-  }
+  },
+  "billing": null
 }

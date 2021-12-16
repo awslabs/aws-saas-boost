@@ -501,7 +501,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         String domainName = Objects.toString(appConfig.get("domainName"), "");
         String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
-        String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
+        String sslCertificateArn = Objects.toString(appConfig.get("sslCertArn"), "");
 
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
@@ -726,8 +726,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String clusterInstanceType = (String) tierConfig.get("instanceType");
             Integer taskMemory = (Integer) tierConfig.get("memory");
             Integer taskCpu = (Integer) tierConfig.get("cpu");
-            Integer minCount = (Integer) tierConfig.get("minCount");
-            Integer maxCount = (Integer) tierConfig.get("maxCount");
+            Integer minCount = (Integer) tierConfig.get("min");
+            Integer maxCount = (Integer) tierConfig.get("max");
 
             // Does this service use a shared filesystem?
             Boolean enableEfs = Boolean.FALSE;
@@ -1499,7 +1499,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
     protected Map<String, Object> getAppConfig(Context context) {
         // Fetch all of the services configured for this application
-        LOGGER.info("Calling settings service get config API");
+        LOGGER.info("Calling settings service get app config API");
         String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                 ApiGatewayHelper.getApiRequest(
                         API_GATEWAY_HOST,
@@ -1513,51 +1513,12 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 context.getAwsRequestId()
         );
         Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
-        // For testing until we've integrated
-        try (InputStream json = getClass().getClassLoader().getResourceAsStream("appConfigSingle.json")) {
-            appConfig = Utils.fromJson(json, LinkedHashMap.class);
-        } catch (IOException ioe) {
-            LOGGER.error("Error creating input stream from class resource appConfig.json", ioe);
-        }
+//        // For testing until we've integrated
+//        try (InputStream json = getClass().getClassLoader().getResourceAsStream("appConfigSingle.json")) {
+//            appConfig = Utils.fromJson(json, LinkedHashMap.class);
+//        } catch (IOException ioe) {
+//            LOGGER.error("Error creating input stream from class resource appConfig.json", ioe);
+//        }
         return appConfig;
-    }
-
-    protected Map<String, String> getOnboardingTemplateSettings(Context context) {
-        List<String> tenantOnboardingTemplateSettings = Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE",
-                "SSL_CERT", "ONBOARDING_SNS", "SAAS_BOOST_BUCKET");
-        StringBuilder resource = new StringBuilder("settings?");
-        for (Iterator<String> iter = tenantOnboardingTemplateSettings.iterator(); iter.hasNext(); ) {
-            resource.append("setting=");
-            resource.append(iter.next());
-            if (iter.hasNext()) {
-                resource.append("&");
-            }
-        }
-        Map<String, String> settings;
-        try {
-            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                    ApiGatewayHelper.getApiRequest(
-                            API_GATEWAY_HOST,
-                            API_GATEWAY_STAGE,
-                            ApiRequest.builder()
-                                    .resource(resource.toString())
-                                    .method("GET")
-                                    .build()
-                    ),
-                    API_TRUST_ROLE,
-                    context.getAwsRequestId()
-            );
-            ArrayList<Map<String, String>> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
-            settings = getSettingsResponse
-                    .stream()
-                    .collect(Collectors.toMap(
-                            setting -> setting.get("name"), setting -> setting.get("value")
-                    ));
-        } catch (Exception e) {
-            LOGGER.error("Error invoking API settings");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return settings;
     }
 }

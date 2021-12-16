@@ -230,7 +230,7 @@ Resources:
     Properties:
       GroupName:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-alb-sg']]
-      GroupDescription: Access to the load balancer
+      GroupDescription: HTTP/S access to the load balancer
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
@@ -246,13 +246,21 @@ Resources:
     Properties:
       GroupName:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-sg']]
-      GroupDescription: Access to Containers
+      GroupDescription: Access to containers
       VpcId: !Ref VPC
-  ECSSecurityGroupIngress:
+  ECSSecurityGroupAlbIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
+      Description: Allow traffic from the ALB security group
       GroupId: !Ref ECSSecurityGroup
       SourceSecurityGroupId: !Ref ALBSecurityGroup
+      IpProtocol: '-1'
+  ECSSecurityGroupEcsIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow traffic from other resources in the ECS security group
+      GroupId: !Ref ECSSecurityGroup
+      SourceSecurityGroupId: !Ref ECSSecurityGroup
       IpProtocol: '-1'
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer

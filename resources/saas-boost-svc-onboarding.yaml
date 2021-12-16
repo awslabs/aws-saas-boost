@@ -364,6 +364,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - route53:CreateHostedZone
+                  - servicediscovery:CreatePrivateDnsNamespace
                   - elasticfilesystem:CreateFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems

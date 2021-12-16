@@ -210,6 +210,7 @@ Parameters:
     Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'
 Conditions:
   IsPublic: !Equals [!Ref PubliclyAddressable, 'true']
+  IsPrivate: !Not [Condition: IsPublic]
   HasHttpsListener: !Not [!Equals [!Ref ECSLoadBalancerHttpsListener, '']]
   IsPublicHttps: !And
     - Condition: HasHttpsListener
@@ -812,9 +813,8 @@ Resources:
             <persist>true</persist>
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: IsPublic
     Properties:
-      Name:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       HealthCheckProtocol: HTTP
       HealthCheckPath: !Ref ContainerHealthCheckPath
       HealthCheckIntervalSeconds: 30
@@ -832,6 +832,14 @@ Resources:
           Value: lb_cookie
         - Key: stickiness.lb_cookie.duration_seconds
           Value: '86400'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Name
+          Value:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+        - Key: Tenant
+          Value: !Ref TenantId
   ALBRule:
     Condition: IsPublic
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -858,6 +866,27 @@ Resources:
             - !Ref PublicPathRoute
       ListenerArn: !Ref ECSLoadBalancerHttpsListener
       Priority: 1
+  ServiceDiscoveryNamespace:
+      Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+      Condition: IsPrivate
+      Properties:
+          Name: local
+          Vpc: !Ref VPC
+  ServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Condition: IsPrivate
+    Properties:
+      Name: !Ref ServiceResourceName
+      DnsConfig:
+        RoutingPolicy: MULTIVALUE
+        DnsRecords:
+          - Type: A
+            TTL: 60
+          - Type: SRV
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      NamespaceId: !Ref ServiceDiscoveryNamespace
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -883,16 +912,27 @@ Resources:
                 - !Ref SubnetPrivateB
       # Role: The SaaS Boost installer makes sure the ECS service linked role is available
       LoadBalancers:
-        - ContainerName:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], !Ref ServiceResourceName]]
-          ContainerPort: !Ref ContainerPort
-          TargetGroupArn: !Ref ALBTargetGroup
+        !If
+          - IsPublic
+          - - ContainerName:
+                Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+              ContainerPort: !Ref ContainerPort
+              TargetGroupArn: !Ref ALBTargetGroup
+          - !Ref 'AWS::NoValue'
       CapacityProviderStrategy:
         !If
           - WindowsOS      
           - - CapacityProvider: !Ref CapacityProvider
               Base: 1
               Weight: 1          
+          - !Ref 'AWS::NoValue'
+      ServiceRegistries:
+        !If
+          - IsPrivate
+          - - RegistryArn: !GetAtt ServiceDiscovery.Arn
+              ContainerName:
+                Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+              ContainerPort: !Ref ContainerPort
           - !Ref 'AWS::NoValue'
   ECSServiceAutoScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
