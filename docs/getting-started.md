@@ -68,13 +68,10 @@ To initiate this process, perform the following steps:
 4. Enter the full path to your AWS SaaS Boost directory: /\<mydir\>/aws-saas-boost.
 5. Enter the name of the SaaS Boost environment (dev, QA, test, sandbox, etc.).
 6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password.
-7. Indicate whether you want a domain to be setup for AWS SaaS Boost (Y/N).
-      - If you enter **Y**, you are prompted for a domain name. For example, if your main domain is **example.com**, you can enter **app.example.com** to have that sub-domain setup by the installer. After the installation completes, you need to update the DNS for example.com to add an entry for app.example.com pointing to the nameservers for the Route53 hosted zone created for app.example.com.
-      - This step can also be done after the install process.
-8. Indicate whether you would like the metrics and analytics features of AWS SaaS Boost to be installed (Y/N). This is **optional** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
+7. Indicate whether you would like the metrics and analytics features of AWS SaaS Boost to be installed (Y/N). This is **optional** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
       - If you enter **Y**, you are prompted for [QuickSight](https://aws.amazon.com/quicksight/) setup. To select Y for Quicksight setup, _you must have already registered_ for at least a Standard account of Quicksight in your AWS Account by following the steps at [https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
-9. If your application is Windows based and needs a shared file system, a [Managed Active Directory](https://aws.amazon.com/directoryservice/) must be deployed to support [Amazon FSx for Windows File Server](https://aws.amazon.com/fsx/windows/). Select y or n as needed.
-10. Review the settings for your installation. Enter **y** to proceed or **n** to re-enter or adjust the values.
+8. If your application is Windows based and needs a shared file system, a [Managed Active Directory](https://aws.amazon.com/directoryservice/) must be deployed to support [Amazon FSx for Windows File Server](https://aws.amazon.com/fsx/windows/). Select y or n as needed.
+9. Review the settings for your installation. Enter **y** to proceed or **n** to re-enter or adjust the values.
 
 The execution of this process will take 30-45 minutes to provision and configure all the resources (this will vary based on the options you've selected). Detailed logs from the installation process are stored in **saas-boost-install.log**. 
 
