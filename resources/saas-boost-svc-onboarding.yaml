@@ -345,6 +345,16 @@ Resources:
                   - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
+                  - servicediscovery:CreateService
+                Resource:
+                  - !Sub arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:namespace/*
+              - Effect: Allow
+                Action:
+                  - servicediscovery:GetService
+                Resource:
+                  - !Sub arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:service/*
+              - Effect: Allow
+                Action:
                   - codepipeline:CreatePipeline
                   - codepipeline:GetPipeline
                   - codepipeline:GetPipelineState
@@ -365,6 +375,7 @@ Resources:
                 Action:
                   - route53:CreateHostedZone
                   - servicediscovery:CreatePrivateDnsNamespace
+                  - servicediscovery:GetOperation
                   - elasticfilesystem:CreateFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems
