@@ -34,10 +34,10 @@
         <!-- TODO upgrade to surefire 3 on release? -->
         <surefire.version>2.22.2</surefire.version>
         <!-- dependency versions -->
+        <!-- aws-lambda-java-log4j2 and log4j versions should be upgraded in tandem -->
         <aws-lambda-java-log4j2.version>1.5.0</aws-lambda-java-log4j2.version>
-        <slf4j-api.version>1.7.21</slf4j-api.version>
-        <slf4j-log4j12.version>1.7.21</slf4j-log4j12.version>
         <aws.java.sdk.version>2.17.70</aws.java.sdk.version>
+        <log4j.version>2.17.0</log4j.version>
         <junit.version>4.13.2</junit.version>
     </properties>
     <dependencyManagement>
@@ -55,6 +55,25 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+    <dependencies>
+        <!-- predefine all log4j versions for centralized logging management -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <!-- log4j-slf4j-impl brings in its own version of the slf4j-api -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+    </dependencies>
     <build>
         <defaultGoal>clean package</defaultGoal>
         <!-- this defines default plugin configuration when referenced by all inheriting modules -->
