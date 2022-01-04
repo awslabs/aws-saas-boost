@@ -35,9 +35,9 @@
         <surefire.version>2.22.2</surefire.version>
         <!-- dependency versions -->
         <!-- aws-lambda-java-log4j2 and log4j versions should be upgraded in tandem -->
-        <aws-lambda-java-log4j2.version>1.5.0</aws-lambda-java-log4j2.version>
+        <aws-lambda-java-log4j2.version>1.5.1</aws-lambda-java-log4j2.version>
         <aws.java.sdk.version>2.17.70</aws.java.sdk.version>
-        <log4j.version>2.17.0</log4j.version>
+        <log4j.version>2.17.1</log4j.version>
         <junit.version>4.13.2</junit.version>
     </properties>
     <dependencyManagement>
