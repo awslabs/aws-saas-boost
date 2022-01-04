@@ -52,21 +52,20 @@
                 <groupId>com.amazonaws</groupId>
                 <artifactId>aws-lambda-java-log4j2</artifactId>
                 <version>${aws-lambda-java-log4j2.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.apache.logging.log4j</groupId>
+                        <artifactId>log4j-core</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.logging.log4j</groupId>
+                        <artifactId>log4j-api</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
         </dependencies>
     </dependencyManagement>
     <dependencies>
-        <!-- predefine all log4j versions for centralized logging management -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
         <!-- log4j-slf4j-impl brings in its own version of the slf4j-api -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
