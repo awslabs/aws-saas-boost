@@ -10,7 +10,7 @@
         "name": "main",
         "description": "Main Service",
         "public": true,
-        "path": "*",
+        "path": "/*",
         "healthCheckURL": "/",
         "operatingSystem": "LINUX",
         "containerPort": 80,
@@ -111,10 +111,10 @@
         }
       },
       "feature": {
-        "name": "internal",
+        "name": "feature",
         "description": "Feature Service",
         "public": true,
-        "path": "/feature",
+        "path": "/feature*",
         "healthCheckURL": "/",
         "operatingSystem": "LINUX",
         "containerPort": 80,

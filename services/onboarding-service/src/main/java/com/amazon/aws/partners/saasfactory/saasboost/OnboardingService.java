@@ -643,8 +643,6 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
 
         String applicationName = (String) appConfig.get("name");
-        String serviceDiscoveryService = applicationName.replaceAll("\\s+", "-").toLowerCase();
-
         String vpc;
         String privateSubnetA;
         String privateSubnetB;
@@ -693,13 +691,20 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         List<String> applicationServiceStacks = new ArrayList<>();
 
+        Map<String, Integer> pathPriority = getPathPriority(appConfig);
+
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
         for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
             String serviceName = serviceConfig.getKey();
+            // CloudFormation resource names can only contain alpha numeric characters or a dash
             String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
+            // If there are any private services, we will create an environment variables called
+            // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT
+            // to pass to the task definitions
             Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
             Boolean isPublic = (Boolean) service.get("public");
             String pathPart = (isPublic) ? (String) service.get("path") : "";
+            Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
             String healthCheck = (String) service.get("healthCheckURL");
 
             // CloudFormation won't let you use dashes or underscores in Mapping second level key names
@@ -806,6 +811,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
             templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
+            templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
             templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
             templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
@@ -1520,5 +1526,36 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 //            LOGGER.error("Error creating input stream from class resource appConfig.json", ioe);
 //        }
         return appConfig;
+    }
+
+    protected Map<String, Integer> getPathPriority(Map<String, Object> appConfig) {
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        Map<String, Integer> pathLength = new HashMap<>();
+
+        // Collect the string length of the path for each public service
+        for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+            String serviceName = serviceConfig.getKey();
+            Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+            Boolean isPublic = (Boolean) service.get("public");
+            if (isPublic) {
+                String pathPart = Objects.toString(service.get("path"), "");
+                pathLength.put(serviceName, pathPart.length());
+            }
+        }
+        // Order the services by longest (most specific) to shortest (least specific) path length
+        LinkedHashMap<String, Integer> pathPriority = pathLength.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey, Map.Entry::getValue, (value1, value2) -> value1, LinkedHashMap::new
+                ));
+        // Set the ALB listener rule priority so that they most specific paths (the longest ones) have
+        // a higher priority than the less specific paths so the rules are evaluated in the proper order
+        // i.e. a path of /feature* needs to be evaluate before a catch all path of /* or you'll never
+        // route to the /feature* rule because /* will have already matched
+        int priority = 0;
+        for (String publicService : pathPriority.keySet()) {
+            pathPriority.put(publicService, ++priority);
+        }
+        return pathPriority;
     }
 }

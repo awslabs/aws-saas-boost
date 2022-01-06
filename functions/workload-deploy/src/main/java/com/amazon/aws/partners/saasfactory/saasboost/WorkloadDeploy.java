@@ -46,10 +46,10 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
-    private S3Client s3;
-    private CodePipelineClient codepipeline;
-    private EcrClient ecr;
-    private String codePipelineBucket;
+    private final S3Client s3;
+    private final CodePipelineClient codepipeline;
+    private final EcrClient ecr;
+    private final String codePipelineBucket;
 
     public WorkloadDeploy() {
         final long startTimeMillis = System.currentTimeMillis();
@@ -74,7 +74,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         this.ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME);
 
         // Get the CodePipeline artifact bucket
-        Map<String, String> settings = null;
+        Map<String, String> settings;
         ApiRequest getSettingsRequest = ApiRequest.builder()
                 .resource("settings?setting=CODE_PIPELINE_BUCKET")
                 .method("GET")
@@ -244,7 +244,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     }
 
     private byte[] zip(String imagedefinitions) {
-        byte[] archive = null;
+        byte[] archive;
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             ZipOutputStream zip = new ZipOutputStream(stream);

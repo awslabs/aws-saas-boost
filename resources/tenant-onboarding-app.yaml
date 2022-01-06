@@ -46,6 +46,10 @@ Parameters:
     Description: If this service is public, what path part routes to it?
     Type: String
     Default: '*'
+  PublicPathRulePriority:
+    Description: The ALB listener rule priority for this path route
+    Type: Number
+    Default: 1
   VPC:
     Description: This tenant's VPC
     Type: String
@@ -323,6 +327,16 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/METRICS_STREAM
               - Effect: Allow
                 Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/${TenantId}/ServiceDiscovery.env'
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+              - Effect: Allow
+                Action:
                   - fsx:DescribeFileSystems
                 Resource:
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
@@ -370,7 +384,7 @@ Resources:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::'{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'/tenants/${TenantId}/*
+                  - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/*
               - Effect: Allow
                 Action:
                   - ssmmessages:CreateControlChannel
@@ -415,6 +429,8 @@ Resources:
               - ProvisionRDS
               - - Name: AWS_REGION
                   Value: !Ref AWS::Region
+                - Name: SAAS_BOOST_ENV
+                  Value: !Ref Environment
                 - Name: TENANT_ID
                   Value: !Ref TenantId
                 - Name: SAAS_BOOST_BUCKET
@@ -429,6 +445,8 @@ Resources:
                   Value: !Ref RDSDatabase
               - - Name: AWS_REGION
                   Value: !Ref AWS::Region
+                - Name: SAAS_BOOST_ENV
+                  Value: !Ref Environment
                 - Name: TENANT_ID
                   Value: !Ref TenantId
                 - Name: SAAS_BOOST_BUCKET
@@ -437,6 +455,9 @@ Resources:
                   Value: !Ref EventBus
                 - Name: METRICS_STREAM
                   Value: !Ref MetricsStream
+          EnvironmentFiles:
+            - Type: s3
+              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/${TenantId}/ServiceDiscovery.env'
           MountPoints:
             !If
               - ProvisionEFS
@@ -852,7 +873,7 @@ Resources:
           Values:
             - !Ref PublicPathRoute
       ListenerArn: !Ref ECSLoadBalancerHttpListener
-      Priority: 1
+      Priority: !Ref PublicPathRulePriority
   ALBSSLRule:
     Condition: IsPublicHttps
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -865,7 +886,7 @@ Resources:
           Values:
             - !Ref PublicPathRoute
       ListenerArn: !Ref ECSLoadBalancerHttpsListener
-      Priority: 1
+      Priority: !Ref PublicPathRulePriority
   ServiceDiscoveryNamespace:
       Type: AWS::ServiceDiscovery::PrivateDnsNamespace
       Condition: IsPrivate
@@ -897,8 +918,7 @@ Resources:
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition
       LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
-      # Initially set DesiredCount to zero so the resource stabilizes
-      # CodePipeline will update it when deploying the task
+      # Initially set DesiredCount to zero so the resource stabilizes on create stack. CodePipeline will update it when deploying the task.
       DesiredCount: 0
       NetworkConfiguration:
         !If
@@ -975,13 +995,7 @@ Resources:
     #Metadata:
     #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
-      TemplateURL: !Join
-        - ''
-        - - 'https://'
-          - '{{resolve:ssm:/saas-boost/'
-          - !Ref Environment
-          - '/SAAS_BOOST_BUCKET}}'
-          - '.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
@@ -1003,13 +1017,7 @@ Resources:
     #Metadata:
     #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
-      TemplateURL: !Join
-        - ''
-        - - 'https://'
-          - '{{resolve:ssm:/saas-boost/'
-          - !Ref Environment
-          - '/SAAS_BOOST_BUCKET}}'
-          - '.s3.amazonaws.com/tenant-onboarding-efs.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-efs.yaml'
       Parameters:
         TenantId: !Ref TenantId
         VPC: !Ref VPC
@@ -1024,13 +1032,7 @@ Resources:
     #Metadata:
     #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
-      TemplateURL: !Join
-        - ''
-        - - 'https://'
-          - '{{resolve:ssm:/saas-boost/'
-          - !Ref Environment
-          - '/SAAS_BOOST_BUCKET}}'
-          - '.s3.amazonaws.com/tenant-onboarding-rds.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-rds.yaml'
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'

@@ -15,11 +15,15 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import org.apache.logging.log4j.core.util.IOUtils;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -111,5 +115,43 @@ public class OnboardingServiceTest {
         existingSubdomain = existingSubdomain.substring(0, existingSubdomain.indexOf(domainName) - 1);
         //System.out.println(existingSubdomain);
         assertTrue("Subdomain Exists", subdomain.equalsIgnoreCase(existingSubdomain));
+    }
+
+    @Test
+    public void testPathPriority() throws Exception {
+        InputStream json = getClass().getClassLoader().getResourceAsStream("appConfig.json");
+        Map<String, Object> appConfig = Utils.fromJson(json, LinkedHashMap.class);
+
+        Map<String, Object> applicationServices = new HashMap<>();
+//        for (int i = 1; i <= 50; i++) {
+//            applicationServices.put(String.format("Service%02d", i), Map.of("public", Boolean.TRUE, "path", Utils.randomString(i)));
+//        }
+        for (int i = 1; i <= 3; i++) {
+            applicationServices.put(String.format("Service%02d", i), Map.of("public", Boolean.TRUE, "path", Utils.randomString((i * 10))));
+        }
+        appConfig.put("services", applicationServices);
+
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        Map<String, Integer> pathLength = new HashMap<>();
+        for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+            String serviceName = serviceConfig.getKey();
+            Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+            Boolean isPublic = (Boolean) service.get("public");
+            if (isPublic) {
+                String pathPart = Objects.toString(service.get("path"), "");
+                pathLength.put(serviceName, pathPart.length());
+            }
+        }
+        System.out.println(pathLength);
+        LinkedHashMap<String, Integer> pathPriority = pathLength.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Collections.reverseOrder()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey, Map.Entry::getValue, (value1, value2) -> value1, LinkedHashMap::new
+                ));
+        int priority = 0;
+        for (String publicService : pathPriority.keySet()) {
+            pathPriority.put(publicService, ++priority);
+        }
+        System.out.println(pathPriority);
     }
 }
