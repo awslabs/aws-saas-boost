@@ -37,10 +37,10 @@ import static org.junit.Assert.*;
 public class RefreshingProfileDefaultCredentialsProviderTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(RefreshingProfileDefaultCredentialsProviderTest.class);
 
-    private static final String BEFORE_ACCESS_KEY = "AKIAfake1234fake5678";
-    private static final String AFTER_ACCESS_KEY = "ASIAfake1234fake5678";
-    private static final String BEFORE_SECRET_KEY = "R6/fake/credentials/fake/credentials/oO1";
-    private static final String AFTER_SECRET_KEY = "tv/fake/credentials/fake/credentials/2Xfo";
+    private static final String BEFORE_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE";
+    private static final String AFTER_ACCESS_KEY = "AKIAI44QH8DHBEXAMPLE";
+    private static final String BEFORE_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+    private static final String AFTER_SECRET_KEY = "je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY";
     private static final String BEFORE_SESSION_TOKEN = "fakesessiontoken";
     private static final String AFTER_SESSION_TOKEN = "adifferentfakesessiontoken";
     private static final AwsCredentials BEFORE_PERMANENT =

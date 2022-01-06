@@ -18,10 +18,13 @@ package com.amazon.aws.partners.saasfactory.saasboost.clients;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.awscore.retry.AwsRetryPolicy;
 import software.amazon.awssdk.core.SdkClient;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClientBuilder;
+import software.amazon.awssdk.services.apigateway.model.CreateDeploymentRequest;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClientBuilder;
 import software.amazon.awssdk.services.ecr.EcrClient;
@@ -38,6 +41,8 @@ import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.SsmClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.StsClientBuilder;
+
+import java.time.Duration;
 
 public class AwsClientBuilderFactory {
 
@@ -64,7 +69,16 @@ public class AwsClientBuilderFactory {
     }
 
     public ApiGatewayClientBuilder apiGatewayBuilder() {
-        return decorateBuilderWithDefaults(ApiGatewayClient.builder());
+        // override throttling policy to wait 5 seconds if we're throttled on CreateDeployment
+        // https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html
+        return decorateBuilderWithDefaults(ApiGatewayClient.builder())
+                .overrideConfiguration(config -> config.retryPolicy(AwsRetryPolicy.addRetryConditions(
+                        RetryPolicy.builder().throttlingBackoffStrategy(retryPolicyContext -> {
+                            if (retryPolicyContext.originalRequest() instanceof CreateDeploymentRequest) {
+                                return Duration.ofSeconds(5);
+                            }
+                            return null;
+                        }).build())));
     }
 
     public CloudFormationClientBuilder cloudFormationBuilder() {

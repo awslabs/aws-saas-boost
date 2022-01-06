@@ -21,7 +21,6 @@ limitations under the License.
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
         <artifactId>saasboost-layers</artifactId>
         <version>1.0.0</version>
-        <relativePath>../</relativePath>
     </parent>
     <artifactId>Utils</artifactId>
     <version>1.0.0</version>
@@ -61,17 +60,6 @@ limitations under the License.
             <artifactId>junit</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.30</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.30</version>
-        </dependency>
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.11.0</version>
@@ -94,12 +82,13 @@ limitations under the License.
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>aws-core</artifactId>
-            <version>2.13.76</version>
+            <version>${aws.java.sdk.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>url-connection-client</artifactId>
-            <version>2.13.76</version>
+            <version>${aws.java.sdk.version}</version>
         </dependency>
     </dependencies>
 </project>

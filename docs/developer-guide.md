@@ -47,7 +47,7 @@ This solution uses Amazon CloudFront as the entry point of the administration ap
 ### Running the client locally
 After SaaS Boost is installed and running, you may be interested in making changes to the administration application. If you want to make changes and develop/test them locally, you can navigate to the `/client/web` folder that is part of the code you downloaded when cloning the SaaS Boost repository.
 
-Within the same folder is a `sample.env` file that holds variables that are specific to your deployed environment. Rename this file with the `.env` extension, and edit its settings to allow your local environment to connect to the core services of your deployed SaaS Boost environment.
+Within the same folder is a `sample.env` file that holds variables that are specific to your deployed environment. Rename this file to just be `.env` and edit its settings to allow your local environment to connect to the core services of your deployed SaaS Boost environment.
 
 Open the newly named file in an editor of your choice. To run the client locally, there are various environment variables that must be configured. The following is an example of configured settings:
 ```ini
@@ -57,7 +57,7 @@ REACT_APP_COGNITO_USERPOOL=us-east-1_XXXXXXXXX
 REACT_APP_CLIENT_ID=[YOUR CLIENT ID HERE]
 REACT_APP_API_URI=[API URI HERE]
 ```
-The values for these settings can be retrieved from the AWS Management Console. The Region is based on the physical location of your SaaS Boost deployment. You can also access the Amazon Cognito service in the console to look up the user pool and client ID settings. To get the URI entry point for backend services, use the API Gateway service in the console.
+The values for these settings can be retrieved from the AWS Management Console. The Region is based on the physical location of your SaaS Boost deployment. You can also access the Amazon Cognito service in the console to look up the user pool and client ID settings. To get the URI entry point for backend services, use the API Gateway service in the console and copy the invoke URL for the v1 stage of the public API.
 
 After these environment variables are correctly configured, you can edit and run the client locally from the `/client/web` folder using the following command: `yarn start`
 
