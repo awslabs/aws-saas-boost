@@ -22,7 +22,6 @@ limitations under the License.
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
         <artifactId>saasboost-metrics-analytics</artifactId>
         <version>1.0.0</version>
-        <relativePath>../</relativePath>
     </parent>
     <groupId>com.amazonaws.saas</groupId>
     <artifactId>metrics-java-sdk</artifactId>

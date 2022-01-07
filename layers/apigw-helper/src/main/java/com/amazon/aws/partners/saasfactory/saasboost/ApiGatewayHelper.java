@@ -22,9 +22,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.params.Aws4SignerParams;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.*;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -36,6 +42,7 @@ import software.amazon.awssdk.utils.StringInputStream;
 
 import java.io.*;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -50,7 +57,23 @@ public class ApiGatewayHelper {
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final Aws4Signer SIG_V4 = Aws4Signer.create();
     private static SdkHttpClient HTTP_CLIENT = ApacheHttpClient.builder().build();
-    private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+    //private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+    private static final StsClient sts = StsClient.builder()
+            .httpClient(HTTP_CLIENT)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .region(Region.of(AWS_REGION))
+            .endpointOverride(URI.create("https://" + StsClient.SERVICE_NAME + "." + Region.of(AWS_REGION).toString() + ".amazonaws.com"))
+            .overrideConfiguration(ClientOverrideConfiguration.builder()
+                    .retryPolicy(RetryPolicy.builder()
+                            .backoffStrategy(BackoffStrategy.defaultStrategy())
+                            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+                            .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
+                            .retryCondition(RetryCondition.defaultRetryCondition())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
 
     private ApiGatewayHelper() {
         if (Utils.isBlank(AWS_REGION)) {

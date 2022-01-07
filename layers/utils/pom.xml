@@ -83,7 +83,6 @@ limitations under the License.
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>aws-core</artifactId>
             <version>${aws.java.sdk.version}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>

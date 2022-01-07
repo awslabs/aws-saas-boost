@@ -17,26 +17,18 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.core.ResponseBytes;
-import software.amazon.awssdk.core.SdkSystemSetting;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.ssm.SsmClient;
 
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.*;
@@ -46,40 +38,22 @@ import java.util.concurrent.*;
 public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object> {
 
     private final static Logger LOGGER = LoggerFactory.getLogger(RdsBootstrap.class);
-    private final static Region AWS_REGION = Region.of(System.getenv(SdkSystemSetting.AWS_REGION.environmentVariable()));
+    private final static String AWS_REGION = System.getenv("AWS_REGION");
     private S3Client s3;
     private SsmClient ssm;
 
     public RdsBootstrap() throws URISyntaxException {
-        try {
-            LOGGER.info("Version Info: " + getVersionInfo());;
-        } catch (Exception e) {
-            LOGGER.error("Error getting version number", e);
-            LOGGER.error(getFullStackTrace(e));
+        long startTimeMillis = System.currentTimeMillis();
+        if (Utils.isBlank(AWS_REGION)) {
+            throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
-        this.s3 = S3Client.builder()
-                .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                .region(AWS_REGION)
-                .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .endpointOverride(new URI("https://s3." + AWS_REGION.id() + ".amazonaws.com"))
-                .overrideConfiguration(ClientOverrideConfiguration.builder().build())
-                .build();
-        this.ssm = SsmClient.builder()
-                .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                .region(AWS_REGION)
-                .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .endpointOverride(new URI("https://ssm." + AWS_REGION.id() + ".amazonaws.com"))
-                .overrideConfiguration(ClientOverrideConfiguration.builder().build())
-                .build();
+        LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
+        this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
     }
 
     @Override
     public Object handleRequest(Map<String, Object> event, Context context) {
-        try {
-            LOGGER.info(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(event));
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Could not log input");
-        }
+        Utils.logRequestEvent(event);
 
         final String requestType = (String) event.get("RequestType");
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
@@ -199,44 +173,13 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         } catch (final TimeoutException | InterruptedException | ExecutionException e) {
             // Timed out
             LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
-            LOGGER.error(getFullStackTrace(e));
+            LOGGER.error(Utils.getFullStackTrace(e));
             responseData.put("Reason", e.getMessage());
             sendResponse(event, context, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
         return null;
-    }
-
-    public static String getVersionInfo() throws IOException {
-        String result = "";
-        InputStream inputStream = null;
-        try {
-            Properties prop = new Properties();
-            String propFileName = "git.properties";
-
-            inputStream = RdsBootstrap.class.getClassLoader().getResourceAsStream(propFileName);
-
-            if (inputStream != null) {
-                prop.load(inputStream);
-            } else {
-                throw new FileNotFoundException("property file '" + propFileName + "' not found in the classpath");
-            }
-
-            // get the property value and print it out
-            String tag = prop.getProperty("git.commit.id.describe");
-            String commitTime = prop.getProperty("git.commit.time");
-            result = tag + ", Commit time: " + commitTime;
-        } finally {
-            if (null != inputStream) {
-                try {
-                    inputStream.close();
-                } catch (Exception e) {
-                    //LOGGER.error("getVersionInfo: Error closing inputStream");
-                }
-            }
-        }
-        return result;
     }
 
     /**
@@ -277,14 +220,14 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                 response.write(responseBody.toString());
             } catch (IOException ioe) {
                 LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(getFullStackTrace(ioe));
+                LOGGER.error(Utils.getFullStackTrace(ioe));
             }
 
             LOGGER.info("Response Code: " + connection.getResponseCode());
             connection.disconnect();
         } catch (IOException e) {
             LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(getFullStackTrace(e));
+            LOGGER.error(Utils.getFullStackTrace(e));
         }
 
         return null;
@@ -392,12 +335,5 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                 break;
         }
         return driverClassName;
-    }
-
-    private static String getFullStackTrace(Exception e) {
-        final StringWriter sw = new StringWriter();
-        final PrintWriter pw = new PrintWriter(sw, true);
-        e.printStackTrace(pw);
-        return sw.getBuffer().toString();
     }
 }
