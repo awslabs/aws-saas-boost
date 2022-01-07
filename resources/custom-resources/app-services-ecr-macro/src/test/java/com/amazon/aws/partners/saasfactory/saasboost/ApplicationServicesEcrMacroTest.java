@@ -29,48 +29,44 @@ public class ApplicationServicesEcrMacroTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameNullServiceName() {
-        ApplicationServicesEcrMacro macro = new ApplicationServicesEcrMacro();
-        macro.ecrResourceName(null);
+        ApplicationServicesEcrMacro.ecrResourceName(null);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameEmptyServiceName() {
-        ApplicationServicesEcrMacro macro = new ApplicationServicesEcrMacro();
-        macro.ecrResourceName("");
+        ApplicationServicesEcrMacro.ecrResourceName("");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameBlankServiceName() {
-        ApplicationServicesEcrMacro macro = new ApplicationServicesEcrMacro();
-        macro.ecrResourceName(" ");
+        ApplicationServicesEcrMacro.ecrResourceName(" ");
     }
 
     @Test
     public void testResourceName() {
-        ApplicationServicesEcrMacro macro = new ApplicationServicesEcrMacro();
         String serviceName = "foo";
         String expected = "foo";
-        String actual = macro.ecrResourceName(serviceName);
+        String actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo";
         expected = "foo";
-        actual = macro.ecrResourceName(serviceName);
+        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo Bar";
         expected = "foobar";
-        actual = macro.ecrResourceName(serviceName);
+        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo_Bar";
         expected = "foobar";
-        actual = macro.ecrResourceName(serviceName);
+        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo-Bar";
         expected = "foobar";
-        actual = macro.ecrResourceName(serviceName);
+        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
     }
 
