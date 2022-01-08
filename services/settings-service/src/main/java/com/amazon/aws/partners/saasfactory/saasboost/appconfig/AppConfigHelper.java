@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import java.util.HashSet;
@@ -25,38 +26,32 @@ public final class AppConfigHelper {
     }
 
     public static boolean isDomainChanged(AppConfig existing, AppConfig altered) {
-        return (
-                (existing.getDomainName() != null && !existing.getDomainName().equalsIgnoreCase(altered.getDomainName())) ||
-                (altered.getDomainName() != null && !altered.getDomainName().equalsIgnoreCase(existing.getDomainName()))
-        );
+        return ((existing.getDomainName() != null
+                        && !existing.getDomainName().equalsIgnoreCase(altered.getDomainName()))
+                || (altered.getDomainName() != null
+                && !altered.getDomainName().equalsIgnoreCase(existing.getDomainName())));
     }
 
     public static boolean isSslArnChanged(AppConfig existing, AppConfig altered) {
-        return (
-                (existing.getSslCertArn() != null && !existing.getSslCertArn().equalsIgnoreCase(altered.getSslCertArn())) ||
-                        (altered.getSslCertArn() != null && !altered.getSslCertArn().equalsIgnoreCase(existing.getSslCertArn()))
-        );
+        return ((existing.getSslCertificate() != null
+                && !existing.getSslCertificate().equalsIgnoreCase(altered.getSslCertificate()))
+                || (altered.getSslCertificate() != null
+                && !altered.getSslCertificate().equalsIgnoreCase(existing.getSslCertificate())));
     }
 
     public static boolean isBillingChanged(AppConfig existing, AppConfig altered) {
-        return (
-                (existing.getBilling() != null && !existing.getBilling().equals(altered.getBilling())) ||
-                (altered.getBilling() != null && !altered.getBilling().equals(existing.getBilling()))
-        );
+        return ((existing.getBilling() != null && !existing.getBilling().equals(altered.getBilling()))
+                || (altered.getBilling() != null && !altered.getBilling().equals(existing.getBilling())));
     }
 
     public static boolean isBillingFirstTime(AppConfig existing, AppConfig altered) {
-        return (
-                (existing.getBilling() == null || !existing.getBilling().hasApiKey()) &&
-                (altered.getBilling() != null && altered.getBilling().hasApiKey())
-        );
+        return ((existing.getBilling() == null || !existing.getBilling().hasApiKey())
+                && (altered.getBilling() != null && altered.getBilling().hasApiKey()));
     }
 
     public static boolean isBillingRemoved(AppConfig existing, AppConfig altered) {
-        return (
-                (existing.getBilling() != null && existing.getBilling().hasApiKey()) &&
-                (altered.getBilling() == null || !altered.getBilling().hasApiKey())
-        );
+        return ((existing.getBilling() != null && existing.getBilling().hasApiKey())
+                && (altered.getBilling() == null || !altered.getBilling().hasApiKey()));
     }
 
     public static boolean isComputeChanged(AppConfig existing, AppConfig altered) {
@@ -89,8 +84,12 @@ public final class AppConfigHelper {
     }
 
     public static Set<String> removedServices(AppConfig existing, AppConfig altered) {
-        Set<String> existingServices = new HashSet<String>(existing.getServices().keySet());
+        Set<String> existingServices = new HashSet<>(existing.getServices().keySet());
         existingServices.removeAll(altered.getServices().keySet());
         return existingServices;
+    }
+
+    public static boolean isServicesChanged(AppConfig existing, AppConfig altered) {
+        return !AppConfig.servicesEqual(existing.getServices(), altered.getServices());
     }
 }

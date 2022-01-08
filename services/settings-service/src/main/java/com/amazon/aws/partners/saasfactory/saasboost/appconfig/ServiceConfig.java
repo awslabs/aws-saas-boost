@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,22 +30,24 @@ public class ServiceConfig {
     @JsonProperty("public")
     private final Boolean publiclyAddressable;
     private final String name;
+    private final String description;
     private final String path;
     private final Map<String, ServiceTierConfig> tiers;
     private final Integer containerPort;
     private final String containerRepo;
     private final String containerTag;
-    private final String healthCheckURL;
+    private final String healthCheckUrl;
     private final OperatingSystem operatingSystem;
 
     private ServiceConfig(Builder builder) {
         this.publiclyAddressable = builder.publiclyAddressable;
         this.name = builder.name;
+        this.description = builder.description;
         this.path = builder.path;
         this.containerPort = builder.containerPort;
         this.containerRepo = builder.containerRepo;
         this.containerTag = builder.containerTag;
-        this.healthCheckURL = builder.healthCheckURL;
+        this.healthCheckUrl = builder.healthCheckUrl;
         this.operatingSystem = builder.operatingSystem;
         this.tiers = builder.tiers;
     }
@@ -56,19 +60,26 @@ public class ServiceConfig {
         return new Builder()
                 .publiclyAddressable(other.isPublic())
                 .name(other.getName())
+                .description(other.getDescription())
                 .path(other.getPath())
                 .tiers(other.getTiers())
                 .containerPort(other.getContainerPort())
                 .containerRepo(other.getContainerRepo())
                 .containerTag(other.getContainerTag())
-                .healthCheckURL(other.getHealthCheckURL())
+                .healthCheckUrl(other.getHealthCheckUrl())
                 .operatingSystem(other.getOperatingSystem());
     }
 
-    public Boolean isPublic() { return publiclyAddressable; }
+    public Boolean isPublic() {
+        return publiclyAddressable;
+    }
 
     public String getName() {
         return name;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public String getPath() {
@@ -87,8 +98,8 @@ public class ServiceConfig {
         return containerTag;
     }
 
-    public String getHealthCheckURL() {
-        return healthCheckURL;
+    public String getHealthCheckUrl() {
+        return healthCheckUrl;
     }
 
     public OperatingSystem getOperatingSystem() {
@@ -96,7 +107,7 @@ public class ServiceConfig {
     }
 
     public Map<String, ServiceTierConfig> getTiers() {
-        return tiers;
+        return tiers != null ? Map.copyOf(tiers) : null;
     }
 
     @Override
@@ -118,14 +129,14 @@ public class ServiceConfig {
                 ((name == null && other.name == null) || (name != null && name.equals(other.name)))
                         && ((path == null && other.path == null) || (path != null && path.equals(other.path)))
                         && ((containerPort == null && other.containerPort == null) || (containerPort != null && containerPort.equals(other.containerPort)))
-                        && ((healthCheckURL == null && other.healthCheckURL == null) || (healthCheckURL != null && healthCheckURL.equals(other.healthCheckURL)))
+                        && ((healthCheckUrl == null && other.healthCheckUrl == null) || (healthCheckUrl != null && healthCheckUrl.equals(other.healthCheckUrl)))
                         && (operatingSystem == other.operatingSystem)
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, path, containerPort, healthCheckURL, operatingSystem);
+        return Objects.hash(name, path, containerPort, healthCheckUrl, operatingSystem);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -134,13 +145,14 @@ public class ServiceConfig {
         @JsonProperty("public")
         private Boolean publiclyAddressable;
         private String name;
+        private String description;
         private String path;
         private Integer containerPort;
         private String containerRepo;
         private String containerTag;
-        private String healthCheckURL;
+        private String healthCheckUrl;
         private OperatingSystem operatingSystem;
-        private Map<String, ServiceTierConfig> tiers;
+        private Map<String, ServiceTierConfig> tiers = new HashMap<>();
 
         private Builder() {
         }
@@ -152,6 +164,11 @@ public class ServiceConfig {
 
         public Builder name(String name) {
             this.name = name;
+            return this;
+        }
+
+        public Builder description(String description) {
+            this.description = description;
             return this;
         }
 
@@ -180,8 +197,8 @@ public class ServiceConfig {
             return this;
         }
 
-        public Builder healthCheckURL(String healthCheckURL) {
-            this.healthCheckURL = healthCheckURL;
+        public Builder healthCheckUrl(String healthCheckUrl) {
+            this.healthCheckUrl = healthCheckUrl;
             return this;
         }
 
@@ -206,7 +223,7 @@ public class ServiceConfig {
         }
 
         public Builder tiers(Map<String, ServiceTierConfig> tiers) {
-            this.tiers = tiers;
+            this.tiers = tiers != null ? tiers : new HashMap<>();
             return this;
         }
 

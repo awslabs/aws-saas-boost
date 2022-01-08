@@ -501,7 +501,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         String domainName = Objects.toString(appConfig.get("domainName"), "");
         String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
-        String sslCertificateArn = Objects.toString(appConfig.get("sslCertArn"), "");
+        String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
 
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
@@ -705,7 +705,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             Boolean isPublic = (Boolean) service.get("public");
             String pathPart = (isPublic) ? (String) service.get("path") : "";
             Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
-            String healthCheck = (String) service.get("healthCheckURL");
+            String healthCheck = (String) service.get("healthCheckUrl");
 
             // CloudFormation won't let you use dashes or underscores in Mapping second level key names
             // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
@@ -1266,7 +1266,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 templateParameters.add(Parameter.builder().parameterKey("TaskCPU").usePreviousValue(Boolean.TRUE).build());
             }
 
-            Integer taskCount = (Integer) tenant.get("minCount");
+            Integer taskCount = (Integer) tenant.get("min");
             if (taskCount != null) {
                 LOGGER.info("Overriding previous template parameter TaskCount to {}", taskCount);
                 templateParameters.add(Parameter.builder().parameterKey("TaskCount").parameterValue(taskCount.toString()).build());
@@ -1274,7 +1274,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 templateParameters.add(Parameter.builder().parameterKey("TaskCount").usePreviousValue(Boolean.TRUE).build());
             }
 
-            Integer maxCount = (Integer) tenant.get("maxCount");
+            Integer maxCount = (Integer) tenant.get("max");
             if (maxCount != null) {
                 LOGGER.info("Overriding previous template parameter MaxTaskCount to {}", maxCount);
                 templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
@@ -1410,6 +1410,87 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("OnboardingService::resetDomainName exec " + totalTimeMillis);
+        return response;
+    }
+
+    public APIGatewayProxyResponseEvent updateAppConfig(Map<String, Object> event, Context context) {
+        if (Utils.isBlank(API_GATEWAY_HOST)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
+        }
+        if (Utils.isBlank(API_GATEWAY_STAGE)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
+        }
+        if (Utils.isBlank(API_TRUST_ROLE)) {
+            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
+        final long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("OnboardingService::updateAppConfig");
+        Utils.logRequestEvent(event);
+
+        String stackName;
+        ApiRequest getSettingsRequest = ApiRequest.builder()
+                .resource("settings/SAAS_BOOST_STACK/secret")
+                .method("GET")
+                .build();
+        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
+        LOGGER.info("Fetching SaaS Boost stack name from Settings Service");
+        try {
+            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
+            Map<String, String> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, LinkedHashMap.class);
+            stackName = getSettingsResponse.get("value");
+        } catch (Exception e) {
+            LOGGER.error("Error invoking API settings");
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+
+        Map<String, Object> appConfig = getAppConfig(context);
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+
+        LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stackName);
+        String stackId = null;
+        try {
+            UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
+                    .stackName(stackName)
+                    .usePreviousTemplate(Boolean.TRUE)
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .parameters(
+                            Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("DomainName").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SSLCertificate").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("ApplicationServices").parameterValue(String.join(",", services.keySet())).build()
+                    )
+                    .build()
+            );
+            stackId = cfnResponse.stackId();
+            LOGGER.info("OnboardingService::updateAppConfig stack id " + stackId);
+        } catch (SdkServiceException cfnError) {
+            // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
+            // need to be updated. Swallow this error.
+            if (cfnError.getMessage().contains("No updates are to be performed")) {
+                LOGGER.warn("cloudformation::updateStack error {}", cfnError.getMessage());
+            } else {
+                LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
+                LOGGER.error(Utils.getFullStackTrace(cfnError));
+                throw cfnError;
+            }
+        }
+
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
+                .withStatusCode(200)
+                .withHeaders(CORS)
+                .withBody("{\"stackId\": \"" + stackId + "\"}");
+
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("OnboardingService::updateAppConfig exec " + totalTimeMillis);
         return response;
     }
 

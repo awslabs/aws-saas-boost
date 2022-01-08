@@ -61,6 +61,9 @@ Parameters:
   OnboardingUpdateTenant:
     Description: Onboarding Service update provisioned tenant Lambda ARN
     Type: String
+  OnboardingUpdateAppConfig:
+    Description: Onboarding Service update application config Lambda ARN
+    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -458,6 +461,12 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref OnboardingServiceUpdateResource
       PathPart: 'tenant'
+  OnboardingServiceUpdateAppConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ParentId: !Ref OnboardingServiceUpdateResource
+      PathPart: 'services'
   OnboardingServiceProvisionMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -703,6 +712,60 @@ Resources:
     Properties:
       RestApiId: !Ref PrivateApi
       ResourceId: !Ref OnboardingServiceUpdateTenantResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceUpdateAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateAppConfigResource
+      HttpMethod: PUT
+      AuthorizationType: AWS_IAM
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingUpdateAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceUpdateAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingUpdateAppConfig
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/onboarding/update/services
+  OnboardingServiceUpdateAppConfigResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref PrivateApi
+      ResourceId: !Ref OnboardingServiceUpdateAppConfigResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1279,6 +1342,8 @@ Resources:
       - OnboardingServiceUpdateTenantResourceCORS
       - OnboardingServiceUpdateDomainMethod
       - OnboardingServiceUpdateDomainResourceCORS
+      - OnboardingServiceUpdateAppConfigMethod
+      - OnboardingServiceUpdateAppConfigResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS
       - SettingsServiceSecretMethod

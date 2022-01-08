@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.annotation.*;
@@ -20,13 +21,6 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
-
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({
-        "encryptAtRest",
-        "lifecycle",
-        "filesystemLifecycle"
-})
 
 @JsonDeserialize(builder = EfsFilesystem.Builder.class)
 public class EfsFilesystem {
@@ -59,10 +53,10 @@ public class EfsFilesystem {
             }
             return lifecycle;
         }
-    };
+    }
 
-    private Boolean encryptAtRest;
-    private FILE_SYSTEM_LIFECYCLE lifecycle;
+    private final Boolean encryptAtRest;
+    private final FILE_SYSTEM_LIFECYCLE lifecycle;
 
     private EfsFilesystem(Builder builder) {
         this.encryptAtRest = builder.encryptAtRest;

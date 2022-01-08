@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
@@ -26,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
@@ -47,7 +47,7 @@ import java.util.stream.Stream;
 
 public class SettingsService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(SettingsService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SettingsService.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
@@ -57,15 +57,15 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
     private static final String SYSTEM_API_CALL_SOURCE = "saas-boost";
-    private final static Map<String, String> CORS = Stream
+    private static final Map<String, String> CORS = Stream
             .of(new AbstractMap.SimpleEntry<>("Access-Control-Allow-Origin", "*"))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    final static List<String> REQUIRED_PARAMS = Collections.unmodifiableList(
+    static final List<String> REQUIRED_PARAMS = Collections.unmodifiableList(
             Arrays.asList("SAAS_BOOST_BUCKET", "CODE_PIPELINE_BUCKET", "CODE_PIPELINE_ROLE", "ECR_REPO", "ONBOARDING_WORKFLOW",
                     "ONBOARDING_SNS", "ONBOARDING_TEMPLATE", "TRANSIT_GATEWAY", "TRANSIT_GATEWAY_ROUTE_TABLE", "EGRESS_ROUTE_TABLE",
                     "SAAS_BOOST_ENVIRONMENT", "SAAS_BOOST_STACK", "SAAS_BOOST_LAMBDAS_FOLDER")
     );
-    final static List<String> READ_WRITE_PARAMS = Collections.unmodifiableList(
+    static final List<String> READ_WRITE_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DOMAIN_NAME", "HOSTED_ZONE", "SSL_CERT_ARN", "APP_NAME", "METRICS_STREAM", "BILLING_API_KEY",
                     "SERVICE_NAME", "IS_PUBLIC", "PATH", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK",
                     "FILE_SYSTEM_MOUNT_POINT", "FILE_SYSTEM_ENCRYPT", "FILE_SYSTEM_LIFECYCLE", "MIN_COUNT", "MAX_COUNT", "DB_ENGINE",
@@ -81,7 +81,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "FSX_WINDOWS_MOUNT_DRIVE")
     );
 
-    final static List<String> TENANT_PARAMS = Collections.unmodifiableList(
+    static final List<String> TENANT_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DB_HOST", "ALB")
     );
     private final SettingsServiceDAL dal;
@@ -131,10 +131,11 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         // ?key2=val1&key=val2
         Map<String, List<String>> multiValueQueryParams = (Map<String, List<String>>) event.get("multiValueQueryStringParameters");
         // Only return one set of params
-        LOGGER.info("getSettings queryParams: "+ queryParams);
+        LOGGER.info("getSettings queryParams: " + queryParams);
         LOGGER.info("getSettings multiValueQueryParams: " + multiValueQueryParams);
         if (queryParams != null && queryParams.containsKey("readOnly")) {
             LOGGER.error("queryParams included readOnly, but we're ignoring readOnly!");
+            //TODO why has this changed?
 //            if (Boolean.parseBoolean(queryParams.get("readOnly"))) {
 //                settings = dal.getImmutableSettings();
 //            } else {
@@ -302,17 +303,17 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         //Utils.logRequestEvent(event);
 
         Map<String, String> params = (Map) event.get("pathParameters");
-        String tenantId = params.get("id");
-        UUID tenantUUID;
+        String id = params.get("id");
+        UUID tenantId;
         try {
-            tenantUUID = UUID.fromString(tenantId);
+            tenantId = UUID.fromString(id);
         } catch (IllegalArgumentException e) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
                     .withBody("{\"message\":\"Invalid id for setting.\"}");
         }
-        List<Setting> settings = dal.getTenantSettings(tenantUUID);
+        List<Setting> settings = dal.getTenantSettings(tenantId);
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::getTenantSettings exec " + totalTimeMillis);
@@ -332,12 +333,12 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
-        String tenantId = params.get("id");
+        String id = params.get("id");
         String settingName = params.get("setting");
         LOGGER.info("SettingsService::getTenantSetting " + settingName);
-        UUID tenantUUID;
+        UUID tenantId;
         try {
-            tenantUUID = UUID.fromString(tenantId);
+            tenantId = UUID.fromString(id);
         } catch (IllegalArgumentException e) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
@@ -345,7 +346,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     .withBody("{\"message\":\"Invalid id for setting.\"}");
         }
 
-        Setting setting = dal.getTenantSetting(tenantUUID, settingName);
+        Setting setting = dal.getTenantSetting(tenantId, settingName);
         if (setting != null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -451,7 +452,6 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::configOptions");
         //Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
 
         Map<String, Object> options = new HashMap<>();
         options.put("osOptions", Arrays.stream(OperatingSystem.values())
@@ -512,7 +512,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         uploadOptions.put("method", presignedObject.httpRequest().method().toString());
         options.put("sqlUploadOptions", uploadOptions);
 
-        response = new APIGatewayProxyResponseEvent()
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
                 .withHeaders(CORS)
                 .withBody(Utils.toJson(options));
@@ -564,7 +564,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
                         .withStatusCode(400)
-                        .withBody("{\"message\":\"Empty request body.\"}");
+                        .withBody("{\"message\":\"Invalid request body.\"}");
             } else if (appConfig.getName() == null || appConfig.getName().isEmpty()) {
                 LOGGER.error("Can't insert application configuration without an app name");
                 response = new APIGatewayProxyResponseEvent()
@@ -588,18 +588,22 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
 
                 // If billing is enabled, trigger the event to establish the master billing provider account
                 // artifacts using the 3rd party API key the ISV provided as part of the config.
-                if (AppConfigHelper.isBillingChanged(currentAppConfig, appConfig) &&
-                        AppConfigHelper.isBillingFirstTime(currentAppConfig, appConfig)) {
+                if (AppConfigHelper.isBillingChanged(currentAppConfig, appConfig)
+                        && AppConfigHelper.isBillingFirstTime(currentAppConfig, appConfig)) {
                     LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
                     triggerBillingSetup();
                 }
 
-                Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, appConfig);
-                if (!removedServices.isEmpty()) {
-                    LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
-                    for (String serviceName : removedServices) {
-                        dal.deleteServiceConfig(currentAppConfig, serviceName);
-;                    }
+                if (AppConfigHelper.isServicesChanged(currentAppConfig, appConfig)) {
+                    Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, appConfig);
+                    if (!removedServices.isEmpty()) {
+                        LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
+                        for (String serviceName : removedServices) {
+                            dal.deleteServiceConfig(currentAppConfig, serviceName);
+                        }
+                    }
+                    LOGGER.info("AppConfig application services changed");
+                    triggerServiceConfigChange();
                 }
 
                 response = new APIGatewayProxyResponseEvent()
@@ -641,105 +645,100 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::updateAppConfig");
         Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
+        APIGatewayProxyResponseEvent response;
 
-        try {
-            AppConfig updatedAppConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
-            if (updatedAppConfig == null) {
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody("{\"message\":\"Empty request body.\"}");
-            } else if (updatedAppConfig.getName() == null || updatedAppConfig.getName().isEmpty()) {
-                LOGGER.error("Can't update application configuration without an app name");
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody("{\"message\":\"Application name is required.\"");
-            } else {
-                AppConfig currentAppConfig = dal.getAppConfig();
-                updatedAppConfig = dal.setAppConfig(updatedAppConfig);
-
-                if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
-                    LOGGER.info("AppConfig domain name has changed");
-                    triggerDomainNameChange();
-                }
-
-                if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
-                    String apiKey1 = currentAppConfig.getBilling() != null ? currentAppConfig.getBilling().getApiKey() : null;
-                    String apiKey2 = updatedAppConfig.getBilling() != null ? updatedAppConfig.getBilling().getApiKey() : null;
-                    LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
-                    if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
-                        // 1. We didn't have a billing provider and now we do, trigger setup
-                        // Existing provisioned tenants won't be subscribed to a billing plan
-                        // so we don't need to update the tenant stacks.
-                        LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
-                        triggerBillingSetup();
-                    } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
-                        // 2. We had a billing provider and now we don't, disable integration
-                        LOGGER.info("AppConfig has removed the billing provider.");
-                        // TODO how do we cleanup the billing provider integration?
-                    } else {
-                        // 3. We had a billing provider and we're just changing the value of the key, that is
-                        // taken care of by dal.setAppConfig and we don't need to trigger a setup because
-                        // it's already been done.
-                        LOGGER.info("AppConfig billing provider API key in-place change.");
-                    }
-                }
-
-                if (AppConfigHelper.isComputeChanged(currentAppConfig, updatedAppConfig) ||
-                        AppConfigHelper.isAutoScalingChanged(currentAppConfig, updatedAppConfig)) {
-                    LOGGER.info("AppConfig compute and/or scaling has changed. Triggering update of default setting tenants.");
-                    // Get all the provisioned tenants who have not customized
-                    // their compute settings so we can update them to the new
-                    // global settings.
-                    ApiRequest getTenantsRequest = ApiRequest.builder()
-                            .resource("tenants/provisioned?overrideDefaults=false")
-                            .method("GET")
-                            .build();
-                    SdkHttpFullRequest getTenantsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getTenantsRequest);
-                    try {
-                        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getTenantsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
-                        ArrayList<Map<String, Object>> provisionedTenantsWithDefaultSettings = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
-                        if (provisionedTenantsWithDefaultSettings != null) {
-                            LOGGER.info("{} tenants with default settings to update", provisionedTenantsWithDefaultSettings.size());
-                            for (Map<String, Object> tenant : provisionedTenantsWithDefaultSettings) {
-                                // The onboarding service update tenant call expects to be given the
-                                // values to use as parameters for the CloudFormation stack.
-                                // AppConfig will delegate to ComputeSize for memory and cpu if it's set.
-                                // TODO POEPPT
-                                //tenant.put("memory", updatedAppConfig.getDefaultMemory());
-                                //tenant.put("cpu", updatedAppConfig.getDefaultCpu());
-                                //tenant.put("minCount", updatedAppConfig.getMinCount());
-                                //tenant.put("maxCount", updatedAppConfig.getMaxCount());
-
-                                LOGGER.info("Triggering update for tenant {}", tenant.get("id"));
-                                Map<String, Object> systemApiRequest = new HashMap<>();
-                                systemApiRequest.put("resource", "onboarding/update/tenant");
-                                systemApiRequest.put("method", "PUT");
-                                systemApiRequest.put("body", Utils.toJson(tenant));
-                                publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, systemApiRequest);
-                            }
-                        }
-                    } catch (Exception e) {
-                        LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/tenants/provisioned?overrideDefaults=false");
-                        LOGGER.error(Utils.getFullStackTrace(e));
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withHeaders(CORS)
-                        .withBody(Utils.toJson(updatedAppConfig));
-            }
-        } catch (Exception e) {
-            LOGGER.error("Unable to update");
+        AppConfig updatedAppConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
+        if (updatedAppConfig == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
-                    .withBody("{\"message\":\"Invalid JSON\"}");
+                    .withBody("{\"message\":\"Invalid request body.\"}");
+        } else if (updatedAppConfig.getName() == null || updatedAppConfig.getName().isEmpty()) {
+            LOGGER.error("Can't update application configuration without an app name");
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(400)
+                    .withBody("{\"message\":\"Application name is required.\"");
+        } else {
+            AppConfig currentAppConfig = dal.getAppConfig();
+            updatedAppConfig = dal.setAppConfig(updatedAppConfig);
+
+            if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
+                LOGGER.info("AppConfig domain name has changed");
+                triggerDomainNameChange();
+            }
+
+            if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
+                String apiKey1 = currentAppConfig.getBilling() != null ? currentAppConfig.getBilling().getApiKey() : null;
+                String apiKey2 = updatedAppConfig.getBilling() != null ? updatedAppConfig.getBilling().getApiKey() : null;
+                LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
+                if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
+                    // 1. We didn't have a billing provider and now we do, trigger setup
+                    // Existing provisioned tenants won't be subscribed to a billing plan
+                    // so we don't need to update the tenant stacks.
+                    LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
+                    triggerBillingSetup();
+                } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
+                    // 2. We had a billing provider and now we don't, disable integration
+                    LOGGER.info("AppConfig has removed the billing provider.");
+                    // TODO how do we cleanup the billing provider integration?
+                } else {
+                    // 3. We had a billing provider and we're just changing the value of the key, that is
+                    // taken care of by dal.setAppConfig and we don't need to trigger a setup because
+                    // it's already been done.
+                    LOGGER.info("AppConfig billing provider API key in-place change.");
+                }
+            }
+
+            if (AppConfigHelper.isComputeChanged(currentAppConfig, updatedAppConfig)
+                    || AppConfigHelper.isAutoScalingChanged(currentAppConfig, updatedAppConfig)) {
+                LOGGER.info("AppConfig compute and/or scaling has changed. Triggering update of default setting tenants.");
+                // Get all the provisioned tenants who have not customized
+                // their compute settings so we can update them to the new
+                // global settings.
+                try {
+                    String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                            ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, ApiRequest.builder()
+                                    .resource("tenants/provisioned?overrideDefaults=false")
+                                    .method("GET")
+                                    .build()),
+                            API_TRUST_ROLE,
+                            context.getAwsRequestId()
+                    );
+                    ArrayList<Map<String, Object>> provisionedTenantsWithDefaultSettings = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+                    if (provisionedTenantsWithDefaultSettings != null) {
+                        LOGGER.info("{} tenants with default settings to update", provisionedTenantsWithDefaultSettings.size());
+                        for (Map<String, Object> tenant : provisionedTenantsWithDefaultSettings) {
+                            // The onboarding service update tenant call expects to be given the
+                            // values to use as parameters for the CloudFormation stack.
+                            // AppConfig will delegate to ComputeSize for memory and cpu if it's set.
+                            // TODO POEPPT
+                            //tenant.put("memory", updatedAppConfig.getDefaultMemory());
+                            //tenant.put("cpu", updatedAppConfig.getDefaultCpu());
+                            //tenant.put("minCount", updatedAppConfig.getMinCount());
+                            //tenant.put("maxCount", updatedAppConfig.getMaxCount());
+
+                            LOGGER.info("Triggering update for tenant {}", tenant.get("id"));
+                            Map<String, Object> systemApiRequest = new HashMap<>();
+                            systemApiRequest.put("resource", "onboarding/update/tenant");
+                            systemApiRequest.put("method", "PUT");
+                            systemApiRequest.put("body", Utils.toJson(tenant));
+                            publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, systemApiRequest);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/tenants/provisioned?overrideDefaults=false");
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                    throw new RuntimeException(e);
+                }
+            }
+
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(200)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(updatedAppConfig));
         }
+
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::updateAppConfig exec " + totalTimeMillis);
         return response;
@@ -811,7 +810,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         // the service they request to update must actually exist
         if (requestedService != null) {
             editedService = allowedKeys.get(jsonKey).apply(ServiceConfig.builder(requestedService), jsonValue).build();
-            AppConfig newAppConfig = AppConfig.builder(existingAppConfig).addServiceConfig(editedService).build();
+            AppConfig newAppConfig = AppConfig.builder(existingAppConfig).serviceConfig(editedService).build();
             dal.setAppConfig(newAppConfig);
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
@@ -839,6 +838,13 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         domainNameDetail.put("resource", "onboarding/update/domain");
         domainNameDetail.put("method", "PUT");
         publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, domainNameDetail);
+    }
+
+    private void triggerServiceConfigChange() {
+        Map<String, Object> serviceConfigDetail = new HashMap<>();
+        serviceConfigDetail.put("resource", "onboarding/update/services");
+        serviceConfigDetail.put("method", "PUT");
+        publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, serviceConfigDetail);
     }
 
     private void publishEvent(String type, String source, Map<String, Object> detail) {

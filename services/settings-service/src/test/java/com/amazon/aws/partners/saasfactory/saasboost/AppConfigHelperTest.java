@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfigHelper;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.BillingProvider;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -74,24 +79,24 @@ public class AppConfigHelperTest {
         AppConfig altered = AppConfig.builder().build();
         assertFalse("Both null", AppConfigHelper.isSslArnChanged(existing, altered));
 
-        existing = AppConfig.builder().sslCertArn("").build();
-        altered = AppConfig.builder().sslCertArn("").build();
+        existing = AppConfig.builder().sslCertificate("").build();
+        altered = AppConfig.builder().sslCertificate("").build();
         assertFalse("Both empty", AppConfigHelper.isSslArnChanged(existing, altered));
 
-        existing = AppConfig.builder().sslCertArn("ABC").build();
-        altered = AppConfig.builder().sslCertArn("abc").build();
+        existing = AppConfig.builder().sslCertificate("ABC").build();
+        altered = AppConfig.builder().sslCertificate("abc").build();
         assertFalse("Ignore case", AppConfigHelper.isSslArnChanged(existing, altered));
 
         existing = AppConfig.builder().build();
-        altered = AppConfig.builder().sslCertArn("abc").build();
+        altered = AppConfig.builder().sslCertificate("abc").build();
         assertTrue("null != non-empty", AppConfigHelper.isSslArnChanged(existing, altered));
 
-        existing = AppConfig.builder().sslCertArn("abc").build();
+        existing = AppConfig.builder().sslCertificate("abc").build();
         altered = AppConfig.builder().build();
         assertTrue("null != non-empty", AppConfigHelper.isSslArnChanged(existing, altered));
 
-        existing = AppConfig.builder().sslCertArn("abc").build();
-        altered = AppConfig.builder().sslCertArn("xzy").build();
+        existing = AppConfig.builder().sslCertificate("abc").build();
+        altered = AppConfig.builder().sslCertificate("xzy").build();
         assertTrue("Different values", AppConfigHelper.isSslArnChanged(existing, altered));
     }
 
@@ -117,5 +122,35 @@ public class AppConfigHelperTest {
 //        existing = AppConfig.builder().defaultMemory(2048).defaultCpu(1024).build();
 //        altered = AppConfig.builder().defaultMemory(4096).defaultCpu(2048).build();
 //        assertTrue("Different CPU/Memory", AppConfigHelper.isComputeChanged(existing, altered));
+    }
+
+    @Test
+    public void testIsServicesChanged() {
+        AppConfig existing = AppConfig.builder().build();
+        AppConfig altered = AppConfig.builder().build();
+        assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
+
+        Map<String, ServiceConfig> services1 = new HashMap<>();
+        services1.put("foo", ServiceConfig.builder().build());
+        Map<String, ServiceConfig> services2 = new HashMap<>();
+        services2.put("foo", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
+
+        services2.put("bar", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertTrue(AppConfigHelper.isServicesChanged(existing, altered));
+
+        services2.remove("bar");
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
+
+        services1.clear();
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertTrue(AppConfigHelper.isServicesChanged(existing, altered));
     }
 }

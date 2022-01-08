@@ -655,6 +655,7 @@ Resources:
         OnboardingStatusListener: !GetAtt onboarding.Outputs.OnboardingStatusListenerArn
         OnboardingUpdateDomain: !GetAtt onboarding.Outputs.OnboardingUpdateDomainArn
         OnboardingUpdateTenant: !GetAtt onboarding.Outputs.OnboardingUpdateTenantArn
+        OnboardingUpdateAppConfig: !GetAtt onboarding.Outputs.OnboardingUpdateAppConfigArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
         SettingsServiceParamStoreRef: !GetAtt settings.Outputs.SettingsServiceParamStoreRefArn

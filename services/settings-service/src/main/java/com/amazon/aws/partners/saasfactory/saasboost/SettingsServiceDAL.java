@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
@@ -21,7 +22,6 @@ import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceTierConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -58,7 +58,7 @@ public class SettingsServiceDAL {
     private DynamoDbClient ddb;
 
     public SettingsServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing environment variable AWS_REGION");
         }
@@ -100,7 +100,7 @@ public class SettingsServiceDAL {
     }
 
     public List<Parameter> getAllParametersUnder(String parameterStorePathPrefix, boolean recursive) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         boolean decrypt = false;
         List<Parameter> parameters = parameterStore.getParametersByPath(parameterStorePathPrefix, recursive, decrypt);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -130,13 +130,13 @@ public class SettingsServiceDAL {
         return getSetting(settingName, false);
     }
 
-    public Setting getSecret(String settingName) {
-        return getSetting(settingName, true);
-    }
-
     public Setting getSetting(String settingName, boolean decrypt) {
         return fromParameterStore(parameterStore.getParameter(
                 toParameterStore(Setting.builder().name(settingName).build()).name(), decrypt));
+    }
+
+    public Setting getSecret(String settingName) {
+        return getSetting(settingName, true);
     }
 
     public String getParameterStoreReference(String settingName) {
@@ -148,13 +148,13 @@ public class SettingsServiceDAL {
         return getTenantSetting(tenantId, settingName, false);
     }
 
-    public Setting getTenantSecret(UUID tenantId, String settingName) {
-        return getTenantSetting(tenantId, settingName, true);
-    }
-
     public Setting getTenantSetting(UUID tenantId, String settingName, boolean decrypt) {
         return fromTenantParameterStore(tenantId, parameterStore.getParameter(
                 toTenantParameterStore(tenantId, Setting.builder().name(settingName).build()).name(), decrypt));
+    }
+
+    public Setting getTenantSecret(UUID tenantId, String settingName) {
+        return getTenantSetting(tenantId, settingName, true);
     }
 
     public Setting updateTenantSetting(UUID tenantId, Setting setting) {
@@ -163,7 +163,7 @@ public class SettingsServiceDAL {
     }
 
     public void deleteTenantSettings(UUID tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
 
         String parameterStorePath = PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString();
         List<String> parametersToDelete = SettingsService.TENANT_PARAMS.stream()
@@ -289,7 +289,7 @@ public class SettingsServiceDAL {
     }
 
     public AppConfig setAppConfig(AppConfig appConfig) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::setAppConfig");
         List<Setting> updatedAppConfigSettings = new ArrayList<>();
         for (Setting setting : toSettings(appConfig)) {
@@ -321,7 +321,7 @@ public class SettingsServiceDAL {
     }
 
     public AppConfig getAppConfig() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::getAppConfig");
         AppConfig appConfig = appConfigFromSettings(getAppConfigSettings());
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -342,7 +342,8 @@ public class SettingsServiceDAL {
         AppConfig.Builder appConfigBuilder = AppConfig.builder()
                 .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
                 .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
-                .sslCertArn(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
+                .hostedZone(appSettings.get(APP_BASE_PATH + "HOSTED_ZONE"))
+                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
@@ -350,7 +351,7 @@ public class SettingsServiceDAL {
             //      /app/service_001/SERVICE_JSON
             if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
                 ServiceConfig serviceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
-                appConfigBuilder.addServiceConfig(serviceConfig);
+                appConfigBuilder.serviceConfig(serviceConfig);
             }
         }
 
@@ -367,16 +368,19 @@ public class SettingsServiceDAL {
     }
 
     public void deleteAppConfig() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::deleteAppConfig");
         // NOTE: Could also implement this like deleteTenantSettings by combining SettingsService::REQUIRED_PARAMS
         // and SettingsService::READ_WRITE_PARAMS and building the Parameter Store path by hand to avoid the call(s)
         // to getParameters before the call to deleteParameters
-        List<String> parametersToDelete = toSettings(getAppConfig()).stream()
+        AppConfig appConfig = getAppConfig();
+        for (String serviceName : appConfig.getServices().keySet()) {
+            deleteServiceConfig(appConfig, serviceName);
+        }
+        List<String> parametersToDelete = toSettings(appConfig).stream()
                 .map(s -> toParameterStore(s).name())
                 .collect(Collectors.toList());
-
-
+        parameterStore.deleteParameters(parametersToDelete);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
     }
@@ -511,8 +515,13 @@ public class SettingsServiceDAL {
                 .readOnly(false)
                 .build());
         settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "HOSTED_ZONE")
+                .value(appConfig.getHostedZone())
+                .readOnly(false)
+                .build());
+        settings.add(Setting.builder()
                 .name(APP_BASE_PATH + "SSL_CERT_ARN")
-                .value(appConfig.getSslCertArn())
+                .value(appConfig.getSslCertificate())
                 .readOnly(false)
                 .build());
 

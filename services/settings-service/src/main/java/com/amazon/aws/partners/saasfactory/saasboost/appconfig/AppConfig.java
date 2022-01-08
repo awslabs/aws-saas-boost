@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,9 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -25,15 +27,16 @@ import java.util.*;
 public class AppConfig {
     private final String name;
     private final String domainName;
-    private final String sslCertArn;
-    // ServiceConfig.getName() : ServiceConfig
+    private final String hostedZone;
+    private final String sslCertificate;
     private final Map<String, ServiceConfig> services;
     private final BillingProvider billing;
 
     private AppConfig(Builder builder) {
         this.name = builder.name;
         this.domainName = builder.domainName;
-        this.sslCertArn = builder.sslCertArn;
+        this.hostedZone = builder.hostedZone;
+        this.sslCertificate = builder.sslCertificate;
         this.services = builder.services;
         this.billing = builder.billing;
     }
@@ -46,7 +49,8 @@ public class AppConfig {
         return new Builder()
                 .name(otherAppConfig.name)
                 .domainName(otherAppConfig.domainName)
-                .sslCertArn(otherAppConfig.sslCertArn)
+                .hostedZone(otherAppConfig.hostedZone)
+                .sslCertificate(otherAppConfig.sslCertificate)
                 .services(otherAppConfig.services)
                 .billing(otherAppConfig.billing);
     }
@@ -59,8 +63,12 @@ public class AppConfig {
         return domainName;
     }
 
-    public String getSslCertArn() {
-        return sslCertArn;
+    public String getHostedZone() {
+        return hostedZone;
+    }
+
+    public String getSslCertificate() {
+        return sslCertificate;
     }
 
     public BillingProvider getBilling() {
@@ -68,7 +76,7 @@ public class AppConfig {
     }
 
     public Map<String, ServiceConfig> getServices() {
-        return services;
+        return services != null ? Map.copyOf(services) : null;
     }
 
     @Override
@@ -93,22 +101,52 @@ public class AppConfig {
         return (
                 ((name == null && other.name == null) || (name != null && name.equals(other.name)))
                 && ((domainName == null && other.domainName == null) || (domainName != null && domainName.equals(other.domainName)))
-                && ((sslCertArn == null && other.sslCertArn == null) || (sslCertArn != null && sslCertArn.equals(other.sslCertArn)))
-                && ((services == null && other.services == null) || (services != null && services.equals(other.services)))
+                && ((hostedZone == null && other.hostedZone == null) || (hostedZone != null && hostedZone.equals(other.hostedZone)))
+                && ((sslCertificate == null && other.sslCertificate == null) || (sslCertificate != null && sslCertificate.equals(other.sslCertificate)))
+                && ((services == null && other.services == null) || (servicesEqual(services, other.services)))
                 && ((billing == null && other.billing == null) || (billing != null && billing.equals(other.billing)))
         );
     }
 
+    public static boolean servicesEqual(Map<String, ServiceConfig> services, Map<String, ServiceConfig> otherServices) {
+        boolean equal = false;
+        if (services != null && otherServices != null) {
+            if (services.size() == otherServices.size()) {
+                boolean entriesEqual = true;
+                for (Map.Entry<String, ServiceConfig> entry : services.entrySet()) {
+                    if (!otherServices.containsKey(entry.getKey())) {
+                        entriesEqual = false;
+                        break;
+                    } else {
+                        ServiceConfig service1 = entry.getValue();
+                        ServiceConfig service2 = otherServices.get(entry.getKey());
+                        if (service1 == null && service2 == null) {
+                            continue;
+                        }
+                        if (service1 == null || !service1.equals(service2)) {
+                            entriesEqual = false;
+                            break;
+                        }
+                    }
+                }
+                equal = entriesEqual;
+            }
+        }
+        return equal;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(name, domainName, sslCertArn, services, billing);
+        return Objects.hash(name, domainName, hostedZone, sslCertificate, services, billing);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
+    @JsonIgnoreProperties(value = {"serviceConfig"})
     public static final class Builder {
         private String name;
         private String domainName;
-        private String sslCertArn;
+        private String hostedZone;
+        private String sslCertificate;
         private Map<String, ServiceConfig> services;
         private BillingProvider billing;
 
@@ -126,17 +164,22 @@ public class AppConfig {
             return this;
         }
 
-        public Builder sslCertArn(String sslCertArn) {
-            this.sslCertArn = sslCertArn;
+        public Builder hostedZone(String hostedZone) {
+            this.hostedZone = hostedZone;
+            return this;
+        }
+
+        public Builder sslCertificate(String sslCertificate) {
+            this.sslCertificate = sslCertificate;
             return this;
         }
 
         public Builder services(Map<String, ServiceConfig> services) {
-            this.services = services;
+            this.services = services != null ? services : new HashMap<>();
             return this;
         }
 
-        public Builder addServiceConfig(ServiceConfig serviceConfig) {
+        public Builder serviceConfig(ServiceConfig serviceConfig) {
             this.services.put(serviceConfig.getName(), serviceConfig);
             return this;
         }

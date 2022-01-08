@@ -185,13 +185,11 @@ Resources:
               - Effect: Allow
                 Action:
                   - cloudformation:CreateStack
-                Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
-              - Effect: Allow
-                Action:
                   - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
                 Resource:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:transform/saas-boost-app-services-macro
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -459,6 +457,15 @@ Resources:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
               - Effect: Allow
                 Action:
+                  - events:DescribeRule
+                  - events:DeleteRule
+                  - events:PutRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*
+              - Effect: Allow
+                Action:
                   - autoscaling:CreateLaunchConfiguration
                 Resource:
                   - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:launchConfiguration:*:launchConfigurationName/Tenant-*
@@ -474,6 +481,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecr:ListImages
+                  - ecr:CreateRepository
+                  - ecr:DeleteRepository
                 Resource:
                   - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
@@ -482,8 +491,17 @@ Resources:
                   - lambda:CreateFunction
                   - lambda:InvokeFunction
                   - lambda:UpdateFunctionCode
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                Resources:
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/restapis/*/resources
               - Effect: Allow
                 Action:
                   - ec2:RevokeSecurityGroupEgress
@@ -1178,6 +1196,39 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
+  OnboardingUpdateAppConfigLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-appconfig
+      RetentionInDays: 30
+  OnboardingUpdateAppConfig:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-update-appconfig
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateAppConfig
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Onboarding"
 Outputs:
   OnboardingServiceGetAllArn:
     Description: Onboarding Service get all onboarding requests Lambda ARN
@@ -1206,4 +1257,7 @@ Outputs:
   OnboardingUpdateTenantArn:
     Description: Onboarding Service update provisioned tenant Lambda ARN
     Value: !GetAtt OnboardingUpdateTenant.Arn
+  OnboardingUpdateAppConfigArn:
+    Description: Onboarding Service update application config Lambda ARN
+    Value: !GetAtt OnboardingUpdateAppConfig.Arn
 ...

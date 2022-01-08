@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -20,15 +21,6 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-//@JsonInclude(JsonInclude.Include.NON_NULL)
-//@JsonPropertyOrder({
-//        "storageGb",
-//        "throughputMbs",
-//        "backupRetentionDays",
-//        "dailyBackupTime",
-//        "weeklyMaintenanceTime",
-//        "windowsMountDrive"
-//})
 @JsonDeserialize(builder = FsxFilesystem.Builder.class)
 public class FsxFilesystem {
 
