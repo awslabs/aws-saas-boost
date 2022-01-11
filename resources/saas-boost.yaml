@@ -439,6 +439,105 @@ Resources:
       # Can't use a parameter as part of a macro name when you include it in another template
       Name: saas-boost-app-services-macro
       FunctionName: !GetAtt ApplicationServicesMacroFunction.Arn
+  SaaSBoostEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub sb-${Environment}-events
+  SaaSBoostEventBusParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
+      Type: String
+      Value: !Ref SaaSBoostEventBus
+  CoreStackListenerExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-core-stack-listener-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-core-stack-listener-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStackResources
+                Resource:
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+  CoreStackListenerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-core-stack-listener
+      RetentionInDays: 30
+  CoreStackListener:
+    Type: AWS::Lambda::Function
+    DependsOn: CoreStackListenerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-core-stack-listener
+      Role: !GetAtt CoreStackListenerExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.CoreStackListener
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CoreStackListener-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+  CoreStackListenerTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SaaS Boost Provisioning Notifications
+      TopicName: !Sub sb-${Environment}-core-stack-listener
+      KmsMasterKeyId: alias/aws/sns
+  CoreStackListenerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt CoreStackListener.Arn
+      TopicArn: !Ref CoreStackListenerTopic
+  CoreStackListenerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CoreStackListener
+      Principal: sns.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !Ref CoreStackListenerTopic
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -489,6 +588,8 @@ Resources:
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
+      NotificationARNs:
+        - !Ref CoreStackListenerTopic
   billing:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
@@ -511,7 +612,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        EventBus: !GetAtt core.Outputs.EventBus
+        EventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
   metrics:
@@ -543,7 +644,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
   quota:
@@ -567,7 +668,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
         CloudFrontDistribution: !GetAtt web.Outputs.CloudFrontDistributionUrl
@@ -581,7 +682,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostEventBus: !GetAtt core.Outputs.EventBus
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
   user:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -726,6 +827,9 @@ Outputs:
   ApiGatewayHelperLayer:
     Description: SaaS Boost Private API Layer
     Value: !Ref ApiGatewayHelperLayer
+  EventBus:
+    Description: SaaS Boost Eventbridge Bus
+    Value: !Ref SaaSBoostEventBus
   EgressVpc:
     Description: Egress VPC Id
     Value: !GetAtt network.Outputs.EgressVpc

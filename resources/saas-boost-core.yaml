@@ -48,16 +48,6 @@ Parameters:
     Type: String
     Default: ''
 Resources:
-  SaaSBoostEventBus:
-    Type: AWS::Events::EventBus
-    Properties:
-      Name: !Sub sb-${Environment}-events
-  SaaSBoostEventBusParam:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
-      Type: String
-      Value: !Ref SaaSBoostEventBus
   WorkloadDeployLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -190,7 +180,7 @@ Resources:
                 Action:
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
   OnboardingListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -214,7 +204,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -487,7 +477,7 @@ Resources:
   SaaSBoostEventRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: !Ref SaaSBoostEventBus
+      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
       Name: !Sub sb-${Environment}-system-api-call
       State: ENABLED
       EventPattern:
@@ -565,7 +555,7 @@ Resources:
       MemorySize: 384
       Environment:
         Variables:
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
           SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
@@ -590,7 +580,7 @@ Resources:
     Properties:
       Name: !Sub sb-${Environment}-tenant-enable-disable
       Description: A filter for when a tenant status is updated
-      EventBusName: !Ref SaaSBoostEventBus
+      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
       EventPattern:
         detail-type:
           - Tenant Status Update
@@ -833,9 +823,6 @@ Outputs:
   CodePipelineIamRole:
     Description: SaaS Boost tenant deploy CodePipeline IAM role
     Value: !GetAtt TenantCodePipelineRole.Arn
-  EventBus:
-    Description: SaaS Boost Eventbridge Bus
-    Value: !Ref SaaSBoostEventBus
   SaaSBoostPublicApi:
     Description: SaaS Boost Public API
     Value: !Ref SaaSBoostPublicApi

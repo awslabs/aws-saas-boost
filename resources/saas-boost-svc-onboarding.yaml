@@ -218,20 +218,6 @@ Resources:
                   - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
               - Effect: Allow
                 Action:
-                  - ec2:CreateInternetGateway
-                  - ec2:CreateVpc
-                  - ec2:ModifyVpcAttribute
-                  - ec2:AttachInternetGateway
-                  - ec2:CreateSubnet
-                  - ec2:CreateSecurityGroup
-                  - ec2:CreateRouteTable
-                  - ec2:AssociateRouteTable
-                  - ec2:Describe*
-                  - ec2:CreateNetworkInterface
-                  - ecs:CreateCapacityProvider
-                Resource: '*'
-              - Effect: Allow
-                Action:
                   - ec2:CreateTags
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
@@ -247,6 +233,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:AuthorizeSecurityGroupEgress
                 Resource:
                   - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
               - Effect: Allow
@@ -371,6 +359,17 @@ Resources:
                   - arn:aws:route53:::hostedzone/*
               - Effect: Allow
                 Action:
+                  - ec2:CreateInternetGateway
+                  - ec2:CreateVpc
+                  - ec2:ModifyVpcAttribute
+                  - ec2:AttachInternetGateway
+                  - ec2:CreateSubnet
+                  - ec2:CreateSecurityGroup
+                  - ec2:CreateRouteTable
+                  - ec2:AssociateRouteTable
+                  - ec2:Describe*
+                  - ec2:CreateNetworkInterface
+                  - ecs:CreateCapacityProvider
                   - route53:CreateHostedZone
                   - servicediscovery:CreatePrivateDnsNamespace
                   - servicediscovery:GetOperation
@@ -500,14 +499,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - apigateway:GET
-                Resources:
-                  - !Sub arn:aws:apigateway:${AWS::Region}::/restapis/*/resources
-              - Effect: Allow
-                Action:
-                  - ec2:RevokeSecurityGroupEgress
-                  - ec2:AuthorizeSecurityGroupEgress
                 Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+                  - !Sub arn:aws:apigateway::${AWS::AccountId}:/restapis/*/resources
               # This is for the AD stack -- need to figure out why update DNS wants to delete the directory
               - Effect: Allow
                 Action:

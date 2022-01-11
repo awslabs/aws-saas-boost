@@ -19,7 +19,8 @@
         <module>ecs-shutdown-services</module>
         <module>ecs-startup-services</module>
         <module>onboarding-listener</module>
-        <module>system-rest-api-client</module>
+		<module>system-rest-api-client</module>
+		<module>core-stack-listener</module>
     </modules>
     <licenses>
         <license>
