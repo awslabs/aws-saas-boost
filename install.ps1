@@ -17,38 +17,44 @@
 
 $CURRENT_DIR = Split-Path $script:MyInvocation.MyCommand.Path
 
-#Write-host "Current directory is $CURRENT_DIR"
+Write-host "Current directory is $CURRENT_DIR"
 
 # Check for installer
-if (-not (Test-Path -Path ${CURRENT_DIR}\installer -PathType Container)) {
-
- Write-Host "Directory ${CURRENT_DIR}\installer not found"
- Exit 2
+if (-not (Test-Path -Path ${CURRENT_DIR}\installer -PathType Container))
+{
+    Write-Host "Directory ${CURRENT_DIR}\installer not found"
+    Exit 2
 }
 
 # Check for client\web
-if (-not (Test-Path -Path ${CURRENT_DIR}\client\web -PathType Container)) {
-
- Write-Host "Directory ${CURRENT_DIR}\client\web not found"
- Exit 2
+if (-not (Test-Path -Path ${CURRENT_DIR}\client\web -PathType Container))
+{
+    Write-Host "Directory ${CURRENT_DIR}\client\web not found"
+    Exit 2
 }
 
 Function Test-CommandExists
 {
-
- Param ($command)
-
- $oldPreference = $ErrorActionPreference
-
- $ErrorActionPreference = 'stop'
-
- try {if(Get-Command $command){RETURN $true}}
-
- Catch {Write-Host "$command does not exist"; RETURN $false}
-
- Finally {$ErrorActionPreference=$oldPreference}
-
-} #end function test-CommandExists
+    Param ($command)
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'stop'
+    try
+    {
+        if (Get-Command $command)
+        {
+            RETURN $true
+        }
+    }
+    Catch
+    {
+        Write-Host "$command does not exist";
+        RETURN $false
+    }
+    Finally
+    {
+        $ErrorActionPreference = $oldPreference
+    }
+}
 
 Function Ensure-ExecutableExists
 {
@@ -57,7 +63,6 @@ Function Ensure-ExecutableExists
         [Parameter(Mandatory = $True)]
         [string]
         $Executable,
-
         [string]
         $MinimumVersion = ""
     )
@@ -71,63 +76,66 @@ Function Ensure-ExecutableExists
         If ($CurrentVersion -lt $RequiredVersion)
         {
             Write-Host "$($Executable) version $($CurrentVersion) does not meet requirements"
-	    RETURN $false
+            RETURN $false
         }
-	RETURN $true
+        RETURN $true
     }
 }
 
-
 # check for java
-If (-not (Ensure-ExecutableExists -Executable "java" -MinimumVersion "11.0.8")) {
-  Write-host "java version 11 or higher must be installed"
-  Exit 2
+If (-not (Ensure-ExecutableExists -Executable "java" -MinimumVersion "11.0.8"))
+{
+    Write-host "java version 11 or higher must be installed"
+    Exit 2
 }
 
 # check for yarn
-If (-not (Test-CommandExists -command "yarn")) {
-  Write-host "yarn version 1.22 or higher must be installed"
-  Exit 2
+If (-not (Test-CommandExists -command "yarn"))
+{
+    Write-host "yarn version 1.22 or higher must be installed"
+    Exit 2
 }
 
 # check for maven
-If (-not (Test-CommandExists -command "mvn")) {
-  Write-host "maven must be installed"
-  Exit 2
+If (-not (Test-CommandExists -command "mvn"))
+{
+    Write-host "maven must be installed"
+    Exit 2
 }
 
 # check for node
-If (-not (Test-CommandExists -command "node")) {
-  Write-host "node version 14 must be installed"
-  Exit 2
+If (-not (Test-CommandExists -command "node"))
+{
+    Write-host "node version 14 must be installed"
+    Exit 2
 }
 
- 
 $AWS_REGION = (((aws configure list | Select-String -Pattern "region") -split "\s+")[2])
 Write-host "AWS Region = $AWS_REGION"
-if ("X$AWS_REGION" -eq "X" ) {
-  echo "AWS_REGION not set, check your aws profile or set AWS_DEFAULT_REGION"
-  Exit 2
+if ([string]::IsNullOrWhiteSpace($AWS_REGION))
+{
+    echo "AWS_REGION not set, check your aws profile or set AWS_DEFAULT_REGION"
+    Exit 2
 }
-
 
 cd installer
 Write-host "Building Java Installer with maven"
-mvn 2>&1 | out-null
-if ( -not $? ) {
- Write-host "Error with build of Java installer for SaaS Boost"
- Exit 2
+mvn --quiet "-Dspotbugs.skip" 2>&1 | Out-Null
+if (-not $?)
+{
+    Write-host "Error with build of Java installer for SaaS Boost"
+    Exit 2
 }
 Write-host "Java Installer build completed"
 
-
 cd ${CURRENT_DIR}\client\web
-Write-host "Downloading dependencies for React Web App, please be patient"
-yarn *>&1 | out-null
-if ( -not $? ) {
-  Write-host "Error with yarn build for dependencies of React Web App. Check node version per documentation."
-  Exit 2
- }
+Write-host "Downloading Node dependencies for React web app..."
+yarn
+if (-not $?)
+{
+    Write-host "Error with yarn build for dependencies of React Web App. Check node version per documentation."
+    Exit 2
+}
 Write-host "Download dependencies completed for React Web App"
 
 cd $CURRENT_DIR
