@@ -369,7 +369,6 @@ Resources:
                   - ec2:AssociateRouteTable
                   - ec2:Describe*
                   - ec2:CreateNetworkInterface
-                  - ecs:CreateCapacityProvider
                   - route53:CreateHostedZone
                   - servicediscovery:CreatePrivateDnsNamespace
                   - servicediscovery:GetOperation
@@ -381,6 +380,7 @@ Resources:
                   - application-autoscaling:PutScalingPolicy
                   - autoscaling:Describe*
                   - ecs:CreateCluster
+                  - ecs:CreateCapacityProvider
                   - ecs:RegisterTaskDefinition
                   - ecs:DeregisterTaskDefinition
                   - ecs:TagResource
@@ -395,13 +395,13 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                - kms:TagResource
-                - kms:PutKeyPolicy
-                - kms:CreateAlias
-                - kms:UpdateAlias
+                  - kms:TagResource
+                  - kms:PutKeyPolicy
+                  - kms:CreateAlias
+                  - kms:UpdateAlias
                 Resource:
-                - !Sub arn:aws:kms:*:${AWS::AccountId}:alias/*
-                - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*
+                  - !Sub arn:aws:kms:*:${AWS::AccountId}:alias/*
+                  - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*
               - Effect: Allow
                 Action:
                   - route53:GetChange
@@ -500,7 +500,7 @@ Resources:
                 Action:
                   - apigateway:GET
                 Resource:
-                  - !Sub arn:aws:apigateway::${AWS::AccountId}:/restapis/*/resources
+                  - arn:aws:apigateway:*::/restapis/*/resources
               # This is for the AD stack -- need to figure out why update DNS wants to delete the directory
               - Effect: Allow
                 Action:
