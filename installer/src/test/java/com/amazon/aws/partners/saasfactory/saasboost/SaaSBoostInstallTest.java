@@ -93,7 +93,7 @@ public class SaaSBoostInstallTest {
         input.put("NumericParameter", "1"); // Let's pretend that we overwrote the default the first time around
 
         // Fill up standard input with a response for the Keyboard class
-        System.setIn(new ByteArrayInputStream("keyboard input\n".getBytes(StandardCharsets.UTF_8)));
+        System.setIn(new ByteArrayInputStream(("keyboard input" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8)));
 
         Path cloudFormationTemplate = Path.of(this.getClass().getClassLoader().getResource("template.yaml").toURI());
         Map<String, String> actual = SaaSBoostInstall.getCloudFormationParameterMap(cloudFormationTemplate, input);
