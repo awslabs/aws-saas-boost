@@ -62,7 +62,10 @@ public class SaaSBoostArtifactsBucket {
             LOGGER.debug("Putting {} to Artifacts bucket: {}", localPath, this);
             s3.putObject(PutObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(remotePath.toString())
+                    // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
+                    // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
+                    // definitions of the Lambda functions will always use forward slashes for the S3Key property.
+                    .key(remotePath.toString().replace('\\', '/'))
                     .build(), RequestBody.fromFile(localPath)
             );
         } catch (SdkServiceException s3Error) {
