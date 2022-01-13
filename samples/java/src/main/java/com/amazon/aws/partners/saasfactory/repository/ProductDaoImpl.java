@@ -55,7 +55,7 @@ public class ProductDaoImpl implements ProductDao {
     public Product getProduct(Integer productId) {
         LOGGER.info("ProductDao::getProduct " + productId);
         String sql = SELECT_PRODUCT_SQL.concat(" WHERE p.product_id = ?");
-        return jdbc.query(sql, new Object[]{productId}, new ProductMapper());
+        return jdbc.query(sql, new ProductMapper(), productId);
     }
 
     @Override
@@ -126,17 +126,17 @@ public class ProductDaoImpl implements ProductDao {
                 category = categoryDao.saveCategory(category);
             }
         }
-        jdbc.update(UPDATE_PRODUCT_SQL, new Object[]{product.getSku(), product.getName(), product.getPrice(), product.getImageName(), product.getId()});
+        jdbc.update(UPDATE_PRODUCT_SQL, product.getSku(), product.getName(), product.getPrice(), product.getImageName(), product.getId());
         updateProductCategories(product);
         return product;
     }
 
     private void updateProductCategories(Product product) {
-        jdbc.update("DELETE FROM product_categories WHERE product_id = ?", new Object[]{product.getId()});
+        jdbc.update("DELETE FROM product_categories WHERE product_id = ?", product.getId());
         if (!product.getCategories().isEmpty()) {
             // replace this
             for (Category category : product.getCategories()) {
-                jdbc.update("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)", new Object[]{product.getId(), category.getId()});
+                jdbc.update("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)", product.getId(), category.getId());
             }
         }
     }
@@ -144,7 +144,7 @@ public class ProductDaoImpl implements ProductDao {
     @Override
     public Product deleteProduct(Product product) {
         LOGGER.info("ProductDao::deleteProduct " + product);
-        int affectedRows = jdbc.update(DELETE_PRODUCT_SQL, new Object[]{product.getId()});
+        int affectedRows = jdbc.update(DELETE_PRODUCT_SQL, product.getId());
         if (affectedRows != 1) {
             throw new RuntimeException("Delete failed for product " + product.getId());
         }

@@ -62,7 +62,7 @@ public class OrderDaoImpl implements OrderDao {
     @Override
     public Order getOrder(Integer orderId) throws Exception {
         String sql = SELECT_ORDER_SQL.concat(" WHERE order_fulfillment_id = ?");
-        return jdbc.queryForObject(sql, new Object[]{orderId}, new OrderRowMapper());
+        return jdbc.queryForObject(sql, new OrderRowMapper(), orderId);
     }
 
     @Override
@@ -222,7 +222,7 @@ public class OrderDaoImpl implements OrderDao {
         LOGGER.info("OrderDao::deleteOrder " + order);
 
         deleteOrderLineItems(order.getId());
-        int affectedRows = jdbc.update(DELETE_ORDER_SQL, new Object[]{order.getId()});
+        int affectedRows = jdbc.update(DELETE_ORDER_SQL, order.getId());
         if (affectedRows != 1) {
             throw new RuntimeException("Delete failed for order " + order.getId());
         }
@@ -232,7 +232,7 @@ public class OrderDaoImpl implements OrderDao {
     private List<OrderLineItem> getOrderLineItems(Integer orderId) throws Exception {
         String sql = "SELECT order_line_item_id, order_fulfillment_id, product_id, quantity, unit_purchase_price " +
                 "FROM order_line_item WHERE order_fulfillment_id = ?";
-        List<OrderLineItem> lineItems = jdbc.query(sql, new Object[]{orderId}, new OrderLineItemRowMapper());
+        List<OrderLineItem> lineItems = jdbc.query(sql, new OrderLineItemRowMapper(), orderId);
         return lineItems;
     }
 

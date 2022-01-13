@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM amazoncorretto:11-alpine-jdk AS build
-RUN ["/usr/lib/jvm/default-jvm/bin/jlink", "--compress=2", "--module-path", "/usr/lib/jvm/default-jvm/jmods", "--add-modules", "java.base,java.logging,java.xml,jdk.unsupported,java.sql,java.naming,java.desktop,java.management,java.security.jgss,java.instrument", "--output", "/jdk-mini"]
+FROM amazoncorretto:11-alpine AS build
+RUN ["/usr/lib/jvm/default-jvm/bin/jlink", "--compress=2", "--no-man-pages", "--module-path", "/usr/lib/jvm/default-jvm/jmods", "--add-modules", "java.base,java.logging,java.xml,jdk.unsupported,java.sql,java.naming,java.desktop,java.management,java.security.jgss,java.instrument,java.net.http", "--output", "/jdk-mini"]
 
-FROM alpine
+FROM public.ecr.aws/docker/library/alpine:latest
 COPY --from=build /jdk-mini /opt/jdk/
 VOLUME /mnt
 ENV PATH=$PATH:/opt/jdk/bin

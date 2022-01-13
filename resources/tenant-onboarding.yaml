@@ -722,8 +722,8 @@ Resources:
         !If
           - ProvisionEFS
           - - Name: !GetAtt efs.Outputs.FileSystemId
-              EfsVolumeConfiguration:
-                FileSystemId: !GetAtt efs.Outputs.FileSystemId
+              EFSVolumeConfiguration:
+                FilesystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
             - ProvisionFsx
             - - Name: !GetAtt fsx.Outputs.FSxFileSystemID
