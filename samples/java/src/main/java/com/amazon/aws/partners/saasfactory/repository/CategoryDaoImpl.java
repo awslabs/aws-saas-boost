@@ -44,13 +44,13 @@ public class CategoryDaoImpl implements CategoryDao {
     @Override
     public Category getCategory(Integer categoryId) {
         LOGGER.info("CategoryDao::getCategory " + categoryId);
-        return jdbc.queryForObject("SELECT category_id, category FROM category WHERE category_id = ?", new Object[]{categoryId}, new CategoryRowMapper());
+        return jdbc.queryForObject("SELECT category_id, category FROM category WHERE category_id = ?", new CategoryRowMapper(), categoryId);
     }
 
     @Override
     public Category getCategoryByName(String name) {
         LOGGER.info("CategoryDao::getCategoryByName " + name);
-        return jdbc.queryForObject("SELECT category_id, category FROM category WHERE category = ?", new Object[]{name}, new CategoryRowMapper());
+        return jdbc.queryForObject("SELECT category_id, category FROM category WHERE category = ?", new CategoryRowMapper(), name);
     }
 
     @Override
