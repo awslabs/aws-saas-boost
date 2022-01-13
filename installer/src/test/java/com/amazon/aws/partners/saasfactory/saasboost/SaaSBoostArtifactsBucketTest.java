@@ -60,7 +60,7 @@ public class SaaSBoostArtifactsBucketTest {
         assertEquals("Put object to the wrong bucket.",
                 testBucket.getBucketName(), putObjectRequestArgumentCaptor.getValue().bucket());
         assertEquals("Put object to the wrong location.",
-                exampleRemotePath.toString(), putObjectRequestArgumentCaptor.getValue().key());
+                exampleRemotePath.toString().replace('\\', '/'), putObjectRequestArgumentCaptor.getValue().key());
         assertEquals("Put different length object to remote location. Wrong file?",
                 localPathToTestPut.toFile().length(), requestBodyArgumentCaptor.getValue().contentLength());
     }
