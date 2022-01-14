@@ -609,7 +609,7 @@ Resources:
             - ''
             - - '{{resolve:ssm-secure:'
               - !Ref MetricUserPasswordSSMParameter
-              - ':1}}'
+              - '}}'
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref RSCloudwatchLogsGroup

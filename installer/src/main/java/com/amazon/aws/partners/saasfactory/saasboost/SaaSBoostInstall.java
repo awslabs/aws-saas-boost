@@ -512,20 +512,6 @@ public class SaaSBoostInstall {
         // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
         deleteApplicationConfig();
 
-        // This installer also creates some Parameter Store entries outside of CloudFormation
-        // TODO move these parameters to CloudFormation
-        try {
-            DeleteParametersResponse deleteParametersResponse = ssm.deleteParameters(request -> request.names(
-                    "/saas-boost/" + this.envName + "/ACTIVE_DIRECTORY_PASSWORD",
-                    "/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED",
-                    "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD"
-            ));
-        } catch (SdkServiceException ssmError) {
-            outputMessage("Failed to delete all Parameter Store entries");
-            LOGGER.error("ssm:DeleteParameters error", ssmError);
-            LOGGER.error(getFullStackTrace(ssmError));
-        }
-
         // Delete the analytics stack if it exists
         String analyticsStackName = analyticsStackName();
         if (checkCloudFormationStack(analyticsStackName)) {
@@ -541,6 +527,21 @@ public class SaaSBoostInstall {
         LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
         cleanUpS3(saasBoostArtifactsBucket.getBucketName(), null);
         s3.deleteBucket(r -> r.bucket(saasBoostArtifactsBucket.getBucketName()));
+
+        // This installer also creates some Parameter Store entries outside of CloudFormation which are
+        // needed to delete stacks via CloudFormation. delete these last.
+        // TODO move these parameters to CloudFormation
+        try {
+            ssm.deleteParameters(request -> request.names(
+                    "/saas-boost/" + this.envName + "/ACTIVE_DIRECTORY_PASSWORD",
+                    "/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED",
+                    "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD"
+            ));
+        } catch (SdkServiceException ssmError) {
+            outputMessage("Failed to delete all Parameter Store entries");
+            LOGGER.error("ssm:DeleteParameters error", ssmError);
+            LOGGER.error(getFullStackTrace(ssmError));
+        }
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
     }
@@ -619,6 +620,9 @@ public class SaaSBoostInstall {
                 LOGGER.error(getFullStackTrace(ssmError));
                 throw ssmError;
             }
+            // CloudFormation ssm-secure resolution needs a version number, which is guaranteed to be 1
+            // in this case where we just created it
+            dbPasswordParam = dbPasswordParam + ":1";
         }
         outputMessage("Redshift Database User Password stored in secure SSM Parameter: " + dbPasswordParam);
 
