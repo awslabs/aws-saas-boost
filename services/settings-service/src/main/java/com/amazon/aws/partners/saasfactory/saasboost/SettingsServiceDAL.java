@@ -178,8 +178,13 @@ public class SettingsServiceDAL {
     }
 
     public Setting updateSetting(Setting setting) {
-        Parameter updated = parameterStore.putParameter(toParameterStore(setting));
-        return fromParameterStore(updated);
+        Setting updated = fromParameterStore(parameterStore.putParameter(toParameterStore(setting)));
+        if (updated.isSecure()) {
+            // we don't want to return the unencrypted value, so replace this
+            // setting with the encrypted representation we just placed in ParameterStore
+            updated = getSetting(updated.getName());
+        }
+        return updated;
     }
 
     private void deleteSetting(Setting setting) {
@@ -291,9 +296,28 @@ public class SettingsServiceDAL {
     public AppConfig setAppConfig(AppConfig appConfig) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::setAppConfig");
-        List<Setting> updatedAppConfigSettings = new ArrayList<>();
-        for (Setting setting : toSettings(appConfig)) {
-            LOGGER.info("Updating setting {} {} in app config", setting.getName(), setting.getValue());
+        // updateSettingsAndServices sends PUTs to ParameterStore
+        List<Setting> updatedAppConfigSettings = updateSettingsAndSecrets(appConfigToSettings(appConfig));
+        appConfig = appConfigFromSettings(updatedAppConfigSettings);
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
+        return appConfig;
+    }
+
+    public ServiceConfig setServiceConfig(ServiceConfig serviceConfig) {
+        final long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsServiceDAL::setServiceConfig");
+        List<Setting> updatedServiceConfigSettings = updateSettingsAndSecrets(serviceConfigToSettings(serviceConfig));
+        serviceConfig = appConfigFromSettings(updatedServiceConfigSettings).getServices().get(serviceConfig.getName());
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::setServiceConfig exec " + totalTimeMillis);
+        return serviceConfig;
+    }
+
+    private List<Setting> updateSettingsAndSecrets(List<Setting> settingsToUpdate) {
+        List<Setting> updatedSettings = new LinkedList<>();
+        for (Setting setting : settingsToUpdate) {
+            LOGGER.info("Updating setting {} to {}", setting.getName(), setting.getValue());
             if (setting.isSecure()) {
                 Setting existing = getSetting(setting.getName());
                 if (existing != null) {
@@ -306,18 +330,14 @@ public class SettingsServiceDAL {
                 if (existing != null && existing.getValue().equals(setting.getValue())) {
                     // Nothing has changed, don't overwrite the value in Parameter Store
                     LOGGER.info("Skipping update of secret because encrypted values are the same");
+                    updatedSettings.add(setting);
                     continue;
                 }
             }
             LOGGER.info("Calling put parameter {}", setting.getName());
-            updatedAppConfigSettings.add(updateSetting(setting));
+            updatedSettings.add(updateSetting(setting));
         }
-        // Return a fresh copy of the config object to be sure all the encrypted
-        // values are represented
-        appConfig = appConfigFromSettings(updatedAppConfigSettings);
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
-        return appConfig;
+        return updatedSettings;
     }
 
     public AppConfig getAppConfig() {
@@ -329,21 +349,15 @@ public class SettingsServiceDAL {
         return appConfig;
     }
 
-    public AppConfig appConfigFromSettings(List<Setting> appConfigSettings) {
-        // Get the secret value for the optional billing provider or you'll always
-        // be testing for empty against the encrypted hash of the "N/A" sentinel string
-        return toAppConfig(
-                appConfigSettings.stream()
-                        .collect(Collectors.toMap(Setting::getName, Setting::getValue)),
-                getSecret("BILLING_API_KEY"));
-    }
-
-    private static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
+    private static AppConfig toAppConfig(Map<String, String> appSettings) {
         AppConfig.Builder appConfigBuilder = AppConfig.builder()
                 .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
                 .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
                 .hostedZone(appSettings.get(APP_BASE_PATH + "HOSTED_ZONE"))
-                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
+                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"))
+                .billing(BillingProvider.builder()
+                        .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
+                        .build());
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
@@ -352,15 +366,6 @@ public class SettingsServiceDAL {
             if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
                 ServiceConfig serviceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
                 appConfigBuilder.serviceConfig(serviceConfig);
-            }
-        }
-
-        if (billingApiKey != null) {
-            String apiKey = billingApiKey.getValue();
-            if (Utils.isNotEmpty(apiKey)) {
-                appConfigBuilder.billing(BillingProvider.builder()
-                        .apiKey(apiKey)
-                        .build());
             }
         }
 
@@ -377,7 +382,7 @@ public class SettingsServiceDAL {
         for (String serviceName : appConfig.getServices().keySet()) {
             deleteServiceConfig(appConfig, serviceName);
         }
-        List<String> parametersToDelete = toSettings(appConfig).stream()
+        List<String> parametersToDelete = appConfigToSettings(appConfig).stream()
                 .map(s -> toParameterStore(s).name())
                 .collect(Collectors.toList());
         parameterStore.deleteParameters(parametersToDelete);
@@ -386,7 +391,7 @@ public class SettingsServiceDAL {
     }
 
     public void deleteServiceConfig(AppConfig appConfig, String serviceName) {
-        parameterStore.deleteParameters(toSettings(appConfig.getServices().get(serviceName))
+        parameterStore.deleteParameters(serviceConfigToSettings(appConfig.getServices().get(serviceName))
                 .stream()
                 .map(s -> toParameterStore(s).name())
                 .collect(Collectors.toList()));
@@ -501,7 +506,7 @@ public class SettingsServiceDAL {
                 .build();
     }
 
-    public static List<Setting> toSettings(AppConfig appConfig) {
+    public static List<Setting> appConfigToSettings(AppConfig appConfig) {
         List<Setting> settings = new ArrayList<>();
 
         settings.add(Setting.builder()
@@ -526,7 +531,7 @@ public class SettingsServiceDAL {
                 .build());
 
         for (ServiceConfig serviceConfig : appConfig.getServices().values()) {
-            settings.addAll(toSettings(serviceConfig));
+            settings.addAll(serviceConfigToSettings(serviceConfig));
         }
 
         String billingApiKeySettingValue = null;
@@ -543,7 +548,7 @@ public class SettingsServiceDAL {
         return settings;
     }
 
-    public static List<Setting> toSettings(ServiceConfig serviceConfig) {
+    public static List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
         List<Setting> settings = new ArrayList<>();
         // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
         // but that means we need to create the DB_MASTER_PASSWORD for each ServiceTier, as some tiers
@@ -572,5 +577,13 @@ public class SettingsServiceDAL {
                 .readOnly(false).build());
 
         return settings;
+    }
+
+    public AppConfig appConfigFromSettings(List<Setting> appConfigSettings) {
+        // Get the secret value for the optional billing provider or you'll always
+        // be testing for empty against the encrypted hash of the "N/A" sentinel string
+        return toAppConfig(
+                appConfigSettings.stream()
+                        .collect(Collectors.toMap(Setting::getName, Setting::getValue)));
     }
 }

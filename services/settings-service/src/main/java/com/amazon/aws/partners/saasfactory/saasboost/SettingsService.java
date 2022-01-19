@@ -810,12 +810,11 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         // the service they request to update must actually exist
         if (requestedService != null) {
             editedService = allowedKeys.get(jsonKey).apply(ServiceConfig.builder(requestedService), jsonValue).build();
-            AppConfig newAppConfig = AppConfig.builder(existingAppConfig).serviceConfig(editedService).build();
-            dal.setAppConfig(newAppConfig);
+            dal.setServiceConfig(editedService);
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(200)
-                    .withBody(Utils.toJson(newAppConfig));
+                    .withBody(Utils.toJson(editedService));
         } else {
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
