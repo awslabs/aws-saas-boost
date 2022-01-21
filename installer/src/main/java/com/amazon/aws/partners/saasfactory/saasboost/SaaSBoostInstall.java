@@ -1796,7 +1796,10 @@ public class SaaSBoostInstall {
                     LOGGER.info("Uploading to S3 " + fileToUpload.toString() + " -> " + key);
                     s3.putObject(PutObjectRequest.builder()
                             .bucket(webBucket)
-                            .key(key)
+                            // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
+                            // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
+                            // definitions of the Lambda functions will always use forward slashes for the S3Key property.
+                            .key(key.replace('\\', '/'))
                             .metadata(metadata)
                             .build(), RequestBody.fromFile(fileToUpload)
                     );
