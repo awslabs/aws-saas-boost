@@ -14,58 +14,50 @@
  * limitations under the License.
  */
 
-import React, { lazy, useState, useEffect } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  fetchTenantsThunk,
-  selectAllTenants,
-  dismissError,
-} from "../tenant/ducks";
+import React, { lazy, useState, useEffect } from 'react'
+import { Row, Col, Card, CardBody } from 'reactstrap'
+import { useDispatch, useSelector } from 'react-redux'
+import { fetchTenantsThunk, selectAllTenants, dismissError } from '../tenant/ducks'
 
-const SelectTenantComponent = lazy(() => import("./SelectTenantComponent"));
-const SelectTimePeriodComponent = lazy(() =>
-  import("./SelectTimePeriodComponent")
-);
+const SelectTenantComponent = lazy(() => import('./SelectTenantComponent'))
+const SelectTimePeriodComponent = lazy(() => import('./SelectTimePeriodComponent'))
 
-const MetricTopTenantsContainer = lazy(() =>
-  import("./MetricTopTenantsContainer")
-);
+const MetricTopTenantsContainer = lazy(() => import('./MetricTopTenantsContainer'))
 
-const TenantGraphContainer = lazy(() => import("./TenantGraphContainer"));
-const StatsGraphContainer = lazy(() => import("./StatsGraphContainer"));
+const TenantGraphContainer = lazy(() => import('./TenantGraphContainer'))
+const StatsGraphContainer = lazy(() => import('./StatsGraphContainer'))
 
 export default function ECSMetricsConatiner(props) {
-  const dispatch = useDispatch();
-  const tenants = useSelector(selectAllTenants);
+  const dispatch = useDispatch()
+  const tenants = useSelector(selectAllTenants)
 
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("DAY_7");
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
-    setSelectedTimePeriod(period);
-  };
-  const [selectedTenant, setSelectedTenant] = useState(null);
+    setSelectedTimePeriod(period)
+  }
+  const [selectedTenant, setSelectedTenant] = useState(null)
   const selectTenant = (tenant) => {
-    if (tenant === "") {
-      setSelectedTenant(null);
+    if (tenant === '') {
+      setSelectedTenant(null)
     } else {
-      setSelectedTenant(tenant);
+      setSelectedTenant(tenant)
     }
-  };
+  }
 
-  const refreshPage = () => {};
+  const refreshPage = () => {}
 
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
-    <div classname="animated fadeIn">
+    <div className="animated fadeIn">
       <Row>
         <Col xs={12} lg={12}>
           <Card>
@@ -79,15 +71,9 @@ export default function ECSMetricsConatiner(props) {
                   />
                 </Col>
                 <Col lg={5} sm={5}>
-                  <SelectTimePeriodComponent
-                    selectTimePeriod={selectTimePeriod}
-                  />
+                  <SelectTimePeriodComponent selectTimePeriod={selectTimePeriod} />
                 </Col>
-                <Col
-                  lg={1}
-                  sm={1}
-                  className="d-inline-flex pt-2 justify-content-end"
-                >
+                <Col lg={1} sm={1} className="d-inline-flex pt-2 justify-content-end">
                   {/*<a href="#" onClick={refreshPage}>*/}
                   {/*  <i className="fa fa-refresh text-muted"></i>*/}
                   {/*</a>*/}
@@ -174,5 +160,5 @@ export default function ECSMetricsConatiner(props) {
         )}
       </Row>
     </div>
-  );
+  )
 }

@@ -13,62 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import React from 'react'
+import { BrowserRouter, Route, Switch } from 'react-router-dom'
+import { FetchSettings } from './settings'
+import { PropTypes } from 'prop-types'
+import './scss/style.scss'
+import { Provider } from 'react-redux'
+import store from './store/index'
+import ScrollToTop from './utils/ScrollToTop'
 
-import React, { Component } from "react";
-import { BrowserRouter } from "react-router-dom";
-import configureAppStore from "./store";
-import { Provider } from "react-redux";
-import { FetchSettings } from "./settings";
-import { Hub } from "aws-amplify";
-import "./App.scss";
-import Routes from "./Routes";
-import ScrollToTop from "./utils/ScrollToTop";
+//const loading = (
+//  <div className="pt-3 text-center">
+//    <div className="sk-spinner sk-spinner-pulse"></div>
+//  </div>
+//)
 
-const store = configureAppStore();
+// Containers
+const DefaultLayout = React.lazy(() => import('./layout/DefaultLayout'))
 
-/**
- * Hub.listen(*) handlers moved out of constructor and into main file
- * since we're moving function into a stateless function
- */
-Hub.listen("auth", (data) => {
-  const { payload } = data;
-  const { event } = payload;
-
-  switch (event) {
-    case "signOut":
-      console.log("dispatching reset");
-      store.dispatch({ type: "RESET" });
-      break;
-    case "configured":
-      break;
-    default:
-      console.log("Hub::catchAll - " + JSON.stringify(payload.event));
-  }
-});
-
-/**
- * Hub.listen(*) handlers
- *
- * == END
- */
+App.propTypes = {
+  authState: PropTypes.string,
+}
 
 function App(props) {
-  if (props.authState === "signedIn") {
+  if (props.authState === 'signedIn') {
     return (
       <Provider store={store}>
-        <BrowserRouter basename="/">
+        <BrowserRouter>
           <ScrollToTop>
             <FetchSettings>
-              <Routes />
+              <Switch>
+                <Route path="/" name="Home" render={(props) => <DefaultLayout {...props} />} />
+              </Switch>
             </FetchSettings>
           </ScrollToTop>
         </BrowserRouter>
       </Provider>
-    );
+    )
   } else {
-    return null;
+    return null
   }
 }
 
-export default App;
-//TODO: Clear out redux store when user is signed out.
+export default App

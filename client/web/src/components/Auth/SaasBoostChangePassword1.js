@@ -13,36 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import PropTypes from 'prop-types'
+import React, { Component } from 'react'
+import { Formik, Form } from 'formik'
+import * as Yup from 'yup'
+import { Auth } from 'aws-amplify'
 
-import React, { Component } from "react";
-import { Formik, Form } from "formik";
-import * as Yup from "yup";
-import { Auth } from "aws-amplify";
-
-import {
-  Modal,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Button,
-  Alert,
-  Row,
-  Col,
-} from "reactstrap";
-import { SaasBoostInput } from "../FormComponents/SaasBoostInput";
+import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Alert, Row, Col } from 'reactstrap'
+import { SaasBoostInput } from '../FormComponents/SaasBoostInput'
 
 class SaasBoostChangePassword extends Component {
   constructor(props) {
-    super(props);
+    super(props)
     this.state = {
       isOpen: false,
       error: undefined,
       success: false,
-    };
-    this.handleCancel = this.handleCancel.bind(this);
-    this.handleSubmit = this.handleSubmit.bind(this);
-    this.showError = this.showError.bind(this);
-    this.handleError = this.handleError.bind(this);
+    }
+    this.handleCancel = this.handleCancel.bind(this)
+    this.handleSubmit = this.handleSubmit.bind(this)
+    this.showError = this.showError.bind(this)
+    this.handleError = this.handleError.bind(this)
   }
 
   toggle() {}
@@ -50,59 +41,59 @@ class SaasBoostChangePassword extends Component {
   showError(error, handleError) {
     return (
       <Alert color="danger" isOpen={!!error} toggle={() => handleError()}>
-        <h4 className={"alert-heading"}>Error</h4>
+        <h4 className="alert-heading">Error</h4>
         <p>{error}</p>
       </Alert>
-    );
+    )
   }
 
   handleCancel() {
-    const { handleClose } = this.props;
+    const { handleClose } = this.props
     // do clean up.
-    handleClose();
+    handleClose()
   }
 
   handleError() {
-    this.setState({ error: undefined });
+    this.setState({ error: undefined })
   }
 
   async handleSubmit(values, { resetForm, setSubmitting }) {
-    const { newPassword, oldPassword } = values;
+    const { newPassword, oldPassword } = values
     try {
-      const user = await Auth.currentAuthenticatedUser();
+      const user = await Auth.currentAuthenticatedUser()
 
-      await Auth.changePassword(user, oldPassword, newPassword);
-      setSubmitting(false);
+      await Auth.changePassword(user, oldPassword, newPassword)
+      setSubmitting(false)
       this.setState((state, props) => {
-        return { success: true };
-      });
+        return { success: true }
+      })
     } catch (err) {
-      this.setState({ error: err.message });
-      setSubmitting(false);
-      resetForm({ values });
+      this.setState({ error: err.message })
+      setSubmitting(false)
+      resetForm({ values })
     }
   }
 
   render() {
-    const { show } = this.props;
-    const { error, success } = this.state;
+    const { show } = this.props
+    const { error, success } = this.state
 
     const initialValue = {
-      oldPassword: "",
-      newPassword: "",
-      confirmNewPassword: "",
-    };
+      oldPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+    }
 
     const validationSchema = Yup.object({
-      oldPassword: Yup.string().required("Required"),
+      oldPassword: Yup.string().required('Required'),
       newPassword: Yup.string()
-        .min(6, "Password must have a minimum of 6 characters")
-        .required("Required"),
+        .min(6, 'Password must have a minimum of 6 characters')
+        .required('Required'),
       confirmNewPassword: Yup.string()
-        .min(6, "Password must have a minimum of 6 characters")
-        .equals([Yup.ref("newPassword"), null], "Password does not match")
-        .required("Required"),
-    });
+        .min(6, 'Password must have a minimum of 6 characters')
+        .equals([Yup.ref('newPassword'), null], 'Password does not match')
+        .required('Required'),
+    })
 
     return (
       <>
@@ -117,9 +108,7 @@ class SaasBoostChangePassword extends Component {
                 <ModalHeader>Change Password</ModalHeader>
                 <ModalBody>
                   <Row>
-                    <Col>
-                      {error && this.showError(error, this.handleError)}
-                    </Col>
+                    <Col>{error && this.showError(error, this.handleError)}</Col>
                   </Row>
                   <Row>
                     <Col>
@@ -145,12 +134,8 @@ class SaasBoostChangePassword extends Component {
                   </Row>
                 </ModalBody>
                 <ModalFooter>
-                  <Button
-                    color="primary"
-                    className="ml-2"
-                    disabled={props.isSubmitting}
-                  >
-                    {props.isSubmitting ? "Saving..." : "Change Password"}
+                  <Button color="primary" className="ml-2" disabled={props.isSubmitting}>
+                    {props.isSubmitting ? 'Saving...' : 'Change Password'}
                   </Button>
                   <Button color="secondary" onClick={this.handleCancel}>
                     Cancel
@@ -172,8 +157,13 @@ class SaasBoostChangePassword extends Component {
           </ModalFooter>
         </Modal>
       </>
-    );
+    )
   }
 }
 
-export default SaasBoostChangePassword;
+SaasBoostChangePassword.propTypes = {
+  show: PropTypes.bool,
+  handleClose: PropTypes.func,
+}
+
+export default SaasBoostChangePassword

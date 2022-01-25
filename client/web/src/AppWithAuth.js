@@ -14,64 +14,77 @@
  * limitations under the License.
  */
 
-import React, { Component, lazy, Suspense } from "react";
+import React, { Component, lazy, Suspense } from 'react'
 
-import { Authenticator, Loading } from "aws-amplify-react";
-import { SaasBoostLoading, SaasBoostVerifyContact } from "./components/Auth";
-import App from "./App";
-import IdleTimer from "react-idle-timer";
-import { Auth, Hub } from "aws-amplify";
-import { AuthSessionStorage } from "./utils/AuthSessionStorage";
-
-const SaasBoostSignIn = lazy(() => import("./components/Auth/SaasBoostSignIn"));
-const SaasBoostForgotPassword = lazy(() =>
-  import("./components/Auth/SaasBoostForgotPassword")
-);
-const SaasBoostResetPassword = lazy(() =>
-  import("./components/Auth/SaasBoostResetPassword")
-);
+import { Authenticator, Loading } from 'aws-amplify-react'
+import { SaasBoostLoading, SaasBoostVerifyContact } from './components/Auth'
+import App from './App'
+import IdleTimer from 'react-idle-timer'
+import { Auth, Hub } from 'aws-amplify'
+import { AuthSessionStorage } from './utils/AuthSessionStorage'
+import store from './store/index'
+const SaasBoostSignIn = lazy(() => import('./components/Auth/SaasBoostSignIn'))
+const SaasBoostForgotPassword = lazy(() => import('./components/Auth/SaasBoostForgotPassword'))
+const SaasBoostResetPassword = lazy(() => import('./components/Auth/SaasBoostResetPassword'))
 const SaasBoostRequireNewPassword = lazy(() =>
-  import("./components/Auth/SaasBoostRequireNewPassword")
-);
+  import('./components/Auth/SaasBoostRequireNewPassword'),
+)
 
 const amplifyConfig = {
   Auth: {
     region: process.env.REACT_APP_AWS_REGION,
     userPoolId: process.env.REACT_APP_COGNITO_USERPOOL,
     userPoolWebClientId: process.env.REACT_APP_CLIENT_ID,
-    authenticationFlowType: "USER_SRP_AUTH",
+    authenticationFlowType: 'USER_SRP_AUTH',
   },
   storage: AuthSessionStorage,
-};
+}
 
-const timeout = Number(process.env.REACT_APP_TIMEOUT) || 600000;
-const minutes = timeout / (60 * 1000);
-console.log(`AppWithAuth - timeout: ${timeout}`);
+const timeout = Number(process.env.REACT_APP_TIMEOUT) || 600000
+const minutes = timeout / (60 * 1000)
+
+Hub.listen('auth', (data) => {
+  const { payload } = data
+  const { event } = payload
+
+  switch (event) {
+    case 'signOut':
+      console.log('dispatching reset')
+      store.dispatch({ type: 'RESET' })
+      break
+    case 'configured':
+      break
+    default:
+      console.log('Hub::catchAll - ' + JSON.stringify(payload.event))
+  }
+})
 
 class AppWithAuth extends Component {
   constructor(props) {
-    super(props);
+    super(props)
 
     this.state = {
       signOutReason: undefined,
-    };
+    }
 
-    this.onIdle = this.onIdle.bind(this);
-    this.dismissSignOutReason = this.dismissSignOutReason.bind(this);
+    this.onIdle = this.onIdle.bind(this)
+    this.dismissSignOutReason = this.dismissSignOutReason.bind(this)
   }
 
   loading = () => (
-    <div className="animated fadeIn pt-1 text-center">Loading...</div>
-  );
+    <div className="pt-3 text-center">
+      <div className="sk-spinner sk-spinner-pulse">Loading...</div>
+    </div>
+  )
 
   async onIdle() {
     try {
-      const session = await Auth.currentSession();
+      const session = await Auth.currentSession()
       if (session.isValid()) {
         this.setState({
           signOutReason: `Session closed due to ${minutes} minutes of inactivity.`,
-        });
-        return Auth.signOut();
+        })
+        return Auth.signOut()
       }
     } catch (e) {
       // do nothing
@@ -79,11 +92,11 @@ class AppWithAuth extends Component {
   }
 
   dismissSignOutReason() {
-    this.setState({ signOutReason: undefined });
+    this.setState({ signOutReason: undefined })
   }
 
   render() {
-    const { signOutReason } = this.state;
+    const { signOutReason } = this.state
     return (
       <Suspense fallback={this.loading()}>
         <Authenticator hideDefault={true} amplifyConfig={amplifyConfig}>
@@ -100,8 +113,8 @@ class AppWithAuth extends Component {
         </Authenticator>
         <IdleTimer onIdle={this.onIdle} debounce={250} timeout={timeout} />
       </Suspense>
-    );
+    )
   }
 }
 
-export default AppWithAuth;
+export default AppWithAuth

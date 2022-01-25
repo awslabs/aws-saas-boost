@@ -16,7 +16,7 @@
 
 export default class MissingECRImageError extends Error {
   constructor(message) {
-    super(message);
-    this.name = "MissingECRImageError";
+    super(message)
+    this.name = 'MissingECRImageError'
   }
 }

@@ -13,66 +13,60 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { useMemo, useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import { Button, FormGroup } from "reactstrap";
+import { PropTypes } from 'prop-types'
+import React, { useMemo, useCallback, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
+import { Button, FormGroup } from 'reactstrap'
 
 const baseStyle = {
   flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  padding: "20px",
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '20px',
   borderWidth: 2,
   borderRadius: 2,
-  borderColor: "#eeeeee",
-  borderStyle: "dashed",
-  backgroundColor: "#fafafa",
-  color: "#bdbdbd",
-  outline: "none",
-  transition: "border .24s ease-in-out",
-};
+  borderColor: '#eeeeee',
+  borderStyle: 'dashed',
+  backgroundColor: '#fafafa',
+  color: '#bdbdbd',
+  outline: 'none',
+  transition: 'border .24s ease-in-out',
+}
 
 export const SaasBoostFileUpload = (props) => {
-  const { label, fname, disabled, onFileSelected, fileMask } = props;
+  const { label, fname, disabled, onFileSelected, fileMask } = props
 
-  const [boostFiles, setBoostFiles] = useState([]);
-  const [filename, setFilename] = useState(fname);
+  const [boostFiles, setBoostFiles] = useState([])
+  const [filename, setFilename] = useState(fname)
 
-  const first = ([x, ..._]) => x;
+  const first = ([x, ..._]) => x
 
   const onDrop = useCallback((acceptedFiles) => {
-    setBoostFiles([...boostFiles, ...acceptedFiles]);
-    const file = first(acceptedFiles);
-    onFileSelected(file);
-    setFilename(file.name);
-  });
+    setBoostFiles([...boostFiles, ...acceptedFiles])
+    const file = first(acceptedFiles)
+    onFileSelected(file)
+    setFilename(file.name)
+  })
 
-  const {
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    isDragAccept,
-    isDragReject,
-  } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
     disabled: disabled,
     multiple: false,
-    accept: fileMask || "",
+    accept: fileMask || '',
     onDrop,
-  });
+  })
 
   const style = useMemo(
     () => ({
       ...baseStyle,
     }),
-    [isDragActive, isDragReject, isDragAccept]
-  );
+    [isDragActive, isDragReject, isDragAccept],
+  )
 
   const clearFilename = () => {
-    setBoostFiles([]);
-    setFilename("");
-  };
+    setBoostFiles([])
+    setFilename('')
+  }
 
   const fileUi = () => {
     return (
@@ -81,9 +75,9 @@ export const SaasBoostFileUpload = (props) => {
           <FormGroup>
             <span
               style={{
-                alignSelf: "flex-start",
-                margin: "10px 3%",
-                fontFamily: "Helvetica",
+                alignSelf: 'flex-start',
+                margin: '10px 3%',
+                fontFamily: 'Helvetica',
               }}
             >
               {filename}
@@ -94,8 +88,8 @@ export const SaasBoostFileUpload = (props) => {
           </FormGroup>
         </div>
       )
-    );
-  };
+    )
+  }
 
   return (
     <>
@@ -115,5 +109,13 @@ export const SaasBoostFileUpload = (props) => {
       )}
       {fileUi()}
     </>
-  );
-};
+  )
+}
+
+SaasBoostFileUpload.propTypes = {
+  label: PropTypes.string,
+  fname: PropTypes.string,
+  disabled: PropTypes.bool,
+  onFileSelected: PropTypes.func,
+  fileMask: PropTypes.string,
+}

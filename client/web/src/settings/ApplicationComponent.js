@@ -14,24 +14,37 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { useDispatch } from 'react-redux';
+import React from 'react'
+import { useDispatch } from 'react-redux'
 
-import { Formik, Form } from 'formik';
-import * as Yup from 'yup'; //validation
-import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap';
-import LoadingOverlay from 'react-loading-overlay';
+import { Formik, Form } from 'formik'
+import { PropTypes } from 'prop-types'
+import * as Yup from 'yup'
+import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap'
+import LoadingOverlay from 'react-loading-overlay'
 
-import AppSettingsSubform from './AppSettingsSubform';
-import FileSystemSubform from './FileSystemSubform';
-import DatabaseSubform from './DatabaseSubform';
-import ContainerSettingsSubform from './ContainerSettingsSubform';
-import BillingSubform from './BillingSubform';
+import AppSettingsSubform from './AppSettingsSubform'
+import FileSystemSubform from './FileSystemSubform'
+import DatabaseSubform from './DatabaseSubform'
+import ContainerSettingsSubform from './ContainerSettingsSubform'
+import BillingSubform from './BillingSubform'
 
-import { dismissConfigError, dismissConfigMessage } from './ducks';
+import { dismissConfigError, dismissConfigMessage } from './ducks'
+
+ApplicationComponent.propTypes = {
+  appConfig: PropTypes.object,
+  dbOptions: PropTypes.array,
+  hasTenants: PropTypes.bool,
+  loading: PropTypes.string,
+  error: PropTypes.bool,
+  message: PropTypes.string,
+  osOptions: PropTypes.object,
+  updateConfiguration: PropTypes.func,
+  onFileSelected: PropTypes.func,
+}
 
 export function ApplicationComponent(props) {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch()
   const {
     appConfig,
     dbOptions,
@@ -41,19 +54,19 @@ export function ApplicationComponent(props) {
     message,
     osOptions,
     updateConfiguration,
-  } = props;
+  } = props
 
-  console.log('App Config:', appConfig);
-  const LINUX = 'LINUX';
-  const WINDOWS = 'WINDOWS';
-  const FSX = 'FSX';
-  const EFS = 'EFS';
+  console.log('App Config:', appConfig)
+  const LINUX = 'LINUX'
+  const WINDOWS = 'WINDOWS'
+  const FSX = 'FSX'
+  const EFS = 'EFS'
 
   const os = !!appConfig.operatingSystem
     ? appConfig.operatingSystem === LINUX
       ? LINUX
       : WINDOWS
-    : '';
+    : ''
   const db = !!appConfig.database
     ? {
         ...appConfig.database,
@@ -74,20 +87,20 @@ export function ApplicationComponent(props) {
         encryptedPassword: '',
         database: '',
         bootstrapFilename: '',
-      };
+      }
 
   const getParts = (dateTime) => {
-    const parts = dateTime.split(':');
-    const day = parts[0];
-    const times = parts.slice(1);
-    const timeStr = times.join(':');
-    return [day, timeStr];
-  };
+    const parts = dateTime.split(':')
+    const day = parts[0]
+    const times = parts.slice(1)
+    const timeStr = times.join(':')
+    return [day, timeStr]
+  }
 
   const updateConfig = (values) => {
-    updateConfiguration(values);
-    window.scrollTo(0, 0);
-  };
+    updateConfiguration(values)
+    window.scrollTo(0, 0)
+  }
 
   const getFsx = (fsx) => {
     if (!fsx) {
@@ -99,15 +112,15 @@ export function ApplicationComponent(props) {
         weeklyMaintenanceTime: '07:01:00',
         weeklyMaintenanceDay: '1',
         windowsMountDrive: 'G:',
-      };
+      }
     }
-    const [day, time] = getParts(fsx.weeklyMaintenanceTime);
+    const [day, time] = getParts(fsx.weeklyMaintenanceTime)
     return {
       ...fsx,
       weeklyMaintenanceTime: time,
       weeklyMaintenanceDay: day,
-    };
-  };
+    }
+  }
 
   const filesystem = {
     ...appConfig.filesystem,
@@ -120,7 +133,7 @@ export function ApplicationComponent(props) {
       encryptAtRest: '',
     },
     fsx: getFsx(appConfig.filesystem?.fsx),
-  };
+  }
 
   const initialValues = {
     operatingSystem: os,
@@ -146,7 +159,7 @@ export function ApplicationComponent(props) {
     provisionDb: !!appConfig.database,
     provisionFS: !!appConfig.filesystem,
     provisionBilling: !!appConfig.billing,
-  };
+  }
 
   const validationSpecs = Yup.object({
     operatingSystem: Yup.string().required('Container OS is a required field'),
@@ -179,13 +192,13 @@ export function ApplicationComponent(props) {
             .test(
               'subdirectories',
               'The path can only include up to four subdirectories',
-              (val) => (val?.match(/\//g) || []).length <= 4
+              (val) => (val?.match(/\//g) || []).length <= 4,
             )
             .required(),
           otherwise: Yup.string()
             .matches(
               /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
-              'Invalid path. Ex: C:\\data'
+              'Invalid path. Ex: C:\\data',
             )
             .required(),
         }),
@@ -234,7 +247,7 @@ export function ApplicationComponent(props) {
       .integer('Maximum count must be an integer value')
       .max(10, 'Maximum count can be no larger than ${max}')
       .test('match', 'Maximum count cannot be smaller than minimum count', function (maxCount) {
-        return maxCount >= this.parent.minCount;
+        return maxCount >= this.parent.minCount
       }),
     windowsVersion: Yup.string().when('operatingSystem', {
       is: (containerOs) => containerOs && containerOs === WINDOWS,
@@ -248,24 +261,24 @@ export function ApplicationComponent(props) {
     provisionDb: Yup.boolean(),
     provisionFS: Yup.boolean(),
     provisionBilling: Yup.boolean(),
-  });
+  })
 
   const onFileSelected = (formik, file) => {
-    formik.setFieldValue('database.bootstrapFilename', file.name);
-    props.onFileSelected(file);
-  };
+    formik.setFieldValue('database.bootstrapFilename', file.name)
+    props.onFileSelected(file)
+  }
 
   const dismissError = () => {
-    dispatch(dismissConfigError());
-  };
+    dispatch(dismissConfigError())
+  }
 
   const dismissMessage = () => {
-    dispatch(dismissConfigMessage());
-  };
+    dispatch(dismissConfigMessage())
+  }
 
   const isSubmitting = () => {
-    return loading !== 'idle';
-  };
+    return loading !== 'idle'
+  }
 
   return (
     <LoadingOverlay active={isSubmitting()} spinner text="Loading configuration...">
@@ -335,10 +348,10 @@ export function ApplicationComponent(props) {
                   </Col>
                 </Row>
               </Form>
-            );
+            )
           }}
         </Formik>
       </div>
     </LoadingOverlay>
-  );
+  )
 }

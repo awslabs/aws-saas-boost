@@ -14,71 +14,58 @@
  * limitations under the License.
  */
 
-import React, { lazy, useState, useEffect } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  accessLogMetricsUrls,
-  selectAccessLogUrlById,
-} from "./ducks/accessLogMetrics";
-import {
-  dismissError,
-  fetchTenantsThunk,
-  selectAllTenants,
-} from "../tenant/ducks";
-import SelectTenantComponent from "./SelectTenantComponent";
+import React, { lazy, useState, useEffect } from 'react'
+import { Row, Col, Card, CardBody } from 'reactstrap'
+import { useDispatch, useSelector } from 'react-redux'
+import { accessLogMetricsUrls, selectAccessLogUrlById } from './ducks/accessLogMetrics'
+import { dismissError, fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
+import SelectTenantComponent from './SelectTenantComponent'
 
-const SelectTimePeriodComponent = lazy(() =>
-  import("./SelectTimePeriodComponent")
-);
+const SelectTimePeriodComponent = lazy(() => import('./SelectTimePeriodComponent'))
 
-const AccessLoggingGraphContainer = lazy(() =>
-  import("./AccessLoggingGraphContainer")
-);
+const AccessLoggingGraphContainer = lazy(() => import('./AccessLoggingGraphContainer'))
 
-const AccessLogsMetricsContainer = lazy(() =>
-  import("./AccessLogsMetricsContainer")
-);
+const AccessLogsMetricsContainer = lazy(() => import('./AccessLogsMetricsContainer'))
 
 export default function AccessLoggingMetricsContainer(props) {
-  const dispatch = useDispatch();
-  const timePeriods = ["HOUR_1", "HOUR_24", "DAY_7"];
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("DAY_7");
+  const dispatch = useDispatch()
+  const timePeriods = ['HOUR_1', 'HOUR_24', 'DAY_7']
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
-    setSelectedTimePeriod(period);
-  };
+    setSelectedTimePeriod(period)
+  }
 
   const refreshPage = () => {
-    const thunkResponse = dispatch(accessLogMetricsUrls());
+    const thunkResponse = dispatch(accessLogMetricsUrls())
     return () => {
-      if (thunkResponse.PromiseStatus === "pending") {
-        thunkResponse.abort();
+      if (thunkResponse.PromiseStatus === 'pending') {
+        thunkResponse.abort()
       }
-    };
-  };
-
-  useEffect(() => {
-    refreshPage();
-  }, [dispatch]);
-
-  const tenants = useSelector(selectAllTenants);
-  const [selectedTenant, setSelectedTenant] = useState(null);
-  const selectTenant = (tenant) => {
-    if (tenant === "") {
-      setSelectedTenant(null);
-    } else {
-      setSelectedTenant(tenant);
     }
-  };
+  }
+
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    refreshPage()
+  }, [dispatch])
+
+  const tenants = useSelector(selectAllTenants)
+  const [selectedTenant, setSelectedTenant] = useState(null)
+  const selectTenant = (tenant) => {
+    if (tenant === '') {
+      setSelectedTenant(null)
+    } else {
+      setSelectedTenant(tenant)
+    }
+  }
+  useEffect(() => {
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
     <div className="animated fadeIn">
@@ -100,11 +87,7 @@ export default function AccessLoggingMetricsContainer(props) {
                     timePeriods={timePeriods}
                   />
                 </Col>
-                <Col
-                  lg={1}
-                  sm={1}
-                  className="d-inline-flex pt-2 justify-content-end"
-                >
+                <Col lg={1} sm={1} className="d-inline-flex pt-2 justify-content-end">
                   {/*<a onClick={refreshPage} href="#">*/}
                   {/*  <i className="fa fa-refresh text-muted" />*/}
                   {/*</a>*/}
@@ -153,5 +136,5 @@ export default function AccessLoggingMetricsContainer(props) {
         </Row>
       )}
     </div>
-  );
+  )
 }

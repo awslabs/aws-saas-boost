@@ -14,55 +14,43 @@
  * limitations under the License.
  */
 
-import React from "react";
-import SaasBoostAuthComponent from "./SaasBoostAuthComponent";
-import { SBInput } from "./SaasBoostSignIn";
-import {
-  Card,
-  CardBody,
-  Col,
-  Container,
-  Row,
-  Button,
-  CardFooter,
-  Alert,
-} from "reactstrap";
-import * as Yup from "yup";
-import { Formik, Form as FormikForm } from "formik";
-import { Auth } from "aws-amplify";
+import React from 'react'
+import SaasBoostAuthComponent from './SaasBoostAuthComponent'
+import { SBInput } from './SaasBoostSignIn'
+import { Card, CardBody, Col, Container, Row, Button, CardFooter, Alert } from 'reactstrap'
+import * as Yup from 'yup'
+import { Formik, Form as FormikForm } from 'formik'
+import { Auth } from 'aws-amplify'
 
 export class SaasBoostResetPassword extends SaasBoostAuthComponent {
-  _initialState = { delivery: null, error: null, username: null };
+  _initialState = { delivery: null, error: null, username: null }
   constructor(props) {
-    super(props);
-    this._validAuthStates = ["resetPassword"];
+    super(props)
+    this._validAuthStates = ['resetPassword']
 
-    this.submit = this.submit.bind(this);
-    this.showMessage = this.showMessage.bind(this);
-
+    this.submit = this.submit.bind(this)
+    this.showMessage = this.showMessage.bind(this)
   }
 
   submit({ username, code, password }, { setSubmitting, resetForm }) {
-    console.log("submit form");
-    if (!Auth || typeof Auth.forgotPasswordSubmit !== "function") {
-      throw new Error(
-        "No Auth module found, please ensure @aws-amplify/auth is imported"
-      );
+    console.log('submit form')
+    if (!Auth || typeof Auth.forgotPasswordSubmit !== 'function') {
+      throw new Error('No Auth module found, please ensure @aws-amplify/auth is imported')
     }
 
     Auth.forgotPasswordSubmit(username, code, password)
       .then((data) => {
-        this.changeState("signIn", { message: "Password change successful." });
-        this.setState(this._initialState);
+        this.changeState('signIn', { message: 'Password change successful.' })
+        this.setState(this._initialState)
       })
       .catch((err) => {
-        this.setState({ error: err });
-        this.error(err);
-      });
+        this.setState({ error: err })
+        this.error(err)
+      })
   }
 
   showMessage() {
-    const { authData } = this.props;
+    const { authData } = this.props
 
     return (
       !!authData && (
@@ -70,20 +58,17 @@ export class SaasBoostResetPassword extends SaasBoostAuthComponent {
           {authData.message}
         </Alert>
       )
-    );
+    )
   }
 
   showComponent() {
-    const initialValues = {username: "", code: "", password: "", passwordConfirmation: "" };
+    const initialValues = { username: '', code: '', password: '', passwordConfirmation: '' }
     const validationSchema = Yup.object({
-      username: Yup.string().required("Required"),
-      code: Yup.string().required("Required"),
-      password: Yup.string().required("Required"),
-      passwordConfirmation: Yup.string().oneOf(
-        [Yup.ref("password"), null],
-        "Passwords must match"
-      ),
-    });
+      username: Yup.string().required('Required'),
+      code: Yup.string().required('Required'),
+      password: Yup.string().required('Required'),
+      passwordConfirmation: Yup.string().oneOf([Yup.ref('password'), null], 'Passwords must match'),
+    })
 
     return (
       <div className="app flex-row align-items-center">
@@ -138,19 +123,15 @@ export class SaasBoostResetPassword extends SaasBoostAuthComponent {
                         />
                       </CardBody>
                       <CardFooter>
-                        <Button
-                          type="Submit"
-                          color="primary"
-                          disabled={props.isSubmitting}
-                        >
+                        <Button type="Submit" color="primary" disabled={props.isSubmitting}>
                           Change Password
                         </Button>
                         <Button
                           type="link"
                           color="secondary"
                           onClick={() => {
-                            this.dismiss();
-                            this.changeState("signIn");
+                            this.dismiss()
+                            this.changeState('signIn')
                           }}
                           className="ml-3"
                         >
@@ -165,8 +146,8 @@ export class SaasBoostResetPassword extends SaasBoostAuthComponent {
           </Row>
         </Container>
       </div>
-    );
+    )
   }
 }
 
-export default SaasBoostResetPassword;
+export default SaasBoostResetPassword

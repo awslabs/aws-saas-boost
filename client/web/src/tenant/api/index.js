@@ -14,181 +14,172 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import { fetchAccessToken, handleErrorResponse } from "../../api";
-import appConfig from "../../config/appConfig";
-const { apiUri } = appConfig;
+import axios from 'axios'
+import { fetchAccessToken, handleErrorResponse } from '../../api'
+import appConfig from '../../config/appConfig'
+const { apiUri } = appConfig
 
 const apiServer = axios.create({
   baseURL: `${apiUri}/tenants`,
   headers: {
     common: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   },
-});
-const CancelToken = axios.CancelToken;
-const source = CancelToken.source();
+})
+const CancelToken = axios.CancelToken
+const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
-  console.log(r);
+  console.log(r)
   //Obtain and pass along Authorization token
-  const authorizationToken = await fetchAccessToken();
-  r.headers.Authorization = authorizationToken;
+  const authorizationToken = await fetchAccessToken()
+  r.headers.Authorization = authorizationToken
 
   //Configure the AbortSignal
   if (r.signal) {
     r.signal.onabort = () => {
-      source.cancel();
-    };
+      source.cancel()
+    }
   }
-  r.cancelToken = source.token;
+  r.cancelToken = source.token
 
-  return r;
-});
+  return r
+})
 
 //API Aborted class
 class Aborted extends Error {
   constructor(message, cause) {
-    super(message);
-    this.aborted = true;
-    this.cause = cause;
+    super(message)
+    this.aborted = true
+    this.cause = cause
   }
 }
 const tenantAPI = {
   fetchAll: async () => {
     try {
-      const authorizationToken = await fetchAccessToken();
+      const authorizationToken = await fetchAccessToken()
       const response = await fetch(`${apiUri}/tenants/provisioned`, {
-        method: "GET",
-        mode: "cors",
+        method: 'GET',
+        mode: 'cors',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authorizationToken,
         },
-      });
+      })
 
-      const responseJSON = await handleErrorResponse(response);
-      return responseJSON;
+      const responseJSON = await handleErrorResponse(response)
+      return responseJSON
     } catch (err) {
-      console.log("error");
-      console.error(err);
-      throw Error("Unable to fetch tenants");
+      console.error(err)
+      throw Error('Unable to fetch tenants')
     }
   },
   fetchAllAxios: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.get("/", { signal });
-      return response.data;
+      const response = await apiServer.get('/', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        console.log("API call cancelled");
-        throw new Aborted("Call aborted", err);
+        console.log('API call cancelled')
+        throw new Aborted('Call aborted', err)
       } else {
-        console.log("error");
-        console.error(err);
-        throw Error("Unable to fetch tenants");
+        console.error(err)
+        throw Error('Unable to fetch tenants')
       }
     }
   },
   fetchTenant: async (tenantId) => {
     try {
-      const authorizationToken = await fetchAccessToken();
+      const authorizationToken = await fetchAccessToken()
       const response = await fetch(`${apiUri}/tenants/${tenantId}`, {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authorizationToken,
         },
-      });
-      const responseJSON = await handleErrorResponse(response);
-      return responseJSON;
+      })
+      const responseJSON = await handleErrorResponse(response)
+      return responseJSON
     } catch (err) {
-      console.log("error");
-      console.error(err);
-      throw Error(`Unable to fetch tenant: ${tenantId}`);
+      console.error(err)
+      throw Error(`Unable to fetch tenant: ${tenantId}`)
     }
   },
   provisionTenant: async (values) => {
-    throw Error("Unsupported operation");
+    throw Error('Unsupported operation')
   },
   editTenant: async (values) => {
     try {
-      const authorizationToken = await fetchAccessToken();
+      const authorizationToken = await fetchAccessToken()
       const response = await fetch(`${apiUri}/tenants/${values.id}`, {
-        method: "PUT",
-        mode: "cors",
+        method: 'PUT',
+        mode: 'cors',
         body: JSON.stringify({
           ...values,
         }),
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authorizationToken,
         },
-      });
-      const responseJSON = await handleErrorResponse(response);
-      return responseJSON;
+      })
+      const responseJSON = await handleErrorResponse(response)
+      return responseJSON
     } catch (err) {
-      console.error(err);
-      throw Error("Unable to edit tenant.");
+      console.error(err)
+      throw Error('Unable to edit tenant.')
     }
   },
   enableTenant: async (tenantId, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.patch(
-        `/${tenantId}/enable`,
-        { id: tenantId },
-        { signal }
-      );
-      return response.data;
+      const response = await apiServer.patch(`/${tenantId}/enable`, { id: tenantId }, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to enable tenant ${tenantId}`);
+        console.error(err)
+        throw Error(`Unable to enable tenant ${tenantId}`)
       }
     }
   },
   disableTenant: async (tenantId, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.patch(
-        `/${tenantId}/disable`,
-        { id: tenantId },
-        { signal }
-      );
-      return response.data;
+      const response = await apiServer.patch(`/${tenantId}/disable`, { id: tenantId }, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to disable tenant ${tenantId}`);
+        console.error(err)
+        throw Error(`Unable to disable tenant ${tenantId}`)
       }
     }
   },
   deleteTenant: async (tenantId, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.delete(`/${tenantId}`,
+      const response = await apiServer.delete(
+        `/${tenantId}`,
         {
-          data: { id: tenantId }
+          data: { id: tenantId },
         },
-        { signal } );
-      return response.data;
+        { signal },
+      )
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to delete tenant ${tenantId}`);
+        console.error(err)
+        throw Error(`Unable to delete tenant ${tenantId}`)
       }
     }
   },
@@ -198,10 +189,10 @@ const tenantAPI = {
    */
   isCancel: (err) => {
     if (err.aborted && err.aborted === true) {
-      return true;
+      return true
     }
-    return false;
+    return false
   },
-};
+}
 
-export default tenantAPI;
+export default tenantAPI

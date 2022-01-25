@@ -16,7 +16,7 @@
 
 export default class ExceedLimitsError extends Error {
   constructor(message) {
-    super(message);
-    this.name = "ExceedLimitsError";
+    super(message)
+    this.name = 'ExceedLimitsError'
   }
 }

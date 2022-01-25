@@ -14,61 +14,49 @@
  * limitations under the License.
  */
 
-import React, { lazy, useEffect, useState } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
-import {
-  dismissError,
-  fetchTenantsThunk,
-  selectAllTenants,
-} from "../tenant/ducks";
-import { useDispatch, useSelector } from "react-redux";
+import React, { lazy, useEffect, useState } from 'react'
+import { Row, Col, Card, CardBody } from 'reactstrap'
+import { dismissError, fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
+import { useDispatch, useSelector } from 'react-redux'
 
-const RequestCountContainer = lazy(() => import("./RequestCountContainer"));
+const RequestCountContainer = lazy(() => import('./RequestCountContainer'))
 
-const RequestCountFailuresContainer = lazy(() =>
-  import("./RequestCountFailuresContainer")
-);
-const RequestCountFailures5XXContainer = lazy(() =>
-  import("./RequestCountFailures5XXContainer")
-);
-const SelectTimePeriodComponent = lazy(() =>
-  import("./SelectTimePeriodComponent")
-);
+const RequestCountFailuresContainer = lazy(() => import('./RequestCountFailuresContainer'))
+const RequestCountFailures5XXContainer = lazy(() => import('./RequestCountFailures5XXContainer'))
+const SelectTimePeriodComponent = lazy(() => import('./SelectTimePeriodComponent'))
 
-const MetricTopTenantsContainer = lazy(() =>
-  import("./MetricTopTenantsContainer")
-);
-const SelectTenantComponent = lazy(() => import("./SelectTenantComponent"));
+const MetricTopTenantsContainer = lazy(() => import('./MetricTopTenantsContainer'))
+const SelectTenantComponent = lazy(() => import('./SelectTenantComponent'))
 
-const TenantGraphContainer = lazy(() => import("./TenantGraphContainer"));
+const TenantGraphContainer = lazy(() => import('./TenantGraphContainer'))
 
 export default function ALBMetricsContainer(props) {
-  const dispatch = useDispatch();
-  const tenants = useSelector(selectAllTenants);
+  const dispatch = useDispatch()
+  const tenants = useSelector(selectAllTenants)
 
   //  "DAY_7";
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("DAY_7");
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
-    setSelectedTimePeriod(period);
-  };
+    setSelectedTimePeriod(period)
+  }
 
-  const [selectedTenant, setSelectedTenant] = useState(null);
+  const [selectedTenant, setSelectedTenant] = useState(null)
   const selectTenant = (tenant) => {
-    if (tenant === "") {
-      setSelectedTenant(null);
+    if (tenant === '') {
+      setSelectedTenant(null)
     } else {
-      setSelectedTenant(tenant);
+      setSelectedTenant(tenant)
     }
-  };
+  }
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
     <div className="animated fadeIn">
@@ -85,15 +73,9 @@ export default function ALBMetricsContainer(props) {
                   />
                 </Col>
                 <Col lg={5} sm={5}>
-                  <SelectTimePeriodComponent
-                    selectTimePeriod={selectTimePeriod}
-                  />
+                  <SelectTimePeriodComponent selectTimePeriod={selectTimePeriod} />
                 </Col>
-                <Col
-                  lg={1}
-                  sm={1}
-                  className="d-inline-flex justify-content-end pt-2"
-                >
+                <Col lg={1} sm={1} className="d-inline-flex justify-content-end pt-2">
                   {/*<i className="fa fa-refresh text-muted"></i>*/}
                 </Col>
               </Row>
@@ -195,5 +177,5 @@ export default function ALBMetricsContainer(props) {
         )}
       </Row>
     </div>
-  );
+  )
 }

@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import React from "react";
+import React from 'react'
 
-const TenantListContainer = React.lazy(() => import("./TenantListContainer"));
-const TenantViewContainer = React.lazy(() => import("./TenantViewContainer"));
+const TenantListContainer = React.lazy(() => import('./TenantListContainer'))
+const TenantViewContainer = React.lazy(() => import('./TenantViewContainer'))
 
 export const TenantRoutes = [
   {
-    path: "/tenants",
+    path: '/tenants',
     exact: true,
-    name: "Tenants",
+    name: 'Tenants',
     component: TenantListContainer,
   },
   {
-    path: "/tenants/:tenantId",
+    path: '/tenants/:tenantId',
     exact: true,
-    name: "Tenant Detail",
+    name: 'Tenant Detail',
     component: TenantViewContainer,
   },
-];
+]

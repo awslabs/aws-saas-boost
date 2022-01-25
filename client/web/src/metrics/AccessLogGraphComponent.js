@@ -13,46 +13,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { useEffect, useState } from 'react'
 
-import React, { useEffect, useState } from "react";
+import { Card, CardBody, Col, Row, CardTitle } from 'reactstrap'
+import { Bar } from 'react-chartjs-2'
+import { _colors } from './common'
+import { CircleLoader } from 'react-spinners'
 
-import { Card, CardBody, Col, Row, CardTitle } from "reactstrap";
-import { HorizontalBar } from "react-chartjs-2";
-import { _colors } from "./common";
-import { CircleLoader } from "react-spinners";
+AccessLogGraphComponent.propTypes = {
+  title: PropTypes.string,
+  label: PropTypes.string,
+  colorIndex: PropTypes.string,
+  loading: PropTypes.bool,
+  data: PropTypes.array,
+  tenantName: PropTypes.string,
+}
 
 export default function AccessLogGraphComponent(props) {
-  const { title, label, colorIndex, loading, data = [], tenantName } = props;
+  const { title, label, colorIndex, loading, data = [], tenantName } = props
 
   const chartOpts = {
     tooltips: {
       enabled: true,
       intersect: true,
-      mode: "index",
-      position: "nearest",
+      mode: 'index',
+      position: 'nearest',
     },
     maintainAspectRatio: false,
     legend: {
       display: true,
     },
     scales: {
-      xAxes: [
-        {
-          gridLines: {
-            drawOnChartArea: false,
-          },
+      xAxes: {
+        gridLines: {
+          drawOnChartArea: false,
         },
-      ],
-      yAxes: [
-        {
-          ticks: {
-            beginAtZero: true,
-            //maxTicksLimit: 5,
-            //stepSize: Math.ceil(250 / 5),
-            //max: 250,
-          },
+      },
+      yAxes: {
+        ticks: {
+          beginAtZero: true,
+          //maxTicksLimit: 5,
+          //stepSize: Math.ceil(250 / 5),
+          //max: 250,
         },
-      ],
+      },
     },
     elements: {
       point: {
@@ -62,20 +67,20 @@ export default function AccessLogGraphComponent(props) {
         hoverBorderWidth: 3,
       },
     },
-  };
+  }
 
   let graphData = {
     datasets: [],
     labels: [],
-  };
+  }
 
   let labels = [],
-    values = [];
+    values = []
 
   data.forEach((v) => {
-    labels.push(v.id);
-    values.push(v.value);
-  });
+    labels.push(v.id)
+    values.push(v.value)
+  })
 
   graphData.datasets.push({
     label: label,
@@ -84,9 +89,9 @@ export default function AccessLogGraphComponent(props) {
     fill: false,
     backgroundColor: _colors[colorIndex],
     borderColor: _colors[colorIndex],
-  });
+  })
 
-  graphData.labels = labels;
+  graphData.labels = labels
 
   return (
     <Col sm="12" md="6" lg="6">
@@ -95,28 +100,23 @@ export default function AccessLogGraphComponent(props) {
           <Row>
             <Col sm="10">
               <CardTitle className="mb-0">
-                <>{title}</>{" "}
+                <>{title}</>
                 <span className="font-weight-bold">{tenantName}</span>
               </CardTitle>
               <div className="small text-muted">&nbsp;</div>
             </Col>
             <Col sm="2" className="d-flex justify-content-end">
               <div className="mr-3">
-                <CircleLoader size={20} loading={loading === "pending"} />
+                <CircleLoader size={20} loading={loading === 'pending'} />
               </div>
             </Col>
           </Row>
 
-          <div className="chart-wrapper" style={{ height: 300 + "px" }}>
-            <HorizontalBar
-              data={graphData}
-              options={chartOpts}
-              height={300}
-              redraw={true}
-            />
+          <div className="chart-wrapper" style={{ height: 300 + 'px' }}>
+            <Bar data={graphData} options={chartOpts} height={300} redraw={true} />
           </div>
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

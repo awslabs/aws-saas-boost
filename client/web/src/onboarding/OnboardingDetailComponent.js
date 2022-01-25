@@ -13,26 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { useEffect, useState } from "react";
+import { PropTypes } from 'prop-types'
+import React, { useEffect, useState } from 'react'
+import CIcon from '@coreui/icons-react'
+import { cilReload, cilExternalLink } from '@coreui/icons'
 import {
   Card,
   CardHeader,
   CardBody,
-  Dropdown,
-  DropdownToggle,
-  DropdownMenu,
-  DropdownItem,
   Row,
   Col,
   Alert,
   Button,
   NavLink,
-} from "reactstrap";
-import Display from "../components/Display";
-import Moment from "react-moment";
-import { OnboardingStatus } from "./OnboardingStatus";
-import { OnboardingTenantLink } from "./OnboardingTenantLink";
+} from 'reactstrap'
+import Display from '../components/Display'
+import Moment from 'react-moment'
+import { OnboardingStatus } from './OnboardingStatus'
+import { OnboardingTenantLink } from './OnboardingTenantLink'
 
 const showError = (error, clearError) => {
   return (
@@ -46,40 +44,36 @@ const showError = (error, clearError) => {
         </Col>
       </Row>
     )
-  );
-};
+  )
+}
 
 export const OnboardingDetailComponent = (props) => {
-  const { onboarding, error, clearError, refresh, showTenant } = props;
-  const terminus = ["deployed", "updated", "failed"];
+  const { onboarding, error, clearError, refresh, showTenant } = props
+  const terminus = ['deployed', 'updated', 'failed']
 
-  const [actionsDropdownExpanded, setActionsDropdownExpanded] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(null);
-  const [timeoutId, setTimeoutId] = useState(null);
-
-  const toggleActions = () => {
-    setActionsDropdownExpanded(!actionsDropdownExpanded);
-  };
+  const [actionsDropdownExpanded, setActionsDropdownExpanded] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(null)
+  const [timeoutId, setTimeoutId] = useState(null)
 
   const refreshStatus = (status, refreshFn) => {
     if (!isRefreshing && !terminus.includes(status)) {
-      setIsRefreshing(true);
+      setIsRefreshing(true)
       const id = setTimeout(() => {
-        refreshFn();
-      }, 30000);
-      setTimeoutId(id);
+        refreshFn()
+      }, 30000)
+      setTimeoutId(id)
     }
-  };
+  }
 
   useEffect(() => {
-    refreshStatus(onboarding?.status, refresh);
+    refreshStatus(onboarding?.status, refresh)
     return () => {
       if (isRefreshing) {
-        clearTimeout(timeoutId);
-        setIsRefreshing(false);
+        clearTimeout(timeoutId)
+        setIsRefreshing(false)
       }
-    };
-  });
+    }
+  })
 
   return (
     <div className="animated fadeIn">
@@ -89,7 +83,7 @@ export const OnboardingDetailComponent = (props) => {
           <div>
             <Button color="secondary" className="mr-2" onClick={refresh}>
               <span>
-                <i className={"fa fa-refresh"} />
+                <CIcon icon={cilReload} />
               </span>
             </Button>
           </div>
@@ -104,10 +98,7 @@ export const OnboardingDetailComponent = (props) => {
             </CardHeader>
             <CardBody>
               <Row className="pt-3">
-                <Col
-                  sm={4}
-                  className="border border border-top-0 border-bottom-0 border-left-0"
-                >
+                <Col sm={4} className="border border border-top-0 border-bottom-0 border-right-0">
                   <dt>Id</dt>
                   <dd>
                     <Display>{onboarding && onboarding.id}</Display>
@@ -121,7 +112,7 @@ export const OnboardingDetailComponent = (props) => {
                 </Col>
                 <Col
                   sm={4}
-                  className="border border border-top-0 border-bottom-0 border-left-0"
+                  className="border border border-top-0 border-bottom-0 border-left-0 border-right-0"
                 >
                   <dt>Tenant</dt>
                   <dd>
@@ -145,33 +136,24 @@ export const OnboardingDetailComponent = (props) => {
                           href={onboarding.cloudFormationUrl}
                           className="pl-0"
                         >
-                          {onboarding.stackId}
-                          <i
-                            className="fa fa-external-link ml-2"
-                            aria-hidden="true"
-                          ></i>
+                          {onboarding.stackId} <CIcon icon={cilExternalLink} />
                         </NavLink>
                       )}
                     </Display>
                   </dd>
                 </Col>
-                <Col sm={4}>
+                <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
                   <dt>Created On</dt>
                   <dd>
                     <Display>
-                      {onboarding && (
-                        <Moment format="LLLL" date={onboarding.created} />
-                      )}
+                      {onboarding && <Moment format="LLLL" date={onboarding.created} />}
                     </Display>
                   </dd>
                   <dt>Modified On</dt>
                   <dd>
                     <Display>
                       {onboarding && (
-                        <Moment
-                          format="dddd, MMMM Do YYYY, h:mm:ss a"
-                          date={onboarding.modified}
-                        />
+                        <Moment format="dddd, MMMM Do YYYY, h:mm:ss a" date={onboarding.modified} />
                       )}
                     </Display>
                   </dd>
@@ -182,7 +164,15 @@ export const OnboardingDetailComponent = (props) => {
         </Col>
       </Row>
     </div>
-  );
-};
+  )
+}
 
-export default OnboardingDetailComponent;
+OnboardingDetailComponent.propTypes = {
+  onboarding: PropTypes.object,
+  error: PropTypes.string,
+  refresh: PropTypes.func,
+  showTenant: PropTypes.func,
+  clearError: PropTypes.func,
+}
+
+export default OnboardingDetailComponent

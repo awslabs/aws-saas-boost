@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-import { lazy } from "react";
+import { lazy } from 'react'
 
-const UserListContainer = lazy(() => import("./UserListContainer"));
-const UserViewContainer = lazy(() => import("./UserViewContainer"));
-const UserCreateContainer = lazy(() => import("./UserCreateContainer"));
+const UserListContainer = lazy(() => import('./UserListContainer'))
+const UserViewContainer = lazy(() => import('./UserViewContainer'))
+const UserCreateContainer = lazy(() => import('./UserCreateContainer'))
 
 export const UserRoutes = [
   {
-    path: "/users",
+    path: '/users',
     exact: true,
-    name: "Users",
+    name: 'Users',
     component: UserListContainer,
   },
   {
-    path: "/users/create",
+    path: '/users/create',
     exact: true,
-    name: "Create a new User",
+    name: 'Create a new User',
     component: UserCreateContainer,
   },
   {
-    path: "/users/:username",
+    path: '/users/:username',
     exact: true,
-    name: "User Detail",
+    name: 'User Detail',
     component: UserViewContainer,
   },
-];
+]

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
+import React from 'react'
+import { Col, Card, CardBody } from 'reactstrap'
 
 export default function CurrentApplicationVersionComponent(props) {
   return (
@@ -33,5 +33,5 @@ export default function CurrentApplicationVersionComponent(props) {
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

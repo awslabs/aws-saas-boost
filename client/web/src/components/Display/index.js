@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import ContentLoader from "react-content-loader";
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import ContentLoader from 'react-content-loader'
 
 const MyLoader = () => (
   <ContentLoader
@@ -28,10 +28,15 @@ const MyLoader = () => (
   >
     <rect x="3" y="3" rx="3" ry="3" width="200" height="8" />
   </ContentLoader>
-);
+)
 
 export const Display = ({ children, condition = true }) => {
-  return !!children && condition ? <>{children}</> : <MyLoader />;
-};
+  return !!children && condition ? <>{children}</> : <MyLoader />
+}
 
-export default Display;
+Display.propTypes = {
+  children: PropTypes.node,
+  condition: PropTypes.bool,
+}
+
+export default Display

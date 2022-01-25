@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { useField } from "formik";
-import {
-  FormGroup,
-  Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupText,
-  FormText,
-} from "reactstrap";
-import FormFeedback from "reactstrap/lib/FormFeedback";
-import { SaasBoostTooltippedLabel } from "./SaasBoostTooltippedLabel";
+import React from 'react'
+import { useField } from 'formik'
+import { PropTypes } from 'prop-types'
+import { FormGroup, Input, InputGroup, InputGroupText, FormFeedback, FormText } from 'reactstrap'
+import { SaasBoostTooltippedLabel } from './SaasBoostTooltippedLabel'
 
 export const SaasBoostSelect = ({
   disabled,
@@ -36,24 +29,17 @@ export const SaasBoostSelect = ({
   children,
   ...props
 }) => {
-  const [field, meta] = useField(props);
+  const [field, meta] = useField(props)
 
   return (
     <FormGroup disabled={disabled}>
-      <SaasBoostTooltippedLabel
-        field={field}
-        label={label}
-        tooltip={tooltip}
-        {...props}
-      />
+      <SaasBoostTooltippedLabel field={field} label={label} tooltip={tooltip} {...props} />
       {description && <FormText color="muted">{description}</FormText>}
       <InputGroup className="mb-3">
         {icon && (
-          <InputGroupAddon addonType="prepend">
-            <InputGroupText>
-              <i className={icon}></i>
-            </InputGroupText>
-          </InputGroupAddon>
+          <InputGroupText>
+            <i className={icon}></i>
+          </InputGroupText>
         )}
 
         <Input
@@ -67,12 +53,19 @@ export const SaasBoostSelect = ({
           {children}
         </Input>
 
-        <FormFeedback
-          invalid={meta.touched && meta.error ? meta.error : undefined}
-        >
+        <FormFeedback invalid={meta.touched && meta.error ? meta.error : undefined}>
           {meta.error}
         </FormFeedback>
       </InputGroup>
     </FormGroup>
-  );
-};
+  )
+}
+
+SaasBoostSelect.propTypes = {
+  disabled: PropTypes.bool,
+  icon: PropTypes.string,
+  label: PropTypes.string,
+  tooltip: PropTypes.string,
+  description: PropTypes.string,
+  children: PropTypes.array,
+}

@@ -13,28 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { NavLink } from 'reactstrap'
+import { isEmpty } from 'lodash'
 
-import React from "react";
-import { NavLink } from "reactstrap";
-import { isEmpty } from "lodash";
+OnboardingTenantLink.propTypes = {
+  tenantName: PropTypes.string,
+  tenantId: PropTypes.string,
+  clickTenantDetails: PropTypes.func,
+}
 
-export function OnboardingTenantLink({
-  tenantName,
-  tenantId,
-  clickTenantDetails,
-}) {
+export function OnboardingTenantLink({ tenantName, tenantId, clickTenantDetails }) {
   if (isEmpty(tenantName)) {
-    tenantName = tenantId.substring(0, 7);
+    tenantName = tenantId.substring(0, 7)
   }
   return !!tenantId ? (
-    <NavLink
-      href="#"
-      className="pl-0 pt-0"
-      onClick={() => clickTenantDetails(tenantId)}
-    >
+    <NavLink href="#" className="pl-0 pt-0" onClick={() => clickTenantDetails(tenantId)}>
       {tenantName}
     </NavLink>
   ) : (
     <span>{tenantName}</span>
-  );
+  )
 }

@@ -13,58 +13,64 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import { Input, Label, FormGroup, Col } from "reactstrap";
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Input, Label, FormGroup } from 'reactstrap'
 
 const timePeriodOptions = [
-  { value: "HOUR_1", description: "Last Hour" },
-  { value: "HOUR_2", description: "Last 2 hours" },
-  { value: "HOUR_4", description: "Last 4 hours" },
-  { value: "HOUR_8", description: "Last 8 hours" },
-  { value: "HOUR_10", description: "Last 10 hours" },
-  { value: "HOUR_12", description: "Last 12 hours" },
-  { value: "HOUR_24", description: "Last 24 hours" },
-  { value: "TODAY", description: "Today" },
-  { value: "DAY_7", description: "Last 7 days" },
-  { value: "THIS_WEEK", description: "This week" },
-  { value: "THIS_MONTH", description: "This month" },
-  { value: "DAY_30", description: "Last 30 days" },
-];
+  { value: 'HOUR_1', description: 'Last Hour' },
+  { value: 'HOUR_2', description: 'Last 2 hours' },
+  { value: 'HOUR_4', description: 'Last 4 hours' },
+  { value: 'HOUR_8', description: 'Last 8 hours' },
+  { value: 'HOUR_10', description: 'Last 10 hours' },
+  { value: 'HOUR_12', description: 'Last 12 hours' },
+  { value: 'HOUR_24', description: 'Last 24 hours' },
+  { value: 'TODAY', description: 'Today' },
+  { value: 'DAY_7', description: 'Last 7 days' },
+  { value: 'THIS_WEEK', description: 'This week' },
+  { value: 'THIS_MONTH', description: 'This month' },
+  { value: 'DAY_30', description: 'Last 30 days' },
+]
 
 const addTimePeriodOption = (option) => {
   return (
     <option value={option.value} key={option.value}>
       {option.description}
     </option>
-  );
-};
+  )
+}
+
+SelectTimePeriodComponent.propTypes = {
+  selectTimePeriod: PropTypes.func,
+  timePeriods: PropTypes.array,
+}
+
 export default function SelectTimePeriodComponent(props) {
-  const DEFAULT_TIME_PERIOD = "DAY_7";
-  const timePeriod = props.selectTimePeriod;
-  const { timePeriods = [] } = props;
-  let periodsToDisplay = [];
+  const DEFAULT_TIME_PERIOD = 'DAY_7'
+  const timePeriod = props.selectTimePeriod
+  const { timePeriods = [] } = props
+  let periodsToDisplay = []
   if (timePeriods.length === 0) {
     timePeriodOptions.forEach((option) => {
-      periodsToDisplay.push(addTimePeriodOption(option));
-    });
+      periodsToDisplay.push(addTimePeriodOption(option))
+    })
   } else {
     timePeriods.forEach((timePeriod) => {
       timePeriodOptions.forEach((option) => {
         if (option.value === timePeriod) {
-          periodsToDisplay.push(addTimePeriodOption(option));
+          periodsToDisplay.push(addTimePeriodOption(option))
         }
-      });
-    });
+      })
+    })
   }
 
-  let selectedTimePeriod = "DAY_7";
+  let selectedTimePeriod = DEFAULT_TIME_PERIOD
   const selectTimePeriod = (e) => {
-    if (e.target.value !== "") {
-      selectedTimePeriod = e.target.value;
-      timePeriod(selectedTimePeriod);
+    if (e.target.value !== '') {
+      selectedTimePeriod = e.target.value
+      timePeriod(selectedTimePeriod)
     }
-  };
+  }
 
   return (
     <FormGroup className="form-inline mb-0">
@@ -81,5 +87,5 @@ export default function SelectTimePeriodComponent(props) {
         {periodsToDisplay}
       </Input>
     </FormGroup>
-  );
+  )
 }

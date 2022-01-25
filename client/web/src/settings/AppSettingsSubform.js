@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { Fragment } from 'react'
+import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 
-import React, { Fragment } from "react";
-import { Row, Col, Card, CardBody, CardHeader } from "reactstrap";
-
-import { SaasBoostInput } from "../components/FormComponents";
+import { SaasBoostInput } from '../components/FormComponents'
 
 export default class AppSettingsSubform extends React.Component {
   render() {
@@ -30,12 +30,7 @@ export default class AppSettingsSubform extends React.Component {
               <CardBody>
                 <Row>
                   <Col xs={6}>
-                  <SaasBoostInput
-                      key="name"
-                      label="Name"
-                      name="name"
-                      type="text"
-                    />
+                    <SaasBoostInput key="name" label="Name" name="name" type="text" />
                   </Col>
                   <Col xs={6}>
                     <SaasBoostInput
@@ -59,6 +54,10 @@ export default class AppSettingsSubform extends React.Component {
           </Col>
         </Row>
       </Fragment>
-    );
+    )
   }
+}
+
+AppSettingsSubform.propTypes = {
+  isLocked: PropTypes.bool,
 }

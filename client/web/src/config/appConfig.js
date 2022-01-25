@@ -22,6 +22,6 @@ const config = {
   apiUri: process.env.REACT_APP_API_URI,
   environment: process.env.REACT_APP_ENVIRONMENT,
   awsAccount: process.env.REACT_APP_AWS_ACCOUNT,
-};
+}
 
-export default config;
+export default config

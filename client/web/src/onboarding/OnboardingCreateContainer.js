@@ -14,62 +14,42 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom";
+import React, { useEffect, useState } from 'react'
+import { useHistory } from 'react-router-dom'
 
-import OnboardingFormComponent from "./OnboardingFormComponent";
-import {
-  createOnboarding,
-  selectLoading,
-  selectError,
-  selectErrorName,
-} from "./ducks";
-import { useDispatch, useSelector } from "react-redux";
-import { selectConfig, fetchConfig } from "../settings/ducks";
-import {
-  fetchPlans,
-  selectAllPlans,
-  selectPlanLoading,
-  selectPlanError,
-} from "../billing/ducks";
-import { saveToPresignedBucket } from "../settings/ducks";
+import OnboardingFormComponent from './OnboardingFormComponent'
+import { createOnboarding, selectLoading, selectError, selectErrorName } from './ducks'
+import { useDispatch, useSelector } from 'react-redux'
+import { selectConfig, fetchConfig } from '../settings/ducks'
+import { fetchPlans, selectAllPlans, selectPlanLoading, selectPlanError } from '../billing/ducks'
+import { saveToPresignedBucket } from '../settings/ducks'
 export default function OnboardingCreateContainer(props) {
-  const dispatch = useDispatch();
-  const history = useHistory();
+  const dispatch = useDispatch()
+  const history = useHistory()
 
-  const loading = useSelector(selectLoading);
-  const error = useSelector(selectError);
-  const errorName = useSelector(selectErrorName);
+  const loading = useSelector(selectLoading)
+  const error = useSelector(selectError)
+  const errorName = useSelector(selectErrorName)
 
-  const config = useSelector(selectConfig);
+  const config = useSelector(selectConfig)
 
-  const loadingPlans = useSelector(selectPlanLoading);
-  const errorPlans = useSelector(selectPlanError);
-  const plans = useSelector(selectAllPlans);
+  const loadingPlans = useSelector(selectPlanLoading)
+  const errorPlans = useSelector(selectPlanError)
+  const plans = useSelector(selectAllPlans)
 
-  const [file, setFile] = useState({});
-
-  useEffect(() => {
-    const billingPlansResponse = dispatch(fetchPlans());
-  }, [dispatch]);
+  const [file, setFile] = useState({})
 
   useEffect(() => {
-    const fetchConfigResponse = dispatch(fetchConfig());
-  }, [dispatch]);
+    const billingPlansResponse = dispatch(fetchPlans())
+  }, [dispatch])
 
-  const submitOnboardingRequestForm = async (
-    values,
-    { resetForm, setSubmitting }
-  ) => {
-    const {
-      overrideDefaults,
-      hasDomain,
-      computeSize,
-      minCount,
-      maxCount,
-      ...rest
-    } = values;
-    let onboardingResponse;
+  useEffect(() => {
+    const fetchConfigResponse = dispatch(fetchConfig())
+  }, [dispatch])
+
+  const submitOnboardingRequestForm = async (values, { resetForm, setSubmitting }) => {
+    const { overrideDefaults, hasDomain, computeSize, minCount, maxCount, ...rest } = values
+    let onboardingResponse
     const valsToSend = overrideDefaults
       ? {
           ...rest,
@@ -77,36 +57,34 @@ export default function OnboardingCreateContainer(props) {
           minCount,
           maxCount,
         }
-      : { ...rest };
+      : { ...rest }
 
     try {
-      onboardingResponse = await dispatch(createOnboarding(valsToSend));
-      const presignedS3url = onboardingResponse.payload.zipFileUrl;
+      onboardingResponse = await dispatch(createOnboarding(valsToSend))
+      const presignedS3url = onboardingResponse.payload.zipFileUrl
       if (presignedS3url && !!file && file.name) {
-        await dispatch(
-          saveToPresignedBucket({ dbFile: file, url: presignedS3url })
-        );
+        await dispatch(saveToPresignedBucket({ dbFile: file, url: presignedS3url }))
       }
-      history.push(`/onboarding/${onboardingResponse.payload.id}`);
+      history.push(`/onboarding/${onboardingResponse.payload.id}`)
     } catch (err) {
-      resetForm({ values });
+      resetForm({ values })
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
 
     if (!onboardingResponse.error) {
-      history.push(`/onboarding/${onboardingResponse.payload.id}`);
+      history.push(`/onboarding/${onboardingResponse.payload.id}`)
     }
-  };
+  }
 
   const cancel = () => {
-    history.push("/onboarding");
-  };
+    history.push('/onboarding')
+  }
 
   const handleFileSelected = (file) => {
-    console.log(file);
-    setFile(file);
-  };
+    console.log(file)
+    setFile(file)
+  }
 
   return (
     <OnboardingFormComponent
@@ -119,5 +97,5 @@ export default function OnboardingCreateContainer(props) {
       billingPlans={plans}
       onFileSelected={handleFileSelected}
     />
-  );
+  )
 }
