@@ -21,7 +21,7 @@ import { Formik, Form } from 'formik'
 import { PropTypes } from 'prop-types'
 import * as Yup from 'yup'
 import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap'
-import LoadingOverlay from 'react-loading-overlay-ts'
+import LoadingOverlay from 'react-loading-overlay'
 
 import AppSettingsSubform from './AppSettingsSubform'
 import FileSystemSubform from './FileSystemSubform'
