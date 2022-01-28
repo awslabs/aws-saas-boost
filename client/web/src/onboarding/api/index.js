@@ -14,89 +14,84 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import appConfig from "../../config/appConfig";
+import axios from 'axios'
 
-import { getApiServer, Aborted, isCancel } from "../../api/common";
-import MissingECRImageError from "../MissingECRImageError";
-import ExceedLimitsError from "../ExceedLimitsError";
+import { getApiServer, Aborted, isCancel } from '../../api/common'
+import MissingECRImageError from '../MissingECRImageError'
+import ExceedLimitsError from '../ExceedLimitsError'
 
-const apiServer = getApiServer("onboarding");
+const apiServer = getApiServer('onboarding')
 
 const onboardingAPI = {
   fetchAll: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.get("/", { signal });
-      return response.data;
+      const response = await apiServer.get('/', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to fetch onboarding requests");
+        console.error(err)
+        throw Error('Unable to fetch onboarding requests')
       }
     }
   },
   fetch: async (id, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.get(`/${id}`, {
         signal,
-      });
+      })
 
-      return response.data;
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to fetch onboarding request:${id}`);
+        console.error(err)
+        throw Error(`Unable to fetch onboarding request:${id}`)
       }
     }
   },
   create: async (onboardingData, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.post(
-        `/`,
-        JSON.stringify(onboardingData),
-        {
-          signal,
-        }
-      );
-      return response.data;
+      const response = await apiServer.post(`/`, JSON.stringify(onboardingData), {
+        signal,
+      })
+      return response.data
     } catch (err) {
-      console.info(`error: ${JSON.stringify(err)}`);
-      console.info(`error.response: ${JSON.stringify(err.response)}`);
+      console.info(`error: ${JSON.stringify(err)}`)
+      console.info(`error.response: ${JSON.stringify(err.response)}`)
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        let errorMessage = "";
+        let errorMessage = ''
         if (err.response?.data) {
-          errorMessage = err.response.data?.message ?? err.response.data;
-          if (errorMessage.indexOf("ECR") >= 0) {
-            throw new MissingECRImageError(errorMessage);
-          } else if (errorMessage.indexOf("exceed limits") >= 0) {
-            throw new ExceedLimitsError(errorMessage);
+          errorMessage = err.response.data?.message ?? err.response.data
+          if (errorMessage.indexOf('ECR') >= 0) {
+            throw new MissingECRImageError(errorMessage)
+          } else if (errorMessage.indexOf('exceed limits') >= 0) {
+            throw new ExceedLimitsError(errorMessage)
           } else {
-            errorMessage = err.message;
+            errorMessage = err.message
           }
-          console.error(err.message);
-          throw Error(errorMessage);
+          console.error(err.message)
+          throw Error(errorMessage)
         }
       }
     }
   },
   update: async (onboarding) => {
-    return onboarding;
+    return onboarding
   },
   /**
    * Determines if err is from a Cancelled or Aborted request
    * @param err
    */
   isCancel: isCancel,
-};
+}
 
-export default onboardingAPI;
+export default onboardingAPI

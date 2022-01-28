@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { Fragment } from "react";
-import { Row, Col, Card, CardBody, CardHeader } from "reactstrap";
+import { PropTypes } from 'prop-types'
+import React, { Fragment } from 'react'
+import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 import {
   SaasBoostSelect,
   SaasBoostInput,
   SaasBoostCheckbox,
   SaasBoostFileUpload,
-} from "../components/FormComponents";
+} from '../components/FormComponents'
 
 export default class DatabaseSubform extends React.Component {
   getEngineOptions() {
@@ -30,64 +30,64 @@ export default class DatabaseSubform extends React.Component {
         <option value={engine.engine} key={engine.engine}>
           {engine.description}
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   getInstanceOptions() {
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
     if (!engine) {
-      return null;
+      return null
     }
-    const instances = engine.instances;
+    const instances = engine.instances
     const options = instances?.map((instance) => {
       return (
         <option value={instance.instance} key={instance.instance}>
           {instance.class} ({instance.description})
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   getVersionOptions() {
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
-    const instanceVal = this.props.values?.instance;
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
+    const instanceVal = this.props.values?.instance
     if (!engine || !instanceVal) {
-      return null;
+      return null
     }
-    const instance = engine.instances.find((i) => i.instance === instanceVal);
+    const instance = engine.instances.find((i) => i.instance === instanceVal)
     if (!instance) {
-      return null;
+      return null
     }
-    const versions = instance?.versions;
+    const versions = instance?.versions
     const options = versions.map((version) => {
       return (
         <option value={version.version} key={version.version}>
           {version.description}
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   versionChanged = (event) => {
-    const v = event.target.value;
-    console.log("Version Changed", v);
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
-    const instanceVal = this.props.values?.instance;
+    const v = event.target.value
+    console.log('Version Changed', v)
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
+    const instanceVal = this.props.values?.instance
     if (!engine || !instanceVal) {
-      return null;
+      return null
     }
-    const instance = engine.instances.find((i) => i.instance === instanceVal);
-    const version = instance.versions.find((ver) => ver.version === v);
-    this.props.formik.setFieldValue("database.version", v);
-    this.props.formik.setFieldValue("database.family", version.family);
-  };
+    const instance = engine.instances.find((i) => i.instance === instanceVal)
+    const version = instance.versions.find((ver) => ver.version === v)
+    this.props.formik.setFieldValue('database.version', v)
+    this.props.formik.setFieldValue('database.family', version.family)
+  }
 
   render() {
     return (
@@ -117,9 +117,7 @@ export default class DatabaseSubform extends React.Component {
                         {this.getEngineOptions()}
                       </SaasBoostSelect>
                       <SaasBoostSelect
-                        disabled={
-                          !!!this.props.values?.engine || this.props.isLocked
-                        }
+                        disabled={!!!this.props.values?.engine || this.props.isLocked}
                         label="Instance"
                         name="database.instance"
                         id="database.instance"
@@ -129,9 +127,7 @@ export default class DatabaseSubform extends React.Component {
                         {this.getInstanceOptions()}
                       </SaasBoostSelect>
                       <SaasBoostSelect
-                        disabled={
-                          !!!this.props.values?.instance || this.props.isLocked
-                        }
+                        disabled={!!!this.props.values?.instance || this.props.isLocked}
                         onChange={this.versionChanged}
                         label="Version"
                         name="database.version"
@@ -158,9 +154,7 @@ export default class DatabaseSubform extends React.Component {
                     </Col>
                     <Col xl={6}>
                       <Card>
-                        <CardHeader>
-                          Database Initialization (Optional)
-                        </CardHeader>
+                        <CardHeader> Database Initialization (Optional) </CardHeader>
                         <CardBody>
                           <SaasBoostInput
                             key="database.database"
@@ -171,10 +165,7 @@ export default class DatabaseSubform extends React.Component {
                           />
                           <SaasBoostFileUpload
                             fileMask=".sql"
-                            disabled={
-                              !this.props.values?.database ||
-                              this.props.isLocked
-                            }
+                            disabled={!this.props.values?.database || this.props.isLocked}
                             label="Please select or drop a .sql file that will be used to initialize your database"
                             onFileSelected={this.props.onFileSelected}
                             fname={this.props.values?.bootstrapFilename}
@@ -184,14 +175,21 @@ export default class DatabaseSubform extends React.Component {
                     </Col>
                   </Row>
                 )}
-                {this.props.provisionDb && this.props.dbOptions?.loading && (
-                  <div>Loading ....</div>
-                )}
+                {this.props.provisionDb && this.props.dbOptions?.loading && <div>Loading ....</div>}
               </CardBody>
             </Card>
           </Col>
         </Row>
       </Fragment>
-    );
+    )
   }
+}
+
+DatabaseSubform.propTypes = {
+  dbOptions: PropTypes.array,
+  values: PropTypes.object,
+  formik: PropTypes.object,
+  provisionDb: PropTypes.bool,
+  isLocked: PropTypes.bool,
+  onFileSelected: PropTypes.func,
 }

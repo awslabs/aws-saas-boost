@@ -14,28 +14,18 @@
  * limitations under the License.
  */
 
-import React, { Suspense, lazy } from "react";
-import { Switch, Route } from "react-router-dom";
+import React from 'react'
+import { TenantRoutes } from './tenant'
+import { UserRoutes } from './users'
+import { OnboardingRoutes } from './onboarding'
+import { SettingsRoutes } from './settings'
+import { MetricsRoutes } from './metrics'
 
-// Containers
-const DefaultLayout = lazy(() => import("./blueprints/DefaultLayout"));
+const Dashboard = React.lazy(() => import('./dashboard'))
+const routes = [
+  { path: '/', exact: true, name: 'Home' },
+  { path: '/dashboard', exact: true, name: 'Dashboard', component: Dashboard },
+  { path: '/summary', exact: true, name: 'Dashboard', component: Dashboard },
+].concat(TenantRoutes, UserRoutes, OnboardingRoutes, SettingsRoutes, MetricsRoutes)
 
-const Routes = () => {
-  const loading = () => (
-    <div className="animated fadeIn pt-3 text-center">Loading...</div>
-  );
-
-  return (
-    <Suspense fallback={loading()}>
-      <Switch>
-        <Route
-          path="/"
-          name="Home"
-          render={(props) => <DefaultLayout {...props} />}
-        />
-      </Switch>
-    </Suspense>
-  );
-};
-
-export default Routes;
+export default routes

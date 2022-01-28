@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
+import React from 'react'
+import { Col, Card, CardBody } from 'reactstrap'
 
 export default function SaasBoostEnvNameComponent(props) {
   return (
@@ -30,5 +30,5 @@ export default function SaasBoostEnvNameComponent(props) {
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

@@ -13,18 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { useState } from 'react'
+import { Label, Tooltip } from 'reactstrap'
 
-import React, { useState } from "react";
-import { Label, Tooltip } from "reactstrap";
-export const SaasBoostTooltippedLabel = ({
-  field,
-  label,
-  tooltip,
-  ...props
-}) => {
-  const [tooltipOpen, setTooltipOpen] = useState(false);
-  const toggle = () => setTooltipOpen(!tooltipOpen);
-  const tooltipId = props.id ?? `${field.name}-tooltiptarget`;
+export const SaasBoostTooltippedLabel = ({ field, label, tooltip, id, ...props }) => {
+  const [tooltipOpen, setTooltipOpen] = useState(false)
+  const toggle = () => setTooltipOpen(!tooltipOpen)
+  const tooltipId = id ?? `${field.name}-tooltiptarget`
 
   return tooltip && label ? (
     <>
@@ -37,15 +33,18 @@ export const SaasBoostTooltippedLabel = ({
       >
         {tooltip}
       </Tooltip>
-      <Label
-        htmlFor={field.name}
-        id={tooltipId}
-        style={{ borderBottom: "1px dotted black" }}
-      >
+      <Label htmlFor={field.name} id={tooltipId} style={{ borderBottom: '1px dotted black' }}>
         {label}
       </Label>
     </>
   ) : (
     <Label htmlFor={field.name}>{label}</Label>
-  );
-};
+  )
+}
+
+SaasBoostTooltippedLabel.propTypes = {
+  field: PropTypes.object,
+  label: PropTypes.string,
+  tooltip: PropTypes.string,
+  id: PropTypes.string,
+}

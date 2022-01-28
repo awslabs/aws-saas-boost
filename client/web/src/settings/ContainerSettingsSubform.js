@@ -14,26 +14,27 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap';
-import { Field } from 'formik';
-import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents';
+import React from 'react'
+import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
+import { Field } from 'formik'
+import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
+import { PropTypes } from 'prop-types'
 
 const ContainerSettingsSubform = (props) => {
-  const { osOptions, isLocked } = props;
+  const { osOptions, isLocked } = props
   const getWinServerOptions = () => {
     if (!osOptions) {
-      return null;
+      return null
     }
-    const winKeys = Object.keys(osOptions).filter((key) => key.startsWith('WIN'));
+    const winKeys = Object.keys(osOptions).filter((key) => key.startsWith('WIN'))
     const options = winKeys.map((key) => {
-      var desc = osOptions[key];
+      var desc = osOptions[key]
       return (
         <option value={key} key={key}>
           {desc}
         </option>
-      );
-    });
+      )
+    })
     return props.formik.values.operatingSystem === 'WINDOWS' && osOptions ? (
       <FormGroup>
         <SaasBoostSelect
@@ -46,21 +47,21 @@ const ContainerSettingsSubform = (props) => {
           {options}
         </SaasBoostSelect>
       </FormGroup>
-    ) : null;
-  };
+    ) : null
+  }
 
   // Normally we'd let formik handle this, but we also need to change the fylesystem type
   // based on the container OS
   const onOperatingSystemChange = (val) => {
-    const os = val?.target?.value;
-    props.formik.setFieldValue('operatingSystem', os);
+    const os = val?.target?.value
+    props.formik.setFieldValue('operatingSystem', os)
     if (os === 'WINDOWS') {
-      props.formik.setFieldValue('filesystem.fileSystemType', 'FSX');
+      props.formik.setFieldValue('filesystem.fileSystemType', 'FSX')
     }
     if (os === 'LINUX') {
-      props.formik.setFieldValue('filesystem.fileSystemType', 'EFS');
+      props.formik.setFieldValue('filesystem.fileSystemType', 'EFS')
     }
-  };
+  }
 
   return (
     <>
@@ -168,7 +169,13 @@ const ContainerSettingsSubform = (props) => {
         </Col>
       </Row>
     </>
-  );
-};
+  )
+}
 
-export default ContainerSettingsSubform;
+ContainerSettingsSubform.propTypes = {
+  osOptions: PropTypes.object,
+  isLocked: PropTypes.bool,
+  formik: PropTypes.object,
+}
+
+export default ContainerSettingsSubform

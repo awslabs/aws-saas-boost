@@ -15,36 +15,36 @@
  */
 
 export const _colors = [
-  "#20a8d8",
-  "#6610f2",
-  "#e83e8c",
-  "#f86c6b",
-  "#63c2de",
-  "#f8cb00",
-  "#ffc107",
-  "#4dbd74",
-  "#20c997",
-  "#17a2b8",
-  "#6f42c1",
-];
+  '#20a8d8',
+  '#6610f2',
+  '#e83e8c',
+  '#f86c6b',
+  '#63c2de',
+  '#f8cb00',
+  '#ffc107',
+  '#4dbd74',
+  '#20c997',
+  '#17a2b8',
+  '#6f42c1',
+]
 
 export const _tenantLabels = (vals, tenants) => {
   // console.log(`tenants: ${JSON.stringify(tenants)}`);
-  let labels;
-  if (typeof vals === "object") {
-    labels = [];
+  let labels
+  if (typeof vals === 'object') {
+    labels = []
     vals.forEach((label) => {
       tenants.some((tenant) => {
         if (label === tenant.id) {
-          labels.push(tenant.name);
-          return true;
+          labels.push(tenant.name)
+          return true
         }
-      });
-    });
+      })
+    })
   } else {
-    labels = tenants[vals].name;
+    labels = tenants[vals].name
   }
   // console.log(`labels: ${labels}`);
 
-  return labels;
-};
+  return labels
+}

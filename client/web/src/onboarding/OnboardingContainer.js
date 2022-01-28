@@ -14,16 +14,12 @@
  * limitations under the License.
  */
 
-import React, { Component, lazy } from "react";
-import { Switch, Route } from "react-router-dom";
+import React, { Component, lazy } from 'react'
+import { Switch, Route } from 'react-router-dom'
 
-const OnboardingListContainer = lazy(() => import("./OnboardingListContainer"));
-const OnboardingCreateContainer = lazy(() =>
-  import("./OnboardingCreateContainer")
-);
-const OnboardingDetailContainer = lazy(() =>
-  import("./OnboardingDetailContainer")
-);
+const OnboardingListContainer = lazy(() => import('./OnboardingListContainer'))
+const OnboardingCreateContainer = lazy(() => import('./OnboardingCreateContainer'))
+const OnboardingDetailContainer = lazy(() => import('./OnboardingDetailContainer'))
 
 export class OnboardingContainer extends Component {
   render() {
@@ -48,8 +44,8 @@ export class OnboardingContainer extends Component {
           component={OnboardingDetailContainer}
         />
       </Switch>
-    );
+    )
   }
 }
 
-export default OnboardingContainer;
+export default OnboardingContainer

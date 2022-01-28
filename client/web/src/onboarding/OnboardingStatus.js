@@ -13,29 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Badge } from 'reactstrap'
+import { capitalize } from 'lodash'
 
-import React from "react";
-import { Badge } from "reactstrap";
-import { capitalize } from "lodash";
+OnboardingStatus.propTypes = {
+  status: PropTypes.string,
+}
 
 export function OnboardingStatus({ status }) {
-  let statusColor = "";
+  let statusColor = ''
 
   switch (status) {
-    case "deleted":
-    case "failed":
-      statusColor = "danger";
-      break;
-    case "deployed":
-      statusColor = "success";
-      break;
-    case "provisioning":
-      statusColor = "info";
-      break;
+    case 'deleted':
+    case 'failed':
+      statusColor = 'danger'
+      break
+    case 'deployed':
+      statusColor = 'success'
+      break
+    case 'provisioning':
+      statusColor = 'info'
+      break
     default:
-      statusColor = "warning";
-      break;
+      statusColor = 'warning'
+      break
   }
 
-  return <Badge color={statusColor}>{capitalize(status)}</Badge>;
+  return <Badge color={statusColor}>{capitalize(status)}</Badge>
 }

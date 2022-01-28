@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { Col, Card, CardBody } from "reactstrap";
+import React from 'react'
+import { Col, Card, CardBody } from 'reactstrap'
 
 export default function InstalledExtensionsComponent(props) {
   return (
@@ -36,5 +36,5 @@ export default function InstalledExtensionsComponent(props) {
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { Component } from 'react'
+import { connect } from 'react-redux'
+import { unwrapResult } from '@reduxjs/toolkit'
+import { withRouter } from 'react-router'
 
-import React, { Component } from "react";
-import { connect } from "react-redux";
-import { unwrapResult } from "@reduxjs/toolkit";
-import { withRouter } from "react-router";
-
-import TenantForm from "./TenantFormComponent";
+import TenantForm from './TenantFormComponent'
 import {
   fetchTenantThunk,
   dismissError,
@@ -27,15 +27,11 @@ import {
   disableTenant,
   enableTenant,
   deleteTenant,
-} from "./ducks";
-import TenantViewComponent from "./TenantViewComponent";
-import {
-  selectConfig,
-  selectSettingsById,
-  fetchConfig,
-} from "../settings/ducks";
-import { selectAllPlans, fetchPlans } from "../billing/ducks";
-import * as SETTINGS from "../settings/common";
+} from './ducks'
+import TenantViewComponent from './TenantViewComponent'
+import { selectConfig, selectSettingsById, fetchConfig } from '../settings/ducks'
+import { selectAllPlans, fetchPlans } from '../billing/ducks'
+import * as SETTINGS from '../settings/common'
 
 const mapDispatchToProps = {
   fetchTenantThunk,
@@ -46,17 +42,17 @@ const mapDispatchToProps = {
   enableTenant,
   disableTenant,
   deleteTenant,
-};
+}
 
 const mapStateToProps = (state, props) => {
-  const { match } = props;
-  const { params } = match;
-  const { tenantId } = params;
-  const { tenants } = state;
-  const domainName = selectSettingsById(state, SETTINGS.DOMAIN_NAME);
-  const tenant = !!tenantId ? tenants.entities[tenantId] : undefined;
-  const plans = selectAllPlans(state);
-  const config = selectConfig(state);
+  const { match } = props
+  const { params } = match
+  const { tenantId } = params
+  const { tenants } = state
+  const domainName = selectSettingsById(state, SETTINGS.DOMAIN_NAME)
+  const tenant = !!tenantId ? tenants.entities[tenantId] : undefined
+  const plans = selectAllPlans(state)
+  const config = selectConfig(state)
 
   const detail = !!tenant
     ? {
@@ -66,7 +62,7 @@ const mapStateToProps = (state, props) => {
           ? `http://${tenant?.subdomain}.${domainName.value}`
           : undefined,
       }
-    : undefined;
+    : undefined
 
   return {
     detail: detail,
@@ -74,78 +70,78 @@ const mapStateToProps = (state, props) => {
     error: tenants.error,
     plans: plans,
     config: config,
-  };
-};
+  }
+}
 
 class TenantContainer extends Component {
   constructor(props) {
-    super(props);
+    super(props)
     this.state = {
       tenantId: null,
       isEditing: false,
-    };
-    this.toggleEdit = this.toggleEdit.bind(this);
-    this.saveTenant = this.saveTenant.bind(this);
-    this.handleError = this.handleError.bind(this);
-    this.enable = this.enable.bind(this);
-    this.disable = this.disable.bind(this);
-    this.deleteTenant = this.deleteTenant.bind(this);
+    }
+    this.toggleEdit = this.toggleEdit.bind(this)
+    this.saveTenant = this.saveTenant.bind(this)
+    this.handleError = this.handleError.bind(this)
+    this.enable = this.enable.bind(this)
+    this.disable = this.disable.bind(this)
+    this.deleteTenant = this.deleteTenant.bind(this)
   }
 
   async componentDidMount() {
-    const { match } = this.props;
-    const { params } = match;
-    const { tenantId } = params;
-    
+    const { match } = this.props
+    const { params } = match
+    const { tenantId } = params
 
     if (tenantId != null) {
       try {
-        await this.props.fetchTenantThunk(tenantId);
+        await this.props.fetchTenantThunk(tenantId)
         this.setState((state, props) => {
           if (tenantId === state.tenantId) {
-            return state;
+            return state
           }
-          return { tenantId: tenantId };
-        });
+          return { tenantId: tenantId }
+        })
       } catch (err) {
-        console.error("error when dispatching tenant thunk.");
+        console.error('error when dispatching tenant thunk.')
       }
     }
-    this.props.fetchConfig();
-    this.props.fetchPlans();
+    this.props.fetchConfig()
+    this.props.fetchPlans()
   }
 
   toggleEdit() {
-    const { error } = this.props;
+    const { error } = this.props
     if (error) {
-      const { dismissError } = this.props;
-      dismissError();
+      const { dismissError } = this.props
+      dismissError()
     }
-    this.setState((state) => ({ isEditing: !state.isEditing }));
+    this.setState((state) => ({ isEditing: !state.isEditing }))
   }
 
   saveTenant(values, { setSubmitting }) {
     // dispatch save tenant call to thunk
     //remove the "hasBilling" field as it's only a client side property for convenience
-    const { hasBilling, ...valToSend } = values;
-    const dispatchResponse = this.props.editedTenant({values: valToSend});
+    const { hasBilling, ...valToSend } = values
+    console.log('saveTenant!')
+    const dispatchResponse = this.props.editedTenant({ values: valToSend })
     dispatchResponse
       .then(unwrapResult)
       .then((tenant) => {
-        setSubmitting(false);
-        this.toggleEdit();
+        setSubmitting(false)
+        this.toggleEdit()
       })
       .catch((e) => {
-        setSubmitting(false);
-      });
+        setSubmitting(false)
+      })
   }
 
   enable() {
-    this.props.enableTenant(this.state.tenantId);
+    this.props.enableTenant(this.state.tenantId)
   }
 
   disable() {
-    this.props.disableTenant(this.state.tenantId);
+    this.props.disableTenant(this.state.tenantId)
   }
 
   deleteTenant() {
@@ -153,16 +149,16 @@ class TenantContainer extends Component {
       tenantId: this.state.tenantId,
       history: this.props.history,
     }
-    this.props.deleteTenant(valToSend);
+    this.props.deleteTenant(valToSend)
   }
 
   handleError() {
-    this.props.dismissError();
+    this.props.dismissError()
   }
 
   render() {
-    const { detail, error, dismissError, loading, config, plans } = this.props;
-    const { tenantId, isEditing } = this.state;
+    const { detail, error, dismissError, loading, config, plans } = this.props
+    const { tenantId, isEditing } = this.state
     return (
       <div>
         {!isEditing && (
@@ -190,13 +186,31 @@ class TenantContainer extends Component {
           />
         )}
       </div>
-    );
+    )
   }
+}
+
+TenantContainer.propTypes = {
+  match: PropTypes.object,
+  fetchTenantThunk: PropTypes.func,
+  fetchConfig: PropTypes.func,
+  fetchPlans: PropTypes.func,
+  error: PropTypes.string,
+  dismissError: PropTypes.func,
+  editedTenant: PropTypes.func,
+  enableTenant: PropTypes.func,
+  disableTenant: PropTypes.func,
+  deleteTenant: PropTypes.func,
+  history: PropTypes.object,
+  detail: PropTypes.object,
+  loading: PropTypes.string,
+  config: PropTypes.object,
+  plans: PropTypes.array,
 }
 
 export const TenantContainerWithRouter = connect(
   mapStateToProps,
-  mapDispatchToProps
-)(withRouter(TenantContainer));
+  mapDispatchToProps,
+)(withRouter(TenantContainer))
 
-export default TenantContainerWithRouter;
+export default TenantContainerWithRouter

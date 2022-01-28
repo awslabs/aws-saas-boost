@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from 'react';
-import { Formik, Form } from 'formik';
-import * as Yup from 'yup';
-import { Row, Col, Card, Button, CardHeader, CardBody, CardFooter, Alert } from 'reactstrap';
-import { SaasBoostInput, SaasBoostSelect, SaasBoostCheckbox } from '../components/FormComponents';
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Formik, Form } from 'formik'
+import * as Yup from 'yup'
+import { Row, Col, Card, Button, CardHeader, CardBody, CardFooter, Alert } from 'reactstrap'
+import { SaasBoostInput, SaasBoostSelect, SaasBoostCheckbox } from '../components/FormComponents'
 
 const initialTenant = {
   tenantId: null,
@@ -26,7 +26,7 @@ const initialTenant = {
   description: '',
   subdomain: '',
   planId: '',
-};
+}
 
 const TenantForm = (props) => {
   const {
@@ -37,14 +37,14 @@ const TenantForm = (props) => {
     dismissError,
     config,
     plans,
-  } = props;
-  const { domainName, minCount, maxCount, computeSize, billing } = config;
+  } = props
+  const { domainName, minCount, maxCount, computeSize, billing } = config
 
   const hasDomain = () => {
-    return !!domainName;
-  };
+    return !!domainName
+  }
 
-  const initalValues = {
+  const initialValues = {
     ...tenant,
     overrideDefaults: !!tenant.computeSize,
     computeSize: tenant.computeSize || computeSize,
@@ -52,7 +52,7 @@ const TenantForm = (props) => {
     minCount: tenant.minCount || minCount,
     maxCount: tenant.maxCount || maxCount,
     planId: tenant.planId || billing?.planId || 'product_none',
-  };
+  }
 
   const showError = (error, dismissError) => {
     if (!!error) {
@@ -65,10 +65,10 @@ const TenantForm = (props) => {
             </Alert>
           </Col>
         </Row>
-      );
+      )
     }
-    return undefined;
-  };
+    return undefined
+  }
 
   const getBillingUi = (plans, hasBilling) => {
     const options = plans.map((plan) => {
@@ -76,8 +76,8 @@ const TenantForm = (props) => {
         <option value={plan.planId} key={plan.planId}>
           {plan.planName}
         </option>
-      );
-    });
+      )
+    })
     return (
       hasBilling && (
         <Row>
@@ -88,8 +88,8 @@ const TenantForm = (props) => {
           </Col>
         </Row>
       )
-    );
-  };
+    )
+  }
 
   const getDomainUi = (domainName) => {
     return hasDomain() ? (
@@ -104,12 +104,12 @@ const TenantForm = (props) => {
           </p>
         </Col>
       </Row>
-    ) : null;
-  };
+    ) : null
+  }
 
   return (
     <Formik
-      initialValues={initalValues}
+      initialValues={initialValues}
       enableReinitialize={true}
       validationSchema={Yup.object({
         name: Yup.string().max(100, 'Must be 100 characters or less.').required('Required'),
@@ -143,11 +143,13 @@ const TenantForm = (props) => {
             .required('Maximum count is a required field.')
             .integer('Maximum count must be an integer value')
             .max(10, 'Maximum count can be no larger than ${max}')
-            .test('match', 'Maximum count cannot be smaller than minimum count', function (
-              maxCount
-            ) {
-              return maxCount >= this.parent.minCount;
-            }),
+            .test(
+              'match',
+              'Maximum count cannot be smaller than minimum count',
+              function (maxCount) {
+                return maxCount >= this.parent.minCount
+              },
+            ),
           otherwise: Yup.number(),
         }),
         planId: Yup.string().when('hasBilling', {
@@ -232,7 +234,17 @@ const TenantForm = (props) => {
         </Form>
       )}
     </Formik>
-  );
-};
+  )
+}
 
-export default TenantForm;
+TenantForm.propTypes = {
+  handleSubmit: PropTypes.func,
+  handleCancel: PropTypes.func,
+  dismissError: PropTypes.func,
+  tenant: PropTypes.object,
+  error: PropTypes.string,
+  config: PropTypes.object,
+  plans: PropTypes.array,
+}
+
+export default TenantForm

@@ -13,53 +13,53 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { lazy, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { _colors } from "./common";
+import { PropTypes } from 'prop-types'
+import React, { lazy, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   selectAccessLogDatabyMetric,
   getTenantAccessLogs,
   selectLoading,
-} from "./ducks/accessLogMetrics";
-import { dismissError, selectTenantById } from "../tenant/ducks";
+} from './ducks/accessLogMetrics'
+import { selectTenantById } from '../tenant/ducks'
 
-const AccessLogGraphComponent = lazy(() => import("./AccessLogGraphComponent"));
+const AccessLogGraphComponent = lazy(() => import('./AccessLogGraphComponent'))
+
+AccessLogsMetricsContainer.propTypes = {
+  selectedTimePeriod: PropTypes.string,
+  metric: PropTypes.object,
+  title: PropTypes.string,
+  label: PropTypes.string,
+  colorIndex: PropTypes.string,
+  selectedTenant: PropTypes.object,
+}
 
 export default function AccessLogsMetricsContainer(props) {
-  const {
-    selectedTimePeriod,
-    metric,
-    title,
-    label,
-    colorIndex,
-    selectedTenant,
-  } = props;
+  const { selectedTimePeriod, metric, title, label, colorIndex, selectedTenant } = props
 
-  const dispatch = useDispatch();
+  const dispatch = useDispatch()
 
-  let data =
-    useSelector((state) => selectAccessLogDatabyMetric(state, metric)) || [];
-  let loading = useSelector((state) => selectLoading(state));
+  let data = useSelector((state) => selectAccessLogDatabyMetric(state, metric)) || []
+  let loading = useSelector((state) => selectLoading(state))
 
-  let tenant = useSelector((state) => selectTenantById(state, selectedTenant));
+  let tenant = useSelector((state) => selectTenantById(state, selectedTenant))
 
   useEffect(() => {
-    let response;
+    let response
     try {
       response = dispatch(
         getTenantAccessLogs({
           metric,
           timeRange: selectedTimePeriod,
           tenantId: selectedTenant,
-        })
-      );
+        }),
+      )
     } catch (err) {
-      if (response.PromiseStatus === "pending") {
-        response.abort();
+      if (response.PromiseStatus === 'pending') {
+        response.abort()
       }
     }
-  }, [dispatch, metric, selectedTimePeriod, selectedTenant]);
+  }, [dispatch, metric, selectedTimePeriod, selectedTenant])
 
   return (
     <AccessLogGraphComponent
@@ -70,5 +70,5 @@ export default function AccessLogsMetricsContainer(props) {
       loading={loading}
       tenantName={tenant.name}
     />
-  );
+  )
 }

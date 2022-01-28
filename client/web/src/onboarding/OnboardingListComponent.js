@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { useEffect, useState } from "react";
+import { PropTypes } from 'prop-types'
+import React, { useEffect, useState } from 'react'
 import {
   Row,
   Col,
@@ -25,13 +25,11 @@ import {
   Table,
   Spinner,
   Alert,
-  Modal,
-  ModalBody,
-  ModalHeader,
-} from "reactstrap";
-
-import OnboardingListItemComponent from "./OnboardingListItemComponent";
-import ECRInstructions from "../components/ECRInstructions";
+} from 'reactstrap'
+import CIcon from '@coreui/icons-react'
+import { cilReload, cilListRich } from '@coreui/icons'
+import OnboardingListItemComponent from './OnboardingListItemComponent'
+import ECRInstructions from '../components/ECRInstructions'
 
 const showError = (error, dismissError) => {
   return (
@@ -39,8 +37,8 @@ const showError = (error, dismissError) => {
       <h4 className="alert-heading">Error</h4>
       <p>{error}</p>
     </Alert>
-  );
-};
+  )
+}
 
 export const OnboardingListComponent = (props) => {
   const {
@@ -54,37 +52,32 @@ export const OnboardingListComponent = (props) => {
     ecrRepository,
     awsAccount,
     awsRegion,
-    showEcrPushModal,
-    toggleEcrPushModal,
     clickTenantDetails,
-  } = props;
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [timeoutId, setTimeoutId] = useState(null);
+  } = props
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [timeoutId, setTimeoutId] = useState(null)
 
-  const terminus = ["deployed", "updated", "failed"];
+  const terminus = ['deployed', 'updated', 'failed']
 
   const checkRefresh = (refreshFn) => {
-    if (
-      !isRefreshing &&
-      onboardingRequests.some((ob) => !terminus.includes(ob?.status))
-    ) {
-      setIsRefreshing(true);
+    if (!isRefreshing && onboardingRequests.some((ob) => !terminus.includes(ob?.status))) {
+      setIsRefreshing(true)
       const id = setTimeout(() => {
-        refreshFn();
-      }, 30000);
-      setTimeoutId(id);
+        refreshFn()
+      }, 30000)
+      setTimeoutId(id)
     }
-  };
+  }
 
   useEffect(() => {
-    checkRefresh(doRefresh);
+    checkRefresh(doRefresh)
     return () => {
       if (isRefreshing) {
-        clearTimeout(timeoutId);
-        setIsRefreshing(false);
+        clearTimeout(timeoutId)
+        setIsRefreshing(false)
       }
-    };
-  });
+    }
+  })
 
   return (
     <div className="animated fadeIn">
@@ -94,14 +87,9 @@ export const OnboardingListComponent = (props) => {
       <Row className="mb-3">
         <Col sm={{ size: 12 }} md={{ size: 8 }} lg={{ size: 9 }}>
           <Alert color="light">
-            Onboarding tenants requires an application image to be uploaded. For
-            more detail, click{" "}
-            <ECRInstructions
-              awsAccount={awsAccount}
-              awsRegion={awsRegion}
-              ecrRepo={ecrRepository}
-            >
-              here.
+            Onboarding tenants requires an application image to be uploaded. For more detail, click{' '}
+            <ECRInstructions awsAccount={awsAccount} awsRegion={awsRegion} ecrRepo={ecrRepository}>
+              <span>here.</span>
             </ECRInstructions>
           </Alert>
         </Col>
@@ -109,8 +97,8 @@ export const OnboardingListComponent = (props) => {
           <div className="float-right">
             <Button color="secondary" className="mr-2" onClick={doRefresh}>
               <span>
-                {" "}
-                <i className="fa fa-refresh" />
+                {' '}
+                <CIcon icon={cilReload} />
               </span>
             </Button>
             <Button color="primary" onClick={showOnboardRequestForm}>
@@ -123,8 +111,7 @@ export const OnboardingListComponent = (props) => {
         <Col lg={12}>
           <Card>
             <CardHeader>
-              <i className="fa fa-align-justify" />
-              Onboarding Requests
+              <CIcon icon={cilListRich} /> Onboarding Requests
             </CardHeader>
             <CardBody>
               <Table>
@@ -138,7 +125,7 @@ export const OnboardingListComponent = (props) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading === "idle" &&
+                  {loading === 'idle' &&
                     onboardingRequests.map((onboarding) => {
                       return (
                         <OnboardingListItemComponent
@@ -147,9 +134,9 @@ export const OnboardingListComponent = (props) => {
                           clickOnboardingRequest={clickOnboardingRequest}
                           clickTenantDetails={clickTenantDetails}
                         />
-                      );
+                      )
                     })}
-                  {loading === "idle" && onboardingRequests.length === 0 && (
+                  {loading === 'idle' && onboardingRequests.length === 0 && (
                     <tr>
                       <td colSpan="5" className="text-center">
                         <p className="font-weight-bold">No results</p>
@@ -157,7 +144,7 @@ export const OnboardingListComponent = (props) => {
                       </td>
                     </tr>
                   )}
-                  {loading === "pending" && (
+                  {loading === 'pending' && (
                     <tr>
                       <td colSpan="5">
                         <Spinner animation="border" role="status">
@@ -173,7 +160,23 @@ export const OnboardingListComponent = (props) => {
         </Col>
       </Row>
     </div>
-  );
-};
+  )
+}
 
-export default OnboardingListComponent;
+OnboardingListComponent.propTypes = {
+  clickOnboardingRequest: PropTypes.func,
+  dismissError: PropTypes.func,
+  doRefresh: PropTypes.func,
+  error: PropTypes.string,
+  loading: PropTypes.string,
+  onboardingRequests: PropTypes.array,
+  showOnboardRequestForm: PropTypes.func,
+  ecrRepository: PropTypes.string,
+  awsAccount: PropTypes.string,
+  awsRegion: PropTypes.string,
+  showEcrPushModal: PropTypes.bool,
+  toggleEcrPushModal: PropTypes.func,
+  clickTenantDetails: PropTypes.func,
+}
+
+export default OnboardingListComponent

@@ -14,45 +14,45 @@
  * limitations under the License.
  */
 
-import React, { useEffect } from "react";
-import { UserListComponent } from "./UserListComponent";
-import { useDispatch, useSelector } from "react-redux";
-import { fetchUsers, selectAllUsers, dismissError } from "./ducks";
-import { useHistory } from "react-router-dom";
+import React, { useEffect } from 'react'
+import { UserListComponent } from './UserListComponent'
+import { useDispatch, useSelector } from 'react-redux'
+import { fetchUsers, selectAllUsers, dismissError } from './ducks'
+import { useHistory } from 'react-router-dom'
 
 export default function UserListContainer() {
-  const dispatch = useDispatch();
-  const history = useHistory();
+  const dispatch = useDispatch()
+  const history = useHistory()
 
-  const users = useSelector(selectAllUsers);
-  const loading = useSelector((state) => state.users.loading);
-  const error = useSelector((state) => state.users.error);
+  const users = useSelector(selectAllUsers)
+  const loading = useSelector((state) => state.users.loading)
+  const error = useSelector((state) => state.users.error)
 
   const handleUserClick = (username) => {
-    history.push(`/users/${username}`);
-  };
+    history.push(`/users/${username}`)
+  }
 
   const handleRefresh = () => {
-    dispatch(fetchUsers());
-  };
+    dispatch(fetchUsers())
+  }
 
   const handleCreateUser = () => {
-    history.push(`/users/create`);
-  };
+    history.push(`/users/create`)
+  }
 
   const handleError = () => {
-    dispatch(dismissError());
-  };
+    dispatch(dismissError())
+  }
 
   useEffect(() => {
-    const fetchUsersPromise = dispatch(fetchUsers());
+    const fetchUsersPromise = dispatch(fetchUsers())
     return () => {
-      if (fetchUsersPromise.PromiseStatus === "pending") {
-        fetchUsersPromise.abort();
+      if (fetchUsersPromise.PromiseStatus === 'pending') {
+        fetchUsersPromise.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
   return (
     <UserListComponent
       users={users}
@@ -63,5 +63,5 @@ export default function UserListContainer() {
       handleCreateUser={handleCreateUser}
       handleError={handleError}
     />
-  );
+  )
 }

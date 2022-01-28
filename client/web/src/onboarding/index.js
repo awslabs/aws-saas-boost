@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import React from "react";
+import React from 'react'
 
-const OnboardingContainer = React.lazy(() => import("./OnboardingContainer"));
+const OnboardingContainer = React.lazy(() => import('./OnboardingContainer'))
 
 export const OnboardingRoutes = [
   {
-    path: "/onboarding",
-    name: "Onboarding",
+    path: '/onboarding',
+    name: 'Onboarding',
     component: OnboardingContainer,
   },
-];
+]

@@ -13,24 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Input, Label, FormGroup } from 'reactstrap'
 
-import React from "react";
-import { Input, Label, Row, Col, FormGroup } from "reactstrap";
+SelectTenantComponent.propTypes = {
+  tenants: PropTypes.array,
+  selectedTenant: PropTypes.object,
+  selectTenant: PropTypes.func,
+}
+
 export default function SelectTenantComponent(props) {
-  const { tenants, selectedTenant, selectTenant } = props;
+  const { tenants, selectedTenant, selectTenant } = props
   const _selectTenant = (e) => {
     if (e.target.value !== selectedTenant) {
-      selectTenant(e.target.value);
+      selectTenant(e.target.value)
     }
-  };
-  let tenantOptions = [];
+  }
+  let tenantOptions = []
   tenants.forEach((t) => {
     tenantOptions.push(
       <option value={t.id} key={t.id}>
         {t.name}
-      </option>
-    );
-  });
+      </option>,
+    )
+  })
   return (
     <FormGroup className="form-inline mb-0">
       <Label htmlFor="stpcTimePeriod" className="mr-2">
@@ -49,5 +56,5 @@ export default function SelectTenantComponent(props) {
         </Input>
       </div>
     </FormGroup>
-  );
+  )
 }

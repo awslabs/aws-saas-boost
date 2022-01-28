@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { Fragment } from 'react';
+import { PropTypes } from 'prop-types'
+import React, { Fragment } from 'react'
 import {
   Row,
   Col,
@@ -23,13 +23,12 @@ import {
   CardHeader,
   Input,
   InputGroup,
-  InputGroupAddon,
   FormGroup,
   Label,
-} from 'reactstrap';
-import { SaasBoostSelect, SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents';
-import Slider from 'rc-slider';
-import 'rc-slider/assets/index.css';
+} from 'reactstrap'
+import { SaasBoostSelect, SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents'
+import Slider from 'rc-slider'
+import 'rc-slider/assets/index.css'
 
 export default class FileSystemSubform extends React.Component {
   render() {
@@ -65,8 +64,17 @@ export default class FileSystemSubform extends React.Component {
           </Col>
         </Row>
       </Fragment>
-    );
+    )
   }
+}
+
+FileSystemSubform.propTypes = {
+  provisionFs: PropTypes.bool,
+  containerOs: PropTypes.string,
+  isLocked: PropTypes.bool,
+  filesystem: PropTypes.object,
+  formik: PropTypes.object,
+  values: PropTypes.object,
 }
 
 const EfsFilesystemOptions = (props) => {
@@ -106,35 +114,42 @@ const EfsFilesystemOptions = (props) => {
         <Col xl={6}></Col>
       </Row>
     )
-  );
-};
+  )
+}
+
+EfsFilesystemOptions.propTypes = {
+  provisionFs: PropTypes.bool,
+  containerOs: PropTypes.string,
+  isLocked: PropTypes.bool,
+  values: PropTypes.object,
+}
 
 const FsxFilesystemOptions = (props) => {
   const fsMarks = {
     32: '32',
     1024: '1024',
-  };
+  }
 
   const tpMarks = {
     8: '8',
     2048: '2048',
-  };
+  }
 
   const onStorageChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.storageGb', val);
-  };
+    props.formik.setFieldValue('filesystem.fsx.storageGb', val)
+  }
 
   const onThroughputChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.throughputMbs', val);
-  };
+    props.formik.setFieldValue('filesystem.fsx.throughputMbs', val)
+  }
 
   const onWeeklyMaintTimeChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceTime', val.target.value);
-  };
+    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceTime', val.target.value)
+  }
 
   const onWeeklyDayChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceDay', val.target.value);
-  };
+    props.formik.setFieldValue('filesystem.fsx.weeklyMaintenanceDay', val.target.value)
+  }
 
   return (
     props.provisionFs &&
@@ -223,21 +238,19 @@ const FsxFilesystemOptions = (props) => {
             <Col xs={6}>
               <Label>Weekly Maintenance Day/Time (UTC)</Label>
               <InputGroup className="mb-3">
-                <InputGroupAddon addonType="prepend">
-                  <Input
-                    type="select"
-                    onChange={onWeeklyDayChange}
-                    value={props.values?.fsx.weeklyMaintenanceDay}
-                  >
-                    <option value="1">Sun</option>
-                    <option value="2">Mon</option>
-                    <option value="3">Tue</option>
-                    <option value="4">Wed</option>
-                    <option value="5">Thu</option>
-                    <option value="6">Fri</option>
-                    <option value="7">Sat</option>
-                  </Input>
-                </InputGroupAddon>
+                <Input
+                  type="select"
+                  onChange={onWeeklyDayChange}
+                  value={props.values?.fsx.weeklyMaintenanceDay}
+                >
+                  <option value="1">Sun</option>
+                  <option value="2">Mon</option>
+                  <option value="3">Tue</option>
+                  <option value="4">Wed</option>
+                  <option value="5">Thu</option>
+                  <option value="6">Fri</option>
+                  <option value="7">Sat</option>
+                </Input>
                 <Input
                   key="filesystem.fsx.weeklyMaintenanceTime"
                   onChange={onWeeklyMaintTimeChange}
@@ -291,5 +304,13 @@ const FsxFilesystemOptions = (props) => {
         </Col>
       </Row>
     )
-  );
-};
+  )
+}
+
+FsxFilesystemOptions.propTypes = {
+  formik: PropTypes.object,
+  provisionFs: PropTypes.bool,
+  containerOs: PropTypes.string,
+  isLocked: PropTypes.bool,
+  values: PropTypes.object,
+}

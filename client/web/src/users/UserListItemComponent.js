@@ -13,29 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import Moment from "react-moment";
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import Moment from 'react-moment'
 
 const UserStatusComponent = ({ user }) => {
-  const { active, status } = user;
+  const { active, status } = user
   return (
     <>
-      <span className={`text-${active ? "success" : "danger"}`}>
-        {active ? "Active" : "Inactive"}
-      </span>{" "}
+      <span className={`text-${active ? 'success' : 'danger'}`}>
+        {active ? 'Active' : 'Inactive'}
+      </span>{' '}
       / {status}
     </>
-  );
-};
+  )
+}
+
+UserStatusComponent.propTypes = {
+  user: PropTypes.object,
+}
 
 export const UserListItemComponent = ({ user, handleUserClick }) => {
   return (
-    <tr
-      className="pointer"
-      key={user.username}
-      onClick={() => handleUserClick(user.username)}
-    >
+    <tr className="pointer" key={user.username} onClick={() => handleUserClick(user.username)}>
       <th scope="row">{user.username}</th>
       <td>
         {user.firstName} {user.lastName}
@@ -48,5 +48,10 @@ export const UserListItemComponent = ({ user, handleUserClick }) => {
         <Moment date={user.created} format="LLL" />
       </td>
     </tr>
-  );
-};
+  )
+}
+
+UserListItemComponent.propTypes = {
+  user: PropTypes.object,
+  handleUserClick: PropTypes.func,
+}

@@ -13,25 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import Moment from 'react-moment'
 
-import React from "react";
-import Moment from "react-moment";
+import { Button } from 'reactstrap'
+import { OnboardingStatus } from './OnboardingStatus'
+import { OnboardingTenantLink } from './OnboardingTenantLink'
 
-import { Button, Badge } from "reactstrap";
-import { OnboardingStatus } from "./OnboardingStatus";
-import { OnboardingTenantLink } from "./OnboardingTenantLink";
+OnboardingListItemComponent.propTypes = {
+  onboarding: PropTypes.object,
+  clickOnboardingRequest: PropTypes.func,
+  clickTenantDetails: PropTypes.func,
+}
 
 export default function OnboardingListItemComponent(props) {
-  const { onboarding, clickOnboardingRequest, clickTenantDetails } = props;
+  const { onboarding, clickOnboardingRequest, clickTenantDetails } = props
 
   return (
     <tr>
       <th scope="row">
-        <Button
-          className="pl-0"
-          color="link"
-          onClick={() => clickOnboardingRequest(onboarding.id)}
-        >
+        <Button className="pl-0" color="link" onClick={() => clickOnboardingRequest(onboarding.id)}>
           {onboarding.id}
         </Button>
       </th>
@@ -52,5 +54,5 @@ export default function OnboardingListItemComponent(props) {
         <Moment format="LLL">{onboarding.modified}</Moment>
       </td>
     </tr>
-  );
+  )
 }

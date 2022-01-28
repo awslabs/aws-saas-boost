@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import React from "react";
-import SaasBoostAuthComponent from "./SaasBoostAuthComponent";
+import React from 'react'
+import SaasBoostAuthComponent from './SaasBoostAuthComponent'
+import CIcon from '@coreui/icons-react'
+import { cilCheckAlt, cilX } from '@coreui/icons'
 import {
   Container,
   Row,
@@ -27,67 +29,63 @@ import {
   Label,
   Button,
   CardFooter,
-} from "reactstrap";
-import { Auth } from "@aws-amplify/auth";
+} from 'reactstrap'
+import { Auth } from '@aws-amplify/auth'
 
 class SaasBoostVerifyContact extends SaasBoostAuthComponent {
   constructor(props) {
-    super(props);
+    super(props)
 
-    this._validAuthStates = ["verifyContact"];
-    this.state = { verifyAttr: null };
-    this.handleInputChange = this.handleInputChange.bind(this);
-    this.verify = this.verify.bind(this);
-    this.submit = this.submit.bind(this);
+    this._validAuthStates = ['verifyContact']
+    this.state = { verifyAttr: null }
+    this.handleInputChange = this.handleInputChange.bind(this)
+    this.verify = this.verify.bind(this)
+    this.submit = this.submit.bind(this)
   }
 
   verify() {
-    const { contact, checkedValue } = this.inputs;
+    const { contact, checkedValue } = this.inputs
     if (!contact) {
-      this.error("Neither Email nor Phone Number selected");
-      return;
+      this.error('Neither Email nor Phone Number selected')
+      return
     }
 
-    if (!Auth || typeof Auth.verifyCurrentUserAttribute !== "function") {
-      throw new Error(
-        "No Auth module found, please ensure @aws-amplify/auth is imported"
-      );
+    if (!Auth || typeof Auth.verifyCurrentUserAttribute !== 'function') {
+      throw new Error('No Auth module found, please ensure @aws-amplify/auth is imported')
     }
 
     Auth.verifyCurrentUserAttribute(checkedValue)
       .then((data) => {
-        this.setState({ verifyAttr: checkedValue });
+        this.setState({ verifyAttr: checkedValue })
       })
-      .catch((err) => this.error(err));
+      .catch((err) => this.error(err))
   }
 
   submit() {
-    const attr = this.state.verifyAttr;
-    const { code } = this.inputs;
-    if (!Auth || typeof Auth.verifyCurrentUserAttributeSubmit !== "function") {
-      throw new Error(
-        "No Auth module found, please ensure @aws-amplify/auth is imported"
-      );
+    const attr = this.state.verifyAttr
+    const { code } = this.inputs
+    if (!Auth || typeof Auth.verifyCurrentUserAttributeSubmit !== 'function') {
+      throw new Error('No Auth module found, please ensure @aws-amplify/auth is imported')
     }
     Auth.verifyCurrentUserAttributeSubmit(attr, code)
       .then((data) => {
-        this.changeState("signedIn", this.props.authData);
-        this.setState({ verifyAttr: null });
+        this.changeState('signedIn', this.props.authData)
+        this.setState({ verifyAttr: null })
       })
-      .catch((err) => this.error(err));
+      .catch((err) => this.error(err))
   }
   verifyView() {
-    const user = this.props.authData;
+    const user = this.props.authData
     if (!user) {
-      console.error("No user to vefiry");
-      return null;
+      console.error('No user to verify')
+      return null
     }
-    const { unverified } = user;
+    const { unverified } = user
     if (!unverified) {
-      console.error("no unverified on user");
-      return null;
+      console.error('no unverified on user')
+      return null
     }
-    const { email } = unverified;
+    const { email } = unverified
 
     return (
       <div>
@@ -108,7 +106,7 @@ class SaasBoostVerifyContact extends SaasBoostAuthComponent {
           </FormGroup>
         ) : null}
       </div>
-    );
+    )
   }
 
   submitView() {
@@ -122,44 +120,38 @@ class SaasBoostVerifyContact extends SaasBoostAuthComponent {
           onChange={this.handleInputChange}
         />
       </div>
-    );
+    )
   }
   showComponent() {
-    const { authData } = this.props;
+    const { authData } = this.props
     return (
-      <div className="app flex-row align-items-center">
+      <div className="app d-flex min-vh-100 align-items-center bg-light">
         <Container>
           <Row className="justify-content-center">
             <Col md="9" lg="7" xl="6">
               <Card className="mx-4">
                 <CardBody className="p-4">
                   <h1>Verify Contact Information</h1>
-                  <div>
-                    Account recovery requires contact information verification.
-                  </div>
-                  <div>
-                    {this.state.verifyAttr
-                      ? this.submitView()
-                      : this.verifyView()}
-                  </div>
+                  <div>Account recovery requires contact information verification.</div>
+                  <div>{this.state.verifyAttr ? this.submitView() : this.verifyView()}</div>
                 </CardBody>
                 <CardFooter>
                   {this.state.verifyAttr ? (
                     <Button color="primary" onClick={this.submit}>
-                      <i className="fa fa-dot-circle-o"></i> Submit
+                      <CIcon icon={cilCheckAlt} /> Submit
                     </Button>
                   ) : (
                     <Button color="primary" onClick={this.verify}>
-                      <i className="fa fa-dot-circle-o"></i> Verify
+                      <CIcon icon={cilCheckAlt} /> Verify
                     </Button>
                   )}
 
                   <Button
                     color="secondary"
                     className="ml-3"
-                    onClick={() => this.changeState("signedIn", authData)}
+                    onClick={() => this.changeState('signedIn', authData)}
                   >
-                    <i className="fa fa-ban"></i> Skip
+                    <CIcon icon={cilX} /> Skip
                   </Button>
                 </CardFooter>
               </Card>
@@ -167,8 +159,8 @@ class SaasBoostVerifyContact extends SaasBoostAuthComponent {
           </Row>
         </Container>
       </div>
-    );
+    )
   }
 }
 
-export default SaasBoostVerifyContact;
+export default SaasBoostVerifyContact

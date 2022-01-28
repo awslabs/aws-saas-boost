@@ -13,18 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Based on CoreUI Template https://github.com/coreui/coreui-free-react-admin-template
+// SPDX-LicenseIdentifier: MIT
+import AppHeaderDropdown from './AppHeaderDropdown'
 
-const { createProxyMiddleware } = require("http-proxy-middleware");
-module.exports = function (app) {
-  app.use(
-    "/api",
-    createProxyMiddleware({
-      target: "http://localhost:3030",
-      changeOrigin: true,
-      pathRewrite: {
-        "^/api/tenants": "/tenants", // remove base path
-        "^/api/users": "/users",
-      },
-    })
-  );
-};
+export { AppHeaderDropdown }

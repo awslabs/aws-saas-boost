@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { useState } from 'react';
-
+import { PropTypes } from 'prop-types'
+import React, { useState } from 'react'
+import CIcon from '@coreui/icons-react'
+import { cilExternalLink } from '@coreui/icons'
 import {
   Alert,
   Badge,
@@ -31,18 +32,28 @@ import {
   Form,
   FormGroup,
   Input,
-  Label,
   Modal,
   ModalBody,
   ModalFooter,
   ModalHeader,
   NavLink,
   Row,
-} from 'reactstrap';
-import Moment from 'react-moment';
-import Display from '../components/Display';
-import { MoonLoader } from 'react-spinners';
-import { css } from '@emotion/core';
+} from 'reactstrap'
+import Moment from 'react-moment'
+import Display from '../components/Display'
+import { MoonLoader } from 'react-spinners'
+// import { css } from '@emotion/core';
+
+TenantViewComponent.propTypes = {
+  tenant: PropTypes.object,
+  enable: PropTypes.func,
+  disable: PropTypes.func,
+  loading: PropTypes.string,
+  error: PropTypes.string,
+  handleError: PropTypes.func,
+  toggleEdit: PropTypes.func,
+  deleteTenant: PropTypes.func,
+}
 
 function TenantViewComponent(props) {
   const banner = {
@@ -50,28 +61,29 @@ function TenantViewComponent(props) {
     color: '#f6f6f6',
     background: '#232f3e',
     border: '1px solid orange',
-  };
-  const override = css`
-    display: inline-block;
-    vertical-align: middle;
-  `;
+  }
+  //  const override = css`
+  //    display: inline-block;
+  //    vertical-align: middle;
+  //  `
+  const override = ''
 
-  const { tenant, loading, error, handleError, toggleEdit, enable, disable, deleteTenant } = props;
+  const { tenant, loading, error, handleError, toggleEdit, enable, disable, deleteTenant } = props
 
-  const [dropDownOpen, setDropDownOpen] = useState(false);
+  const [dropDownOpen, setDropDownOpen] = useState(false)
 
   const toggleActions = () => {
-    setDropDownOpen(!dropDownOpen);
-  };
+    setDropDownOpen(!dropDownOpen)
+  }
 
   const confirmDeleteTenant = () => {
-    toggleShowModal(true);
-  };
+    toggleShowModal(true)
+  }
 
   const deleteTenantDismissModal = () => {
-    toggleShowModal(false);
-    deleteTenant();
-  };
+    toggleShowModal(false)
+    deleteTenant()
+  }
 
   const showError = (error, handleError) => {
     return (
@@ -79,18 +91,18 @@ function TenantViewComponent(props) {
         <h4 className={'alert-heading'}>Error</h4>
         <p>{error}</p>
       </Alert>
-    );
-  };
-  const [showModal, toggleShowModal] = useState(false);
-  const [matches, setMatches] = useState(false);
+    )
+  }
+  const [showModal, toggleShowModal] = useState(false)
+  const [matches, setMatches] = useState(false)
 
   const toggleModal = () => {
-    toggleShowModal((s) => !s);
-  };
+    toggleShowModal((s) => !s)
+  }
 
   const checkMatches = (event) => {
     if (event.target.value === tenant.id) {
-      setMatches(true);
+      setMatches(true)
     }
   }
 
@@ -99,10 +111,19 @@ function TenantViewComponent(props) {
       <Modal size="lg" fade={true} isOpen={showModal}>
         <ModalHeader className="bg-primary">Confirm Delete</ModalHeader>
         <ModalBody>
-          <p>Delete tenant with ID <code>{tenant?.id}</code>? Please type the ID of the tenant to confirm.</p>
+          <p>
+            Delete tenant with ID <code>{tenant?.id}</code>? Please type the ID of the tenant to
+            confirm.
+          </p>
           <Form>
             <FormGroup>
-              <Input onChange={checkMatches} type="text" name="tenantId" id="tenantId" placeholder="Tenant ID" />
+              <Input
+                onChange={checkMatches}
+                type="text"
+                name="tenantId"
+                id="tenantId"
+                placeholder="Tenant ID"
+              />
             </FormGroup>
           </Form>
         </ModalBody>
@@ -119,8 +140,8 @@ function TenantViewComponent(props) {
         <Row>
           <Col>{error && showError(error, handleError)}</Col>
         </Row>
-        <Row className={'mb-3'}>
-          <Col className="justify-content-end ">
+        <Row className="mb-3">
+          <Col className="justify-content-end">
             <Dropdown className="float-right" toggle={toggleActions} isOpen={dropDownOpen}>
               <DropdownToggle caret color="primary" disabled={loading === 'pending'}>
                 <MoonLoader
@@ -132,7 +153,7 @@ function TenantViewComponent(props) {
                 <span>Actions</span>
               </DropdownToggle>
               {loading === 'idle' && !!tenant && (
-                <DropdownMenu right>
+                <DropdownMenu end="true">
                   <DropdownItem onClick={() => toggleEdit()}>Edit</DropdownItem>
                   <DropdownItem disabled={tenant.active} onClick={enable}>
                     Enable
@@ -152,7 +173,6 @@ function TenantViewComponent(props) {
           <Col xs={12}>
             <Card>
               <CardHeader>
-                <i className="fa fa-info" />
                 <strong>{tenant && tenant.name}</strong> (Id: {tenant && tenant.id})
               </CardHeader>
               <CardBody>
@@ -178,7 +198,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             {`http://${tenant.resources.LOAD_BALANCER_DNSNAME}`}
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -211,7 +231,7 @@ function TenantViewComponent(props) {
                                 className="pl-0"
                               >
                                 {tenant?.fullCustomDomainName}
-                                <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                                <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                               </NavLink>
                             )}
                           </Display>
@@ -260,7 +280,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             Application Load Balancer Details
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -275,7 +295,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             VPC Details
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -292,7 +312,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             CodePipeline Details
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -307,7 +327,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             CloudFormation Details
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -324,7 +344,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             ECS Cluster CloudWatch Log
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -339,7 +359,7 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             ECS Cluster Details
-                            <i className="fa fa-external-link ml-2" aria-hidden="true"></i>
+                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
                       </Display>
@@ -352,7 +372,7 @@ function TenantViewComponent(props) {
         </Row>
       </div>
     </>
-  );
+  )
 }
 
-export default TenantViewComponent;
+export default TenantViewComponent
