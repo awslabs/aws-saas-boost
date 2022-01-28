@@ -197,8 +197,6 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
                         } else {
                             // Match on the resource type and build the console url
                             for (AwsResource awsResource : AwsResource.values()) {
-                                String name = null;
-                                String arn = null;
                                 if (awsResource.getResourceType().equalsIgnoreCase(resourceType)) {
                                     if ("AWS::ElasticLoadBalancingV2::LoadBalancer".equals(resourceType)) {
                                         // CloudFormation returns the ARN for the physical id of the load balancer
@@ -399,28 +397,28 @@ public class OnboardingListener implements RequestHandler<SNSEvent, Object> {
         return tenantId;
     }
 
-    private void getRdsResources(String stackId, Map<String, String> consoleResources) {
-        try {
-            ListStackResourcesResponse resources = cfn.listStackResources(request -> request.stackName(stackId));
-            for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-                String resourceType = resource.resourceType();
-                String physicalResourceId = resource.physicalResourceId();
-                AwsResource url = null;
-                if (resourceType.equalsIgnoreCase(AwsResource.RDS_INSTANCE.getResourceType())) {
-                    url = AwsResource.RDS_INSTANCE;
-                } else if (resourceType.equalsIgnoreCase(AwsResource.RDS_CLUSTER.getResourceType())) {
-                    url = AwsResource.RDS_CLUSTER;
-                }
-                if (url != null) {
-                    consoleResources.put(url.name(), url.formatUrl(AWS_REGION, physicalResourceId));
-                }
-            }
-        } catch (SdkServiceException cfnError) {
-            LOGGER.error("cfn:ListStackResources error", cfnError);
-            LOGGER.error(Utils.getFullStackTrace(cfnError));
-            throw cfnError;
-        }
-    }
+//    private void getRdsResources(String stackId, Map<String, String> consoleResources) {
+//        try {
+//            ListStackResourcesResponse resources = cfn.listStackResources(request -> request.stackName(stackId));
+//            for (StackResourceSummary resource : resources.stackResourceSummaries()) {
+//                String resourceType = resource.resourceType();
+//                String physicalResourceId = resource.physicalResourceId();
+//                AwsResource url = null;
+//                if (resourceType.equalsIgnoreCase(AwsResource.RDS_INSTANCE.getResourceType())) {
+//                    url = AwsResource.RDS_INSTANCE;
+//                } else if (resourceType.equalsIgnoreCase(AwsResource.RDS_CLUSTER.getResourceType())) {
+//                    url = AwsResource.RDS_CLUSTER;
+//                }
+//                if (url != null) {
+//                    consoleResources.put(url.name(), url.formatUrl(AWS_REGION, physicalResourceId));
+//                }
+//            }
+//        } catch (SdkServiceException cfnError) {
+//            LOGGER.error("cfn:ListStackResources error", cfnError);
+//            LOGGER.error(Utils.getFullStackTrace(cfnError));
+//            throw cfnError;
+//        }
+//    }
 
     private void publishEvent(Map<String, Object> eventBridgeDetail, String detailType) {
         try {

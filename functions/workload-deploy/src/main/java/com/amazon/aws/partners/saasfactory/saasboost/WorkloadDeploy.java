@@ -132,6 +132,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
                     }                    
                     for (Map<String, Object> tenant : getTenantsResponse) {
                         String tenantId = (String) tenant.get("id");
+                        //TODO need to find the pipeline for each application service
                         String tenantCodePipeline = "tenant-" + tenantId.substring(0, tenantId.indexOf("-"));
                         Deployment deployment = new Deployment(tenantId, imageUri, tenantCodePipeline);
                         deployments.add(deployment);

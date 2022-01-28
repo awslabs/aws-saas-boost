@@ -329,7 +329,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/${TenantId}/ServiceDiscovery.env'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
               - Effect: Allow
                 Action:
                   - s3:GetBucketLocation
@@ -457,7 +457,7 @@ Resources:
                   Value: !Ref MetricsStream
           EnvironmentFiles:
             - Type: s3
-              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/${TenantId}/ServiceDiscovery.env'
+              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
           MountPoints:
             !If
               - ProvisionEFS

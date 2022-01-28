@@ -84,21 +84,21 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 ListStackResourcesResponse resources = cfn.listStackResources(req -> req.stackName(stackIdName));
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
                     String resourceType = resource.resourceType();
-                    String physicalResourceId = resource.physicalResourceId();
+                    String ecrRepo = resource.physicalResourceId();
                     String resourceStatus = resource.resourceStatusAsString();
-                    String logicalId = resource.logicalResourceId();
-                    LOGGER.info("Processing resource {} {} {} {}", resourceType, resourceStatus, logicalId,
-                            physicalResourceId);
+                    String serviceName = resource.logicalResourceId();
+                    LOGGER.info("Processing resource {} {} {} {}", resourceType, resourceStatus, serviceName,
+                            ecrRepo);
                     if ("CREATE_COMPLETE".equals(resourceStatus)) {
                         if ("AWS::ECR::Repository".equals(resourceType)) {
-                            LOGGER.info("Publishing appConfig update event for ECR repository {} {}", logicalId,
-                                    physicalResourceId);
+                            LOGGER.info("Publishing appConfig update event for ECR repository {} {}", serviceName,
+                                    ecrRepo);
                             // Logical ID is the service name
                             // Physical ID is the repo name
                             Map<String, Object> systemApiRequest = new HashMap<>();
-                            systemApiRequest.put("resource", "settings/config/" + logicalId + "/ECR_REPO");
+                            systemApiRequest.put("resource", "settings/config/" + serviceName + "/ECR_REPO");
                             systemApiRequest.put("method", "PUT");
-                            systemApiRequest.put("body", Utils.toJson(Map.of("value", physicalResourceId)));
+                            systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
                             publishEvent(systemApiRequest, SYSTEM_API_CALL);
                         }
                     }

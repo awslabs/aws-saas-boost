@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
@@ -42,9 +43,7 @@ import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -692,15 +691,13 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         List<String> applicationServiceStacks = new ArrayList<>();
 
         Map<String, Integer> pathPriority = getPathPriority(appConfig);
+        Properties serviceDiscovery = new Properties();
 
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
         for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
             String serviceName = serviceConfig.getKey();
             // CloudFormation resource names can only contain alpha numeric characters or a dash
             String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
-            // If there are any private services, we will create an environment variables called
-            // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT
-            // to pass to the task definitions
             Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
             Boolean isPublic = (Boolean) service.get("public");
             String pathPart = (isPublic) ? (String) service.get("path") : "";
@@ -716,6 +713,17 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             Integer containerPort = (Integer) service.get("containerPort");
             String containerRepo = (String) service.get("containerRepo");
             String imageTag = (String) service.getOrDefault("containerTag", "latest");
+
+            // If there are any private services, we will create an environment variables called
+            // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
+            String serviceEnvName = serviceName.replaceAll("\\s+", "_").toUpperCase();
+            String serviceHost = "SERVICE_" + serviceEnvName + "_HOST";
+            String servicePort = "SERVICE_" + serviceEnvName + "_PORT";
+            if (!isPublic) {
+                LOGGER.debug("Creating service discovery environment variables {}, {}", serviceHost, servicePort);
+                serviceDiscovery.put(serviceHost, serviceResourceName + ".local");
+                serviceDiscovery.put(servicePort, Objects.toString(containerPort));
+            }
 
             Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
             if (!tiers.containsKey(tier)) {
@@ -862,7 +870,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
             // Make the stack name look like what CloudFormation would have done for a nested stack
             String tenantShortId = tenantId.toString().substring(0, 8);
-            String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName + "-" + Utils.randomString(12).toUpperCase();
+            String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
+                    + "-" + Utils.randomString(12).toUpperCase();
             if (stackName.length() > 128) {
                 stackName = stackName.substring(0, 128);
             }
@@ -893,6 +902,32 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 LOGGER.error(Utils.getFullStackTrace(cfnError));
                 dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
                 throw cfnError;
+            }
+        }
+
+        if (!serviceDiscovery.isEmpty()) {
+            String environmentFile = "tenants/" + tenantId.toString() + "/ServiceDiscovery.env";
+            ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
+            try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                        environmentFileContents, StandardCharsets.UTF_8)
+                )) {
+                serviceDiscovery.store(writer, null);
+                s3.putObject(request -> request
+                        .bucket(SAAS_BOOST_BUCKET)
+                        .key(environmentFile)
+                        .build(),
+                        RequestBody.fromBytes(environmentFileContents.toByteArray())
+                );
+            } catch (SdkServiceException s3Error) {
+                LOGGER.error("Error putting service discovery file to S3");
+                LOGGER.error(Utils.getFullStackTrace(s3Error));
+                dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
+                throw s3Error;
+            } catch (IOException ioe) {
+                LOGGER.error("Error writing service discovery data to output stream");
+                LOGGER.error(Utils.getFullStackTrace(ioe));
+                dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
+                throw new RuntimeException(ioe);
             }
         }
 
