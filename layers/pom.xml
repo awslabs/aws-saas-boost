@@ -16,6 +16,7 @@
     <modules>
         <module>apigw-helper</module>
         <module>utils</module>
+        <module>cloudformation-utils</module>
     </modules>
     <licenses>
         <license>

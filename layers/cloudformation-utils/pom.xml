@@ -22,7 +22,7 @@ limitations under the License.
         <artifactId>saasboost-layers</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>Utils</artifactId>
+    <artifactId>CloudFormationUtils</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -33,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>5</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>7</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -64,40 +64,15 @@ limitations under the License.
             <artifactId>slf4j-nop</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.11.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>2.11.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.11.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.11.0</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>aws-core</artifactId>
-            <version>${aws.java.sdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>url-connection-client</artifactId>
-            <version>${aws.java.sdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>eventbridge</artifactId>
-            <version>${aws.java.sdk.version}</version>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>Utils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
         </dependency>
     </dependencies>
 </project>

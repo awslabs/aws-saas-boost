@@ -24,14 +24,9 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
-import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResultEntry;
 
 import java.util.*;
-import java.util.regex.Matcher;
 
 public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
 
@@ -41,6 +36,8 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
     private static final String SYSTEM_API_CALL = "System API Call";
     private static final String EVENT_SOURCE = "saas-boost";
+    private static final Collection<String> EVENTS_OF_INTEREST = Collections.unmodifiableCollection(
+            Arrays.asList("CREATE_COMPLETE", "UPDATE_COMPLETE"));
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
 
@@ -67,39 +64,35 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
 
         CloudFormationEvent cloudFormationEvent = CloudFormationEventDeserializer.deserialize(message);
 
-        String type = cloudFormationEvent.getResourceType();
-        String stackId = cloudFormationEvent.getStackId();
-        String stackName = cloudFormationEvent.getStackName();
-        String stackStatus = cloudFormationEvent.getResourceStatus();
-
         // CloudFormation sends SNS notifications for every resource in a stack going through each status change.
-        // We're only interested in the stack complete event.
-        List<String> eventsOfInterest = Arrays.asList("CREATE_COMPLETE", "UPDATE_COMPLETE");
-        if ("AWS::CloudFormation::Stack".equals(type) && stackName.startsWith("sb-" + SAAS_BOOST_ENV + "-core-")
-                && eventsOfInterest.contains(stackStatus)) {
-            LOGGER.info(Utils.toJson(event));
+        // We want to process the resources of the saas-boost-core.yaml CloudFormation stack only after the stack
+        // has finished being created or updated so we don't trigger anything downstream prematurely.
+        if (filter(cloudFormationEvent)) {
+            String stackName = cloudFormationEvent.getStackName();
+            String stackStatus = cloudFormationEvent.getResourceStatus();
             LOGGER.info("Stack " + stackName + " is in status " + stackStatus);
-            final String stackIdName = stackId;
             try {
-                ListStackResourcesResponse resources = cfn.listStackResources(req -> req.stackName(stackIdName));
+                ListStackResourcesResponse resources = cfn.listStackResources(req -> req
+                        .stackName(cloudFormationEvent.getStackId())
+                );
+                // We're looking for ECR repository resources in a CREATE_COMPLETE state. There could be multiple
+                // ECR repos provisioned depending on how the application services are configured.
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-                    String resourceType = resource.resourceType();
-                    String ecrRepo = resource.physicalResourceId();
-                    String resourceStatus = resource.resourceStatusAsString();
-                    String serviceName = resource.logicalResourceId();
-                    LOGGER.info("Processing resource {} {} {} {}", resourceType, resourceStatus, serviceName,
-                            ecrRepo);
-                    if ("CREATE_COMPLETE".equals(resourceStatus)) {
-                        if ("AWS::ECR::Repository".equals(resourceType)) {
+//                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
+//                            resource.resourceStatusAsString(), resource.logicalResourceId(),
+//                            resource.physicalResourceId());
+                    if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())) {
+                        if ("AWS::ECR::Repository".equals(resource.resourceType())) {
+                            String ecrRepo = resource.physicalResourceId();
+                            String serviceName = resource.logicalResourceId();
                             LOGGER.info("Publishing appConfig update event for ECR repository {} {}", serviceName,
                                     ecrRepo);
-                            // Logical ID is the service name
-                            // Physical ID is the repo name
                             Map<String, Object> systemApiRequest = new HashMap<>();
                             systemApiRequest.put("resource", "settings/config/" + serviceName + "/ECR_REPO");
                             systemApiRequest.put("method", "PUT");
                             systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
-                            publishEvent(systemApiRequest, SYSTEM_API_CALL);
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
+                                    systemApiRequest);
                         }
                     }
                 }
@@ -108,38 +101,14 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 LOGGER.error(Utils.getFullStackTrace(cfnError));
                 throw cfnError;
             }
-        } else {
-            //LOGGER.info("Skipping CloudFormation notification {} {} {} {}", stackId, type, stackName, stackStatus);
         }
         return null;
     }
 
-    protected boolean snsMessageFilter(String message) {
-        return true;
+    protected static boolean filter(CloudFormationEvent cloudFormationEvent) {
+        return ("AWS::CloudFormation::Stack".equals(cloudFormationEvent.getResourceType())
+                && cloudFormationEvent.getStackName().startsWith("sb-" + SAAS_BOOST_ENV + "-core-")
+                && EVENTS_OF_INTEREST.contains(cloudFormationEvent.getResourceStatus()));
     }
 
-    protected void publishEvent(Map<String, Object> eventBridgeDetail, String detailType) {
-        try {
-            PutEventsRequestEntry systemEvent = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .detailType(detailType)
-                    .source(EVENT_SOURCE)
-                    .detail(Utils.toJson(eventBridgeDetail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-                    .entries(systemEvent)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), systemEvent.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
-                }
-            }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents", eventBridgeError);
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
-        }
-    }
 }

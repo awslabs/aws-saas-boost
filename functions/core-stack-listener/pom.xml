@@ -98,6 +98,13 @@ limitations under the License.
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>cloudformation</artifactId>
             <version>${aws.java.sdk.version}</version>

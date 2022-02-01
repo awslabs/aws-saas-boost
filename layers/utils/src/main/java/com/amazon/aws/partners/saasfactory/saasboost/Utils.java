@@ -29,12 +29,17 @@ import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsPro
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
+import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
+import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
+import software.amazon.awssdk.services.eventbridge.model.PutEventsResultEntry;
 
 import java.io.*;
 import java.net.URI;
@@ -191,6 +196,34 @@ public class Utils {
                 )
                 .build();
         return client;
+    }
+
+    public static void publishEvent(EventBridgeClient eventBridge, String eventBus, String source, String detailType,
+                                    Map<String, Object> detail) {
+        PutEventsRequestEntry.Builder eventBuilder = PutEventsRequestEntry.builder();
+        if (Utils.isNotBlank(eventBus)) {
+            eventBuilder.eventBusName(eventBus);
+        }
+        eventBuilder.source(source);
+        eventBuilder.detailType(detailType);
+        eventBuilder.detail(Utils.toJson(detail));
+        PutEventsRequestEntry event = eventBuilder.build();
+        try {
+            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
+                    .entries(event)
+            );
+            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
+                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
+                    LOGGER.info("Put event success {} {}", entry.toString(), event.toString());
+                } else {
+                    LOGGER.error("Put event failed {}", entry.toString());
+                }
+            }
+        } catch (SdkServiceException eventBridgeError) {
+            LOGGER.error("events::PutEvents", eventBridgeError);
+            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
+            throw eventBridgeError;
+        }
     }
 
     public static boolean isEmpty(String str) {
