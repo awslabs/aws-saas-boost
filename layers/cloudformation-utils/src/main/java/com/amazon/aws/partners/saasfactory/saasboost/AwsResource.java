@@ -29,7 +29,7 @@ public enum AwsResource {
             "arn:%s:ec2:%s:%s:subnet/%s",
             "AWS::EC2::Subnet", true),
     CODE_PIPELINE("https://%s.console.aws.amazon.com/codesuite/codepipeline/pipelines/%s/view",
-            "",
+            "arn:%s:codepipeline:%s:%s:%s",
             "AWS::CodePipeline::Pipeline", false),
     ECR_REPO("https://%s.console.aws.amazon.com/ecr/repositories/%s/",
             "",

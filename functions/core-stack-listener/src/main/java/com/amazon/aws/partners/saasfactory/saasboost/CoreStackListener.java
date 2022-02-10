@@ -71,12 +71,13 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
             String stackName = cloudFormationEvent.getStackName();
             String stackStatus = cloudFormationEvent.getResourceStatus();
             LOGGER.info("Stack " + stackName + " is in status " + stackStatus);
+
+            // We're looking for ECR repository resources in a CREATE_COMPLETE state. There could be multiple
+            // ECR repos provisioned depending on how the application services are configured.
             try {
                 ListStackResourcesResponse resources = cfn.listStackResources(req -> req
                         .stackName(cloudFormationEvent.getStackId())
                 );
-                // We're looking for ECR repository resources in a CREATE_COMPLETE state. There could be multiple
-                // ECR repos provisioned depending on how the application services are configured.
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
 //                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
 //                            resource.resourceStatusAsString(), resource.logicalResourceId(),
