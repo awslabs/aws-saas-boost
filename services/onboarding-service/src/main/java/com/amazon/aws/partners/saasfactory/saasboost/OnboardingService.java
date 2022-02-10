@@ -68,7 +68,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
-    private static final String ONBOARDING_SNS = System.getenv("ONBOARDING_SNS");
+    private static final String ONBOARDING_STACK_SNS = System.getenv("ONBOARDING_STACK_SNS");
+    private static final String ONBOARDING_APP_STACK_SNS = System.getenv("ONBOARDING_APP_STACK_SNS");
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
     private final EcrClient ecr;
@@ -449,8 +450,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
         }
-        if (Utils.isBlank(ONBOARDING_SNS)) {
-            throw new IllegalArgumentException("Missing required environment variable ONBOARDING_SNS");
+        if (Utils.isBlank(ONBOARDING_STACK_SNS)) {
+            throw new IllegalArgumentException("Missing required environment variable ONBOARDING_STACK_SNS");
         }
 
         Utils.logRequestEvent(event);
@@ -534,7 +535,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .stackName(stackName)
                     .disableRollback(true) // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .notificationARNs(ONBOARDING_SNS)
+                    .notificationARNs(ONBOARDING_STACK_SNS)
                     .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding.yaml")
                     .parameters(templateParameters)
                     .build()
@@ -576,6 +577,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
+        if (Utils.isBlank(ONBOARDING_APP_STACK_SNS)) {
+            throw new IllegalStateException("Missing required environment variable ONBOARDING_APP_STACK_SNS");
         }
 
         Utils.logRequestEvent(event);
@@ -886,7 +890,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                         //.onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
                         //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
                         .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                        //.notificationARNs(settings.get("ONBOARDING_SNS"))
+                        .notificationARNs(ONBOARDING_APP_STACK_SNS)
                         .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding-app.yaml")
                         .parameters(templateParameters)
                         .build()

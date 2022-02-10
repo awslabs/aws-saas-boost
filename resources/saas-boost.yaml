@@ -261,6 +261,14 @@ Resources:
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
+  CloudFormationUtilsLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub sb-${Environment}-cloudformation-utils
+      CompatibleRuntimes: [java11]
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -510,6 +518,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/CoreStackListener-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -584,6 +593,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         CodePipelineBucket: !Ref CodePipelineBucket
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
@@ -822,11 +832,14 @@ Outputs:
     Description: S3 bucket for s3 access logging
     Value: !Ref LoggingBucket
   SaaSBoostUtilsLayer:
-    Description: SaaS Boost Layers ARN
+    Description: SaaS Boost Utils Layer
     Value: !Ref SaaSBoostUtilsLayer
   ApiGatewayHelperLayer:
     Description: SaaS Boost Private API Layer
     Value: !Ref ApiGatewayHelperLayer
+  CloudFormationUtilsLayer:
+    Description: SaaS Boost CloudFormation Utils Layer
+    Value: !Ref CloudFormationUtilsLayer
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Value: !Ref SaaSBoostEventBus

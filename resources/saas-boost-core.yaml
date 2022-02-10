@@ -140,7 +140,7 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "ECSDeploy"
-  OnboardingListenerExecRole:
+  OnboardingStackListenerExecRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub sb-${Environment}-onboarding-listener-${AWS::Region}
@@ -181,26 +181,27 @@ Resources:
                   - events:PutEvents
                 Resource:
                   - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
-  OnboardingListenerLogs:
+  OnboardingStackListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-listener
       RetentionInDays: 30
-  OnboardingListener:
+  OnboardingStackListener:
     Type: AWS::Lambda::Function
-    DependsOn: OnboardingListenerLogs
+    DependsOn: OnboardingStackListenerLogs
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-listener
-      Role: !GetAtt OnboardingListenerExecRole.Arn
+      Role: !GetAtt OnboardingStackListenerExecRole.Arn
       Runtime: java11
       Timeout: 600
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingListener
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingStackListener
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingListener-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingStackListener-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -212,31 +213,88 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-  OnboardingListenerTopic:
+  OnboardingStackListenerTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: Tenant Provisioning Notifications
+      DisplayName: Tenant Onboarding Stack Notifications
       TopicName: !Sub sb-${Environment}-onboarding-listener
       KmsMasterKeyId: alias/aws/sns
-  OnboardingListenerSubscription:
+  OnboardingStackListenerSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: lambda
-      Endpoint: !GetAtt OnboardingListener.Arn
-      TopicArn: !Ref OnboardingListenerTopic
-  OnboardingListenerPermission:
+      Endpoint: !GetAtt OnboardingStackListener.Arn
+      TopicArn: !Ref OnboardingStackListenerTopic
+  OnboardingStackListenerPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref OnboardingListener
+      FunctionName: !Ref OnboardingStackListener
       Principal: sns.amazonaws.com
       Action: lambda:InvokeFunction
-      SourceArn: !Ref OnboardingListenerTopic
+      SourceArn: !Ref OnboardingStackListenerTopic
   SSMParamOnboardingSNS:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ONBOARDING_SNS
+      Name: !Sub /saas-boost/${Environment}/ONBOARDING_STACK_SNS
       Type: String
-      Value: !Ref OnboardingListenerTopic
+      Value: !Ref OnboardingStackListenerTopic
+  OnboardingAppStackListenerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-app-listener
+      RetentionInDays: 30
+  OnboardingAppStackListener:
+    Type: AWS::Lambda::Function
+    DependsOn: OnboardingAppStackListenerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-app-listener
+      Role: !GetAtt OnboardingStackListenerExecRole.Arn # Can use the same IAM role as the tenant-onboarding.yaml stack
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingAppStackListener
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingAppStackListener-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Onboarding"
+  OnboardingAppStackListenerTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Tenant Onboarding App Stack Notifications
+      TopicName: !Sub sb-${Environment}-onboarding-app-listener
+      KmsMasterKeyId: alias/aws/sns
+  OnboardingAppStackListenerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      Endpoint: !GetAtt OnboardingAppStackListener.Arn
+      TopicArn: !Ref OnboardingAppStackListenerTopic
+  OnboardingAppStackListenerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref OnboardingAppStackListener
+      Principal: sns.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !Ref OnboardingAppStackListenerTopic
+  SSMParamOnboardingAppSNS:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS
+      Type: String
+      Value: !Ref OnboardingAppStackListenerTopic
   TenantCodePipelineRole:
     Type: AWS::IAM::Role
     Properties:

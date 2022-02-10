@@ -397,7 +397,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
     }
 
     //handles the event for 'Tenant Update Resources'
-    public Object updateTenantResources(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent updateTenantResources(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
@@ -406,13 +406,22 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::updateTenantResources");
         //Utils.logRequestEvent(event);
-        Tenant tenant = parseTenantUpdateResourcesEvent(event);
-        //load current tenant record and update the resources field
-        Tenant currentTenant = dal.getTenant(tenant.getId());
-        currentTenant.setResources(tenant.getResources());
-        dal.updateTenant(currentTenant);
-        LOGGER.info("TenantService::updateTenantResources - Updated resources for tenant: {}", tenant.getId());
-        return null;
+        Tenant updatedTenant = parseTenantUpdateResourcesEvent(event);
+        Tenant tenant = dal.getTenant(updatedTenant.getId());
+        Map<String, Tenant.Resource> resources = tenant.getResources();
+        // Merge the updated resources with the existing ones. This helps the calling code not have to pull the
+        // current tenant before invoking this method. If you want to replace/delete resources from a tenant,
+        // you'll have to build the resources map you want and call updateTenant.
+        resources.putAll(updatedTenant.getResources());
+        tenant.setResources(resources);
+        tenant = dal.updateTenant(tenant);
+        LOGGER.info("TenantService::updateTenantResources - Updated resources for tenant: {}", updatedTenant.getId());
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("TenantService::updateTenantResources exec {}", totalTimeMillis);
+        return new APIGatewayProxyResponseEvent()
+                .withHeaders(CORS)
+                .withStatusCode(200)
+                .withBody(Utils.toJson(tenant));
     }
 
     static Tenant parseTenantUpdateResourcesEvent(Map<String, Object> event) {
@@ -429,14 +438,14 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         }
         Tenant tenant = new Tenant();
         tenant.setId(UUID.fromString(tenantId));
-        Map<String, Object> resourcesMap = Utils.fromJson((String) detail.get("resources"), HashMap.class);
-        if (null == resourcesMap) {
+        Map<String, Object> updatedResources = Utils.fromJson((String) detail.get("resources"), LinkedHashMap.class);
+        if (null == updatedResources) {
             throw new RuntimeException("Resources is invalid Json");
         }
         Map<String, Tenant.Resource> resources = new HashMap<>();
-        for (Map.Entry<String, Object> resource : resourcesMap.entrySet()) {
-            Map<String, String> values = (Map<String, String>) resource.getValue();
-            resources.put(resource.getKey(), new Tenant.Resource(values.get("name"), values.get("arn"), values.get("consoleUrl")));
+        for (Map.Entry<String, Object> resource : updatedResources.entrySet()) {
+            Map<String, String> res = (Map<String, String>) resource.getValue();
+            resources.put(resource.getKey(), new Tenant.Resource(res.get("name"), res.get("arn"), res.get("consoleUrl")));
         }
         tenant.setResources(resources);
         return tenant;
