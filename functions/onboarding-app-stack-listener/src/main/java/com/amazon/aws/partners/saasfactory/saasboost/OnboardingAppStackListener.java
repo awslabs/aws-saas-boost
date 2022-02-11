@@ -60,7 +60,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
 
     @Override
     public Object handleRequest(SNSEvent event, Context context) {
-        LOGGER.info(Utils.toJson(event));
+        //LOGGER.info(Utils.toJson(event));
 
         List<SNSEvent.SNSRecord> records = event.getRecords();
         SNSEvent.SNS sns = records.get(0).getSNS();
@@ -140,6 +140,9 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                     Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
                             );
                         }
+//                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
+//                            //this is the rds sub-stack so get the cluster and instance ids
+//                            getRdsResources(physicalResourceId, tenantResources);
                     }
                 }
             } catch (SdkServiceException cfnError) {
@@ -147,6 +150,24 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                 LOGGER.error(Utils.getFullStackTrace(cfnError));
                 throw cfnError;
             }
+
+//                // Persist the tenant specific things as tenant settings
+//                if (dbHost != null) {
+//                    LOGGER.info("Saving tenant database host setting");
+//                    Map<String, Object> systemApiRequest = new HashMap<>();
+//                    systemApiRequest.put("resource", "settings/tenant/" + tenantId + "/DB_HOST");
+//                    systemApiRequest.put("method", "PUT");
+//                    systemApiRequest.put("body", "{\"name\":\"DB_HOST\", \"value\":\"" + dbHost + "\"}");
+//                    publishEvent(systemApiRequest, SYSTEM_API_CALL);
+//                }
+//                if (albName != null) {
+//                    LOGGER.info("Saving tenant ALB setting");
+//                    Map<String, Object> systemApiRequest = new HashMap<>();
+//                    systemApiRequest.put("resource", "settings/tenant/" + tenantId + "/ALB");
+//                    systemApiRequest.put("method", "PUT");
+//                    systemApiRequest.put("body", "{\"name\":\"ALB\", \"value\":\"" + albName + "\"}");
+//                    publishEvent(systemApiRequest, SYSTEM_API_CALL);
+//                }
         }
         return null;
     }
@@ -169,4 +190,42 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                 && STACK_NAME_PATTERN.matcher(cloudFormationEvent.getStackName()).matches()
                 && EVENTS_OF_INTEREST.contains(cloudFormationEvent.getResourceStatus()));
     }
+
+//                LOGGER.info("Stack Outputs:");
+//                for (Output output : stack.outputs()) {
+//                    LOGGER.info("{} => {}", output.outputKey(), output.outputValue());
+//                    if ("RdsEndpoint".equals(output.outputKey())) {
+//                        if (Utils.isNotBlank(output.outputValue())) {
+//                            dbHost = output.outputValue();
+//                        }
+//                    }
+//                    if ("BillingPlan".equals(output.outputKey())) {
+//                        if (Utils.isNotBlank(output.outputValue())) {
+//                            billingPlan = output.outputValue();
+//                        }
+//                    }
+//                }
+
+//    private void getRdsResources(String stackId, Map<String, String> consoleResources) {
+//        try {
+//            ListStackResourcesResponse resources = cfn.listStackResources(request -> request.stackName(stackId));
+//            for (StackResourceSummary resource : resources.stackResourceSummaries()) {
+//                String resourceType = resource.resourceType();
+//                String physicalResourceId = resource.physicalResourceId();
+//                AwsResource url = null;
+//                if (resourceType.equalsIgnoreCase(AwsResource.RDS_INSTANCE.getResourceType())) {
+//                    url = AwsResource.RDS_INSTANCE;
+//                } else if (resourceType.equalsIgnoreCase(AwsResource.RDS_CLUSTER.getResourceType())) {
+//                    url = AwsResource.RDS_CLUSTER;
+//                }
+//                if (url != null) {
+//                    consoleResources.put(url.name(), url.formatUrl(AWS_REGION, physicalResourceId));
+//                }
+//            }
+//        } catch (SdkServiceException cfnError) {
+//            LOGGER.error("cfn:ListStackResources error", cfnError);
+//            LOGGER.error(Utils.getFullStackTrace(cfnError));
+//            throw cfnError;
+//        }
+//    }
 }

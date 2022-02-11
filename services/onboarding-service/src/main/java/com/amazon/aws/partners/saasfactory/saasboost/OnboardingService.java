@@ -191,16 +191,15 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 //        }
 
         // Parse the onboarding request
-        Map<String, Object> requestBody = Utils.fromJson((String) event.get("body"), HashMap.class);
-        if (null == requestBody) {
+        OnboardingRequest onboardingRequest = Utils.fromJson((String) event.get("body"), OnboardingRequest.class);
+        if (null == onboardingRequest) {
             return new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
                     .withHeaders(CORS)
-                    .withBody("{\"message\": \"Invalid Json in Request.\"}");
+                    .withBody("{\"message\": \"Invalid onboarding request.\"}");
         }
 
-        String tenantName = (String) requestBody.get("name");
-        if (Utils.isBlank(tenantName)) {
+        if (Utils.isBlank(onboardingRequest.getName())) {
             return new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
                     .withHeaders(CORS)
@@ -208,7 +207,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         }
 
         // Make sure we're not trying to onboard a tenant to an existing subdomain
-        String subdomain = (String) requestBody.get("subdomain");
+        String subdomain = onboardingRequest.getSubdomain();
         if (Utils.isNotBlank(subdomain)) {
             Map<String, String> settings;
             LOGGER.info("Fetching SaaS Boost hosted zone id from Settings Service");
@@ -294,7 +293,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
         // Create a new onboarding request record for a tenant
         Onboarding onboarding = new Onboarding();
-        onboarding.setTenantName((String) requestBody.get("name"));
+        onboarding.setRequest(onboardingRequest);
         // We're using the generated onboarding id as part of the S3 key
         // so, first we need to persist the onboarding record, then we'll
         // have to update it. TODO rethink this...
@@ -321,15 +320,11 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             Map<String, Object> tenant = new HashMap<>();
             tenant.put("active", true);
             tenant.put("onboardingStatus", onboarding.getStatus().toString());
-            tenant.put("tier", requestBody.getOrDefault("tier", "default")); //TODO remove default?
-            tenant.put("name", tenantName);
-            if (Utils.isNotBlank(subdomain)) {
-                tenant.put("subdomain", subdomain);
-            }
-            String planId = (String) requestBody.get("planId");
-            if (Utils.isNotBlank(planId)) {
-                tenant.put("planId", planId);
-            }
+            tenant.put("tier", onboardingRequest.getTier());
+            tenant.put("name", onboardingRequest.getName());
+            tenant.put("subdomain", onboardingRequest.getSubdomain());
+            tenant.put("billingPlan", onboardingRequest.getBillingPlan());
+
             // Call the tenant service synchronously to insert the new tenant record
             LOGGER.info("Calling tenant service insert tenant API");
             LOGGER.info(Utils.toJson(tenant));
@@ -459,14 +454,14 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         LOGGER.info("OnboardingService::provisionTenant");
         APIGatewayProxyResponseEvent response;
 
-        Map<String, Object> onboardingRequest = Utils.fromJson((String) event.get("body"), LinkedHashMap.class);
+        Map<String, Object> provisioningRequest = Utils.fromJson((String) event.get("body"), LinkedHashMap.class);
         // The invocation event sent to us must contain the tenant we're
         // provisioning for and the onboarding job that's tracking it
-        Map<String, Object> tenant = (LinkedHashMap<String, Object>) onboardingRequest.get("tenant");
+        Map<String, Object> tenant = (LinkedHashMap<String, Object>) provisioningRequest.get("tenant");
         UUID onboardingId;
         UUID tenantId;
         try {
-            onboardingId = UUID.fromString((String) onboardingRequest.get("onboardingId"));
+            onboardingId = UUID.fromString((String) provisioningRequest.get("onboardingId"));
             tenantId = UUID.fromString(((String) tenant.get("id")).toLowerCase());
         } catch (IllegalArgumentException | NullPointerException e) {
             LOGGER.error("Error parsing onboarding request ids", e);
@@ -528,7 +523,6 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
         LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
         Onboarding onboarding = dal.getOnboarding(onboardingId);
         onboarding.setTenantId(tenantId);
-        onboarding.setTenantName((String) tenant.get("name")); // TODO do we use this anywhere?
         String stackId;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -542,7 +536,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             );
             stackId = cfnResponse.stackId();
             onboarding.setStatus(OnboardingStatus.provisioning);
-            onboarding.setStackId(stackId);
+            onboarding.addStack(new OnboardingStack(stackName, stackId, "CREATE_IN_PROGRESS"));
             onboarding = dal.updateOnboarding(onboarding);
             LOGGER.info("OnboardingService::provisionTenant stack id " + stackId);
         } catch (SdkServiceException cfnError) {
@@ -897,7 +891,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 );
                 stackId = cfnResponse.stackId();
                 onboarding.setStatus(OnboardingStatus.provisioning);
-                //onboarding.setStackId(stackId);
+                onboarding.addStack(new OnboardingStack(stackName, stackId, "CREATE_IN_PROGRESS"));
                 onboarding = dal.updateOnboarding(onboarding);
                 LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
                 applicationServiceStacks.add(stackId);
@@ -1228,7 +1222,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     .withBody("{\"message\": \"No onboarding record for tenant id " + tenant.get("id") + "\"}");
         } else {
             UUID tenantId = onboarding.getTenantId();
-            String stackId = onboarding.getStackId();
+            String stackId = "";//onboarding.getStackId();
 
             // We have an inconsistency with how the Lambda source folder is managed.
             // If you update an existing SaaS Boost installation with the installer script

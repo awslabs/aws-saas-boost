@@ -33,7 +33,8 @@ public class Tenant {
     private String onboardingStatus;
     private String name;
     private String subdomain;
-    private String planId;
+    private String hostname;
+    private String billingPlan;
     private Map<String, Resource> resources = new HashMap<>();
 
     public Tenant() {
@@ -108,12 +109,20 @@ public class Tenant {
         this.subdomain = subdomain;
     }
 
-    public String getPlanId() {
-        return planId;
+    public String getHostname() {
+        return hostname;
     }
 
-    public void setPlanId(String planId) {
-        this.planId = planId;
+    public void setHostname(String hostname) {
+        this.hostname = hostname;
+    }
+
+    public String getBillingPlan() {
+        return billingPlan;
+    }
+
+    public void setBillingPlan(String billingPlan) {
+        this.billingPlan = billingPlan;
     }
 
     public Map<String, Resource> getResources() {
@@ -157,13 +166,14 @@ public class Tenant {
                 && ((onboardingStatus == null && other.onboardingStatus == null) || (onboardingStatus != null && onboardingStatus.equals(other.onboardingStatus)))
                 && ((name == null && other.name == null) || (name != null && name.equals(other.name)))
                 && ((subdomain == null && other.subdomain == null) || (subdomain != null && subdomain.equals(other.subdomain)))
-                && ((planId == null && other.planId == null) || (planId != null && planId.equals(other.planId)))
+                && ((hostname == null && other.hostname == null) || (hostname != null && hostname.equals(other.hostname)))
+                && ((billingPlan == null && other.billingPlan == null) || (billingPlan != null && billingPlan.equals(other.billingPlan)))
                 && ((resources == null && other.resources == null) || resourcesEqual));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, planId)
+        return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, hostname, billingPlan)
                 + Arrays.hashCode(resources != null ? resources.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(resources != null ? resources.values().toArray(new Resource[0]) : null);
     }

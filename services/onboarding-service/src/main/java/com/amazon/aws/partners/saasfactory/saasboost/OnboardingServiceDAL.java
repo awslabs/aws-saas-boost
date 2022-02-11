@@ -287,11 +287,42 @@ public class OnboardingServiceDAL {
         if (onboarding.getTenantId() != null) {
             item.put("tenant_id", AttributeValue.builder().s(onboarding.getTenantId().toString()).build());
         }
-        if (Utils.isNotBlank(onboarding.getTenantName())) {
-            item.put("tenant_name", AttributeValue.builder().s(onboarding.getTenantName()).build());
+        if (onboarding.getRequest() != null) {
+            OnboardingRequest request = onboarding.getRequest();
+            Map<String, AttributeValue> requestMap = new HashMap<>();
+            if (Utils.isNotBlank(request.getName())) {
+                requestMap.put("name", AttributeValue.builder().s(request.getName()).build());
+            }
+            if (Utils.isNotBlank(request.getTier())) {
+                requestMap.put("tier", AttributeValue.builder().s(request.getTier()).build());
+            }
+            if (Utils.isNotBlank(request.getSubdomain())) {
+                requestMap.put("subdomain", AttributeValue.builder().s(request.getSubdomain()).build());
+            }
+            if (request.getAttributes() != null && !request.getAttributes().isEmpty()) {
+                requestMap.put("attributes", AttributeValue.builder().m(request.getAttributes().entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                entry -> entry.getKey(),
+                                entry -> AttributeValue.builder().s(entry.getValue()).build())
+                        )
+                ).build());
+            }
+            item.put("request", AttributeValue.builder().m(requestMap).build());
         }
-        if (Utils.isNotBlank(onboarding.getStackId())) {
-            item.put("stack_id", AttributeValue.builder().s(onboarding.getStackId()).build());
+        if (!onboarding.getStacks().isEmpty()) {
+            item.put("stacks", AttributeValue.builder().l(onboarding.getStacks()
+                    .stream()
+                    .map(entry -> AttributeValue.builder().m(
+                            Map.of(
+                                    "name", AttributeValue.builder().s(entry.getName()).build(),
+                                    "arn", AttributeValue.builder().s(entry.getArn()).build(),
+                                    "status", AttributeValue.builder().s(entry.getStatus()).build()
+                            )).build()
+                    )
+                    .collect(Collectors.toList())
+                    ).build()
+            );
         }
         return item;
     }
@@ -342,11 +373,34 @@ public class OnboardingServiceDAL {
                     LOGGER.error(Utils.getFullStackTrace(e));
                 }
             }
-            if (item.containsKey("tenant_name")) {
-                onboarding.setTenantName(item.get("tenant_name").s());
+            if (item.containsKey("request")) {
+                OnboardingRequest request = new OnboardingRequest(
+                        item.get("request").m().get("name").s(),
+                        item.get("request").m().get("tier").s(),
+                        item.get("request").m().get("subdomain").s()
+                );
+                if (item.get("request").m().containsKey("attributes")) {
+                    request.setAttributes(item.get("request").m().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                    entry -> entry.getKey(),
+                                    entry -> entry.getValue().s(),
+                                    (valForKey, valForDupKey) -> valForKey,
+                                    LinkedHashMap::new
+                            ))
+                    );
+                }
+                onboarding.setRequest(request);
             }
-            if (item.containsKey("stack_id")) {
-                onboarding.setStackId(item.get("stack_id").s());
+            if (item.containsKey("stacks")) {
+                onboarding.setStacks(item.get("stacks").l()
+                        .stream()
+                        .map(stackItem -> new OnboardingStack(
+                                stackItem.m().get("name").s(),
+                                stackItem.m().get("arn").s(),
+                                stackItem.m().get("status").s()
+                        ))
+                        .collect(Collectors.toList())
+                );
             }
         }
         return onboarding;

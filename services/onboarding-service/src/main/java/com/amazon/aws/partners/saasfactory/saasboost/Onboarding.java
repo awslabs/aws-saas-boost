@@ -19,6 +19,8 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @JsonIgnoreProperties(value = {"cloudFormationUrl"}, allowGetters = true)
@@ -29,8 +31,8 @@ public class Onboarding {
     private LocalDateTime modified;
     private OnboardingStatus status;
     private UUID tenantId;
-    private String tenantName;
-    private String stackId; //TODO make this an array since we can't use nested stacks for the app services?
+    private OnboardingRequest request;
+    private List<OnboardingStack> stacks = new ArrayList<>();
     private String zipFileUrl;
 
     public Onboarding() {
@@ -84,36 +86,40 @@ public class Onboarding {
         this.tenantId = tenantId;
     }
 
-    public String getTenantName() {
-        return tenantName;
+    public OnboardingRequest getRequest() {
+        return request;
     }
 
-    public void setTenantName(String tenantName) {
-        this.tenantName = tenantName;
+    public void setRequest(OnboardingRequest request) {
+        this.request = request;
     }
 
-    public String getStackId() {
-        return stackId;
+    public List<OnboardingStack> getStacks() {
+        return stacks;
     }
 
-    public void setStackId(String stackId) {
-        this.stackId = stackId;
+    public void setStacks(List<OnboardingStack> stacks) {
+        this.stacks = stacks != null ? new ArrayList<>(stacks) : new ArrayList<>();
     }
 
-    public String getCloudFormationUrl() {
-        String url = null;
-        if (getStackId() != null) {
-            String[] arn = getStackId().split(":");
-            if (arn.length > 4) {
-                String region = arn[3];
-                url = String.format(
-                        "https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringText=&filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
-                        region,
-                        region,
-                        getStackId()
-                );
+    public void addStack(OnboardingStack stack) {
+        if (stack != null) {
+            this.stacks.add(stack);
+        }
+    }
+
+    public boolean stacksComplete() {
+        boolean complete = false;
+        if (!getStacks().isEmpty()) {
+            complete = true;
+            for (OnboardingStack s : getStacks()) {
+                if (!"CREATE_COMPLETE".equals(s.getStatus()) && !"UPDATE_COMPLETE".equals(s.getStatus())) {
+                    complete = false;
+                    break;
+                }
             }
         }
-        return url;
+        return complete;
     }
+
 }

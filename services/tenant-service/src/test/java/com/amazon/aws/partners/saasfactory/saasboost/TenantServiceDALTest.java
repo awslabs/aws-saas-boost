@@ -61,7 +61,7 @@ public class TenantServiceDALTest {
         tenant.setTier("default");
         tenant.setName("Test Tenant");
         tenant.setOnboardingStatus("succeeded");
-        tenant.setPlanId("Billing Plan");
+        tenant.setBillingPlan("Billing Plan");
         tenant.setSubdomain("test-tenant");
         tenant.setResources(resources);
 

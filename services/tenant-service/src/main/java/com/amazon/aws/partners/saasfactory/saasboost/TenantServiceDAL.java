@@ -260,19 +260,18 @@ public class TenantServiceDAL {
         LOGGER.info("TenantServiceDAL::insertTenant {}", tenant.getName());
         UUID tenantId = UUID.randomUUID();
         tenant.setId(tenantId);
+        if (tenant.getActive() == null) {
+            tenant.setActive(Boolean.TRUE);
+        }
+        // Created and Modified are owned by the DAL since they reflect when the object was persisted
+        LocalDateTime now = LocalDateTime.now();
+        tenant.setCreated(now);
+        tenant.setModified(now);
         try {
-            // Created and Modified are owned by the DAL since they reflect when the
-            // object was persisted
-            LocalDateTime now = LocalDateTime.now();
-            tenant.setCreated(now);
-            tenant.setModified(now);
-            Map<String, AttributeValue> item = toAttributeValueMap(tenant);
-            PutItemResponse response = ddb.putItem(request -> request.tableName(TENANTS_TABLE).item(item));
-            long putItemTimeMillis = System.currentTimeMillis() - startTimeMillis;
-            LOGGER.info("TenantServiceDAL::insertTenant PutItem exec " + putItemTimeMillis);
+            ddb.putItem(request -> request.tableName(TENANTS_TABLE).item(toAttributeValueMap(tenant)));
         } catch (DynamoDbException e) {
             LOGGER.error("TenantServiceDAL::insertTenant " + Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
+            throw e;
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TenantServiceDAL::insertTenant exec " + totalTimeMillis);
@@ -323,8 +322,8 @@ public class TenantServiceDAL {
         if (Utils.isNotBlank(tenant.getTier())) {
             item.put("tier", AttributeValue.builder().s(tenant.getTier()).build());
         }
-        if (Utils.isNotBlank(tenant.getPlanId())) {
-            item.put("planId", AttributeValue.builder().s(tenant.getPlanId()).build());
+        if (Utils.isNotBlank(tenant.getBillingPlan())) {
+            item.put("planId", AttributeValue.builder().s(tenant.getBillingPlan()).build());
         }
         if (tenant.getResources() != null) {
             item.put("resources", AttributeValue.builder().m(tenant.getResources().entrySet()
@@ -390,7 +389,7 @@ public class TenantServiceDAL {
                 tenant.setSubdomain(item.get("subdomain").s());
             }
             if (item.containsKey("planId")) {
-                tenant.setPlanId(item.get("planId").s());
+                tenant.setBillingPlan(item.get("planId").s());
             }
             if (item.containsKey("resources")) {
                 try {
