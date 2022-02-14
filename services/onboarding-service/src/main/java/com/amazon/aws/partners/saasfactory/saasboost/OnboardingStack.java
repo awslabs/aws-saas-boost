@@ -4,15 +4,17 @@ public class OnboardingStack {
 
     private String name;
     private String arn;
+    private boolean baseStack;
     private String status;
 
     public OnboardingStack() {
-        this(null, null, null);
+        this(null, null, false, null);
     }
 
-    public OnboardingStack(String name, String arn, String status) {
+    public OnboardingStack(String name, String arn, boolean baseStack, String status) {
         this.name = name;
         this.arn = arn;
+        this.baseStack = baseStack;
         this.status = status;
     }
 
@@ -30,6 +32,14 @@ public class OnboardingStack {
 
     public void setArn(String arn) {
         this.arn = arn;
+    }
+
+    public boolean isBaseStack() {
+        return baseStack;
+    }
+
+    public void setBaseStack(boolean baseStack) {
+        this.baseStack = baseStack;
     }
 
     public String getStatus() {

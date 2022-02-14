@@ -971,8 +971,7 @@ Resources:
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          ONBOARDING_SNS:
-            Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/ONBOARDING_SNS}}']]
+          ONBOARDING_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_STACK_SNS}}'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -1010,6 +1009,7 @@ Resources:
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          ONBOARDING_APP_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS}}'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

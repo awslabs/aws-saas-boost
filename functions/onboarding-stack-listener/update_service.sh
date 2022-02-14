@@ -26,7 +26,7 @@ if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
 
-LAMBDA_CODE=OnboardingListener-lambda.zip
+LAMBDA_CODE=OnboardingStackListener-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""

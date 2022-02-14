@@ -488,7 +488,10 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             cidrPrefix = cidrBlock.substring(0, cidrBlock.indexOf(".", cidrBlock.indexOf(".") + 1));
         } catch (Exception e) {
             dal.updateStatus(onboardingId, OnboardingStatus.failed);
-            throw e;
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(400)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(Map.of("message", e.getMessage())));
         }
 
         String tenantSubdomain = Objects.toString(tenant.get("subdomain"), "");
@@ -536,7 +539,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             );
             stackId = cfnResponse.stackId();
             onboarding.setStatus(OnboardingStatus.provisioning);
-            onboarding.addStack(new OnboardingStack(stackName, stackId, "CREATE_IN_PROGRESS"));
+            onboarding.addStack(new OnboardingStack(stackName, stackId, true, "CREATE_IN_PROGRESS"));
             onboarding = dal.updateOnboarding(onboarding);
             LOGGER.info("OnboardingService::provisionTenant stack id " + stackId);
         } catch (SdkServiceException cfnError) {
@@ -891,7 +894,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                 );
                 stackId = cfnResponse.stackId();
                 onboarding.setStatus(OnboardingStatus.provisioning);
-                onboarding.addStack(new OnboardingStack(stackName, stackId, "CREATE_IN_PROGRESS"));
+                onboarding.addStack(new OnboardingStack(stackName, stackId, false, "CREATE_IN_PROGRESS"));
                 onboarding = dal.updateOnboarding(onboarding);
                 LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
                 applicationServiceStacks.add(stackId);

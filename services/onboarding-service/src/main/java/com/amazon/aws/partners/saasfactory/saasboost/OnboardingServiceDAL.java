@@ -317,6 +317,7 @@ public class OnboardingServiceDAL {
                             Map.of(
                                     "name", AttributeValue.builder().s(entry.getName()).build(),
                                     "arn", AttributeValue.builder().s(entry.getArn()).build(),
+                                    "baseStack", AttributeValue.builder().bool(entry.isBaseStack()).build(),
                                     "status", AttributeValue.builder().s(entry.getStatus()).build()
                             )).build()
                     )
@@ -374,13 +375,16 @@ public class OnboardingServiceDAL {
                 }
             }
             if (item.containsKey("request")) {
-                OnboardingRequest request = new OnboardingRequest(
-                        item.get("request").m().get("name").s(),
-                        item.get("request").m().get("tier").s(),
-                        item.get("request").m().get("subdomain").s()
-                );
-                if (item.get("request").m().containsKey("attributes")) {
-                    request.setAttributes(item.get("request").m().entrySet().stream()
+                Map<String, AttributeValue> requestMap = item.get("request").m();
+                OnboardingRequest request = new OnboardingRequest(requestMap.get("name").s());
+                if (requestMap.containsKey("tier")) {
+                    request.setTier(requestMap.get("tier").s());
+                }
+                if (requestMap.containsKey("subdomain")) {
+                    request.setSubdomain(requestMap.get("subdomain").s());
+                }
+                if (requestMap.containsKey("attributes")) {
+                    request.setAttributes(requestMap.get("attributes").m().entrySet().stream()
                             .collect(Collectors.toMap(
                                     entry -> entry.getKey(),
                                     entry -> entry.getValue().s(),
@@ -397,6 +401,7 @@ public class OnboardingServiceDAL {
                         .map(stackItem -> new OnboardingStack(
                                 stackItem.m().get("name").s(),
                                 stackItem.m().get("arn").s(),
+                                stackItem.m().get("baseStack").bool(),
                                 stackItem.m().get("status").s()
                         ))
                         .collect(Collectors.toList())

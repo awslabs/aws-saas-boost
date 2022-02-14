@@ -25,6 +25,16 @@ import static org.junit.Assert.*;
 public class OnboardingTest {
 
     @Test
+    public void testOnboardingRequest() {
+        //String json = "{\"name\": \"Santa Claus\"}";
+        String json = "{\"name\": \"Santa Claus\", \"billingPlan\": \"free\"}";
+        //String json = "{\"name\": \"Santa Claus\", \"tier\": \"default\", \"billingPlan\": \"foobar\"}";
+        OnboardingRequest r = Utils.fromJson(json, OnboardingRequest.class);
+        //System.out.println(Utils.toJson(r));
+    }
+
+
+    @Test
     public void testStacksComplete() {
         OnboardingStack stack1 = new OnboardingStack();
         OnboardingStack stack2 = new OnboardingStack();

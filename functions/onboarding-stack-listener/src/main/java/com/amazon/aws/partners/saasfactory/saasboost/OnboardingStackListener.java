@@ -46,7 +46,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
     private static final String BILLING_DISABLE = "Billing Tenant Disable";
     private static final String EVENT_SOURCE = "saas-boost";
     private static final Pattern STACK_NAME_PATTERN = Pattern
-            .compile("^sb-" + SAAS_BOOST_ENV + "-tenant-[a-z0-9]{8}-.+$");
+            .compile("^sb-" + SAAS_BOOST_ENV + "-tenant-[a-z0-9]{8}$");
     private static final Collection<String> EVENTS_OF_INTEREST = Collections.unmodifiableCollection(
             Arrays.asList("CREATE_COMPLETE", "CREATE_FAILED", "UPDATE_COMPLETE", "DELETE_COMPLETE", "DELETE_FAILED"));
     private final CloudFormationClient cfn;
@@ -67,7 +67,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
 
     @Override
     public Object handleRequest(SNSEvent event, Context context) {
-        //LOGGER.info(Utils.toJson(event));
+        LOGGER.info(Utils.toJson(event));
 
         List<SNSEvent.SNSRecord> records = event.getRecords();
         SNSEvent.SNS sns = records.get(0).getSNS();
@@ -88,7 +88,6 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
             String domainName = null;
             String hostedZone = null;
             String subdomain = null;
-            String url = null;
             try {
                 DescribeStacksResponse stacks = cfn.describeStacks(req -> req
                         .stackName(stackId)
@@ -108,20 +107,25 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                         subdomain = parameter.parameterValue();
                     }
                 }
+
                 // The public URL to access this tenant's environment is either a custom DNS entry we made a
                 // Route53 record set for and pointed at the load balancer, or we can fall back to the ALB's DNS.
+                String hostname = null;
                 if (Utils.isNotBlank(domainName) && Utils.isNotBlank(hostedZone) && Utils.isNotBlank(subdomain)) {
-                    url = subdomain + "." + domainName;
+                    hostname = subdomain + "." + domainName;
                 } else {
                     if (stack.hasOutputs()) {
                         for (Output output : stack.outputs()) {
                             if ("DNSName".equals(output.outputKey())) {
-                                url = output.outputValue();
+                                hostname = output.outputValue();
                                 break;
                             }
                         }
                     }
                 }
+                // Fire a tenant hostname changed event
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "TENANT_HOSTNAME_CHANGE",
+                        Map.of("tenantId", tenantId, "hostname", hostname));
             } catch (SdkServiceException cfnError) {
                 LOGGER.error("cfn:DescribeStacks error", cfnError);
                 LOGGER.error(Utils.getFullStackTrace(cfnError));
@@ -231,21 +235,10 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                     }
                 }
 
-//                // Update the onboarding status from provisioning to provisioned
-//                LOGGER.info("Updating onboarding status to {}", "CREATE_COMPLETE".equals(stackStatus) ? "provisioned" : "updated");
-//                Map<String, Object> onboardingStatus = new HashMap<>();
-//                onboardingStatus.put("tenantId", tenantId);
-//                onboardingStatus.put("stackStatus", stackStatus);
-//                Map<String, Object> systemApiRequest = new HashMap<>();
-//                systemApiRequest.put("resource", "onboarding/status");
-//                systemApiRequest.put("method", "PUT");
-//                systemApiRequest.put("body", Utils.toJson(onboardingStatus));
-//                publishEvent(systemApiRequest, SYSTEM_API_CALL);
-
-                // Update the tenant resources map
+                // Fire a tenant resources updated event
                 LOGGER.info("Updating tenant resources AWS console links");
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                        UPDATE_TENANT_RESOURCES,
+                        "TENANT_RESOURCES_CHANGE",
                         Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResources))
                 );
 
@@ -266,73 +259,15 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                     provisionAppCall.put("method", "POST");
                     provisionAppCall.put("body", Utils.toJson(Collections.singletonMap("tenantId", tenantId)));
                     Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL, provisionAppCall);
-
-//                    // Invoke this tenant's deployment pipeline... probably should be done through a service API call
-//                    LOGGER.info("Triggering tenant deployment pipeline");
-//                    // First, build an event object that looks similar to the object generated by
-//                    // an ECR image push (which is what the deploy method uses).
-//                    Map<String, Object> lambdaEvent = new HashMap<>();
-//                    lambdaEvent.put("source", "tenant-onboarding");
-//                    lambdaEvent.put("region", AWS_REGION);
-//                    lambdaEvent.put("account", context.getInvokedFunctionArn().split(":")[4]);
-//                    Map<String, Object> detail = new HashMap<>();
-//                    detail.put("repository-name", ecrRepo);
-//                    detail.put("image-tag", "latest");
-//                    detail.put("tenantId", tenantId);
-//                    detail.put("pipeline", pipeline);
-//                    lambdaEvent.put("detail", detail);
-//                    SdkBytes payload = SdkBytes.fromString(Utils.toJson(lambdaEvent), StandardCharsets.UTF_8);
-//                    // Now invoke the deployment lambda async... probably move this to the tenant service
-//                    try {
-//                        lambda.invoke(r -> r
-//                                .functionName(TENANT_DEPLOY_LAMBDA)
-//                                .invocationType(InvocationType.EVENT)
-//                                .payload(payload)
-//                        );
-//                    } catch (SdkServiceException lambdaError) {
-//                        LOGGER.error("lambda:Invoke");
-//                        LOGGER.error(Utils.getFullStackTrace(lambdaError));
-//                        throw lambdaError;
-//                    }
                 }
-            } else if ("CREATE_FAILED".equals(stackStatus)) {
-                // Update the onboarding status from provisioning to failed
-                LOGGER.info("Updating onboarding status to failed");
-                Map<String, Object> systemApiRequest = new HashMap<>();
-                systemApiRequest.put("resource", "onboarding/status");
-                systemApiRequest.put("method", "PUT");
-                systemApiRequest.put("body", Utils.toJson(
-                        Map.of("tenantId", tenantId, "stackStatus", stackStatus))
-                );
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL, systemApiRequest);
-            } else if ("DELETE_COMPLETE".equals(stackStatus)) {
-                // Publish event for tenant billing disable
-                LOGGER.info("Triggering tenant billing disable event to cancel subscriptions");
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, SYSTEM_API_CALL, BILLING_DISABLE,
-                        Collections.singletonMap("tenantId", tenantId));
-
-                // Update the onboarding status to deleted
-                LOGGER.info("Updating onboarding status to delete completed");
-                Map<String, Object> updateTenantOnboardingStatusRequest = new HashMap<>();
-                updateTenantOnboardingStatusRequest.put("resource", "onboarding/status");
-                updateTenantOnboardingStatusRequest.put("method", "PUT");
-                updateTenantOnboardingStatusRequest.put("body", Utils.toJson(
-                        Map.of("tenantId", tenantId, "stackStatus", stackStatus))
-                );
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
-                        updateTenantOnboardingStatusRequest);
-            } else if ("DELETE_FAILED".equals(stackStatus)) {
-                // Update the onboarding status to deleted
-                LOGGER.info("Updating onboarding status to failed");
-                Map<String, Object> systemApiRequest = new HashMap<>();
-                systemApiRequest.put("resource", "onboarding/status");
-                systemApiRequest.put("method", "PUT");
-                systemApiRequest.put("body", Utils.toJson(
-                        Map.of("tenantId", tenantId, "stackStatus", stackStatus))
-                );
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
-                        systemApiRequest);
             }
+
+            // Fire a stack status change event
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "STACK_STATUS_CHANGE",
+                    Map.of("tenantId", tenantId, "stackId", stackId, "stackStatus", stackStatus));
+
+            //TODO deal with a deleted stack canceling billing subscription
+            //TODO deal with a created stack creating a billing subscription
         } else {
             //LOGGER.info("Skipping CloudFormation notification {} {} {} {}", stackId, type, stackName, stackStatus);
         }

@@ -32,6 +32,9 @@ Parameters:
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Type: String
