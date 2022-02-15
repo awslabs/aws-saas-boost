@@ -24,10 +24,8 @@ import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap'
 import LoadingOverlay from 'react-loading-overlay'
 
 import AppSettingsSubform from './AppSettingsSubform'
-import FileSystemSubform from './FileSystemSubform'
-import DatabaseSubform from './DatabaseSubform'
-import ContainerSettingsSubform from './ContainerSettingsSubform'
 import BillingSubform from './BillingSubform'
+import ServicesComponent from './ServicesComponent'
 
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
@@ -62,32 +60,9 @@ export function ApplicationComponent(props) {
   const FSX = 'FSX'
   const EFS = 'EFS'
 
-  const os = !!appConfig.operatingSystem
-    ? appConfig.operatingSystem === LINUX
-      ? LINUX
-      : WINDOWS
-    : ''
-  const db = !!appConfig.database
-    ? {
-        ...appConfig.database,
-        //This is frail, but try to see if the incoming password is base64d
-        //If so, assume it's encrypted
-        //Also store a copy in the encryptedPassword field
-        hasEncryptedPassword: !!appConfig.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
-        encryptedPassword: appConfig.database.password,
-      }
-    : {
-        engine: '',
-        family: '',
-        version: '',
-        instance: '',
-        username: '',
-        password: '',
-        hasEncryptedPassword: false,
-        encryptedPassword: '',
-        database: '',
-        bootstrapFilename: '',
-      }
+  // TODO we should be using state for this so we can add tiers?
+  // TODO better solution is to grab this from a Tiers API
+  const tiers = ['default', 'test']
 
   const getParts = (dateTime) => {
     const parts = dateTime.split(':')
@@ -98,6 +73,7 @@ export function ApplicationComponent(props) {
   }
 
   const updateConfig = (values) => {
+    console.log("updateConfig!")
     updateConfiguration(values)
     window.scrollTo(0, 0)
   }
@@ -122,44 +98,86 @@ export function ApplicationComponent(props) {
     }
   }
 
-  const filesystem = {
-    ...appConfig.filesystem,
-    mountPoint: appConfig.filesystem?.mountPoint || '',
-    // Start off with FSX if Windows and EFS if Linux
-    fileSystemType: appConfig.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
-
-    efs: appConfig.filesystem?.efs || {
-      lifecycle: '0',
-      encryptAtRest: '',
-    },
-    fsx: getFsx(appConfig.filesystem?.fsx),
+  // this appears to be re-done twice per ApplicationComponent render
+  // and ApplicationComponent appears to render twice per page load
+  const parseServicesFromAppConfig = () => {
+    let initialServiceValues = []
+    for (var serviceName in appConfig.services) {
+      let thisService = appConfig.services[serviceName]
+      const os = !!thisService.operatingSystem
+        ? appConfig.services[serviceName].operatingSystem === LINUX ? LINUX : WINDOWS
+        : ''
+      let initialTierValues = {}
+      for (var i = 0; i < tiers.length; i++) {
+        var tierName = tiers[i]
+        // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
+        let thisTier = thisService.tiers[tierName] || {
+          min: 0,
+          max: 0,
+          computeSize: '',
+        }
+        const filesystem = {
+          ...thisTier.filesystem,
+          mountPoint: thisTier.filesystem?.mountPoint || '',
+          // Start off with FSX if Windows and EFS if Linux
+          fileSystemType: thisTier.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
+          efs: thisTier.filesystem?.efs || {
+            lifecycle: '0',
+            encryptAtRest: '',
+          },
+          fsx: getFsx(thisTier.filesystem?.fsx),
+        }
+        const db = !!thisTier.database ? {
+          ...thisTier.database,
+          //This is frail, but try to see if the incoming password is base64d
+          //If so, assume it's encrypted
+          //Also store a copy in the encryptedPassword field
+          hasEncryptedPassword: !!thisTier.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
+          encryptedPassword: thisTier.database.password,
+        } : {
+          engine: '',
+          family: '',
+          version: '',
+          instance: '',
+          username: '',
+          password: '',
+          hasEncryptedPassword: false,
+          encryptedPassword: '',
+          database: '',
+          bootstrapFilename: '',
+        }
+        initialTierValues[tierName] = {
+          ...thisTier,
+          filesystem: filesystem,
+          database: db,
+        }
+      }
+      console.log('initialTierValues for ' + serviceName)
+      console.log(initialTierValues)
+      // public, name, description, path, tiers, containerPort, containerRepo, containerTag, healthCheckUrl, operatingSystem
+      initialServiceValues.push({
+        ...thisService,
+        operatingSystem: os,
+        tiers: initialTierValues,
+        provisionDb: !!thisService.database || false,
+        provisionFS: !!thisService.filesystem || false,
+      })
+    }
+    return initialServiceValues
   }
 
   const initialValues = {
-    operatingSystem: os,
-    windowsVersion: os !== LINUX ? appConfig.operatingSystem : '',
     name: appConfig.name || '',
     domainName: appConfig.domainName || '',
-    sslCertArn: appConfig.sslCertArn || '',
-    computeSize: appConfig.computeSize || '',
-    containerPort: appConfig.containerPort || 80,
-    minCount: appConfig.minCount || 1,
-    maxCount: appConfig.maxCount || 1,
-    healthCheckURL: appConfig.healthCheckURL || '/index.html',
-
-    database: {
-      ...db,
-      password: db.hasEncryptedPassword ? db.password.substring(0, 8) : db.password,
-    },
-    filesystem: filesystem,
+    sslCertificate: appConfig.sslCertificate || '',
+    services: parseServicesFromAppConfig(),
     billing: appConfig.billing || {
       apiKey: '',
     },
-
-    provisionDb: !!appConfig.database,
-    provisionFS: !!appConfig.filesystem,
-    provisionBilling: !!appConfig.billing,
+    provisionBilling: !!appConfig.billing || false,
   }
+  console.log('all initial values for formik:')
+  console.log(initialValues)
 
   const validationSpecs = Yup.object({
     operatingSystem: Yup.string().required('Container OS is a required field'),
@@ -312,26 +330,15 @@ export function ApplicationComponent(props) {
             return (
               <Form>
                 <AppSettingsSubform isLocked={hasTenants}></AppSettingsSubform>
-                <ContainerSettingsSubform
-                  isLocked={hasTenants}
+                <ServicesComponent
                   formik={formik}
+                  appConfig={appConfig}
+                  hasTenants={hasTenants}
                   osOptions={osOptions}
-                ></ContainerSettingsSubform>
-                <FileSystemSubform
-                  isLocked={hasTenants}
-                  formik={formik}
-                  filesystem={formik.values.filesystem}
-                  provisionFs={formik.values.provisionFS}
-                  containerOs={formik.values.operatingSystem}
-                ></FileSystemSubform>
-                <DatabaseSubform
-                  isLocked={hasTenants}
-                  formik={formik}
                   dbOptions={dbOptions}
-                  provisionDb={formik.values.provisionDb}
-                  values={formik.values?.database}
-                  onFileSelected={(file) => onFileSelected(formik, file)}
-                ></DatabaseSubform>
+                  onFileSelected={onFileSelected}
+                  tiers={tiers}
+                ></ServicesComponent>
                 <BillingSubform
                   provisionBilling={formik.values.provisionBilling}
                   values={formik.values?.billing}

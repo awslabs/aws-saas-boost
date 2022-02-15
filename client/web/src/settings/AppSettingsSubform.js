@@ -41,9 +41,9 @@ export default class AppSettingsSubform extends React.Component {
                       disabled={this.props.isLocked}
                     />
                     <SaasBoostInput
-                      key="sslCertArn"
+                      key="sslCertificate"
                       label="SSL Certificate ARN"
-                      name="sslCertArn"
+                      name="sslCertificate"
                       type="text"
                       disabled={this.props.isLocked}
                     />

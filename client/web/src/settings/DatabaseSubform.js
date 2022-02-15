@@ -98,8 +98,8 @@ export default class DatabaseSubform extends React.Component {
               <CardHeader>Database</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  name="provisionDb"
-                  id="provisionDb"
+                  name={this.props.formikServicePrefix + ".provisionDb"}
+                  id={this.props.formikServicePrefix + ".provisionDb"}
                   label="Provision a database for the application"
                   value={this.props.provisionDb}
                 />
@@ -108,8 +108,8 @@ export default class DatabaseSubform extends React.Component {
                     <Col xl={6}>
                       <SaasBoostSelect
                         label="Engine"
-                        name="database.engine"
-                        id="database.engine"
+                        name={this.props.formikTierPrefix + ".database.engine"}
+                        id={this.props.formikTierPrefix + ".database.engine"}
                         value={this.props.values?.engine}
                         disabled={this.props.isLocked}
                       >
@@ -119,8 +119,8 @@ export default class DatabaseSubform extends React.Component {
                       <SaasBoostSelect
                         disabled={!!!this.props.values?.engine || this.props.isLocked}
                         label="Instance"
-                        name="database.instance"
-                        id="database.instance"
+                        name={this.props.formikTierPrefix + ".database.instance"}
+                        id={this.props.formikTierPrefix + ".database.instance"}
                         value={this.props.values?.instance}
                       >
                         <option value="">Please select</option>
@@ -130,24 +130,24 @@ export default class DatabaseSubform extends React.Component {
                         disabled={!!!this.props.values?.instance || this.props.isLocked}
                         onChange={this.versionChanged}
                         label="Version"
-                        name="database.version"
-                        id="database.version"
+                        name={this.props.formikTierPrefix + ".database.version"}
+                        id={this.props.formikTierPrefix + ".database.version"}
                         value={this.props.values?.version}
                       >
                         <option value="">Please select</option>
                         {this.getVersionOptions()}
                       </SaasBoostSelect>
                       <SaasBoostInput
-                        key="database.username"
+                        key={this.props.formikTierPrefix + ".database.username"}
                         label="Username"
-                        name="database.username"
+                        name={this.props.formikTierPrefix + ".database.username"}
                         type="text"
                         disabled={this.props.isLocked}
                       />
                       <SaasBoostInput
-                        key="database.password"
+                        key={this.props.formikTierPrefix + ".database.password"}
                         label="Password"
-                        name="database.password"
+                        name={this.props.formikTierPrefix + ".database.password"}
                         type="password"
                         disabled={this.props.isLocked}
                       />
@@ -157,9 +157,9 @@ export default class DatabaseSubform extends React.Component {
                         <CardHeader> Database Initialization (Optional) </CardHeader>
                         <CardBody>
                           <SaasBoostInput
-                            key="database.database"
+                            key={this.props.formikTierPrefix + ".database.database"}
                             label="Database Name"
-                            name="database.database"
+                            name={this.props.formikTierPrefix + ".database.database"}
                             type="text"
                             disabled={this.props.isLocked}
                           />
