@@ -131,6 +131,9 @@ export function ApplicationContainer(props) {
       return encryptedPw.substring(0, 8) === pw
     }
 
+    console.log("updateConfiguration!")
+    console.log(values)
+
     try {
       const {
         windowsVersion,
@@ -174,9 +177,11 @@ export function ApplicationContainer(props) {
         operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
       }
       if (!!file && file.name && provisionDb) {
-        await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }))
+        // await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }))
       }
-      await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend))
+      console.log("NOT sending the following config!")
+      console.log(configToSend)
+      // await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend))
     } catch (e) {
       console.error(e)
     }

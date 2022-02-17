@@ -17,8 +17,7 @@
 import React from 'react'
 import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
 import { Field } from 'formik'
-import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput } from '../components/FormComponents'
-
+import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
 import { PropTypes } from 'prop-types'
 
 const ServiceSettingsSubform = (props) => {
@@ -95,6 +94,14 @@ const ServiceSettingsSubform = (props) => {
                       key={"services[" + serviceIndex + "].path"}
                       label="Service Addressable Path"
                       name={"services[" + serviceIndex + "].path"}
+                      type="text"
+                    />
+                  </Row>
+                  <Row>
+                    <SaasBoostTextarea
+                      key={"services[" + serviceIndex + "].description"}
+                      label="Description"
+                      name={"services[" + serviceIndex + "].description"}
                       type="text"
                     />
                   </Row>
