@@ -559,7 +559,6 @@ Resources:
           FileSystemAdministratorsGroup: "AWS Delegated FSx Administrators"
           OrganizationalUnitDistinguishedName: !Sub 'OU=Computers,OU=sb-${Environment},DC=${Environment},DC=${AWS::Region},DC=saasboost,DC=com'
           Password: !Sub "${CustomADResource.Password}"
-          #Password: C8dwo675!3O*15%i1f5
           UserName: admin
   ONTAPVolume:
     Type: AWS::FSx::Volume
