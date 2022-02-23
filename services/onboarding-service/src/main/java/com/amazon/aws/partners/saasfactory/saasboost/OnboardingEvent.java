@@ -18,30 +18,36 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 // TODO Make a marker interface of SaaSBoostEvent?
 public enum OnboardingEvent {
-    ONBOARDING_CREATED("Onboarding request created"),
-    ONBOARDING_VALID("Onboarding request validated"),
-    ONBOARDING_STARTED("Onboarding request started"),
-    ONBOARDING_IN_PROGRESS("Onboarding request in progress"),
-    ONBOARDING_FAILED("Onboarding request failed"),
-    ONBOARDING_COMPLETE("Onboarding request completed"),
-    ONBOARDING_STATUS_CHANGE("Onboarding request state changed"),
-    ONBOARDING_INVALID("Onboarding request failed validation"),
-    ONBOARDING_LIMITS_EXCEEDED("Onboarding request exceeds account quotas"),
-    ONBOARDING_LIMITS_OK("Onboarding request does not exceed account quotas"),
-    ONBOARDING_CIDR_BLOCK_ASSIGNED("Tenant CIDR block assigned"),
-    ONBOARDING_PROVISIONING_STARTED("Tenant base provisioning started"),
-    ONBOARDING_PROVISIONING_IN_PROGRESS("Tenant base provisioning in progress"),
-    ONBOARDING_PROVISIONING_FAILED("Tenant base provisioning failed"),
-    ONBOARDING_PROVISIONING_COMPLETE("Tenant base provisioning completed"),
-    ONBOARDING_APP_PROVISIONING_STARTED("Tenant app service provisioning started"),
-    ONBOARDING_APP_PROVISIONING_IN_PROGRESS("Tenant app service provisioning in progress"),
-    ONBOARDING_APP_PROVISIONING_FAILED("Tenant app service provisioning failed"),
-    ONBOARDING_APP_PROVISIONING_COMPLETE("Tenant app service provisioning completed")
+    ONBOARDING_INITIATED("Onboarding Initiated"),
+    ONBOARDING_VALID("Onboarding Validated"),
+    ONBOARDING_TENANT_ASSIGNED("Onboarding Tenant Assigned"),
+    ONBOARDING_STACK_STATUS_CHANGED("Onboarding Stack Status Changed"),
+    ONBOARDING_BASE_PROVISIONED("Onboarding Base Provisioned"),
+    ONBOARDING_PROVISIONED("Onboarding Provisioned"),
+    ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED("Onboarding Deployment Pipeline Change"),
+    ONBOARDING_DEPLOYED("Onboarding Deployed"),
+    ONBOARDING_COMPLETED("Onboarding Completed"),
+    ONBOARDING_FAILED("Onboarding Failed")
     ;
 
     private final String detailType;
 
-    private OnboardingEvent(String detailType) {
+    OnboardingEvent(String detailType) {
         this.detailType = detailType;
+    }
+
+    public String detailType() {
+        return detailType;
+    }
+
+    public static OnboardingEvent fromDetailType(String detailType) {
+        OnboardingEvent event = null;
+        for (OnboardingEvent onboardingEvent : OnboardingEvent.values()) {
+            if (onboardingEvent.detailType().equals(detailType)) {
+                event = onboardingEvent;
+                break;
+            }
+        }
+        return event;
     }
 }

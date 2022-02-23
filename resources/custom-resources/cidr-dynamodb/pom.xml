@@ -32,7 +32,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>7</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -86,8 +86,19 @@ limitations under the License.
             <artifactId>junit</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-nop</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>Utils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>

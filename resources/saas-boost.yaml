@@ -654,6 +654,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
@@ -722,7 +723,6 @@ Resources:
         OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
         OnboardingServiceStart: !GetAtt onboarding.Outputs.OnboardingServiceStartArn
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
-        OnboardingServiceUpdateStatus: !GetAtt onboarding.Outputs.OnboardingServiceUpdateStatusArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
         SettingsServiceConfigOptions: !GetAtt settings.Outputs.SettingsServiceConfigOptionsArn
@@ -761,11 +761,6 @@ Resources:
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
         TenantServiceUpdateOnboarding: !GetAtt tenant.Outputs.TenantServiceUpdateOnboardingArn
-        OnboardingProvisionTenant: !GetAtt onboarding.Outputs.OnboardingServiceProvisionTenantArn
-        OnboardingProvisionApp: !GetAtt onboarding.Outputs.OnboardingServiceProvisionAppArn
-        OnboardingStatusListener: !GetAtt onboarding.Outputs.OnboardingStatusListenerArn
-        OnboardingUpdateDomain: !GetAtt onboarding.Outputs.OnboardingUpdateDomainArn
-        OnboardingUpdateTenant: !GetAtt onboarding.Outputs.OnboardingUpdateTenantArn
         OnboardingUpdateAppConfig: !GetAtt onboarding.Outputs.OnboardingUpdateAppConfigArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn

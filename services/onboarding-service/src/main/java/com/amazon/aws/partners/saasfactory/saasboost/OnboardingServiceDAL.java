@@ -18,6 +18,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
@@ -162,16 +163,10 @@ public class OnboardingServiceDAL {
                     .tableName(ONBOARDING_TABLE)
                     .key(key)
                     .updateExpression("SET #status = :status, modified = :modified")
-                    .expressionAttributeNames(Stream
-                            .of(new AbstractMap.SimpleEntry<String, String>("#status", "status"))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                    )
-                    .expressionAttributeValues(Stream
-                            .of(
-                                new AbstractMap.SimpleEntry<String, AttributeValue>(":status", AttributeValue.builder().s(status.toString()).build()),
-                                new AbstractMap.SimpleEntry<String, AttributeValue>(":modified", AttributeValue.builder().s(modified).build())
-                            )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeNames(Map.of("#status", "status"))
+                    .expressionAttributeValues(Map.of(
+                            ":status", AttributeValue.builder().s(status.toString()).build(),
+                            ":modified", AttributeValue.builder().s(modified).build())
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );
@@ -216,6 +211,55 @@ public class OnboardingServiceDAL {
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("OnboardingServiceDAL::insertOnboarding exec " + totalTimeMillis);
         return onboarding;
+    }
+
+    public String getCidrBlock(UUID tenantId) {
+        return getCidrBlock(tenantId.toString());
+    }
+
+    public String getCidrBlock(String tenantId) {
+        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
+            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
+        }
+        String cidrBlock = null;
+        try {
+            ScanResponse scan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
+            if (!scan.items().isEmpty()) {
+                for (Map<String, AttributeValue> item : scan.items()) {
+                    if (item.containsKey("tenant_id") && item.get("tenant_id").s().equals(tenantId)) {
+                        cidrBlock = item.get("cidr_block").s();
+                    }
+                }
+            }
+        } catch (DynamoDbException ddbError) {
+            LOGGER.error("dynamodb:Scan error", ddbError);
+            LOGGER.error(Utils.getFullStackTrace(ddbError));
+            throw ddbError;
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error", e);
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+        return cidrBlock;
+    }
+
+    public boolean availableCidrBlock() {
+        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
+            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
+        }
+        boolean available = false;
+        try {
+            ScanResponse scan = ddb.scan(r -> r
+                    .tableName(CIDR_BLOCK_TABLE)
+                    .filterExpression("attribute_not_exists(tenant_id)")
+            );
+            available = scan.hasItems() && !scan.items().isEmpty();
+        } catch (DynamoDbException ddbError) {
+            LOGGER.error("dynamodb:Scan error", ddbError);
+            LOGGER.error(Utils.getFullStackTrace(ddbError));
+            throw ddbError;
+        }
+        return available;
     }
 
     public String assignCidrBlock(String tenantId) {

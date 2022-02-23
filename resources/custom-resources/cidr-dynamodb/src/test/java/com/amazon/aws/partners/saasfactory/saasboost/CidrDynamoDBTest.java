@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import software.amazon.awssdk.services.dynamodb.model.WriteRequest;
 
 import java.util.*;
 
@@ -27,29 +29,16 @@ import static org.junit.Assert.*;
 public class CidrDynamoDBTest {
 
     @Test
-    public void testBatchWriteItemBatching() {
-        String table = "TABLE_NAME";
-
-        final int batchWriteItemLimit = 25;
-        final int maxOctet = 255;
-        int octet = -1;
-        List<String> batch = new ArrayList<>();
-        while (octet <= maxOctet) {
-            octet++;
-            if (batch.size() == batchWriteItemLimit || octet > maxOctet) {
-                Map<String, Collection<String>> putRequests = new HashMap<>();
-                putRequests.put(table, batch);
-                int count = 0;
-                for (String req : batch) {
-                    System.out.println(String.format("%02d. %s", ++count, req));
-                }
-                System.out.println();
-                count = 0;
-                batch.clear();
-            }
-            String cidr = String.format("10.%d.0.0", octet);
-            String putRequest = "SET cidr_block = " + cidr;
-            batch.add(putRequest);
+    public void testGenerateBatches() {
+        List<List<WriteRequest>> batches = CidrDynamoDB.generateBatches();
+        // Max batch write size for DynamoDB is 25 and we're batching up 256 items
+        // We should have 11 batches total
+        assertEquals(11, batches.size());
+        // The first 10 batches should be filled to the limit
+        for (int i = 0; i < 10; i++) {
+            assertEquals(25, batches.get(i).size());
         }
+        // and one remainder batch of 6
+        assertEquals(6, batches.get(10).size());
     }
 }

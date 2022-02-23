@@ -30,6 +30,9 @@ Parameters:
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
@@ -72,6 +75,18 @@ Resources:
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
+  OnboardingValidationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-validation
+      VisibilityTimeout: 60 # Must be greater than the Timeout setting on the Lambda
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OnboardingValidationDLQ.Arn
+        maxReceiveCount: 10
+  OnboardingValidationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-validation-dlq
   PopulateDynamoDBExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -119,11 +134,12 @@ Resources:
       FunctionName: !Sub sb-${Environment}-populate-ddb
       Role: !GetAtt PopulateDynamoDBExecRole.Arn
       Runtime: java11
-      Timeout: 300
+      Timeout: 60
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.CidrDynamoDB
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CidrDynamoDB-lambda.zip
@@ -207,6 +223,19 @@ Resources:
                   - sns:Publish
                 Resource:
                   - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt OnboardingValidationQueue.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt OnboardingValidationDLQ.Arn
               - Effect: Allow
                 Action:
                   - ssm:Get*
@@ -889,7 +918,7 @@ Resources:
       Runtime: java11
       Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::startOnboarding
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::insertOnboarding
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -899,9 +928,6 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
@@ -911,20 +937,20 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-  OnboardingServiceUpdateStatusLogs:
+  OnboardingServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-status
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update
       RetentionInDays: 30
-  OnboardingServiceUpdateStatus:
+  OnboardingServiceStart:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-status
+      FunctionName: !Sub sb-${Environment}-onboarding-update
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateStatus
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateOnboarding
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -934,27 +960,59 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingServiceProvisionTenantLogs:
+  OnboardingServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-provision
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-delete
       RetentionInDays: 30
-  OnboardingServiceProvisionTenant:
+  OnboardingServiceStart:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-provision
+      FunctionName: !Sub sb-${Environment}-onboarding-delete
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
-      Timeout: 600
+      Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::provisionTenant
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::deleteOnboarding
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+  OnboardingServiceEventHandlerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-events
+      RetentionInDays: 30
+  OnboardingServiceEventHandler:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-events
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 45
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::handleOnboardingEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -972,27 +1030,29 @@ Resources:
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           ONBOARDING_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_STACK_SNS}}'
+          ONBOARDING_APP_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS}}'
+          ONBOARDING_VALIDATION_QUEUE: !Ref OnboardingValidationQueue
+          ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingServiceProvisionAppLogs:
+  OnboardingServiceValidationLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-provision-app
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-validation
       RetentionInDays: 30
-  OnboardingServiceProvisionApp:
+  OnboardingServiceValidation:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-provision-app
+      FunctionName: !Sub sb-${Environment}-onboarding-validation
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
-      Timeout: 600
+      Timeout: 59 # Must be less than the VisibilityTimeout setting on the queue
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::provisionApplication
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::processValidateOnboardingQueue
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -1009,186 +1069,78 @@ Resources:
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          ONBOARDING_APP_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS}}'
+          ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingServiceDeleteTenantLogs:
-    Type: AWS::Logs::LogGroup
+  ValidationEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-delete
-      RetentionInDays: 30
-  OnboardingServiceDeleteTenant:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-delete
-      Role: !GetAtt OnboardingServiceDeleteTenantExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::deleteTenant
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingServiceDeleteTenantEventRule:
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      Enabled: true
+      EventSourceArn: !GetAtt OnboardingValidationQueue.Arn
+      FunctionName: !GetAtt OnboardingServiceValidation.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+  OnboardingServiceEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-onboarding-delete
-      Description: Delete provisioned tenant
+      Name: !Sub sb-${Environment}-onboarding-events
+      Description: SaaS Boost onboarding events
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:
-        detail-type:
-          - Delete Tenant
-        source:
-          - saas-boost
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [{
+            "prefix": "ONBOARDING_"
+          }]
+        }
       State: ENABLED
       Targets:
-        - Arn: !GetAtt OnboardingServiceDeleteTenant.Arn
-          Id: OnboardingServiceDeleteTenant
-  OnboardingServiceDeleteTenantFunctionPermission:
+        - Arn: !GetAtt OnboardingServiceEventHandler.Arn
+          Id: OnboardingServiceEventHandler
+  OnboardingServiceEventsPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt OnboardingServiceDeleteTenant.Arn
+      FunctionName: !Ref OnboardingServiceEventHandler
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt OnboardingServiceDeleteTenantEventRule.Arn
-  OnboardingStatusListenerLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-status
-      RetentionInDays: 30
-  OnboardingStatusListener:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-status
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::statusEventListener
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-  CodePipelineExecutionStateChangeEvent:
+      SourceArn: !GetAtt OnboardingServiceEventRule.Arn
+  # CodePipeline sends its events to the default EventBridge bus, so we need a 2nd rule to match it
+  OnboardingDeploymentPipelineEventRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub sb-${Environment}-codepipeline-state
+      Description: CodePipeline state changes for SaaS Boost onboarding deployment events
       EventPattern:
-        source: ['aws.codepipeline']
-        detail-type: ['CodePipeline Pipeline Execution State Change']
+        {
+          "source": [
+            "aws.codepipeline"
+          ],
+          "detail-type": [
+            "CodePipeline Pipeline Execution State Change"
+          ],
+          "detail": {
+            "state": ["STARTED", "SUCCEEDED", "FAILED"]
+          }
+        }
       State: ENABLED
       Targets:
-        - Arn: !GetAtt OnboardingStatusListener.Arn
-          Id: sb-onboarding-status-listener-lambda
-  CodePipelineExecutionStateChangeEventPermission:
+        - Arn: !GetAtt OnboardingServiceEventHandler.Arn
+          Id: OnboardingServiceCodePipelineEventHandler
+  OnboardingDeploymentPipelineEventPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref OnboardingStatusListener
-      Principal: events.amazonaws.com
       Action: lambda:InvokeFunction
-      SourceArn: !GetAtt CodePipelineExecutionStateChangeEvent.Arn
-  OnboardingUpdateDomainLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-dns
-      RetentionInDays: 30
-  OnboardingUpdateDomain:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-dns
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::resetDomainName
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingUpdateTenantLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-tenant
-      RetentionInDays: 30
-  OnboardingUpdateTenant:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-tenant
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateProvisionedTenant
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
+      FunctionName: !Ref OnboardingServiceEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt OnboardingDeploymentPipelineEventRule.Arn
   OnboardingUpdateAppConfigLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1232,24 +1184,6 @@ Outputs:
   OnboardingServiceByIdArn:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Value: !GetAtt OnboardingServiceGetById.Arn
-  OnboardingServiceProvisionTenantArn:
-    Description: Onboarding Service provision tenant Lambda ARN
-    Value: !GetAtt OnboardingServiceProvisionTenant.Arn
-  OnboardingServiceProvisionAppArn:
-    Description: Onboarding Service provision application services Lambda ARN
-    Value: !GetAtt OnboardingServiceProvisionApp.Arn
-  OnboardingServiceUpdateStatusArn:
-    Description: Onboarding Service update status Lambda ARN
-    Value: !GetAtt OnboardingServiceUpdateStatus.Arn
-  OnboardingStatusListenerArn:
-    Description: Onboarding Service status uplodate listener Lambda ARN
-    Value: !GetAtt OnboardingStatusListener.Arn
-  OnboardingUpdateDomainArn:
-    Description: Onboarding Service update SaaS Boost domain Lambda ARN
-    Value: !GetAtt OnboardingUpdateDomain.Arn
-  OnboardingUpdateTenantArn:
-    Description: Onboarding Service update provisioned tenant Lambda ARN
-    Value: !GetAtt OnboardingUpdateTenant.Arn
   OnboardingUpdateAppConfigArn:
     Description: Onboarding Service update application config Lambda ARN
     Value: !GetAtt OnboardingUpdateAppConfig.Arn
