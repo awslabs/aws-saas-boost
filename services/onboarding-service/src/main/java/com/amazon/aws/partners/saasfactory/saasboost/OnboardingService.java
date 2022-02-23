@@ -612,6 +612,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxDailyBackupTime = "";
             String fsxWeeklyMaintenanceTime = "";
             String fsxWindowsMountDrive = "";
+            String fsxUseOntap = "";
 
 
             if (null != fileSystemType && !fileSystemType.isEmpty()) {
@@ -668,6 +669,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
                     fsxWindowsMountDrive = settings.get("FSX_WINDOWS_MOUNT_DRIVE");
                     //Note:  Do not want to override the FSX_WINDOWS_MOUNT_DRIVE as that should be same for all tenants
+
+                    fsxUseOntap = settings.get("FSX_USE_ONTAP");
 
                 } else { //this is for EFS file system
                     enableEfs = true;
@@ -801,6 +804,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
+            templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").parameterValue(fsxUseOntap).build());
             // <<-
             templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
@@ -1214,6 +1218,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
+            templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").usePreviousValue(Boolean.TRUE).build());
 
             if (taskMemory != null) {
                 LOGGER.info("Overriding previous template parameter TaskMemory to {}", taskMemory);

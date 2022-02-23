@@ -72,7 +72,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "FSX_BACKUP_RETENTION_DAYS", // 7 to 35
                     "FSX_DAILY_BACKUP_TIME", //HH:MM in UTC
                     "FSX_WEEKLY_MAINTENANCE_TIME",//d:HH:MM in UTC
-                    "FSX_WINDOWS_MOUNT_DRIVE")
+                    "FSX_WINDOWS_MOUNT_DRIVE",
+                    "FSX_USE_ONTAP")
     );
     final static List<String> TENANT_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DB_HOST", "ALB")
