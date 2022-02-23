@@ -199,6 +199,11 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: false
     Type: String
+  OntapVolumeSize:
+    Default: 40
+    Description: Specify the volume size for ONTAP FSx. Valid values are 0 - 2147483647.
+      Consider choosing a higher value for better performance.
+    Type: Number
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
@@ -1370,6 +1375,7 @@ Resources:
         ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS:1}}'
         SubnetRouteTableId: !GetAtt TenantRouteTablePrivate.RouteTableId
         UseOntap: !Ref FsxUseOntap
+        OntapVolumeSize: !Ref OntapVolumeSize
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS

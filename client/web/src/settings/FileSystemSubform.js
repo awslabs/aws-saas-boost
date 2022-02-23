@@ -120,12 +120,21 @@ const FsxFilesystemOptions = (props) => {
     2048: '2048',
   };
 
+  const volMarks = {
+    0: '0',
+    2147483647: '2147483647',
+  };
+
   const onStorageChange = (val) => {
     props.formik.setFieldValue('filesystem.fsx.storageGb', val);
   };
 
   const onThroughputChange = (val) => {
     props.formik.setFieldValue('filesystem.fsx.throughputMbs', val);
+  };
+  
+  const onOntapVolumeChange = (val) => {
+    props.formik.setFieldValue('filesystem.fsx.ontapVolumeSize', val);
   };
 
   const onWeeklyMaintTimeChange = (val) => {
@@ -301,6 +310,36 @@ const FsxFilesystemOptions = (props) => {
               </SaasBoostSelect>
             </Col>
           </Row>
+          <Row>
+            <Col xs={3}>
+              <FormGroup>
+                <Label htmlFor="ontapVolumeSizeval">ONTAP Volume Size</Label>
+                <Input
+                  id="ontapVolumeSizeval"
+                  className="mb-4"
+                  type="number"
+                  value={props.values?.fsx.ontapVolumeSize}
+                  readOnly
+                ></Input>
+              </FormGroup>
+            </Col>
+            <Col xs={9}>
+              <FormGroup>
+                <Label htmlFor="ontapVolumeSize">In MB/s</Label>
+                <Slider
+                  id="ontapVolumeSize"
+                  defaultValue={props.values?.fsx.ontapVolumeSize}
+                  onChange={onOntapVolumeChange}
+                  marks={volMarks}
+                  className="mb-4"
+                  included={false}
+                  min={0}
+                  max={2147483647}
+                  step={1024}
+                />
+              </FormGroup>
+            </Col>
+          </Row> 
         </Col>
       </Row>
     )

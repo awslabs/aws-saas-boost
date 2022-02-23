@@ -38,13 +38,14 @@ Metadata:
           default: FSx for ONTAP configuration
         Parameters:
           - SubnetRouteTableId
-          - ActiveDirectoryDnsIps
+          - TenantId
+          - OntapVolumeSize
           - UseOntap
       - Label:
           default: AWS Managed Microsoft AD settings for Amazon FSx
         Parameters:
           - ActiveDirectoryId
-          - TenantId
+          - ActiveDirectoryDnsIps
     ParameterLabels:
       ActiveDirectoryId:
         default: AWS Managed Microsoft AD Id
@@ -68,6 +69,8 @@ Metadata:
         default: Storage size
       ThroughputCapacity:
         default: Throughput capacity of Amazon FSx file system
+      OntapVolumeSize:
+        default: Volume size for ONTAP FSx
       FSxAllowedCIDR:
         default: CIDR range allowed to connect to Amazon FSx file system
       VPCID:
@@ -134,6 +137,11 @@ Parameters:
   ThroughputCapacity:
     Default: 8
     Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
+      Consider choosing a higher value for better performance.
+    Type: Number
+  OntapVolumeSize:
+    Default: 40
+    Description: Specify the volume size for ONTAP FSx. Valid values are 0 - 2147483647.
       Consider choosing a higher value for better performance.
     Type: Number
   FSxAllowedCIDR:
@@ -527,7 +535,7 @@ Resources:
           - !Ref 'FSxExistingKeyID'
           - !Ref 'FSxKMSKey'
         - !Ref 'AWS::NoValue'
-      StorageCapacity: 1024
+      StorageCapacity: !Ref 'StorageCapacity'
       SecurityGroupIds:
         - !Ref 'FSxSecurityGroup'
       Tags:
@@ -541,7 +549,10 @@ Resources:
         PreferredSubnetId: !Ref PrivateSubnet1ID
         RouteTableIds:
           - !Ref SubnetRouteTableId
-        ThroughputCapacity: 512
+        ThroughputCapacity: !Ref 'ThroughputCapacity'
+        AutomaticBackupRetentionDays: !Ref 'BackupRetention'
+        DailyAutomaticBackupStartTime: !Ref 'DailyBackupTime'
+        WeeklyMaintenanceStartTime: !Ref 'WeeklyMaintenanceTime'
   ONTAPFileSystemSVM:
     Type: AWS::FSx::StorageVirtualMachine
     Condition: UseOntap
@@ -568,7 +579,7 @@ Resources:
       OntapConfiguration:
         JunctionPath: /vol1
         SecurityStyle: NTFS
-        SizeInMegabytes: 40
+        SizeInMegabytes: !Ref OntapVolumeSize
         StorageEfficiencyEnabled: false
         StorageVirtualMachineId: !Ref ONTAPFileSystemSVM
       VolumeType: ONTAP

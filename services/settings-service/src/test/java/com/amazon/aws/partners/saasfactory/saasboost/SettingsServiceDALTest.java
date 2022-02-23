@@ -479,6 +479,7 @@ public class SettingsServiceDALTest {
         appSettings.put("FSX_THROUGHPUT_MBS", "500");
         appSettings.put("FSX_WEEKLY_MAINTENANCE_TIME", "07:01:00");
         appSettings.put("FSX_WINDOWS_MOUNT_DRIVE", "Z:");
+        appSettings.put("FSX_ONTAP_VOLUME_SIZE_MBS", "40");
 
         AppConfig expected = AppConfig.builder()
                 .name(appSettings.get("APP_NAME"))
@@ -505,6 +506,7 @@ public class SettingsServiceDALTest {
                                 .dailyBackupTime("01:00")
                                 .throughputMbs(500)
                                 .weeklyMaintenanceTime("07:01:00")
+                                .ontapVolumeSize(40)
                                 .build()
                         )
                         .build()
