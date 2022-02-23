@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 public class ServiceTierConfig {
     private final Integer min;
     private final Integer max;
+    private final ComputeSize computeSize;
     private final Integer cpu;
     private final Integer memory;
     private final String instanceType;
@@ -32,6 +33,7 @@ public class ServiceTierConfig {
     private ServiceTierConfig(Builder builder) {
         this.min = builder.min;
         this.max = builder.max;
+        this.computeSize = builder.computeSize;
         this.cpu = builder.cpu;
         this.memory = builder.memory;
         this.instanceType = builder.instanceType;
@@ -51,15 +53,28 @@ public class ServiceTierConfig {
         return max;
     }
 
+    public ComputeSize getComputeSize() {
+        return computeSize;
+    }
+
     public Integer getCpu() {
+        if (getComputeSize() != null) {
+            return getComputeSize().getCpu();
+        }
         return cpu;
     }
 
     public Integer getMemory() {
+        if (getComputeSize() != null) {
+            return getComputeSize().getMemory();
+        }
         return memory;
     }
 
     public String getInstanceType() {
+        if (getComputeSize() != null) {
+            return getComputeSize().getInstanceType();
+        }
         return instanceType;
     }
 
@@ -79,6 +94,7 @@ public class ServiceTierConfig {
     public static final class Builder {
         private Integer min;
         private Integer max;
+        private ComputeSize computeSize;
         private Integer cpu;
         private Integer memory;
         private String instanceType;
@@ -95,6 +111,22 @@ public class ServiceTierConfig {
 
         public Builder max(String max) {
             this.max = max != null && !max.isEmpty() ? Integer.valueOf(max) : null;
+            return this;
+        }
+
+        public Builder computeSize(String computeSize) {
+            if (computeSize != null && !computeSize.isEmpty()) {
+                try {
+                    this.computeSize = ComputeSize.valueOf(computeSize);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Can't find ComputeSize for value " + computeSize);
+                }
+            }
+            return this;
+        }
+
+        public Builder computeSize(ComputeSize computeSize) {
+            this.computeSize = computeSize;
             return this;
         }
 
@@ -134,6 +166,7 @@ public class ServiceTierConfig {
         }
 
         public ServiceTierConfig build() {
+            // TODO do validation on cpu/memory/computeSize
             return new ServiceTierConfig(this);
         }
     }

@@ -17,11 +17,11 @@
 import React from 'react'
 import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
 import { Field } from 'formik'
-import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
+import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
 import { PropTypes } from 'prop-types'
 
-const ContainerSettingsSubform = (props) => {
-  const { osOptions, isLocked } = props
+const ServiceSettingsSubform = (props) => {
+  const { osOptions, isLocked, serviceIndex } = props
   const getWinServerOptions = () => {
     if (!osOptions) {
       return null
@@ -52,14 +52,14 @@ const ContainerSettingsSubform = (props) => {
 
   // Normally we'd let formik handle this, but we also need to change the fylesystem type
   // based on the container OS
-  const onOperatingSystemChange = (val) => {
+  const onOperatingSystemChange = (val, serviceName) => {
     const os = val?.target?.value
-    props.formik.setFieldValue('operatingSystem', os)
+    props.formik.setFieldValue(serviceName + '.operatingSystem', os)
     if (os === 'WINDOWS') {
-      props.formik.setFieldValue('filesystem.fileSystemType', 'FSX')
+      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'FSX')
     }
     if (os === 'LINUX') {
-      props.formik.setFieldValue('filesystem.fileSystemType', 'EFS')
+      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'EFS')
     }
   }
 
@@ -68,39 +68,42 @@ const ContainerSettingsSubform = (props) => {
       <Row>
         <Col xs={12}>
           <Card>
-            <CardHeader>Container Settings</CardHeader>
+            <CardHeader>Service Settings</CardHeader>
             <CardBody>
               <Row>
                 <Col xs={6}>
-                  <SaasBoostSelect
-                    type="select"
-                    name="computeSize"
-                    id="computeSize"
-                    label="Compute Size"
-                  >
-                    <option value="">Select One...</option>
-                    <option value="S">Small</option>
-                    <option value="M">Medium</option>
-                    <option value="L">Large</option>
-                    <option value="XL">X-Large</option>
-                  </SaasBoostSelect>
                   <Row>
                     <Col>
                       <SaasBoostInput
-                        key="minCount"
-                        label="Minimum Instance Count"
-                        name="minCount"
-                        type="number"
+                        key={"services[" + serviceIndex + "].name"}
+                        label="Service Name"
+                        name={"services[" + serviceIndex + "].name"}
+                        type="text"
                       />
                     </Col>
                     <Col>
-                      <SaasBoostInput
-                        key="maxCount"
-                        label="Maximum Instance Count"
-                        name="maxCount"
-                        type="number"
+                      <SaasBoostCheckbox
+                        name={"services[" + serviceIndex + "].public"}
+                        id={"services[" + serviceIndex + "].public"}
+                        label="Publicly accessible?"
                       />
                     </Col>
+                  </Row>
+                  <Row>
+                    <SaasBoostInput
+                      key={"services[" + serviceIndex + "].path"}
+                      label="Service Addressable Path"
+                      name={"services[" + serviceIndex + "].path"}
+                      type="text"
+                    />
+                  </Row>
+                  <Row>
+                    <SaasBoostTextarea
+                      key={"services[" + serviceIndex + "].description"}
+                      label="Description"
+                      name={"services[" + serviceIndex + "].description"}
+                      type="text"
+                    />
                   </Row>
                   <FormGroup>
                     <div className="mb-2">Container OS</div>
@@ -109,8 +112,8 @@ const ContainerSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id="inline-radio1"
-                        onChange={onOperatingSystemChange}
-                        name="operatingSystem"
+                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+                        name={"services[" + serviceIndex + "].operatingSystem"}
                         value="LINUX"
                         disabled={isLocked}
                       />
@@ -123,8 +126,8 @@ const ContainerSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id="inline-radio2"
-                        onChange={onOperatingSystemChange}
-                        name="operatingSystem"
+                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+                        name={"services[" + serviceIndex + "].operatingSystem"}
                         value="WINDOWS"
                         disabled={isLocked}
                       />
@@ -146,18 +149,29 @@ const ContainerSettingsSubform = (props) => {
                 </Col>
                 <Col xs={6}>
                   <SaasBoostInput
-                    key="containerPort"
+                    key={"services[" + serviceIndex + "].containerRepo"}
+                    label="Container Repo"
+                    name={"services[" + serviceIndex + "].containerRepo"}
+                    type="text"
+                    disabled={true}
+                  />
+                  <SaasBoostInput
+                    key={"services[" + serviceIndex + "].containerTag"}
+                    label="Container Tag"
+                    name={"services[" + serviceIndex + "].containerTag"}
+                    type="text"
+                  />
+                  <SaasBoostInput
+                    key={"services[" + serviceIndex + "].containerPort"}
                     label="Container Port"
-                    name="containerPort"
+                    name={"services[" + serviceIndex + "].containerPort"}
                     type="number"
-                    id="containerPort"
-                    tooltip="The port on which the container listens"
                     disabled={isLocked}
                   />
                   <SaasBoostInput
-                    key="healthCheckURL"
+                    key={"services[" + serviceIndex + "].healthCheckUrl"}
                     label="Health Check URL"
-                    name="healthCheckURL"
+                    name={"services[" + serviceIndex + "].healthCheckUrl"}
                     type="text"
                     description="Must be relative to root (eg. '/health.html')"
                     disabled={isLocked}
@@ -172,10 +186,11 @@ const ContainerSettingsSubform = (props) => {
   )
 }
 
-ContainerSettingsSubform.propTypes = {
+ServiceSettingsSubform.propTypes = {
   osOptions: PropTypes.object,
   isLocked: PropTypes.bool,
   formik: PropTypes.object,
+  serviceIndex: PropTypes.number,
 }
 
-export default ContainerSettingsSubform
+export default ServiceSettingsSubform
