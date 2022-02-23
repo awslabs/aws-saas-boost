@@ -37,8 +37,8 @@
         <!-- aws-lambda-java-log4j2 and log4j versions should be upgraded in tandem -->
         <aws-lambda-java-log4j2.version>1.5.1</aws-lambda-java-log4j2.version>
         <aws-lambda-java-core.version>1.2.1</aws-lambda-java-core.version>
-        <aws-lambda-java-events.version>3.1.0</aws-lambda-java-events.version>
-        <aws.java.sdk.version>2.17.105</aws.java.sdk.version>
+        <aws-lambda-java-events.version>3.11.0</aws-lambda-java-events.version>
+        <aws.java.sdk.version>2.17.132</aws.java.sdk.version>
         <log4j.version>2.17.1</log4j.version>
         <junit.version>4.13.2</junit.version>
         <slf4j.version>1.7.32</slf4j.version>
