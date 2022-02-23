@@ -194,6 +194,11 @@ Parameters:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
     Default: 'G:'
     Type: String
+  FsxUseOntap:
+    Description: Specify whether to use FSX ONTAP as storage for windows container or not
+    AllowedValues: ['true', 'false']
+    Default: false
+    Type: String
   SSLCertArnParam:
     Description: The Parameter Store string parameter and version containing the certficate ARN to use
     Type: String
@@ -223,7 +228,7 @@ Conditions:
     - Condition: WindowsOS
   IsWin2019Full: !Equals [WIN2019FULL, !Ref DockerHostOS]
   IsWin2019Core: !Equals [WIN2019CORE, !Ref DockerHostOS]
-  IsWin1909Core: !Equals [WIN1909CORE, !Ref DockerHostOS]
+  IsWin1909Core: !Equals [WIN1909CORE, !Ref DockerHostOS] 
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -590,8 +595,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
+                  - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:volume/*
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -981,7 +991,7 @@ Resources:
                     - !Ref WIN2016FULL
       InstanceType: !Ref DockerHostInstanceType
       IamInstanceProfile: !Ref ECSInstanceProfile
-      #KeyName: !Ref 'AWS::NoValue'
+      KeyName: 'testing'
       AssociatePublicIpAddress: false
       SecurityGroups:
         - !Ref ECSSecurityGroup
@@ -1037,8 +1047,12 @@ Resources:
 
                 Write-Output ("Getting FSx File Server domain name")
                 $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
-                $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
-
+                If ('${FsxUseOntap}' -eq 'true')  {
+                  $fileserverpath = "\\{0}\C$" -f "$fileserverDnsName"
+                }
+                Else {
+                  $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
+                }
                 # Map the share to local drive letter
                 Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
                 New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
@@ -1353,6 +1367,9 @@ Resources:
         StorageCapacity: !Ref FSxStorageCapacity
         ThroughputCapacity: !Ref FSxThroughputCapacity
         FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
+        ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS:1}}'
+        SubnetRouteTableId: !GetAtt TenantRouteTablePrivate.RouteTableId
+        UseOntap: !Ref FsxUseOntap
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS

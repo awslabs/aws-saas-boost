@@ -288,6 +288,19 @@ const FsxFilesystemOptions = (props) => {
               />
             </Col>
           </Row>
+          <Row>
+            <Col xs={6}>
+              <SaasBoostSelect
+                id="filesystem.fsx.useOntap"
+                label="Use FSX ONTAP?"
+                name="filesystem.fsx.useOntap"
+                value={props.values?.fsx.useOntap}
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </SaasBoostSelect>
+            </Col>
+          </Row>
         </Col>
       </Row>
     )

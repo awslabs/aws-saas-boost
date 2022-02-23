@@ -35,6 +35,12 @@ Metadata:
           - FSxExistingKeyID
           - WeeklyMaintenanceTime
       - Label:
+          default: FSx for ONTAP configuration
+        Parameters:
+          - SubnetRouteTableId
+          - ActiveDirectoryDnsIps
+          - UseOntap
+      - Label:
           default: AWS Managed Microsoft AD settings for Amazon FSx
         Parameters:
           - ActiveDirectoryId
@@ -42,6 +48,8 @@ Metadata:
     ParameterLabels:
       ActiveDirectoryId:
         default: AWS Managed Microsoft AD Id
+      ActiveDirectoryDnsIps:
+        default: DNS IPs of AD
       TenantId:
         default: Id of the SaaS Boost Tenant
       BackupRetention:
@@ -66,9 +74,16 @@ Metadata:
         default: VPC Id
       WeeklyMaintenanceTime:
         default: Weekly maintenance start time
+      SubnetRouteTableId:
+        default: Subnet Route Table ID
+      UseOntap:
+        default: Boolean for FSx ONTAP
 Parameters:
   ActiveDirectoryId:
     Description: Enter the Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
+    Type: String
+  ActiveDirectoryDnsIps:
+    Description: DNS IPs of AD
     Type: String
   Environment:
     Description: Environment (test, uat, prod, etc.)
@@ -133,6 +148,12 @@ Parameters:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
      Default: '7:02:00'
      Type: String
+  SubnetRouteTableId:
+    Description: Subnet Route Table ID
+    Type: String
+  UseOntap:
+    Description: Boolean for FSx ONTAP
+    Type: String
 Conditions:
   UseAWSDirectoryService: !Not
     - !Equals
@@ -148,6 +169,13 @@ Conditions:
     - !Equals
       - 'Default'
       - !Ref 'FSxEncryptionKey'
+  UseOntap: !Equals
+      - 'true'
+      - !Ref 'UseOntap'
+  UseWindows: !Not
+    - !Equals
+      - 'true'
+      - !Ref 'UseOntap'
 Resources:
   FSxKMSKey:
     Condition: CreateKey
@@ -277,6 +305,7 @@ Resources:
           CidrIp: !Ref FSxAllowedCIDR
   WindowsFSx:
     Type: AWS::FSx::FileSystem
+    Condition: UseWindows
     Properties:
       #Name: tenantid-windows-fsx
       FileSystemType: WINDOWS
@@ -311,10 +340,10 @@ Resources:
           DeploymentType: MULTI_AZ_1
           PreferredSubnetId: !Ref 'PrivateSubnet1ID'
           ThroughputCapacity: !Ref 'ThroughputCapacity'
-
 # need to get the DNSName for FSX for output
   FsxDnsNameRole:
     Type: AWS::IAM::Role
+    Condition: UseWindows
     Properties:
       RoleName:
         Fn::Join:
@@ -372,6 +401,7 @@ Resources:
       RetentionInDays: 30
   FsxDnsNameFunction:
     Type: AWS::Lambda::Function
+    Condition: UseWindows
     DependsOn:
       - FsxDnsNameLogs
     Properties:
@@ -397,24 +427,240 @@ Resources:
           Value: !Ref TenantId
   InvokeGetFsxDnsName:
     Type: Custom::CustomResource
+    Condition: UseWindows
     Properties:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref WindowsFSx
-
   SSMParamFilesystem:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
       Type: String
-      Value: !GetAtt InvokeGetFsxDnsName.DnsName
-
+      Value: !If [UseOntap, !Sub "${CustomFSXResource.SVMDNSName}", !GetAtt InvokeGetFsxDnsName.DnsName]
+  LambdaBasicExecutionRoleAD:
+    Type: AWS::IAM::Role
+    Condition: UseOntap
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: CustomLambdaEC2DescribePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - ssm:*
+                Resource: '*'
+  CustomADResource:
+    Type: AWS::CloudFormation::CustomResource
+    Condition: UseOntap
+    Properties:
+      ServiceToken: !GetAtt 'CustomFunctionAD.Arn'
+      ResourceRef: !Sub '/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD'
+  CustomFunctionAD:
+    Type: AWS::Lambda::Function
+    Condition: UseOntap
+    Properties:
+      Handler: index.lambda_handler
+      Description: "Retrieves AD Password Parameter"
+      Timeout: 30
+      Role: !GetAtt 'LambdaBasicExecutionRoleAD.Arn'
+      Runtime: python3.7
+      Code:
+        ZipFile: |
+          import json
+          import logging
+          import cfnresponse
+          import boto3
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          def lambda_handler(event, context):
+            logger.info('got event {}'.format(event))
+            try:
+              responseData = {}
+              if event['RequestType'] == 'Delete':
+                logger.info('Incoming RequestType: Delete operation')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              if event['RequestType'] in ["Create", "Update"]:
+                # 1. retrieve resource reference ID or Name
+                ResourceRef=event['ResourceProperties']['ResourceRef']
+                # 2. retrieve boto3 client
+                client = boto3.client('ssm')
+                # 3. Invoke describe/retrieve function using ResourceRef
+                response = client.get_parameter(Name=ResourceRef, WithDecryption=True)
+                # 4. Parse and return required attributes
+                responseData = {}
+                responseData['Password']= response.get('Parameter').get('Value')
+                logger.info('Retrieved AD Password!')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              else:
+                logger.info('Unexpected RequestType!')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+            except Exception as err:
+              logger.error(err)
+              responseData = {"Data": str(err)}
+              cfnresponse.send(event,context,cfnresponse.FAILED,responseData)
+            return
+  ONTAPFileSystem:
+    Type: AWS::FSx::FileSystem
+    Condition: UseOntap
+    Properties:
+      FileSystemType: "ONTAP"
+      KmsKeyId: !If
+        - UseNonDefault
+        - !If
+          - HasKey
+          - !Ref 'FSxExistingKeyID'
+          - !Ref 'FSxKMSKey'
+        - !Ref 'AWS::NoValue'
+      StorageCapacity: 1024
+      SecurityGroupIds:
+        - !Ref 'FSxSecurityGroup'
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+      SubnetIds:
+        - !Ref PrivateSubnet1ID
+        - !Ref PrivateSubnet2ID
+      OntapConfiguration:
+        DeploymentType: "MULTI_AZ_1"
+        PreferredSubnetId: !Ref PrivateSubnet1ID
+        RouteTableIds:
+          - !Ref SubnetRouteTableId
+        ThroughputCapacity: 512
+  ONTAPFileSystemSVM:
+    Type: AWS::FSx::StorageVirtualMachine
+    Condition: UseOntap
+    Properties:
+      FileSystemId: !Ref ONTAPFileSystem
+      Name:
+        Fn::Join: ['', ['svm-', !Select [0, !Split ['-', !Ref TenantId]]]]
+      RootVolumeSecurityStyle: "NTFS"
+      ActiveDirectoryConfiguration:
+        NetBiosName:
+          Fn::Join: ['', ['svm-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        SelfManagedActiveDirectoryConfiguration:
+          DnsIps: !Split ["," , !Ref ActiveDirectoryDnsIps]
+          DomainName: !Sub '${Environment}.${AWS::Region}.saasboost.com'
+          FileSystemAdministratorsGroup: "AWS Delegated FSx Administrators"
+          OrganizationalUnitDistinguishedName: !Sub 'OU=Computers,OU=sb-${Environment},DC=${Environment},DC=${AWS::Region},DC=saasboost,DC=com'
+          Password: !Sub "${CustomADResource.Password}"
+          #Password: C8dwo675!3O*15%i1f5
+          UserName: admin
+  ONTAPVolume:
+    Type: AWS::FSx::Volume
+    Condition: UseOntap
+    Properties:
+      Name: vol1
+      OntapConfiguration:
+        JunctionPath: /vol1
+        SecurityStyle: NTFS
+        SizeInMegabytes: 40
+        StorageEfficiencyEnabled: false
+        StorageVirtualMachineId: !Ref ONTAPFileSystemSVM
+      VolumeType: ONTAP
+  LambdaBasicExecutionRoleOntap:
+    Type: AWS::IAM::Role
+    Condition: UseOntap
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: CustomLambdaEC2DescribePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                Resource: '*'
+  CustomFSXResource:
+    Type: AWS::CloudFormation::CustomResource
+    Condition: UseOntap
+    Properties:
+      ServiceToken: !GetAtt 'CustomFunction.Arn'
+      ResourceRef1: !Ref 'ONTAPFileSystemSVM'
+      ResourceRef2: !Ref 'ONTAPFileSystem'
+  CustomFunction:
+    Type: AWS::Lambda::Function
+    Condition: UseOntap
+    Properties:
+      Handler: index.lambda_handler
+      Description: "Retrieves ONTAP FSx DNS name"
+      Timeout: 30
+      Role: !GetAtt 'LambdaBasicExecutionRoleOntap.Arn'
+      Runtime: python3.7
+      Code:
+        ZipFile: |
+          import json
+          import logging
+          import cfnresponse
+          import boto3
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          def lambda_handler(event, context):
+            logger.info('got event {}'.format(event))
+            try:
+              responseData = {}
+              if event['RequestType'] == 'Delete':
+                logger.info('Incoming RequestType: Delete operation')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              if event['RequestType'] in ["Create", "Update"]:
+                # 1. retrieve resource reference ID or Name
+                ResourceRef1=event['ResourceProperties']['ResourceRef1']
+                ResourceRef2=event['ResourceProperties']['ResourceRef2']
+                # 2. retrieve boto3 client
+                client = boto3.client('fsx')
+                # 3. Invoke describe/retrieve function using ResourceRef
+                response = client.describe_storage_virtual_machines(StorageVirtualMachineIds=[ResourceRef1], Filters=[{'Name': 'file-system-id','Values': [ResourceRef2,]},])
+                # 4. Parse and return required attributes
+                responseData = {}
+                responseData['SVMName']= response.get('StorageVirtualMachines')[0].get('Name')
+                logger.info('Retrieved SVMName!')
+                responseData['SVMDNSName']= response.get('StorageVirtualMachines')[0].get('Endpoints').get('Smb').get('DNSName')
+                logger.info('Retrieved SVMDNSName!')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              else:
+                logger.info('Unexpected RequestType!')
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+            except Exception as err:
+              logger.error(err)
+              responseData = {"Data": str(err)}
+              cfnresponse.send(event,context,cfnresponse.FAILED,responseData)
+            return
 Outputs:
   FSxFileSystemID:
     Description: File System ID for FSx for Windows File Server
-    Value: !Ref WindowsFSx
+    Value: !If [UseOntap, !Ref ONTAPFileSystem, !Ref WindowsFSx]
   WindowsFSxSGID:
     Value: !Ref FSxSecurityGroup
     Description: FSx for Windows File Server Security Group ID
   WindowsFSxDnsName:
-    Value: !GetAtt InvokeGetFsxDnsName.DnsName
+    Value: !If [UseOntap, !Sub "${CustomFSXResource.SVMDNSName}", !GetAtt InvokeGetFsxDnsName.DnsName]
     Description: FSx for Windows File Server DNS Name

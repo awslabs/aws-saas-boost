@@ -533,6 +533,7 @@ public class SettingsServiceDAL {
                         .throughputMbs(Integer.valueOf(appSettings.get("FSX_THROUGHPUT_MBS")))
                         .weeklyMaintenanceTime(appSettings.get("FSX_WEEKLY_MAINTENANCE_TIME"))
                         .windowsMountDrive(appSettings.get("FSX_WINDOWS_MOUNT_DRIVE"))
+                        .useOntap(appSettings.get("FSX_USE_ONTAP"))
                         .build();
             }
             filesystem = SharedFilesystem.builder()
@@ -752,6 +753,7 @@ public class SettingsServiceDAL {
                 settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(filesystem.getFsx().getDailyBackupTime()).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(filesystem.getFsx().getWeeklyMaintenanceTime()).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(filesystem.getFsx().getWindowsMountDrive()).readOnly(false).build());
+                settings.add(Setting.builder().name("FSX_USE_ONTAP").value(filesystem.getFsx().getUseOntap()).readOnly(false).build());
             } else {
                 // Remove these settings in case we're updating
                 settings.add(Setting.builder().name("FSX_STORAGE_GB").value(null).readOnly(false).build());
@@ -760,6 +762,7 @@ public class SettingsServiceDAL {
                 settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(null).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
+                settings.add(Setting.builder().name("FSX_USE_ONTAP").value(null).readOnly(false).build());
             }
         } else {
             // Remove these settings in case we're updating
@@ -775,6 +778,7 @@ public class SettingsServiceDAL {
             settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(null).readOnly(false).build());
             settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
             settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
+            settings.add(Setting.builder().name("FSX_USE_ONTAP").value(null).readOnly(false).build());
         }
 
         Database database = appConfig.getDatabase();

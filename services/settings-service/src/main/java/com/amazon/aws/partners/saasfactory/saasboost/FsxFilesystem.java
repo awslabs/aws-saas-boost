@@ -28,7 +28,8 @@ import java.util.Objects;
 //        "backupRetentionDays",
 //        "dailyBackupTime",
 //        "weeklyMaintenanceTime",
-//        "windowsMountDrive"
+//        "windowsMountDrive",
+//        "useOntap"
 //})
 @JsonDeserialize(builder = FsxFilesystem.Builder.class)
 public class FsxFilesystem {
@@ -39,6 +40,7 @@ public class FsxFilesystem {
     private String dailyBackupTime;
     private String weeklyMaintenanceTime;
     private String windowsMountDrive;
+    private String useOntap;
 
     private FsxFilesystem(Builder builder) {
         this.storageGb = builder.storageGb;
@@ -47,6 +49,7 @@ public class FsxFilesystem {
         this.dailyBackupTime = builder.dailyBackupTime;
         this.weeklyMaintenanceTime = builder.weeklyMaintenanceTime;
         this.windowsMountDrive = builder.windowsMountDrive;
+        this.useOntap = builder.useOntap;
     }
 
     public static FsxFilesystem.Builder builder() {
@@ -77,6 +80,10 @@ public class FsxFilesystem {
         return windowsMountDrive;
     }
 
+    public String getUseOntap() {
+        return useOntap;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -98,12 +105,13 @@ public class FsxFilesystem {
                 && ((dailyBackupTime == null && other.dailyBackupTime == null) || (dailyBackupTime != null && dailyBackupTime.equals(other.dailyBackupTime)))
                 && ((weeklyMaintenanceTime == null && other.weeklyMaintenanceTime == null) || (weeklyMaintenanceTime != null && weeklyMaintenanceTime.equals(other.weeklyMaintenanceTime)))
                 && ((windowsMountDrive == null && other.windowsMountDrive == null) || (windowsMountDrive != null && windowsMountDrive.equals(other.windowsMountDrive)))
+                && ((useOntap == null && other.useOntap == null) || (useOntap != null && useOntap.equals(other.useOntap)))
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storageGb, throughputMbs, backupRetentionDays, dailyBackupTime, weeklyMaintenanceTime, windowsMountDrive);
+        return Objects.hash(storageGb, throughputMbs, backupRetentionDays, dailyBackupTime, weeklyMaintenanceTime, windowsMountDrive, useOntap);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -114,6 +122,7 @@ public class FsxFilesystem {
         private String dailyBackupTime;
         private String weeklyMaintenanceTime;
         private String windowsMountDrive;
+        private String useOntap;
 
         private Builder() {
         }
@@ -145,6 +154,11 @@ public class FsxFilesystem {
 
         public Builder weeklyMaintenanceTime(String weeklyMaintenanceTime) {
             this.weeklyMaintenanceTime = weeklyMaintenanceTime;
+            return this;
+        }
+
+        public Builder useOntap(String useOntap) {
+            this.useOntap = useOntap;
             return this;
         }
 

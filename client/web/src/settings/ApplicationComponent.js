@@ -99,6 +99,7 @@ export function ApplicationComponent(props) {
         weeklyMaintenanceTime: '07:01:00',
         weeklyMaintenanceDay: '1',
         windowsMountDrive: 'G:',
+        useOntap: 'false',
       };
     }
     const [day, time] = getParts(fsx.weeklyMaintenanceTime);
@@ -207,6 +208,7 @@ export function ApplicationComponent(props) {
             dailyBackupTime: Yup.string().required('Daily backup time is required'),
             weeklyMaintenanceTime: Yup.string().required('Weekly maintenance time is required'),
             windowsMountDrive: Yup.string().required('Windows mount drive is required'),
+            useOntap: Yup.string().required('Value is required'),
           }),
           otherwise: Yup.object().nullable(),
         }),

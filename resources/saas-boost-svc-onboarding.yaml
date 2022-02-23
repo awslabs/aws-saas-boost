@@ -323,6 +323,8 @@ Resources:
                   - ec2:Describe*
                   - ec2:CreateNetworkInterface
                   - ecs:CreateCapacityProvider
+                  - iam:*
+                  - lambda:*
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -457,6 +459,8 @@ Resources:
                   - elasticfilesystem:CreateFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - application-autoscaling:Describe*
                   - application-autoscaling:RegisterScalableTarget
                   - application-autoscaling:PutScalingPolicy
@@ -496,10 +500,14 @@ Resources:
                   - elasticfilesystem:PutFileSystemPolicy
                   - elasticfilesystem:PutLifecycleConfiguration
                   - fsx:CreateFileSystem
+                  - fsx:CreateStorageVirtualMachine
+                  - fsx:CreateVolume
                   - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:volume/*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBClusters
@@ -786,6 +794,8 @@ Resources:
                   - elasticfilesystem:DeleteFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - application-autoscaling:Describe*
                   - application-autoscaling:DeleteScalingPolicy
                   - autoscaling:Describe*
@@ -811,10 +821,17 @@ Resources:
                   - elasticfilesystem:DescribeTags
                   - elasticfilesystem:DeleteFileSystemPolicy
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - fsx:DeleteFileSystem
+                  - fsx:DeleteStorageVirtualMachine
+                  - fsx:DeleteVolume
+                  - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:volume/*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBClusters                  
