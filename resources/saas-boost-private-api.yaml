@@ -409,6 +409,7 @@ Resources:
     Properties:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref RootResourceId
+      PathPart: 'onboarding'
   OnboardingServiceUpdateResource:
     Type: AWS::ApiGateway::Resource
     Properties:

@@ -87,7 +87,7 @@ public class CidrDynamoDB implements RequestHandler<Map<String, Object>, Object>
             f.get(context.getRemainingTimeInMillis() - 1000, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException | InterruptedException | ExecutionException e) {
             // Timed out
-            LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
+            LOGGER.error("FAILED unexpected error or request timed out", e);
             String stackTrace = Utils.getFullStackTrace(e);
             LOGGER.error(stackTrace);
             responseData.put("Reason", stackTrace);

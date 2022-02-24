@@ -52,9 +52,6 @@ Parameters:
   OnboardingServiceById:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Type: String
-  OnboardingServiceUpdateStatus:
-    Description: Onboarding Service update status Lambda ARN
-    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -632,35 +629,6 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceById
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding/{id}
-  OnboardingServiceUpdateStatusMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref OnboardingServiceByIdResource
-      HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      RequestParameters: {method.request.path.id: true}
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceUpdateStatus}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  OnboardingServiceUpdateStatusLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref OnboardingServiceUpdateStatus
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/onboarding/{id}
   OnboardingServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1938,7 +1906,6 @@ Resources:
       - OnboardingServiceStartMethod
       - OnboardingServiceResourceCORS
       - OnboardingServiceByIdMethod
-      - OnboardingServiceUpdateStatusMethod
       - OnboardingServiceByIdResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS

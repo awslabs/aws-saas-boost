@@ -20,10 +20,11 @@ import com.amazonaws.services.lambda.runtime.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,56 +32,58 @@ import java.util.Map;
 public class CloudFormationResponse {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CloudFormationResponse.class);
+    private static final HttpClient http = HttpClient.newBuilder().build();
 
     private CloudFormationResponse() {
     }
 
     public static void send(Map<String, Object> event, Context context, String responseStatus,
                             Map<String, Object> responseData) {
-        Map<String, Object> responseBody = buildResponseBody(event, context, responseStatus, responseData);
+        send(event, context, responseStatus, responseData, false);
+    }
+
+    public static void send(Map<String, Object> event, Context context, String responseStatus,
+                            Map<String, Object> responseData, boolean noEcho) {
+        String responseBody = buildResponseBody(event, context, responseStatus, responseData, noEcho);
         String responseUrl = (String) event.get("ResponseURL");
+        LOGGER.info("curl -H 'Content-Type: \"\"' -X PUT -d '" + responseBody + "' \"" + responseUrl + "\"");
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(responseUrl))
+                .setHeader("Content-Type", "")
+                .PUT(HttpRequest.BodyPublishers.ofString(responseBody, StandardCharsets.UTF_8))
+                .build();
         try {
-            URL url = new URL(responseUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "");
-            connection.setRequestMethod("PUT");
-            try (OutputStreamWriter response = new OutputStreamWriter(connection.getOutputStream(),
-                    StandardCharsets.UTF_8)) {
-                response.write(Utils.toJson(responseBody));
-                int responseCode = connection.getResponseCode();
-                if (responseCode < 200 || responseCode > 299) {
-                    LOGGER.error("Response from CFN S3 signed URL failed {}", responseUrl);
-                    LOGGER.error("Response: {} {}", responseCode, connection.getResponseMessage());
-                }
-            } catch (IOException ioe) {
-                LOGGER.error("Failed to complete HTTP request");
-                LOGGER.error(Utils.getFullStackTrace(ioe));
+            HttpResponse<String> response = http.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (HttpURLConnection.HTTP_OK != response.statusCode()) {
+                LOGGER.error("Response from CFN S3 signed URL failed {} {}", response.statusCode(), response.body());
             }
-            connection.disconnect();
-        } catch (IOException e) {
-            LOGGER.error("Failed to open connection to CFN response URL");
+        } catch (Exception e) {
+            LOGGER.error("Failed to complete HTTP request");
             LOGGER.error(Utils.getFullStackTrace(e));
         }
     }
 
-    protected static Map<String, Object> buildResponseBody(Map<String, Object> event, Context context,
-                                                           String responseStatus, Map<String, Object> responseData) {
+    protected static String buildResponseBody(Map<String, Object> event, Context context, String responseStatus,
+                                              Map<String, Object> responseData, boolean noEcho) {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("Status", responseStatus);
         responseBody.put("RequestId", event.get("RequestId"));
         responseBody.put("LogicalResourceId", event.get("LogicalResourceId"));
         responseBody.put("StackId", event.get("StackId"));
+        responseBody.put("NoEcho", noEcho);
         // If the physical resource id changes between a CREATE and an UPDATE event, CloudFormation will DELETE
         // the previous physical resource. Usually this doesn't matter -- unless you're actually creating something
         // in your custom resource that you don't want deleted.
         responseBody.put("PhysicalResourceId", context.getAwsRequestId());
         if (!"FAILED".equals(responseStatus)) {
-            responseBody.put("Data", responseData);
+            if (responseData != null && !responseData.isEmpty()) {
+                responseBody.put("Data", responseData);
+            }
         } else {
             responseBody.put("Reason", responseData.get("Reason"));
         }
-        LOGGER.info("Response Body: " + Utils.toJson(responseBody));
-        return responseBody;
+        return Utils.toJson(responseBody);
     }
 }
