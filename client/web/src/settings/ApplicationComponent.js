@@ -62,7 +62,7 @@ export function ApplicationComponent(props) {
 
   // TODO we should be using state for this so we can add tiers?
   // TODO better solution is to grab this from a Tiers API
-  const tiers = ['default', 'test']
+  const tiers = ['default']
 
   const getParts = (dateTime) => {
     const parts = dateTime.split(':')
@@ -150,6 +150,8 @@ export function ApplicationComponent(props) {
           ...thisTier,
           filesystem: filesystem,
           database: db,
+          provisionDb: !!thisService.database || false,
+          provisionFS: !!thisService.filesystem || false,
         }
       }
       // public, name, description, path, tiers, containerPort, containerRepo, containerTag, healthCheckUrl, operatingSystem
@@ -163,8 +165,6 @@ export function ApplicationComponent(props) {
         description: thisService.description || '',
         operatingSystem: os,
         tiers: initialTierValues,
-        provisionDb: !!thisService.database || false,
-        provisionFS: !!thisService.filesystem || false,
       })
     }
     return initialServiceValues

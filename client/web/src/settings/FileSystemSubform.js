@@ -43,8 +43,8 @@ export default class FileSystemSubform extends React.Component {
               <CardHeader>File System</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  id={this.props.formikServicePrefix + ".provisionFS"}
-                  name={this.props.formikServicePrefix + ".provisionFS"}
+                  id={this.props.formikTierPrefix + ".provisionFS"}
+                  name={this.props.formikTierPrefix + ".provisionFS"}
                   value={this.props.provisionFs}
                   label="Provision a File System for the application."
                 />

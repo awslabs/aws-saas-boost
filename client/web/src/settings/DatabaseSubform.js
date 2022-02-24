@@ -98,8 +98,8 @@ export default class DatabaseSubform extends React.Component {
               <CardHeader>Database</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  name={this.props.formikServicePrefix + ".provisionDb"}
-                  id={this.props.formikServicePrefix + ".provisionDb"}
+                  name={this.props.formikTierPrefix + ".provisionDb"}
+                  id={this.props.formikTierPrefix + ".provisionDb"}
                   label="Provision a database for the application"
                   value={this.props.provisionDb}
                 />

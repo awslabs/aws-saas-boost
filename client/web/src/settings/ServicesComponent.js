@@ -36,16 +36,16 @@ const ServicesComponent = (props) => {
     tiers
   } = props
 
+  console.log('render ServicesComponent')
+
   // we should default this to the list of services defined in the appConfig, or just default otherwise
   // let's say services here is just a list of names
-  // const [services, setServices] = useState([])
-  // but only after appConfig exists -- the below line sets default, but causes failures on signout bc
-  //   appConfig is undefined (or bc appConfig.services is undefined?)
   const [services, setServices] = useState((!!appConfig && !!appConfig.services) ? Object.keys(appConfig?.services) : [])
 
+  console.log('ServicesComponent services are')
+  console.log(services)
+
   let serviceIndex = services.length
-//  console.log(appConfig.services)
-//  console.log(services)
 
   /*
     <Row><Col xs={12}><Card><Row><Col>???

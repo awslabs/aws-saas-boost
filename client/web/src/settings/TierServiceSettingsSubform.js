@@ -32,7 +32,7 @@ import DatabaseSubform from './DatabaseSubform'
 const TierServiceSettingsSubform = (props) => {
   const { formik, isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
 
-  const [selectedTier, setSelectedTier] = useState('default')
+  const [selectedTier, setSelectedTier] = useState(tiers[0])
 
   // TODO we have a tierNames list we get from the tier service?
   // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
@@ -102,7 +102,6 @@ const TierServiceSettingsSubform = (props) => {
                   <FileSystemSubform
                     isLocked={isLocked}
                     formik={formik}
-                    formikServicePrefix={formikServicePrefix}
                     formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
                     filesystem={serviceValues?.tiers[selectedTier]?.filesystem}
                     provisionFs={serviceValues?.provisionFS}
@@ -112,7 +111,6 @@ const TierServiceSettingsSubform = (props) => {
                   <DatabaseSubform
                     isLocked={isLocked}
                     formik={formik}
-                    formikServicePrefix={formikServicePrefix}
                     formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
                     dbOptions={dbOptions}
                     provisionDb={serviceValues?.provisionDb}
