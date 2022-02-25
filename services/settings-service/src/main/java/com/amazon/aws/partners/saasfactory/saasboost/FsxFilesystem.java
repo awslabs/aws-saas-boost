@@ -88,6 +88,7 @@ public class FsxFilesystem {
     }
 
     public Integer getOntapVolumeSize() {
+        ontapVolumeSize = ontapVolumeSize * 1024; //Converting to MB
         return ontapVolumeSize;
     }
 

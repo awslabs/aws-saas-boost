@@ -100,7 +100,7 @@ export function ApplicationComponent(props) {
         weeklyMaintenanceDay: '1',
         windowsMountDrive: 'G:',
         useOntap: 'false',
-        ontapVolumeSize: '40',
+        ontapVolumeSize: '1',
       };
     }
     const [day, time] = getParts(fsx.weeklyMaintenanceTime);
@@ -212,8 +212,8 @@ export function ApplicationComponent(props) {
             useOntap: Yup.string().required('Value is required'),
             ontapVolumeSize: Yup.number()
               .required()
-              .min(0, 'Throughput minimum is 0 MB')
-              .max(2147483747, 'Throughput maximum is 2147483747 MB'), 
+              .min(1, 'Minimum Volume Size is 1 GB')
+              .max(100, 'Maximum Volume Size is 100 GB'), 
           }),
           otherwise: Yup.object().nullable(),
         }),

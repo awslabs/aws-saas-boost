@@ -199,7 +199,7 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: false
     Type: String
-  OntapVolumeSize:
+  FSxOntapVolumeSize:
     Default: 40
     Description: Specify the volume size for ONTAP FSx. Valid values are 0 - 2147483647.
       Consider choosing a higher value for better performance.
@@ -1375,7 +1375,7 @@ Resources:
         ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS:1}}'
         SubnetRouteTableId: !GetAtt TenantRouteTablePrivate.RouteTableId
         UseOntap: !Ref FsxUseOntap
-        OntapVolumeSize: !Ref OntapVolumeSize
+        OntapVolumeSize: !Ref FSxOntapVolumeSize
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
