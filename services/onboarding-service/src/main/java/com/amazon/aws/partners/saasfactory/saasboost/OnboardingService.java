@@ -613,6 +613,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxWeeklyMaintenanceTime = "";
             String fsxWindowsMountDrive = "";
             String fsxUseOntap = "";
+            String fsxOntapVolumeSize = "0";
 
 
             if (null != fileSystemType && !fileSystemType.isEmpty()) {
@@ -671,6 +672,18 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     //Note:  Do not want to override the FSX_WINDOWS_MOUNT_DRIVE as that should be same for all tenants
 
                     fsxUseOntap = settings.get("FSX_USE_ONTAP");
+
+                    fsxOntapVolumeSize = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"); // MB/s
+                    if (tenant.get("fsxOntapVolumeSize") != null) {
+                        try {
+                            fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString();
+                            LOGGER.info("Override default FSX ONTAP volume size with {}", fsxOntapVolumeSize);
+                        } catch (NumberFormatException nfe) {
+                            LOGGER.error("Can't parse tenant task FSX ONTAP volume size from {}", tenant.get("fsxOntapVolumeSize"));
+                            dal.updateStatus(onboardingId, OnboardingStatus.failed);
+                            LOGGER.error(Utils.getFullStackTrace(nfe));
+                        }
+                    }
 
                 } else { //this is for EFS file system
                     enableEfs = true;
@@ -796,7 +809,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
 
-            //--> for FSX for Windows
+            //--> for FSX for Windows  
             templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
@@ -805,6 +818,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
             templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").parameterValue(fsxUseOntap).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").parameterValue(fsxOntapVolumeSize).build());
             // <<-
             templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
@@ -1219,6 +1233,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").usePreviousValue(Boolean.TRUE).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").usePreviousValue(Boolean.TRUE).build());
 
             if (taskMemory != null) {
                 LOGGER.info("Overriding previous template parameter TaskMemory to {}", taskMemory);

@@ -534,6 +534,7 @@ public class SettingsServiceDAL {
                         .weeklyMaintenanceTime(appSettings.get("FSX_WEEKLY_MAINTENANCE_TIME"))
                         .windowsMountDrive(appSettings.get("FSX_WINDOWS_MOUNT_DRIVE"))
                         .useOntap(appSettings.get("FSX_USE_ONTAP"))
+                        .ontapVolumeSize(Integer.valueOf(appSettings.get("FSX_ONTAP_VOLUME_SIZE_MBS")))
                         .build();
             }
             filesystem = SharedFilesystem.builder()
@@ -754,6 +755,7 @@ public class SettingsServiceDAL {
                 settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(filesystem.getFsx().getWeeklyMaintenanceTime()).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(filesystem.getFsx().getWindowsMountDrive()).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_USE_ONTAP").value(filesystem.getFsx().getUseOntap()).readOnly(false).build());
+                settings.add(Setting.builder().name("FSX_ONTAP_VOLUME_SIZE_MBS").value(filesystem.getFsx().getOntapVolumeSize().toString()).readOnly(false).build());
             } else {
                 // Remove these settings in case we're updating
                 settings.add(Setting.builder().name("FSX_STORAGE_GB").value(null).readOnly(false).build());
@@ -763,6 +765,7 @@ public class SettingsServiceDAL {
                 settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
                 settings.add(Setting.builder().name("FSX_USE_ONTAP").value(null).readOnly(false).build());
+                settings.add(Setting.builder().name("FSX_ONTAP_VOLUME_SIZE_MBS").value(null).readOnly(false).build()); 
             }
         } else {
             // Remove these settings in case we're updating
@@ -779,6 +782,7 @@ public class SettingsServiceDAL {
             settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
             settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
             settings.add(Setting.builder().name("FSX_USE_ONTAP").value(null).readOnly(false).build());
+            settings.add(Setting.builder().name("FSX_ONTAP_VOLUME_SIZE_MBS").value(null).readOnly(false).build()); 
         }
 
         Database database = appConfig.getDatabase();
