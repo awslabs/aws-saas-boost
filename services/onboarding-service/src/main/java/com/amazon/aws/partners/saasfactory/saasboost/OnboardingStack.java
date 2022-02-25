@@ -50,6 +50,10 @@ public class OnboardingStack {
         this.status = status;
     }
 
+    public boolean isComplete() {
+        return "CREATE_COMPLETE".equals(getStatus()) || "UPDATE_COMPLETE".equals(getStatus());
+    }
+
     public String getCloudFormationUrl() {
         String url = null;
         if (arn != null) {

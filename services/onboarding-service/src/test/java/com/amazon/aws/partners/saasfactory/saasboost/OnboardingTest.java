@@ -25,14 +25,28 @@ import static org.junit.Assert.*;
 public class OnboardingTest {
 
     @Test
-    public void testOnboardingRequest() {
-        //String json = "{\"name\": \"Santa Claus\"}";
-        String json = "{\"name\": \"Santa Claus\", \"billingPlan\": \"free\"}";
-        //String json = "{\"name\": \"Santa Claus\", \"tier\": \"default\", \"billingPlan\": \"foobar\"}";
-        OnboardingRequest r = Utils.fromJson(json, OnboardingRequest.class);
-        //System.out.println(Utils.toJson(r));
-    }
+    public void testBaseStacksComplete() {
+        OnboardingStack stack1 = new OnboardingStack();
+        OnboardingStack stack2 = new OnboardingStack();
 
+        Onboarding onboarding = new Onboarding();
+        assertFalse("No stacks", onboarding.baseStacksComplete());
+
+        onboarding.setStacks(Arrays.asList(stack1, stack2));
+        assertFalse("Empty stacks", onboarding.baseStacksComplete());
+
+        stack1.setStatus("CREATE_COMPLETE");
+        stack1.setBaseStack(true);
+
+        stack2.setStatus("UPDATE_COMPLETE");
+        stack2.setBaseStack(false);
+        assertTrue("All base stacks complete", onboarding.baseStacksComplete());
+
+        OnboardingStack stack3 = new OnboardingStack();
+        stack3.setBaseStack(true);
+        onboarding.addStack(stack3);
+        assertFalse("Not every base stack is complete", onboarding.baseStacksComplete());
+    }
 
     @Test
     public void testStacksComplete() {

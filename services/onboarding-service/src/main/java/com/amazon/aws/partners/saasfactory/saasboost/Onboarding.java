@@ -22,8 +22,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-@JsonIgnoreProperties(value = {"cloudFormationUrl"}, allowGetters = true)
 public class Onboarding {
 
     private UUID id;
@@ -108,18 +108,44 @@ public class Onboarding {
         }
     }
 
+    public boolean hasBaseStacks() {
+        return !getStacks()
+                .stream()
+                .filter(OnboardingStack::isBaseStack)
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
     public boolean stacksComplete() {
+        return stacksComplete(false);
+    }
+
+    public boolean baseStacksComplete() {
+        return stacksComplete(true);
+    }
+
+    protected boolean stacksComplete(boolean baseStacks) {
         boolean complete = false;
         if (!getStacks().isEmpty()) {
-            complete = true;
-            for (OnboardingStack s : getStacks()) {
-                if (!"CREATE_COMPLETE".equals(s.getStatus()) && !"UPDATE_COMPLETE".equals(s.getStatus())) {
-                    complete = false;
-                    break;
+            if (baseStacks && !hasBaseStacks()) {
+                // If there are no base stacks, then base stacks can't be complete
+                complete = false;
+            } else {
+                if (baseStacks) {
+                    // All base stacks have to be complete
+                    complete = getStacks().stream()
+                            .filter(stack ->  stack.isBaseStack() && !stack.isComplete())
+                            .collect(Collectors.toList())
+                            .isEmpty();
+                } else {
+                    // All stacks have to be complete
+                    complete = getStacks().stream()
+                            .filter(stack -> !stack.isComplete())
+                            .collect(Collectors.toList())
+                            .isEmpty();
                 }
             }
         }
         return complete;
     }
-
 }

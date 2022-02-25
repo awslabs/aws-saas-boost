@@ -252,18 +252,11 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
 //                    publishEvent(updateBillingPlanEventDetail, BILLING_SETUP);
 //                }
 
-                if ("CREATE_COMPLETE".equals(stackStatus)) {
-                    // Trigger the provisioning of the application services for this tenant
-                    Map<String, Object> provisionAppCall = new HashMap<>();
-                    provisionAppCall.put("resource", "onboarding/provision/app");
-                    provisionAppCall.put("method", "POST");
-                    provisionAppCall.put("body", Utils.toJson(Collections.singletonMap("tenantId", tenantId)));
-                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL, provisionAppCall);
-                }
             }
 
             // Fire a stack status change event
-            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "STACK_STATUS_CHANGE",
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                    "Onboarding Stack Status Changed",
                     Map.of("tenantId", tenantId, "stackId", stackId, "stackStatus", stackStatus));
 
             //TODO deal with a deleted stack canceling billing subscription

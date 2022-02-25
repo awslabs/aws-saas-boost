@@ -33,6 +33,9 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.ecr.EcrClient;
+import software.amazon.awssdk.services.ecr.model.EcrException;
+import software.amazon.awssdk.services.ecr.model.ImageDetail;
+import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
 import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
@@ -318,27 +321,35 @@ public class OnboardingService {
             if (onboardingEvent != null) {
                 switch (onboardingEvent) {
                     case ONBOARDING_INITIATED:
+                        LOGGER.info("Handling Onboarding Initiated");
                         handleOnboardingInitiated(event, context);
                         break;
                     case ONBOARDING_VALID:
+                        LOGGER.info("Handling Onboarding Validated");
                         handleOnboardingValidated(event, context);
                         break;
                     case ONBOARDING_TENANT_ASSIGNED:
+                        LOGGER.info("Handling Onboarding Tenant Assigned");
                         handleOnboardingTenantAssigned(event, context);
                         break;
                     case ONBOARDING_STACK_STATUS_CHANGED:
+                        LOGGER.info("Handling Onboarding Stack Status Changed");
                         handleOnboardingStackStatusChanged(event, context);
                         break;
                     case ONBOARDING_BASE_PROVISIONED:
+                        LOGGER.info("Handling Onboarding Base Provisioned");
                         handleOnboardingBaseProvisioned(event, context);
                         break;
                     case ONBOARDING_PROVISIONED:
+                        LOGGER.info("Handling Onboarding Provisioning Complete");
                         handleOnboardingProvisioned(event, context);
                         break;
                     case ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED:
+                        LOGGER.info("Handling Onboarding Deployment Pipeline Changed");
                         handleOnboardingDeploymentPipelineChanged(event, context);
                         break;
                     case ONBOARDING_DEPLOYED:
+                        LOGGER.info("Handling Onboarding Workloads Deployed");
                         handleOnboardingDeployed(event, context);
                         break;
                 }
@@ -366,10 +377,13 @@ public class OnboardingService {
                 if (OnboardingStatus.created == onboarding.getStatus()) {
                     try {
                         // Queue this newly created onboarding request for validation
+                        LOGGER.info("Publishing message to onboarding validation queue {} {}", onboarding.getId(),
+                                ONBOARDING_VALIDATION_QUEUE);
                         sqs.sendMessage(request -> request
                                 .queueUrl(ONBOARDING_VALIDATION_QUEUE)
                                 .messageBody(Utils.toJson(Map.of("onboardingId", onboarding.getId())))
                         );
+                        dal.updateStatus(onboarding.getId(), OnboardingStatus.validating);
                     } catch (SdkServiceException sqsError) {
                         LOGGER.error("sqs:SendMessage error", sqsError);
                         LOGGER.error(Utils.getFullStackTrace(sqsError));
@@ -407,6 +421,15 @@ public class OnboardingService {
                 && Utils.isNotBlank((String) detail.get("onboardingId"))) {
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
+                if (onboarding.getTenantId() != null) {
+                    LOGGER.error("Unexpected validated onboarding request {} with existing tenantId"
+                            , onboarding.getId());
+                    // TODO throw illegal state?
+                }
+                if (OnboardingStatus.validating != onboarding.getStatus()) {
+                    // TODO Also illegal state
+                }
+                onboarding = dal.updateStatus(onboarding.getId(), OnboardingStatus.validated);
                 // Call the tenant service synchronously to insert the new tenant record
                 LOGGER.info("Calling tenant service insert tenant API");
                 LOGGER.info(Utils.toJson(onboarding.getRequest()));
@@ -574,11 +597,37 @@ public class OnboardingService {
 
         Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
         if (onboarding != null) {
-            LOGGER.info("OnboardingService::statusEventListener Updating Onboarding status for tenant " + onboarding.getTenantId() + " to " + status);
-            onboarding = dal.updateStatus(onboarding.getId(), status);
-            if (OnboardingStatus.provisioned == status) {
-
+            LOGGER.info("Updating onboarding stack status {} {}", onboarding.getId(), stackId);
+            for (OnboardingStack stack : onboarding.getStacks()) {
+                if (stackId.equals(stack.getArn())) {
+                    if (!stackStatus.equals(stack.getStatus())) {
+                        LOGGER.info("Stack status changing from {} to {}", stack.getStatus(), stackStatus);
+                        stack.setStatus(stackStatus);
+                    }
+                    if (status != onboarding.getStatus()) {
+                        onboarding.setStatus(status);
+                        LOGGER.info("Onboarding status changing from {} to {}", onboarding.getStatus(), status);
+                    }
+                    dal.updateOnboarding(onboarding);
+                    if (stack.isComplete()) {
+                        if (stack.isBaseStack() && onboarding.baseStacksComplete()) {
+                            LOGGER.info("Onboarding base stacks provisioned!");
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                    OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
+                                    Map.of("onboardingId", onboarding.getId())
+                            );
+                        } else if (onboarding.stacksComplete()) {
+                            LOGGER.info("All onboarding stacks provisioned!");
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                    OnboardingEvent.ONBOARDING_PROVISIONED.detailType(),
+                                    Map.of("onboardingId", onboarding.getId())
+                            );
+                        }
+                    }
+                    break;
+                }
             }
+            // TODO what about DELETE_COMPLETE stack status? Do we need to fire an event?
         }
     }
 
@@ -600,326 +649,328 @@ public class OnboardingService {
         }
 
         Utils.logRequestEvent(event);
-        final long startTimeMillis = System.currentTimeMillis();
-
-        LOGGER.info("OnboardingService::provisionApplication");
-        Map<String, Object> onboardingRequest = Utils.fromJson((String) event.get("body"), LinkedHashMap.class);
-
-        // Load the onboarding request for this tenant
-        // Fetch the details for this tenant
-        String tenantId = (String) onboardingRequest.get("tenantId");
-        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-        LinkedHashMap<String, Object> tenant = null;
-        if (onboarding != null) {
-            LOGGER.info("Calling tenant service to get tenant {}", tenantId);
-            String getTenantResponse = ApiGatewayHelper.signAndExecuteApiRequest(
-                    ApiGatewayHelper.getApiRequest(
-                            API_GATEWAY_HOST,
-                            API_GATEWAY_STAGE,
-                            ApiRequest.builder()
-                                    .resource("tenants/" + tenantId)
-                                    .method("GET")
-                                    .build()
-                    ),
-                    API_TRUST_ROLE,
-                    context.getAwsRequestId()
-            );
-            tenant = Utils.fromJson(getTenantResponse, LinkedHashMap.class);
-            if (tenant != null) {
-                Map<String, Object> appConfig = getAppConfig(context);
-                if (null == appConfig) {
-                    LOGGER.error("Settings get app config API call failed");
-                    // TODO retry?
-                }
-
-                String applicationName = (String) appConfig.get("name");
-                String vpc;
-                String privateSubnetA;
-                String privateSubnetB;
-                String ecsSecurityGroup;
-                String loadBalancerArn;
-                String httpListenerArn;
-                String httpsListenerArn = ""; // might not have an HTTPS listener if they don't have an SSL certificate
-                String ecsCluster;
-                String fsxDns;
-                Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
-                try {
-                    vpc = tenantResources.get("VPC").get("name");
-                    privateSubnetA = tenantResources.get("PRIVATE_SUBNET_A").get("name");
-                    privateSubnetB = tenantResources.get("PRIVATE_SUBNET_B").get("name");
-                    ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
-                    ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
-                    loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
-                    httpListenerArn = tenantResources.get("HTTP_LISTENER").get("arn");
-                    if (tenantResources.containsKey("HTTPS_LISTENER")) {
-                        httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
-                    }
-                    if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
-                            || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)
-                            || Utils.isBlank(httpListenerArn)) { // OK if HTTPS listener is blank
-                        throw new IllegalArgumentException("Missing required tenant environment resources");
-                    }
-                } catch (Exception e) {
-                    LOGGER.error("Error parsing tenant resources", e);
-                    LOGGER.error(Utils.getFullStackTrace(e));
-                    failOnboarding(onboarding.getId(), "Error parsing resources for tenant " + tenantId);
-                    return;
-                }
-
-                String tier = (String) tenant.get("tier");
-                if (Utils.isBlank(tier)) {
-                    LOGGER.error("Tenant is missing tier");
-                    failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
-                    return;
-                }
-
-                List<String> applicationServiceStacks = new ArrayList<>();
-
-                Map<String, Integer> pathPriority = getPathPriority(appConfig);
-                Properties serviceDiscovery = new Properties();
-
-                Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
-                for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
-                    String serviceName = serviceConfig.getKey();
-                    // CloudFormation resource names can only contain alpha numeric characters or a dash
-                    String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
-                    Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
-                    Boolean isPublic = (Boolean) service.get("public");
-                    String pathPart = (isPublic) ? (String) service.get("path") : "";
-                    Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
-                    String healthCheck = (String) service.get("healthCheckUrl");
-
-                    // CloudFormation won't let you use dashes or underscores in Mapping second level key names
-                    // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
-                    // parameter before we send it in.
-                    String clusterOS = ((String) service.getOrDefault("operatingSystem", ""))
-                            .replace("_", "");
-
-                    Integer containerPort = (Integer) service.get("containerPort");
-                    String containerRepo = (String) service.get("containerRepo");
-                    String imageTag = (String) service.getOrDefault("containerTag", "latest");
-
-                    // If there are any private services, we will create an environment variables called
-                    // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
-                    String serviceEnvName = serviceName.replaceAll("\\s+", "_").toUpperCase();
-                    String serviceHost = "SERVICE_" + serviceEnvName + "_HOST";
-                    String servicePort = "SERVICE_" + serviceEnvName + "_PORT";
-                    if (!isPublic) {
-                        LOGGER.debug("Creating service discovery environment variables {}, {}", serviceHost, servicePort);
-                        serviceDiscovery.put(serviceHost, serviceResourceName + ".local");
-                        serviceDiscovery.put(servicePort, Objects.toString(containerPort));
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        if (detail != null && detail.containsKey("onboardingId")
+                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+            Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
+            if (onboarding != null) {
+                String tenantId = onboarding.getTenantId().toString();
+                LinkedHashMap<String, Object> tenant;
+                LOGGER.info("Calling tenant service to get tenant {}", tenantId);
+                String getTenantResponse = ApiGatewayHelper.signAndExecuteApiRequest(
+                        ApiGatewayHelper.getApiRequest(
+                                API_GATEWAY_HOST,
+                                API_GATEWAY_STAGE,
+                                ApiRequest.builder()
+                                        .resource("tenants/" + tenantId)
+                                        .method("GET")
+                                        .build()
+                        ),
+                        API_TRUST_ROLE,
+                        context.getAwsRequestId()
+                );
+                tenant = Utils.fromJson(getTenantResponse, LinkedHashMap.class);
+                if (tenant != null) {
+                    Map<String, Object> appConfig = getAppConfig(context);
+                    if (null == appConfig) {
+                        LOGGER.error("Settings get app config API call failed");
+                        // TODO retry?
                     }
 
-                    Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
-                    if (!tiers.containsKey(tier)) {
-                        LOGGER.error("Missing tier '{}' definition for tenant {}", tier, tenantId);
+                    String applicationName = (String) appConfig.get("name");
+                    String vpc;
+                    String privateSubnetA;
+                    String privateSubnetB;
+                    String ecsSecurityGroup;
+                    String loadBalancerArn;
+                    String httpListenerArn;
+                    String httpsListenerArn = ""; // might not have an HTTPS listener if they don't have an SSL certificate
+                    String ecsCluster;
+                    String fsxDns;
+                    Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
+                    try {
+                        vpc = tenantResources.get("VPC").get("name");
+                        privateSubnetA = tenantResources.get("PRIVATE_SUBNET_A").get("name");
+                        privateSubnetB = tenantResources.get("PRIVATE_SUBNET_B").get("name");
+                        ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
+                        ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
+                        loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
+                        httpListenerArn = tenantResources.get("HTTP_LISTENER").get("arn");
+                        if (tenantResources.containsKey("HTTPS_LISTENER")) {
+                            httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
+                        }
+                        if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
+                                || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)
+                                || Utils.isBlank(httpListenerArn)) { // OK if HTTPS listener is blank
+                            LOGGER.error("Missing required tenant environment resources");
+                            failOnboarding(onboarding.getId(), "Missing required tenant environment resources");
+                            return;
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error("Error parsing tenant resources", e);
+                        LOGGER.error(Utils.getFullStackTrace(e));
+                        failOnboarding(onboarding.getId(), "Error parsing resources for tenant " + tenantId);
+                        return;
+                    }
+
+                    String tier = (String) tenant.get("tier");
+                    if (Utils.isBlank(tier)) {
+                        LOGGER.error("Tenant is missing tier");
                         failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
                         return;
                     }
 
-                    Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
-                    String clusterInstanceType = (String) tierConfig.get("instanceType");
-                    Integer taskMemory = (Integer) tierConfig.get("memory");
-                    Integer taskCpu = (Integer) tierConfig.get("cpu");
-                    Integer minCount = (Integer) tierConfig.get("min");
-                    Integer maxCount = (Integer) tierConfig.get("max");
+                    List<String> applicationServiceStacks = new ArrayList<>();
 
-                    // Does this service use a shared filesystem?
-                    Boolean enableEfs = Boolean.FALSE;
-                    Boolean enableFSx = Boolean.FALSE;
-                    String mountPoint = "";
-                    Boolean encryptFilesystem = Boolean.FALSE;
-                    String filesystemLifecycle = "NEVER";
-                    String fileSystemType = "";
-                    Integer fsxStorageGb = 0;
-                    Integer fsxThroughputMbs = 0;
-                    Integer fsxBackupRetentionDays = 7;
-                    String fsxDailyBackupTime = "";
-                    String fsxWeeklyMaintenanceTime = "";
-                    String fsxWindowsMountDrive = "";
-                    Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
-                    if (filesystem != null && !filesystem.isEmpty()) {
-                        fileSystemType = (String) filesystem.get("fileSystemType");
-                        mountPoint = (String) filesystem.get("mountPoint");
-                        if ("EFS".equals(fileSystemType)) {
-                            enableEfs = Boolean.TRUE;
-                            Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
-                            encryptFilesystem = (Boolean) efsConfig.get("encryptAtRest");
-                            filesystemLifecycle = (String) efsConfig.get("filesystemLifecycle");
-                        } else if ("FSX".equals(fileSystemType)) {
-                            enableFSx = Boolean.TRUE;
-                            Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
-                            fsxStorageGb = (Integer) fsxConfig.get("storageGb"); // GB 32 to 65,536
-                            fsxThroughputMbs = (Integer) fsxConfig.get("throughputMbs"); // MB/s
-                            fsxBackupRetentionDays = (Integer) fsxConfig.get("backupRetentionDays"); // 7 to 35
-                            fsxDailyBackupTime = (String) fsxConfig.get("dailyBackupTime"); //HH:MM in UTC
-                            fsxWeeklyMaintenanceTime = (String) fsxConfig.get("weeklyMaintenanceTime");//d:HH:MM in UTC
-                            fsxWindowsMountDrive = (String) fsxConfig.get("windowsMountDrive");
+                    Map<String, Integer> pathPriority = getPathPriority(appConfig);
+                    Properties serviceDiscovery = new Properties();
+
+                    Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+                    for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+                        String serviceName = serviceConfig.getKey();
+                        // CloudFormation resource names can only contain alpha numeric characters or a dash
+                        String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
+                        Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+                        Boolean isPublic = (Boolean) service.get("public");
+                        String pathPart = (isPublic) ? (String) service.get("path") : "";
+                        Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
+                        String healthCheck = (String) service.get("healthCheckUrl");
+
+                        // CloudFormation won't let you use dashes or underscores in Mapping second level key names
+                        // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
+                        // parameter before we send it in.
+                        String clusterOS = ((String) service.getOrDefault("operatingSystem", ""))
+                                .replace("_", "");
+
+                        Integer containerPort = (Integer) service.get("containerPort");
+                        String containerRepo = (String) service.get("containerRepo");
+                        String imageTag = (String) service.getOrDefault("containerTag", "latest");
+
+                        // If there are any private services, we will create an environment variables called
+                        // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
+                        String serviceEnvName = serviceName.replaceAll("\\s+", "_").toUpperCase();
+                        String serviceHost = "SERVICE_" + serviceEnvName + "_HOST";
+                        String servicePort = "SERVICE_" + serviceEnvName + "_PORT";
+                        if (!isPublic) {
+                            LOGGER.debug("Creating service discovery environment variables {}, {}", serviceHost, servicePort);
+                            serviceDiscovery.put(serviceHost, serviceResourceName + ".local");
+                            serviceDiscovery.put(servicePort, Objects.toString(containerPort));
+                        }
+
+                        Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
+                        if (!tiers.containsKey(tier)) {
+                            LOGGER.error("Missing tier '{}' definition for tenant {}", tier, tenantId);
+                            failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
+                            return;
+                        }
+
+                        Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
+                        String clusterInstanceType = (String) tierConfig.get("instanceType");
+                        Integer taskMemory = (Integer) tierConfig.get("memory");
+                        Integer taskCpu = (Integer) tierConfig.get("cpu");
+                        Integer minCount = (Integer) tierConfig.get("min");
+                        Integer maxCount = (Integer) tierConfig.get("max");
+
+                        // Does this service use a shared filesystem?
+                        Boolean enableEfs = Boolean.FALSE;
+                        Boolean enableFSx = Boolean.FALSE;
+                        String mountPoint = "";
+                        Boolean encryptFilesystem = Boolean.FALSE;
+                        String filesystemLifecycle = "NEVER";
+                        String fileSystemType = "";
+                        Integer fsxStorageGb = 0;
+                        Integer fsxThroughputMbs = 0;
+                        Integer fsxBackupRetentionDays = 7;
+                        String fsxDailyBackupTime = "";
+                        String fsxWeeklyMaintenanceTime = "";
+                        String fsxWindowsMountDrive = "";
+                        Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
+                        if (filesystem != null && !filesystem.isEmpty()) {
+                            fileSystemType = (String) filesystem.get("fileSystemType");
+                            mountPoint = (String) filesystem.get("mountPoint");
+                            if ("EFS".equals(fileSystemType)) {
+                                enableEfs = Boolean.TRUE;
+                                Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
+                                encryptFilesystem = (Boolean) efsConfig.get("encryptAtRest");
+                                filesystemLifecycle = (String) efsConfig.get("filesystemLifecycle");
+                            } else if ("FSX".equals(fileSystemType)) {
+                                enableFSx = Boolean.TRUE;
+                                Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
+                                fsxStorageGb = (Integer) fsxConfig.get("storageGb"); // GB 32 to 65,536
+                                fsxThroughputMbs = (Integer) fsxConfig.get("throughputMbs"); // MB/s
+                                fsxBackupRetentionDays = (Integer) fsxConfig.get("backupRetentionDays"); // 7 to 35
+                                fsxDailyBackupTime = (String) fsxConfig.get("dailyBackupTime"); //HH:MM in UTC
+                                fsxWeeklyMaintenanceTime = (String) fsxConfig.get("weeklyMaintenanceTime");//d:HH:MM in UTC
+                                fsxWindowsMountDrive = (String) fsxConfig.get("windowsMountDrive");
+                            }
+                        }
+
+                        // Does this service use a relational database?
+                        Boolean enableDatabase = Boolean.FALSE;
+                        String dbInstanceClass = "";
+                        String dbEngine = "";
+                        String dbVersion = "";
+                        String dbFamily = "";
+                        String dbMasterUsername = "";
+                        String dbMasterPasswordRef = "";
+                        Integer dbPort = -1;
+                        String dbDatabase = "";
+                        String dbBootstrap = "";
+                        Map<String, Object> database = (Map<String, Object>) tierConfig.get("database");
+                        if (database != null && !database.isEmpty()) {
+                            enableDatabase = Boolean.TRUE;
+                            dbEngine = (String) database.get("engine");
+                            dbVersion = (String) database.get("version");
+                            dbFamily = (String) database.get("family");
+                            dbInstanceClass = (String) database.get("instanceClass");
+                            dbMasterUsername = (String) database.get("username");
+                            dbPort = (Integer) database.get("port");
+                            dbDatabase = (String) database.get("database");
+                            // TODO fix this dbBootstrap = (String) database.get("DB_BOOTSTRAP_FILE");
+                            //dbMasterPasswordRef = (String) database.get("password");
+                            dbMasterPasswordRef = "/saas-boost/" + SAAS_BOOST_ENV + "/DB_MASTER_PASSWORD";
+                        }
+
+                        List<Parameter> templateParameters = new ArrayList<>();
+    //        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(settings.get("SAAS_BOOST_BUCKET")).build());
+    //        templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(settings.get("SAAS_BOOST_LAMBDAS_FOLDER")).build());
+    //        templateParameters.add(Parameter.builder().parameterKey("ArtifactBucket").parameterValue(settings.get("CODE_PIPELINE_BUCKET")).build());
+    //        templateParameters.add(Parameter.builder().parameterKey("ALBAccessLogsBucket").parameterValue(settings.get("ALB_ACCESS_LOGS_BUCKET")).build());
+    //        templateParameters.add(Parameter.builder().parameterKey("BillingPlan").parameterValue(billingPlan).build());
+    //        templateParameters.add(Parameter.builder().parameterKey("CodePipelineRoleArn").parameterValue(settings.get("CODE_PIPELINE_ROLE")).build());
+
+                        templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
+                        templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ServiceResourceName").parameterValue(serviceResourceName).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
+                        templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
+                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
+                        templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
+                        templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancer").parameterValue(loadBalancerArn).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpListener").parameterValue(httpListenerArn).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpsListener").parameterValue(httpsListenerArn).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ContainerOS").parameterValue(clusterOS).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ClusterInstanceType").parameterValue(clusterInstanceType).build());
+                        templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("MinTaskCount").parameterValue(minCount.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ContainerPort").parameterValue(containerPort.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ContainerHealthCheckPath").parameterValue(healthCheck).build());
+                        templateParameters.add(Parameter.builder().parameterKey("UseEFS").parameterValue(enableEfs.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("MountPoint").parameterValue(mountPoint).build());
+                        templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
+                        templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
+                        templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSEngine").parameterValue(dbEngine).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSEngineVersion").parameterValue(dbVersion).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSParameterGroupFamily").parameterValue(dbFamily).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSMasterUsername").parameterValue(dbMasterUsername).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSMasterPasswordParam").parameterValue(dbMasterPasswordRef).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
+                        // TODO rework these last 2?
+                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
+                        templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
+                        for (Parameter p : templateParameters) {
+                            //LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
+                            if (p.parameterValue() == null) {
+                                LOGGER.error("OnboardingService::provisionTenant template parameter {} is NULL", p.parameterKey());
+                                dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
+                                // TODO throw here?
+                                throw new RuntimeException("CloudFormation template parameter " + p.parameterKey() + " is NULL");
+                            }
+                        }
+
+                        // Make the stack name look like what CloudFormation would have done for a nested stack
+                        String tenantShortId = tenantId.toString().substring(0, 8);
+                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
+                                + "-" + Utils.randomString(12).toUpperCase();
+                        if (stackName.length() > 128) {
+                            stackName = stackName.substring(0, 128);
+                        }
+                        // Now run the onboarding stack to provision the infrastructure for this application service
+                        LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
+
+                        String stackId;
+                        try {
+                            CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
+                                    .stackName(stackName)
+                                    .disableRollback(true)
+                                    //.onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
+                                    //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
+                                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                                    .notificationARNs(ONBOARDING_APP_STACK_SNS)
+                                    .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding-app.yaml")
+                                    .parameters(templateParameters)
+                                    .build()
+                            );
+                            stackId = cfnResponse.stackId();
+                            onboarding.setStatus(OnboardingStatus.provisioning);
+                            onboarding.addStack(new OnboardingStack(stackName, stackId, false, "CREATE_IN_PROGRESS"));
+                            onboarding = dal.updateOnboarding(onboarding);
+                            LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
+                            applicationServiceStacks.add(stackId);
+                        } catch (CloudFormationException cfnError) {
+                            LOGGER.error("cloudformation::createStack failed", cfnError);
+                            LOGGER.error(Utils.getFullStackTrace(cfnError));
+                            failOnboarding(onboarding.getId(), cfnError.awsErrorDetails().errorMessage());
+                            return;
                         }
                     }
 
-                    // Does this service use a relational database?
-                    Boolean enableDatabase = Boolean.FALSE;
-                    String dbInstanceClass = "";
-                    String dbEngine = "";
-                    String dbVersion = "";
-                    String dbFamily = "";
-                    String dbMasterUsername = "";
-                    String dbMasterPasswordRef = "";
-                    Integer dbPort = -1;
-                    String dbDatabase = "";
-                    String dbBootstrap = "";
-                    Map<String, Object> database = (Map<String, Object>) tierConfig.get("database");
-                    if (database != null && !database.isEmpty()) {
-                        enableDatabase = Boolean.TRUE;
-                        dbEngine = (String) database.get("engine");
-                        dbVersion = (String) database.get("version");
-                        dbFamily = (String) database.get("family");
-                        dbInstanceClass = (String) database.get("instanceClass");
-                        dbMasterUsername = (String) database.get("username");
-                        dbPort = (Integer) database.get("port");
-                        dbDatabase = (String) database.get("database");
-                        // TODO fix this dbBootstrap = (String) database.get("DB_BOOTSTRAP_FILE");
-                        //dbMasterPasswordRef = (String) database.get("password");
-                        dbMasterPasswordRef = "/saas-boost/" + SAAS_BOOST_ENV + "/DB_MASTER_PASSWORD";
-                    }
-
-                    List<Parameter> templateParameters = new ArrayList<>();
-//        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(settings.get("SAAS_BOOST_BUCKET")).build());
-//        templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(settings.get("SAAS_BOOST_LAMBDAS_FOLDER")).build());
-//        templateParameters.add(Parameter.builder().parameterKey("ArtifactBucket").parameterValue(settings.get("CODE_PIPELINE_BUCKET")).build());
-//        templateParameters.add(Parameter.builder().parameterKey("ALBAccessLogsBucket").parameterValue(settings.get("ALB_ACCESS_LOGS_BUCKET")).build());
-//        templateParameters.add(Parameter.builder().parameterKey("BillingPlan").parameterValue(billingPlan).build());
-//        templateParameters.add(Parameter.builder().parameterKey("CodePipelineRoleArn").parameterValue(settings.get("CODE_PIPELINE_ROLE")).build());
-
-                    templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
-                    templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ServiceResourceName").parameterValue(serviceResourceName).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
-                    templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
-                    templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
-                    templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
-                    templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancer").parameterValue(loadBalancerArn).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpListener").parameterValue(httpListenerArn).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpsListener").parameterValue(httpsListenerArn).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ContainerOS").parameterValue(clusterOS).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ClusterInstanceType").parameterValue(clusterInstanceType).build());
-                    templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("MinTaskCount").parameterValue(minCount.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ContainerPort").parameterValue(containerPort.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("ContainerHealthCheckPath").parameterValue(healthCheck).build());
-                    templateParameters.add(Parameter.builder().parameterKey("UseEFS").parameterValue(enableEfs.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("MountPoint").parameterValue(mountPoint).build());
-                    templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
-                    templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
-                    templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSEngine").parameterValue(dbEngine).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSEngineVersion").parameterValue(dbVersion).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSParameterGroupFamily").parameterValue(dbFamily).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSMasterUsername").parameterValue(dbMasterUsername).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSMasterPasswordParam").parameterValue(dbMasterPasswordRef).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
-                    templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
-                    // TODO rework these last 2?
-                    templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
-                    templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
-                    for (Parameter p : templateParameters) {
-                        //LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
-                        if (p.parameterValue() == null) {
-                            LOGGER.error("OnboardingService::provisionTenant template parameter {} is NULL", p.parameterKey());
-                            dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
-                            throw new RuntimeException("CloudFormation template parameter " + p.parameterKey() + " is NULL");
+                    if (!serviceDiscovery.isEmpty()) {
+                        String environmentFile = "tenants/" + tenantId.toString() + "/ServiceDiscovery.env";
+                        ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
+                        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                                environmentFileContents, StandardCharsets.UTF_8)
+                        )) {
+                            serviceDiscovery.store(writer, null);
+                            s3.putObject(request -> request
+                                            .bucket(SAAS_BOOST_BUCKET)
+                                            .key(environmentFile)
+                                            .build(),
+                                    RequestBody.fromBytes(environmentFileContents.toByteArray())
+                            );
+                        } catch (S3Exception s3Error) {
+                            LOGGER.error("Error putting service discovery file to S3");
+                            LOGGER.error(Utils.getFullStackTrace(s3Error));
+                            failOnboarding(onboarding.getId(), s3Error.awsErrorDetails().errorMessage());
+                            return;
+                        } catch (IOException ioe) {
+                            LOGGER.error("Error writing service discovery data to output stream");
+                            LOGGER.error(Utils.getFullStackTrace(ioe));
+                            failOnboarding(onboarding.getId(), "Error writing service discovery data to output stream");
+                            return;
                         }
                     }
-
-                    // Make the stack name look like what CloudFormation would have done for a nested stack
-                    String tenantShortId = tenantId.toString().substring(0, 8);
-                    String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
-                            + "-" + Utils.randomString(12).toUpperCase();
-                    if (stackName.length() > 128) {
-                        stackName = stackName.substring(0, 128);
-                    }
-                    // Now run the onboarding stack to provision the infrastructure for this application service
-                    LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
-
-                    String stackId;
-                    try {
-                        CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                                .stackName(stackName)
-                                .disableRollback(true)
-                                //.onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
-                                //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
-                                .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                                .notificationARNs(ONBOARDING_APP_STACK_SNS)
-                                .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding-app.yaml")
-                                .parameters(templateParameters)
-                                .build()
-                        );
-                        stackId = cfnResponse.stackId();
-                        onboarding.setStatus(OnboardingStatus.provisioning);
-                        onboarding.addStack(new OnboardingStack(stackName, stackId, false, "CREATE_IN_PROGRESS"));
-                        onboarding = dal.updateOnboarding(onboarding);
-                        LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
-                        applicationServiceStacks.add(stackId);
-                    } catch (SdkServiceException cfnError) {
-                        LOGGER.error("cloudformation::createStack failed {}", cfnError.getMessage());
-                        LOGGER.error(Utils.getFullStackTrace(cfnError));
-                        dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
-                        throw cfnError;
-                    }
-                }
-
-                if (!serviceDiscovery.isEmpty()) {
-                    String environmentFile = "tenants/" + tenantId.toString() + "/ServiceDiscovery.env";
-                    ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
-                    try (Writer writer = new BufferedWriter(new OutputStreamWriter(
-                            environmentFileContents, StandardCharsets.UTF_8)
-                    )) {
-                        serviceDiscovery.store(writer, null);
-                        s3.putObject(request -> request
-                                        .bucket(SAAS_BOOST_BUCKET)
-                                        .key(environmentFile)
-                                        .build(),
-                                RequestBody.fromBytes(environmentFileContents.toByteArray())
-                        );
-                    } catch (SdkServiceException s3Error) {
-                        LOGGER.error("Error putting service discovery file to S3");
-                        LOGGER.error(Utils.getFullStackTrace(s3Error));
-                        dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
-                        throw s3Error;
-                    } catch (IOException ioe) {
-                        LOGGER.error("Error writing service discovery data to output stream");
-                        LOGGER.error(Utils.getFullStackTrace(ioe));
-                        dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
-                        throw new RuntimeException(ioe);
-                    }
+                } else {
+                    LOGGER.error("Can't parse get tenant api response");
+                    failOnboarding(onboarding.getId(), "Can't fetch tenant " + tenantId);
                 }
             } else {
-                LOGGER.error("Can't parse get tenant api response");
-                failOnboarding(onboarding.getId(), "Can't fetch tenant " + tenantId);
-                // TODO throw?
+                LOGGER.error("No onboarding record for {}", onboarding.getId());
+                failOnboarding(onboarding.getId(), "No onboarding record " + onboarding.getId());
             }
         } else {
-            LOGGER.error("No onboarding record for tenant id {}", tenantId);
-            // TODO throw?
+            LOGGER.error("Missing onboardingId in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
         }
     }
 
@@ -998,28 +1049,41 @@ public class OnboardingService {
     public SQSBatchResponse processValidateOnboardingQueue(SQSEvent event, Context context) {
         List<SQSBatchResponse.BatchItemFailure> retry = new ArrayList<>();
         List<SQSEvent.SQSMessage> fatal = new ArrayList<>();
+        sqsMessageLoop:
         for (SQSEvent.SQSMessage message : event.getRecords()) {
             String messageId = message.getMessageId();
             String messageBody = message.getBody();
 
             LinkedHashMap<String, Object> detail = Utils.fromJson(messageBody, LinkedHashMap.class);
             String onboardingId = (String) detail.get("onboardingId");
+            LOGGER.info("Processing onboarding validation for {}", onboardingId);
             Onboarding onboarding = dal.getOnboarding(onboardingId);
             OnboardingRequest onboardingRequest = onboarding.getRequest();
             if (onboardingRequest == null) {
+                LOGGER.error("No onboarding request data for {}", onboardingId);
                 fatal.add(message);
                 failOnboarding(onboardingId, "Onboarding record has no request content");
+                continue;
+            } else if (OnboardingStatus.validating != onboarding.getStatus()) {
+                LOGGER.warn("Onboarding in unexpected state for validation {} {}", onboardingId
+                        , onboarding.getStatus());
+                fatal.add(message);
+                failOnboarding(onboardingId, "Onboarding can't be validated when in state "
+                        + onboarding.getStatus());
+                continue;
             } else {
                 Map<String, Object> appConfig = getAppConfig(context);
-
                 // Check to see if there are any images in the ECR repo before allowing onboarding
                 Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
                 if (services.isEmpty()) {
+                    LOGGER.warn("No application services defined in AppConfig");
                     retry.add(SQSBatchResponse.BatchItemFailure.builder()
                             .withItemIdentifier(messageId)
                             .build()
                     );
+                    continue;
                 } else {
+                    int missingImages = 0;
                     for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
                         String serviceName = serviceConfig.getKey();
                         Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
@@ -1029,109 +1093,150 @@ public class OnboardingService {
                             try {
                                 ListImagesResponse dockerImages = ecr.listImages(request -> request
                                         .repositoryName(ecrRepo));
+                                boolean imageAvailable = false;
                                 //ListImagesResponse::hasImageIds will return true if the imageIds object is not null
                                 if (dockerImages.hasImageIds()) {
-                                    // Not valid yet, no container image to deploy
-                                    retry.add(SQSBatchResponse.BatchItemFailure.builder()
-                                            .withItemIdentifier(messageId)
-                                            .build()
-                                    );
+                                    for (ImageIdentifier image : dockerImages.imageIds()) {
+                                        if (imageTag.equals(image.imageTag())) {
+                                            imageAvailable = true;
+                                            break;
+                                        }
+                                    }
                                 }
-                            } catch (SdkServiceException ecrError) {
+                                if (!imageAvailable) {
+                                    // Not valid yet, no container image to deploy
+                                    LOGGER.warn("Application Service {} does not have an available image tagged {}",
+                                            serviceName, imageTag);
+                                    missingImages++;
+                                }
+                            } catch (EcrException ecrError) {
                                 LOGGER.error("ecr:ListImages error", ecrError.getMessage());
                                 LOGGER.error(Utils.getFullStackTrace(ecrError));
                                 // TODO do we bail here or retry?
-                                throw ecrError;
+                                failOnboarding(onboardingId, "Can't list images from ECR "
+                                        + ecrError.awsErrorDetails().errorMessage());
+                                fatal.add(message);
+                                continue sqsMessageLoop;
                             }
                         } else {
                             // TODO no repo defined for this service yet...
-                            retry.add(SQSBatchResponse.BatchItemFailure.builder()
-                                    .withItemIdentifier(messageId)
-                                    .build()
-                            );
+                            LOGGER.warn("Application Service {} does not have a container image repository defined"
+                                    , serviceName);
+                            missingImages++;
                         }
                     }
-                }
-
-                // Do we have any CIDR blocks left for a new tenant VPC
-                if (!dal.availableCidrBlock()) {
-                    fatal.add(message);
-                }
-
-                // Make sure we're using a unique subdomain per tenant
-                String subdomain = onboardingRequest.getSubdomain();
-                if (Utils.isNotBlank(subdomain)) {
-                    String hostedZoneId = (String) appConfig.get("hostedZone");
-                    String domainName = (String) appConfig.get("domainName");
-                    if (Utils.isBlank(hostedZoneId) || Utils.isBlank(domainName)) {
-                        failOnboarding(onboardingId, "Can't define tenant subdomain " + subdomain
-                                + " without a domain name and hosted zone.");
-                        fatal.add(message);
-                    }
-                    // Ask Route53 for all the records of this hosted zone
-                    try {
-                        ListResourceRecordSetsResponse recordSets = route53.listResourceRecordSets(r -> r
-                                .hostedZoneId(hostedZoneId)
+                    if (missingImages > 0) {
+                        retry.add(SQSBatchResponse.BatchItemFailure.builder()
+                                .withItemIdentifier(messageId)
+                                .build()
                         );
-                        if (recordSets.hasResourceRecordSets()) {
-                            for (ResourceRecordSet recordSet : recordSets.resourceRecordSets()) {
-                                if (RRType.A == recordSet.type()) {
-                                    // Hosted Zone alias for the tenant subdomain
-                                    String recordSetName = recordSet.name();
-                                    String existingSubdomain = recordSetName.substring(0, recordSetName.indexOf(domainName) - 1);
-                                    LOGGER.info("Existing tenant subdomain " + existingSubdomain + " for record set "
-                                            + recordSetName);
-                                    if (subdomain.equalsIgnoreCase(existingSubdomain)) {
+                        continue;
+                    }
+                    // Do we have any CIDR blocks left for a new tenant VPC
+                    if (!dal.availableCidrBlock()) {
+                        LOGGER.error("No CIDR blocks available for new VPC");
+                        failOnboarding(onboardingId, "No CIDR blocks available for new VPC");
+                        fatal.add(message);
+                        continue;
+                    }
+
+                    // Make sure we're using a unique subdomain per tenant
+                    String subdomain = onboardingRequest.getSubdomain();
+                    if (Utils.isNotBlank(subdomain)) {
+                        String hostedZoneId = (String) appConfig.get("hostedZone");
+                        String domainName = (String) appConfig.get("domainName");
+                        if (Utils.isBlank(hostedZoneId) || Utils.isBlank(domainName)) {
+                            LOGGER.error("Can't onboard a subdomain without domain name and hosted zone");
+                            failOnboarding(onboardingId, "Can't define tenant subdomain " + subdomain
+                                    + " without a domain name and hosted zone.");
+                            fatal.add(message);
+                            continue;
+                        } else {
+                            // Ask Route53 for all the records of this hosted zone
+                            try {
+                                ListResourceRecordSetsResponse recordSets = route53.listResourceRecordSets(r -> r
+                                        .hostedZoneId(hostedZoneId)
+                                );
+                                if (recordSets.hasResourceRecordSets()) {
+                                    boolean duplicateSubdomain = false;
+                                    for (ResourceRecordSet recordSet : recordSets.resourceRecordSets()) {
+                                        if (RRType.A == recordSet.type()) {
+                                            // Hosted Zone alias for the tenant subdomain
+                                            String recordSetName = recordSet.name();
+                                            String existingSubdomain = recordSetName.substring(0,
+                                                    recordSetName.indexOf(domainName) - 1);
+                                            if (subdomain.equalsIgnoreCase(existingSubdomain)) {
+                                                duplicateSubdomain = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (duplicateSubdomain) {
+                                        LOGGER.error("Tenant subdomain " + subdomain
+                                                + " is already in use for this hosted zone.");
                                         failOnboarding(onboardingId, "Tenant subdomain " + subdomain
                                                 + " is already in use for this hosted zone.");
                                         fatal.add(message);
+                                        continue;
                                     }
                                 }
+                            } catch (Route53Exception route53Error) {
+                                LOGGER.error("route53:ListResourceRecordSets error", route53Error);
+                                LOGGER.error(Utils.getFullStackTrace(route53Error));
+                                failOnboarding(onboardingId, "Can't list Route53 record sets "
+                                        + route53Error.awsErrorDetails().errorMessage());
+                                fatal.add(message);
+                                continue;
                             }
                         }
-                    } catch (SdkServiceException route53Error) {
-                        LOGGER.error("route53:ListResourceRecordSets error", route53Error);
-                        LOGGER.error(Utils.getFullStackTrace(route53Error));
-                        throw route53Error;
                     }
-                }
 
-                // Check if Quotas will be exceeded.
-                try {
-                    LOGGER.info("Check Service Quota Limits");
-                    Map<String, Object> retMap = checkLimits(context);
-                    Boolean passed = (Boolean) retMap.get("passed");
-                    String quotaMessage = (String) retMap.get("message");
-                    if (!passed) {
-                        LOGGER.error("Provisioning will exceed limits. {}", quotaMessage);
-                        failOnboarding(onboardingId, "Provisioning will exceed limits " + quotaMessage);
-                        fatal.add(message);
+                    // Check if Quotas will be exceeded.
+                    try {
+                        Map<String, Object> retMap = checkLimits(context);
+                        Boolean passed = (Boolean) retMap.get("passed");
+                        String quotaMessage = (String) retMap.get("message");
+                        if (!passed) {
+                            LOGGER.error("Provisioning will exceed limits. {}", quotaMessage);
+                            failOnboarding(onboardingId, "Provisioning will exceed limits " + quotaMessage);
+                            fatal.add(message);
+                            continue;
+                        }
+                    } catch (Exception e) {
+                        LOGGER.warn("Error checking Service Quotas with Private API quotas/check", e);
+                        LOGGER.warn((Utils.getFullStackTrace(e)));
+                        // TODO retry here and see if Quotas comes back online?
+                        retry.add(SQSBatchResponse.BatchItemFailure.builder()
+                                .withItemIdentifier(messageId)
+                                .build()
+                        );
+                        continue;
                     }
-                } catch (Exception e) {
-                    LOGGER.error("Error checking Service Quotas with Private API quotas/check", e);
-                    LOGGER.error((Utils.getFullStackTrace(e)));
-                    retry.add(SQSBatchResponse.BatchItemFailure.builder()
-                            .withItemIdentifier(messageId)
-                            .build()
+
+                    // If we made it to the end without continuing on to the next SQS message,
+                    // this message is valid
+                    LOGGER.info("Onboarding request validated for {}", onboardingId);
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                            OnboardingEvent.ONBOARDING_VALID.detailType(),
+                            Map.of("onboardingId", onboarding.getId())
                     );
                 }
             }
-
-            if (!fatal.isEmpty()) {
-                LOGGER.info("Moving non-recoverable failures to DLQ");
-                SendMessageBatchResponse dlq = sqs.sendMessageBatch(request -> request
-                        .queueUrl(ONBOARDING_VALIDATION_DLQ)
-                        .entries(fatal.stream()
-                                .map(msg -> SendMessageBatchRequestEntry.builder()
-                                        .id(msg.getMessageId())
-                                        .messageBody(msg.getBody())
-                                        .build()
-                                )
-                                .collect(Collectors.toList())
-                        )
-                );
-                LOGGER.info(dlq.toString());
-            }
+        }
+        if (!fatal.isEmpty()) {
+            LOGGER.info("Moving non-recoverable failures to DLQ");
+            SendMessageBatchResponse dlq = sqs.sendMessageBatch(request -> request
+                    .queueUrl(ONBOARDING_VALIDATION_DLQ)
+                    .entries(fatal.stream()
+                            .map(msg -> SendMessageBatchRequestEntry.builder()
+                                    .id(msg.getMessageId())
+                                    .messageBody(msg.getBody())
+                                    .build()
+                            )
+                            .collect(Collectors.toList())
+                    )
+            );
+            LOGGER.info(dlq.toString());
         }
         return SQSBatchResponse.builder().withBatchItemFailures(retry).build();
     }

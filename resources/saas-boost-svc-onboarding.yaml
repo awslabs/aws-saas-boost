@@ -209,17 +209,13 @@ Resources:
               - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*
           - Effect: Allow
             Action:
+              - sqs:SendMessage
               - sqs:ReceiveMessage
               - sqs:DeleteMessage
               - sqs:GetQueueAttributes
               - sqs:ChangeMessageVisibility
             Resource:
               - !GetAtt OnboardingValidationQueue.Arn
-          - Effect: Allow
-            Action:
-              - sqs:SendMessage
-            Resource:
-              - !GetAtt OnboardingValidationDLQ.Arn
           - Effect: Allow
             Action:
               - sts:AssumeRole
@@ -1005,7 +1001,7 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update
       RetentionInDays: 30
-  OnboardingServiceStart:
+  OnboardingServiceUpdate:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-update
@@ -1036,7 +1032,7 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-delete
       RetentionInDays: 30
-  OnboardingServiceStart:
+  OnboardingServiceDelete:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-delete
@@ -1161,7 +1157,7 @@ Resources:
             "saas-boost"
           ],
           "detail-type": [{
-            "prefix": "ONBOARDING_"
+            "prefix": "Onboarding "
           }]
         }
       State: ENABLED

@@ -31,8 +31,9 @@ public enum OnboardingStatus {
     deleted;
 
     public static OnboardingStatus fromStackStatus(String stackStatus) {
-        OnboardingStatus status = null;
+        OnboardingStatus status;
         switch (stackStatus) {
+            case "REVIEW_IN_PROGRESS":
             case "CREATE_IN_PROGRESS":
                 status = OnboardingStatus.provisioning;
                 break;
