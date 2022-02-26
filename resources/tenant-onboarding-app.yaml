@@ -517,7 +517,7 @@ Resources:
               Configuration:
                 S3Bucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CODE_PIPELINE_BUCKET}}'
                 S3ObjectKey:
-                  Fn::Join: ['', [!Ref TenantId, '/', 'tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                  Fn::Join: ['', [!Ref TenantId, '/', 'sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
                 PollForSourceChanges: false
               OutputArtifacts:
                 - Name: imgdef
@@ -532,7 +532,7 @@ Resources:
               RunOrder: 1
               Configuration:
                 FunctionName: !Sub sb-${Environment}-update-ecs
-                UserParameters: !Sub '{"cluster":"${ECSCluster}","service":"${ECSService}","desiredCount":${MinTaskCount}}'
+                UserParameters: !Sub '{"cluster":"${ECSCluster}","service":"${ECSService.Name}","desiredCount":${MinTaskCount}}'
             - Name: DeployAction
               ActionTypeId:
                 Category: Deploy
@@ -542,21 +542,26 @@ Resources:
               RunOrder: 2
               Configuration:
                 ClusterName: !Ref ECSCluster
-                ServiceName: !Ref ECSService
+                ServiceName: !GetAtt ECSService.Name
                 FileName: imagedefinitions.json
               InputArtifacts:
                 - Name: imgdef
+      Tags:
+        - Key: Tenant
+          Value: !Ref TenantId
+        - Key: Stack
+          Value: !Ref AWS::StackName
   FsxWaitHandle:
     Condition: ProvisionFsx
     DependsOn: fsx
-    Type: "AWS::CloudFormation::WaitConditionHandle"
+    Type: AWS::CloudFormation::WaitConditionHandle
   WaitHandle:
-    Type: "AWS::CloudFormation::WaitConditionHandle"
+    Type: AWS::CloudFormation::WaitConditionHandle
   FsxWaitCondition:
-    Type: "AWS::CloudFormation::WaitCondition"
+    Type: AWS::CloudFormation::WaitCondition
     Properties:
       Handle: !If [ProvisionFsx, !Ref FsxWaitHandle, !Ref WaitHandle]
-      Timeout: "1"
+      Timeout: 1
       Count: 0
   # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
   # Or we need an Target Group (Linux/Fargate)

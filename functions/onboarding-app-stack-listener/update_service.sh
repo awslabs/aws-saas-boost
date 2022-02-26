@@ -26,7 +26,7 @@ if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
 
-LAMBDA_CODE=WorkloadDeploy-lambda.zip
+LAMBDA_CODE=OnboardingAppStackListener-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
@@ -48,7 +48,7 @@ fi
 
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-workload-deploy" 
+FUNCTIONS=("sb-${ENVIRONMENT}-onboarding-app-listener" 
         )
 
 for FUNCTION in ${FUNCTIONS[@]}; do

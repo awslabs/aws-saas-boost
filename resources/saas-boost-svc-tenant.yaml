@@ -408,11 +408,11 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub sb-${Environment}-tenant-update-resources
-      Description: Update list of resources after a tenant is provisioned
+      Description: Tenant's provisioned resources changed
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:
         detail-type:
-          - Tenant Update Resources
+          - Tenant Resources Updated
         source:
           - saas-boost
       State: ENABLED

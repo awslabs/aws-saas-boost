@@ -242,6 +242,17 @@ public class Utils {
         return !isBlank(str);
     }
 
+    public static String toUpperSnakeCase(String str) {
+        if (str == null) {
+            return  null;
+        }
+        if (isBlank(str)) {
+            return str;
+        }
+        // Don't prefix or suffix with underscore
+        return str.trim().toUpperCase().replaceAll("\\s+", "_");
+    }
+
     public static String randomString(int length) {
         return randomString(length, null);
     }

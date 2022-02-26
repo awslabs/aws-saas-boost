@@ -94,7 +94,7 @@ public class OnboardingServiceDAL {
         Onboarding onboarding = null;
         try {
             final int uuidLength = 36;
-            String filter = null;
+            String filter;
             if (tenantId.length() < uuidLength) {
                 filter = "begins_with(tenant_id, :tenantId)";
             } else {

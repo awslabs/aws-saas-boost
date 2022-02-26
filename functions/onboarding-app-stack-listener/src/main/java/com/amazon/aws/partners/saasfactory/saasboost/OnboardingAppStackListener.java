@@ -41,7 +41,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
     private static final Pattern STACK_NAME_PATTERN = Pattern
             .compile("^sb-" + SAAS_BOOST_ENV + "-tenant-[a-z0-9]{8}-app-.+-.+$");
     private static final Collection<String> EVENTS_OF_INTEREST = Collections.unmodifiableCollection(
-            Arrays.asList("CREATE_COMPLETE", "UPDATE_COMPLETE"));
+            Arrays.asList("CREATE_COMPLETE", "CREATE_FAILED", "UPDATE_COMPLETE", "DELETE_COMPLETE", "DELETE_FAILED"));
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
 
@@ -72,6 +72,8 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
         // We want to process the resources of the tenant-onboarding-app.yaml CloudFormation stack only after the
         // stack has finished being created or updated so we don't trigger anything downstream prematurely.
         if (filter(cloudFormationEvent)) {
+            LOGGER.info(Utils.toJson(event));
+            String stackId = cloudFormationEvent.getStackId();
             String stackName = cloudFormationEvent.getStackName();
             String stackStatus = cloudFormationEvent.getResourceStatus();
             LOGGER.info("Stack " + stackName + " is in status " + stackStatus);
@@ -98,86 +100,62 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                 throw cfnError;
             }
 
-            // We use these to build the ARN of the resources we're interested in if we don't
-            // get the ARN straight from the CloudFormation physical resource id
-            final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
-            final String partition = lambdaArn[1];
-            final String accountId = lambdaArn[4];
+            if ("CREATE_COMPLETE".equals(stackStatus) || "UPDATE_COMPLETE".equals(stackStatus)) {
+                // We use these to build the ARN of the resources we're interested in if we don't
+                // get the ARN straight from the CloudFormation physical resource id
+                final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
+                final String partition = lambdaArn[1];
+                final String accountId = lambdaArn[4];
 
-            // We're looking for CodePipeline repository resources in a CREATE_COMPLETE state. There could be
-            // multiple pipelines provisioned depending on how the application services are configured.
-            try {
-                ListStackResourcesResponse resources = cfn.listStackResources(req -> req
-                        .stackName(cloudFormationEvent.getStackId())
-                );
-                for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-//                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
-//                            resource.resourceStatusAsString(), resource.logicalResourceId(),
-//                            resource.physicalResourceId());
-                    if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())) {
-                        if ("AWS::CodePipeline::Pipeline".equals(resource.resourceType())) {
-                            String codePipeline = resource.physicalResourceId();
-                            // The resources collection on the tenant object is Map<String, Resource>
-                            // so we need a unique key per service code pipeline. We'll prefix the
-                            // key with SERVICE_ and suffix it with _CODE_PIPELINE so we can find
-                            // all of the tenant's code pipelines later on by looking for that pattern.
-                            String key = serviceNameResourceKey(serviceName, AwsResource.CODE_PIPELINE.name());
-                            LOGGER.info("Publishing update tenant resources event for tenant {} {} {}", tenantId,
-                                    key, codePipeline);
+                // We're looking for CodePipeline repository resources in a CREATE_COMPLETE state. There could be
+                // multiple pipelines provisioned depending on how the application services are configured.
+                try {
+                    ListStackResourcesResponse resources = cfn.listStackResources(req -> req
+                            .stackName(cloudFormationEvent.getStackId())
+                    );
+                    for (StackResourceSummary resource : resources.stackResourceSummaries()) {
+                        if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())) {
+                            if ("AWS::CodePipeline::Pipeline".equals(resource.resourceType())) {
+                                String codePipeline = resource.physicalResourceId();
+                                // The resources collection on the tenant object is Map<String, Resource>
+                                // so we need a unique key per service code pipeline. We'll prefix the
+                                // key with SERVICE_ and suffix it with _CODE_PIPELINE so we can find
+                                // all of the tenant's code pipelines later on by looking for that pattern.
+                                String key = serviceNameResourceKey(serviceName, AwsResource.CODE_PIPELINE.name());
+                                LOGGER.info("Publishing update tenant resources event for tenant {} {} {}", tenantId,
+                                        key, codePipeline);
 
-                            Map<String, Object> tenantResource = new HashMap<>();
-                            tenantResource.put(key, Map.of(
-                                    "name", codePipeline,
-                                    "arn", AwsResource.CODE_PIPELINE.formatArn(partition, AWS_REGION, accountId,
-                                            codePipeline),
-                                    "consoleUrl", AwsResource.CODE_PIPELINE.formatUrl(AWS_REGION, codePipeline)
-                            ));
+                                Map<String, Object> tenantResource = new HashMap<>();
+                                tenantResource.put(key, Map.of(
+                                        "name", codePipeline,
+                                        "arn", AwsResource.CODE_PIPELINE.formatArn(partition, AWS_REGION, accountId,
+                                                codePipeline),
+                                        "consoleUrl", AwsResource.CODE_PIPELINE.formatUrl(AWS_REGION, codePipeline)
+                                ));
 
-                            // The update tenant resources API call is additive, so we don't need to pull the
-                            // current tenant object ourselves.
-                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                                    UPDATE_TENANT_RESOURCES,
-                                    Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
-                            );
+                                // The update tenant resources API call is additive, so we don't need to pull the
+                                // current tenant object ourselves.
+                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                        "Tenant Resources Updated",
+                                        Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
+                                );
+                            }
+                            //                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
+                            //                            //this is the rds sub-stack so get the cluster and instance ids
+                            //                            getRdsResources(physicalResourceId, tenantResources);
                         }
-//                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
-//                            //this is the rds sub-stack so get the cluster and instance ids
-//                            getRdsResources(physicalResourceId, tenantResources);
-
-//                    // Invoke this tenant's deployment pipeline... probably should be done through a service API call
-//                    LOGGER.info("Triggering tenant deployment pipeline");
-//                    // First, build an event object that looks similar to the object generated by
-//                    // an ECR image push (which is what the deploy method uses).
-//                    Map<String, Object> lambdaEvent = new HashMap<>();
-//                    lambdaEvent.put("source", "tenant-onboarding");
-//                    lambdaEvent.put("region", AWS_REGION);
-//                    lambdaEvent.put("account", context.getInvokedFunctionArn().split(":")[4]);
-//                    Map<String, Object> detail = new HashMap<>();
-//                    detail.put("repository-name", ecrRepo);
-//                    detail.put("image-tag", "latest");
-//                    detail.put("tenantId", tenantId);
-//                    detail.put("pipeline", pipeline);
-//                    lambdaEvent.put("detail", detail);
-//                    SdkBytes payload = SdkBytes.fromString(Utils.toJson(lambdaEvent), StandardCharsets.UTF_8);
-//                    // Now invoke the deployment lambda async... probably move this to the tenant service
-//                    try {
-//                        lambda.invoke(r -> r
-//                                .functionName(TENANT_DEPLOY_LAMBDA)
-//                                .invocationType(InvocationType.EVENT)
-//                                .payload(payload)
-//                        );
-//                    } catch (SdkServiceException lambdaError) {
-//                        LOGGER.error("lambda:Invoke");
-//                        LOGGER.error(Utils.getFullStackTrace(lambdaError));
-//                        throw lambdaError;
-//                    }
                     }
+                } catch (SdkServiceException cfnError) {
+                    LOGGER.error("cfn:ListStackResources error", cfnError);
+                    LOGGER.error(Utils.getFullStackTrace(cfnError));
+                    throw cfnError;
                 }
-            } catch (SdkServiceException cfnError) {
-                LOGGER.error("cfn:ListStackResources error", cfnError);
-                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                throw cfnError;
             }
+
+            // Fire a stack status change event
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                    "Onboarding Stack Status Changed",
+                    Map.of("tenantId", tenantId, "stackId", stackId, "stackStatus", stackStatus));
 
 //                // Persist the tenant specific things as tenant settings
 //                if (dbHost != null) {
@@ -208,7 +186,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
             throw new IllegalArgumentException("Resource type must not be blank");
         }
         return "SERVICE_"
-                + serviceName.toUpperCase().replaceAll("\\s+", "_")
+                + Utils.toUpperSnakeCase(serviceName)
                 + "_"
                 + resourceType;
     }

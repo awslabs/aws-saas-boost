@@ -22,11 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.services.codepipeline.CodePipelineClient;
 import software.amazon.awssdk.services.codepipeline.model.StartPipelineExecutionResponse;
-import software.amazon.awssdk.services.ecr.EcrClient;
-import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -34,7 +31,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -46,13 +42,11 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String CODE_PIPELINE_BUCKET = System.getenv("CODE_PIPELINE_BUCKET");
     private final S3Client s3;
     private final CodePipelineClient codepipeline;
-    private final EcrClient ecr;
-    private final String codePipelineBucket;
 
     public WorkloadDeploy() {
-        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -68,174 +62,200 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
         }
+        if (Utils.isBlank(CODE_PIPELINE_BUCKET)) {
+            throw new IllegalStateException("Missing required environment variable CODE_PIPELINE_BUCKET");
+        }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
         this.codepipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
-        this.ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME);
-
-        // Get the CodePipeline artifact bucket
-        Map<String, String> settings;
-        ApiRequest getSettingsRequest = ApiRequest.builder()
-                .resource("settings?setting=CODE_PIPELINE_BUCKET")
-                .method("GET")
-                .build();
-        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
-        LOGGER.info("Fetching CodePipeline artifacts bucket from Settings Service");
-        try {
-            String functionName = "sb-" + SAAS_BOOST_ENV + "-workload-deploy-" + AWS_REGION;
-            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, functionName);
-            ArrayList<Map<String, String>> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
-            if (null == getSettingsResponse) {
-                throw new RuntimeException("responseBody is invalid");
-            }            
-            settings = getSettingsResponse
-                    .stream()
-                    .collect(Collectors.toMap(
-                            setting -> setting.get("name"), setting -> setting.get("value")
-                    ));
-        } catch (Exception e) {
-            LOGGER.error("Error invoking API /" + System.getenv("API_GATEWAY_STAGE") + "/settings");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        codePipelineBucket = settings.get("CODE_PIPELINE_BUCKET");
-        if (Utils.isBlank(codePipelineBucket)) {
-            throw new RuntimeException("Missing required SaaS Boost parameter CODE_PIPELINE_BUCKET");
-        }
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
     public Object handleRequest(Map<String, Object> event, Context context) {
         Utils.logRequestEvent(event);
+        if (validEvent(event)) {
+            List<Deployment> deployments = getDeployments(event, context);
+            if (!deployments.isEmpty()) {
+                LOGGER.info("Deploying for " + deployments.size() + " tenants");
+                for (Deployment deployment : deployments) {
+                    try {
+                        String tenantId = deployment.getTenantId();
 
-        // Is this event an ECR image action or a first-time deploy custom event?
-        String source = (String) event.get("source");
+                        // Create an imagedefinitions.json document for the newly pushed image
+                        byte[] zip = codePipelineArtifact(deployment.getImageName(), deployment.getImageUri());
 
-        List<Deployment> deployments = new ArrayList<>();
-        if ("aws.ecr".equals(source)) {
-            String imageUri = parseEcrEvent(event);
-            // We will deploy the image tagged as latest to every provisioned tenant
-            if (imageUri != null && imageUri.endsWith("latest")) {
-                ApiRequest provisionedTenants = ApiRequest.builder()
-                        .resource("tenants/provisioned")
-                        .method("GET")
-                        .build();
-                SdkHttpFullRequest getTenantsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, provisionedTenants);
-                LOGGER.info("Fetching Provisioned tenants from tenants/provisioned");
-                try {
-                    String functionName = "sb-" + SAAS_BOOST_ENV + "-workload-deploy";
-                    String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getTenantsApiRequest, API_TRUST_ROLE, functionName);
-                    ArrayList<Map<String, Object>> getTenantsResponse = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
-                    if (null == getTenantsResponse) {
-                        throw new RuntimeException("responseBody is invalid");
-                    }                    
-                    for (Map<String, Object> tenant : getTenantsResponse) {
-                        String tenantId = (String) tenant.get("id");
-                        //TODO need to find the pipeline for each application service
-                        String tenantCodePipeline = "tenant-" + tenantId.substring(0, tenantId.indexOf("-"));
-                        Deployment deployment = new Deployment(tenantId, imageUri, tenantCodePipeline);
-                        deployments.add(deployment);
+                        // Write the imagedefinitions.json document to the artifact bucket
+                        writeToArtifactBucket(s3, CODE_PIPELINE_BUCKET, tenantId, deployment.getImageName(), zip);
+
+                        // Trigger CodePipeline for this tenant
+                        triggerPipeline(codepipeline, tenantId, deployment.getPipeline());
+                    } catch (Exception e) {
+                        LOGGER.error("Deployment failed {}", Utils.toJson(deployment));
+                        LOGGER.error(Utils.getFullStackTrace(e));
                     }
-                } catch (Exception e) {
-                    LOGGER.error("Error invoking API /" + API_GATEWAY_STAGE + "/tenants/provisioned");
-                    LOGGER.error(Utils.getFullStackTrace(e));
-                    throw new RuntimeException(e);
                 }
             } else {
-                LOGGER.info("Image URI {} does not end with latest, skipping deployment", imageUri);
-                return null;
-            }
-        } else if ("tenant-onboarding".equals(source)) {
-            // Check to see if there are any images in the ECR repo before triggering the pipeline
-            boolean hasImageToDeploy = false;
-            String repo = ((Map<String, String>) event.get("detail")).get("repository-name");
-            try {
-                ListImagesResponse dockerImages = ecr.listImages(request -> request.repositoryName(repo));
-                //ListImagesResponse::hasImageIds will return true if the imageIds object is not null
-                if (dockerImages.hasImageIds() && !dockerImages.imageIds().isEmpty()) {
-                    hasImageToDeploy = true;
-                }
-                LOGGER.info("ecr:ListImages {}", repo);
-                for (Object imageId : dockerImages.imageIds()) {
-                    LOGGER.info(imageId.toString());
-                }
-            } catch (SdkServiceException ecrError) {
-                LOGGER.error("ecr::ListImages error", ecrError.getMessage());
-                LOGGER.error(Utils.getFullStackTrace(ecrError));
-                throw ecrError;
-            }
-            if (hasImageToDeploy) {
-                String imageUri = parseTenantOnboardingEvent(event);
-                if (imageUri != null) {
-                    Map<String, String> detail = (Map<String, String>) event.get("detail");
-                    String tenantId = detail.get("tenantId");
-                    //String tenantCodePipeline = detail.get("pipeline");
-                    String tenantCodePipeline = "tenant-" + tenantId.substring(0, tenantId.indexOf("-"));
-                    Deployment deployment = new Deployment(tenantId, imageUri, tenantCodePipeline);
-                    deployments.add(deployment);
-                }
-            } else {
-                LOGGER.info("Skipping CodePipeline for tenant onboarding. No images in ECR.");
-            }
-        }
-
-        if (!deployments.isEmpty()) {
-            LOGGER.info("Deploying for " + deployments.size() + " tenants");
-            for (Deployment deployment : deployments) {
-                String tenantId = deployment.getTenantId();
-
-                // Create an imagedefinitions.json document for the newly pushed image
-                byte[] zip = codePipelineArtifact(tenantId, deployment.getImageUri());
-
-                // Write the imagedefinitions.json document to the artifact bucket
-                writeToArtifactBucket(tenantId, zip);
-
-                // Trigger CodePipeline for this tenant
-                triggerPipeline(tenantId, deployment.getPipeline());
+                LOGGER.warn("No deployments to trigger");
             }
         } else {
-            LOGGER.info("No active, provisioned tenants to deploy to {}", deployments.size());
+            LOGGER.error("Unrecognized event");
         }
-
         return null;
     }
 
-    private String parseEcrEvent(Map<String, Object> event) {
-        String imageUri = null;
-        Map<String, String> detail = (Map<String, String>) event.get("detail");
-        String action = detail.get("action-type");
-        String result = detail.get("result");
-        if ("PUSH".equals(action) && "SUCCESS".equals(result)) {
-            LOGGER.info("Processing ECR image {}, status {}", action, result);
-            String accountId = (String) event.get("account");
-            String region = (String) event.get("region");
-            String repo = detail.get("repository-name");
-            String tag = detail.get("image-tag");
-            imageUri = accountId + ".dkr.ecr." + region + ".amazonaws.com/" + repo + ":" + tag;
+    List<Deployment> getDeployments(Map<String, Object> event, Context context) {
+        List<Deployment> deployments = new ArrayList<>();
+
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String repo = (String) detail.get("repository-name");
+        String tag = (String) detail.get("image-tag");
+
+        // First, fetch the app config and make sure we're trying to deploy an image from a repo that's
+        // in the config and for a tag that's in the config
+        String serviceName = null;
+        Map<String, Object> appConfig = getAppConfig(context);
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+            Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+            String containerRepo = (String) service.get("containerRepo");
+            String containerTag = (String) service.get("containerTag");
+            if (repo.equals(containerRepo)) {
+                if (!tag.equals(containerTag)) {
+                    LOGGER.error("Image tag in event {} does not match appConfig {}", tag, containerTag);
+                } else {
+                    serviceName = serviceConfig.getKey();
+                }
+            }
         }
-        return imageUri;
+        if (serviceName == null) {
+            LOGGER.error("Can't find event repository in appConfig {}", repo);
+        } else {
+            List<Map<String, Object>> tenants = null;
+            String source = (String) event.get("source");
+            if ("aws.ecr".equals(source)) {
+                tenants = getTenants(context);
+            } else if ("saas-boost".equals(source)) {
+                String tenantId = (String) detail.get("tenantId");
+                if (Utils.isNotEmpty(tenantId)) {
+                    tenants = getTenants(tenantId, context);
+                }
+            }
+            if (tenants != null && !tenants.isEmpty()) {
+                for (Map<String, Object> tenant : tenants) {
+                    String tenantId = (String) tenant.get("id");
+                    String pipelineKey = "SERVICE_" + Utils.toUpperSnakeCase(serviceName) + "_CODE_PIPELINE";
+                    Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
+                    if (tenantResources.containsKey(pipelineKey)) {
+                        Map<String, String> codePipelineResource = (Map<String, String>) tenantResources.get(pipelineKey);
+                        String imageName = imageName(tenantId, serviceName);
+                        String imageUri = imageUri(event);
+                        String pipeline = codePipelineResource.get("name");
+                        Deployment deployment = new Deployment(tenantId, imageName, imageUri, pipeline);
+                        deployments.add(deployment);
+                    } else {
+                        LOGGER.error("Can't find CodePipeline resource {} for tenant {}", pipelineKey, tenantId);
+                    }
+                }
+            } else {
+                LOGGER.warn("No active, provisioned tenants");
+            }
+        }
+
+        return deployments;
     }
 
-    private String parseTenantOnboardingEvent(Map<String, Object> event) {
-        String imageUri = null;
+    protected Map<String, Object> getAppConfig(Context context) {
+        // Fetch all of the services configured for this application
+        LOGGER.info("Calling settings service get app config API");
+        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings/config")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+        return appConfig;
+    }
+
+    protected List<Map<String, Object>> getTenants(Context context) {
+        return getTenants(null, context);
+    }
+
+    protected List<Map<String, Object>> getTenants(String tenantId, Context context) {
+        // Fetch one or all tenants
+        LOGGER.info("Calling tenants service get tenants API");
+        String resource = Utils.isNotEmpty(tenantId) ? "tenants/" + tenantId : "tenants/provisioned";
+        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource(resource)
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, Object>> tenants;
+        if (Utils.isNotEmpty(tenantId)) {
+            tenants = Collections.singletonList(Utils.fromJson(getTenantsResponseBody, LinkedHashMap.class));
+        } else {
+            tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+        }
+        return tenants;
+    }
+
+    protected static boolean validEvent(Map<String, Object> event) {
+        boolean validEvent = false;
         Map<String, String> detail = (Map<String, String>) event.get("detail");
-        String tenantId = detail.get("tenantId");
-        LOGGER.info("Processing Tenant Onboarding {}", tenantId);
+        if (detail != null) {
+            if ("aws.ecr".equals(event.get("source")) && detail.containsKey("action-type")
+                    && detail.containsKey("result")) {
+                // Parsing an ECR image event
+                String action = detail.get("action-type");
+                String result = detail.get("result");
+                if ("PUSH".equals(action) && "SUCCESS".equals(result)) {
+                    validEvent = true;
+                }
+            } else if ("saas-boost".equals(event.get("source")) && detail.containsKey("tenantId")) {
+                // Parsing an onboarding event
+                validEvent = true;
+            }
+        }
+        return validEvent;
+    }
+
+    protected static String imageName(String tenantId, String serviceName) {
+        // Must match the name in the Task Definition for this imageUri
+        return "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantId.substring(0, tenantId.indexOf("-")) + "-" + serviceName;
+    }
+
+    protected static String imageUri(Map<String, Object> event) {
+        String imageUri = null;
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String accountId = (String) event.get("account");
         String region = (String) event.get("region");
-        String repo = detail.get("repository-name");
-        String tag = detail.get("image-tag");
-        if (!empty(accountId) && !empty(region) && !empty(repo) && !empty(tag)) {
+        String repo = (String) detail.get("repository-name");
+        String tag = (String) detail.get("image-tag");
+        if (Utils.isNotBlank(accountId) && Utils.isNotBlank(region)
+                && Utils.isNotBlank(repo) && Utils.isNotBlank(tag)) {
             imageUri = accountId + ".dkr.ecr." + region + ".amazonaws.com/" + repo + ":" + tag;
         }
         return imageUri;
     }
 
-    private byte[] codePipelineArtifact(String tenantId, String imageUri) {
+    protected static byte[] codePipelineArtifact(String imageName, String imageUri) {
         LOGGER.info("Creating imagedefinitions.json");
-        String imageName = "tenant-" + tenantId.substring(0, tenantId.indexOf("-"));
-        String imageDefinitions = String.format("[{\"name\":\"%s\",\"imageUri\":\"%s\"}]", imageName, imageUri);
+        String imageDefinitions = Utils.toJson(Collections.singletonList(
+                Map.of("name", imageName, "imageUri", imageUri)
+        ));
         LOGGER.info(imageDefinitions);
 
         // CodePipeline expects source input artifacts to be in a ZIP file
@@ -244,7 +264,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         return zip;
     }
 
-    private byte[] zip(String imagedefinitions) {
+    protected static byte[] zip(String imagedefinitions) {
         byte[] archive;
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -262,12 +282,13 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         return archive;
     }
 
-    private void writeToArtifactBucket(String tenantId, byte[] artifact) {
-        String key = tenantId + "/tenant-" + tenantId.substring(0, tenantId.indexOf("-"));
-        LOGGER.info("Putting CodePipeline source artifact to S3 " + codePipelineBucket + "/" + key);
+    protected static void writeToArtifactBucket(S3Client s3, String bucket, String tenantId,
+                                                String imageName, byte[] artifact) {
+        String key = tenantId + "/" + imageName;
+        LOGGER.info("Putting CodePipeline source artifact to S3 " + bucket + "/" + key);
         try {
             s3.putObject(PutObjectRequest.builder()
-                            .bucket(codePipelineBucket)
+                            .bucket(bucket)
                             .key(key)
                             .build(),
                     RequestBody.fromBytes(artifact)
@@ -278,37 +299,36 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         }
     }
 
-    private void triggerPipeline(String tenantId, String pipeline) {
+    private static void triggerPipeline(CodePipelineClient codepipeline, String tenantId, String pipeline) {
         try {
-            StartPipelineExecutionResponse tenantPipeline = codepipeline.startPipelineExecution(r -> r.name(pipeline));
-            LOGGER.info("{\"message\":\"Tenant Deploy Pipeline\",\"tenantId\":\"" + tenantId + "\",\"status\":\"Started\",\"ExecutionId\":\"" + tenantPipeline.pipelineExecutionId() + "\"}");
+            StartPipelineExecutionResponse response = codepipeline.startPipelineExecution(r -> r.name(pipeline));
+            LOGGER.info("Started tenant {} pipeline {} {}", tenantId, pipeline, response.pipelineExecutionId());
         } catch (SdkServiceException codepipelineError) {
-            LOGGER.error("codepipeline:StartPipeline " + Utils.getFullStackTrace(codepipelineError));
+            LOGGER.error("codepipeline:StartPipeline", codepipelineError);
+            LOGGER.error(Utils.getFullStackTrace(codepipelineError));
             throw codepipelineError;
         }
     }
 
-    private static boolean empty(String str) {
-        boolean empty = true;
-        if (str != null && !str.isBlank()) {
-            empty = false;
-        }
-        return empty;
-    }
-
     private static class Deployment {
         private final String tenantId;
+        private final String imageName;
         private final String imageUri;
         private final String pipeline;
 
-        public Deployment(String tenantId, String imageUri, String pipeline) {
+        public Deployment(String tenantId, String imageName, String imageUri, String pipeline) {
             this.tenantId = tenantId;
+            this.imageName = imageName;
             this.imageUri = imageUri;
             this.pipeline = pipeline;
         }
 
         public String getTenantId() {
             return tenantId;
+        }
+
+        public String getImageName() {
+            return imageName;
         }
 
         public String getImageUri() {

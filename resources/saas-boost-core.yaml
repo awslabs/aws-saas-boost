@@ -107,11 +107,6 @@ Resources:
                   - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:*
               - Effect: Allow
                 Action:
-                  - ecr:ListImages
-                Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
-              - Effect: Allow
-                Action:
                   - sts:AssumeRole
                 Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
   WorkloadDeployLambda:
@@ -136,6 +131,7 @@ Resources:
           API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          CODE_PIPELINE_BUCKET: !Ref CodePipelineBucket
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -143,6 +139,32 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "ECSDeploy"
+  WorkloadDeployEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+      Name: !Sub sb-${Environment}-workload-deploy-event
+      Description: SaaS Boost tenant workload deploy events
+      State: ENABLED
+      EventPattern:
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [
+            "Workload Ready For Deployment"
+          ]
+        }
+      Targets:
+        - Arn: !GetAtt WorkloadDeployLambda.Arn
+          Id: !Sub sb-${Environment}-workload-deploy-event
+  WorkloadDeployEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WorkloadDeployLambda
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WorkloadDeployEventRule.Arn
   OnboardingStackListenerExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -395,11 +417,12 @@ Resources:
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
   CodePipelineUpdateEcsServiceLogs:
     Type: AWS::Logs::LogGroup
     Properties:

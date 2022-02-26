@@ -238,7 +238,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                 // Fire a tenant resources updated event
                 LOGGER.info("Updating tenant resources AWS console links");
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                        "TENANT_RESOURCES_CHANGE",
+                        "Tenant Resources Updated",
                         Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResources))
                 );
 

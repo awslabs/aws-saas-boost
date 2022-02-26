@@ -34,7 +34,6 @@ import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
-import software.amazon.awssdk.services.ecr.model.ImageDetail;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
 import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
@@ -358,6 +357,8 @@ public class OnboardingService {
                 // TODO Throw here? Would end up in DLQ.
             }
         } else if ("aws.codepipeline".equals(event.get("source"))) {
+            LOGGER.info("Handling Onboarding Deployment Pipeline Changed");
+            Utils.logRequestEvent(event);
             handleOnboardingDeploymentPipelineChanged(event, context);
         } else {
             LOGGER.error("Unknown event source " + event.get("source"));
@@ -655,21 +656,8 @@ public class OnboardingService {
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 String tenantId = onboarding.getTenantId().toString();
-                LinkedHashMap<String, Object> tenant;
-                LOGGER.info("Calling tenant service to get tenant {}", tenantId);
-                String getTenantResponse = ApiGatewayHelper.signAndExecuteApiRequest(
-                        ApiGatewayHelper.getApiRequest(
-                                API_GATEWAY_HOST,
-                                API_GATEWAY_STAGE,
-                                ApiRequest.builder()
-                                        .resource("tenants/" + tenantId)
-                                        .method("GET")
-                                        .build()
-                        ),
-                        API_TRUST_ROLE,
-                        context.getAwsRequestId()
-                );
-                tenant = Utils.fromJson(getTenantResponse, LinkedHashMap.class);
+                Map<String, Object> tenant = getTenant(tenantId, context);
+                // TODO tenant == null means tenant API call failed? retry?
                 if (tenant != null) {
                     Map<String, Object> appConfig = getAppConfig(context);
                     if (null == appConfig) {
@@ -748,7 +736,7 @@ public class OnboardingService {
 
                         // If there are any private services, we will create an environment variables called
                         // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
-                        String serviceEnvName = serviceName.replaceAll("\\s+", "_").toUpperCase();
+                        String serviceEnvName = Utils.toUpperSnakeCase(serviceName);
                         String serviceHost = "SERVICE_" + serviceEnvName + "_HOST";
                         String servicePort = "SERVICE_" + serviceEnvName + "_PORT";
                         if (!isPublic) {
@@ -965,8 +953,7 @@ public class OnboardingService {
                     failOnboarding(onboarding.getId(), "Can't fetch tenant " + tenantId);
                 }
             } else {
-                LOGGER.error("No onboarding record for {}", onboarding.getId());
-                failOnboarding(onboarding.getId(), "No onboarding record " + onboarding.getId());
+                LOGGER.error("No onboarding record for {}", detail.get("onboardingId"));
             }
         } else {
             LOGGER.error("Missing onboardingId in event detail {}", Utils.toJson(event.get("detail")));
@@ -975,64 +962,105 @@ public class OnboardingService {
     }
 
     protected void handleOnboardingProvisioned(Map<String, Object> event, Context context) {
+        // Provisioning is complete so we can deploy the workloads. Doing this after all stacks have finished
+        // instead of as each non base stack finishes because until all services are up and ready the tenant
+        // can't use the solution.
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        if (detail != null && detail.containsKey("onboardingId")
+                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+            Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
+            if (onboarding != null) {
+                LOGGER.info("Triggering deployment pipelines for tenant {}", onboarding.getTenantId());
 
+                // Publish a deployment event for each of the configured services in appConfig
+                Map<String, Object> appConfig = getAppConfig(context);
+                Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+                for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+                    Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Workload Ready For Deployment",
+                            Map.of(
+                                    "tenantId", onboarding.getTenantId(),
+                                    "repository-name", service.get("containerRepo"),
+                                    "image-tag", service.get("containerTag")
+                            )
+                    );
+                }
+            } else {
+                LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
+            }
+        } else {
+            LOGGER.error("Missing onboardingId in event detail {}", Utils.toJson(event.get("detail")));
+        }
     }
 
     protected void handleOnboardingDeploymentPipelineChanged(Map<String, Object> event, Context context) {
         if ("aws.codepipeline".equals(event.get("source"))) {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-            OnboardingStatus status = null;
-            Object pipelineState = detail.get("state");
-            if ("STARTED".equals(pipelineState)) {
-                status = OnboardingStatus.deploying;
-            } else if ("FAILED".equals(pipelineState) || "CANCELED".equals(pipelineState)) {
-                status = OnboardingStatus.failed;
-            } else if ("SUCCEEDED".equals(pipelineState)) {
-                status = OnboardingStatus.deployed;
-            }
             String pipeline = (String) detail.get("pipeline");
             String prefix = "sb-" + SAAS_BOOST_ENV + "-tenant-";
             if (pipeline != null && pipeline.startsWith(prefix)) {
-                String tenantId = pipeline.substring(prefix.length());
+                // CodePipelines are named sb-${environment}-tenant-${tenantId prefix}-${service name}
+                // We can fetch the full tenantId from the Tags on the pipeline if this is too fragile
+                String tenantId;
+                try {
+                    tenantId = pipeline.split("-")[3];
+                } catch (IndexOutOfBoundsException iob) {
+                    LOGGER.error("Unexpected CodePipeline name pattern {}", pipeline);
+                    tenantId = pipeline.substring(prefix.length());
+                }
                 Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
                 if (onboarding != null) {
                     tenantId = onboarding.getTenantId().toString();
-                    LOGGER.info("OnboardingService::statusEventListener Updating Onboarding status for tenant " + tenantId + " to " + status);
-                    onboarding = dal.updateStatus(onboarding.getId(), status);
+
+                    Object pipelineState = detail.get("state");
+                    if ("STARTED".equals(pipelineState)) {
+                        dal.updateStatus(onboarding.getId(), OnboardingStatus.deploying);
+                    } else if ("FAILED".equals(pipelineState) || "CANCELED".equals(pipelineState)) {
+                        // TODO how do we track this? No op? Retry?
+                        // When the pipeline is created it is automatically started (there's no way to prevent this)
+                        // and will fail because the source for the pipeline is not available when it's created. Even
+                        // if we made the source available (the docker image to deploy), there's no guarantee that the
+                        // container infrastructure would be ready yet. We trigger the first run of the pipeline after
+                        // all of the infrastructure is provisioned.
+                    } else if ("SUCCEEDED".equals(pipelineState)) {
+                        // TODO need to track all pipelines to know whether the entire solution is deployed
+                    }
 
                     // And update the tenant record
-                    if (OnboardingStatus.deployed == onboarding.getStatus()) {
-                        try {
-                            ObjectNode systemApiRequest = MAPPER.createObjectNode();
-                            systemApiRequest.put("resource", "tenants/" + tenantId + "/onboarding");
-                            systemApiRequest.put("method", "PUT");
-                            systemApiRequest.put("body", "{\"id\":\"" + tenantId + "\", \"onboardingStatus\":\"succeeded\"}");
-                            PutEventsRequestEntry systemApiCallEvent = PutEventsRequestEntry.builder()
-                                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                                    .detailType(SYSTEM_API_CALL_DETAIL_TYPE)
-                                    .source(EVENT_SOURCE)
-                                    .detail(MAPPER.writeValueAsString(systemApiRequest))
-                                    .build();
-                            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-                                    .entries(systemApiCallEvent)
-                            );
-                            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                                    LOGGER.info("Put event success {} {}", entry.toString(), systemApiCallEvent.toString());
-                                } else {
-                                    LOGGER.error("Put event failed {}", entry.toString());
-                                }
-                            }
-                        } catch (JsonProcessingException ioe) {
-                            LOGGER.error("JSON processing failed");
-                            LOGGER.error(Utils.getFullStackTrace(ioe));
-                            throw new RuntimeException(ioe);
-                        } catch (SdkServiceException eventBridgeError) {
-                            LOGGER.error("events::PutEvents");
-                            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-                            throw eventBridgeError;
-                        }
-                    }
+//                    if (OnboardingStatus.deployed == onboarding.getStatus()) {
+//                        try {
+//                            ObjectNode systemApiRequest = MAPPER.createObjectNode();
+//                            systemApiRequest.put("resource", "tenants/" + tenantId + "/onboarding");
+//                            systemApiRequest.put("method", "PUT");
+//                            systemApiRequest.put("body", "{\"id\":\"" + tenantId + "\", \"onboardingStatus\":\"succeeded\"}");
+//                            PutEventsRequestEntry systemApiCallEvent = PutEventsRequestEntry.builder()
+//                                    .eventBusName(SAAS_BOOST_EVENT_BUS)
+//                                    .detailType(SYSTEM_API_CALL_DETAIL_TYPE)
+//                                    .source(EVENT_SOURCE)
+//                                    .detail(MAPPER.writeValueAsString(systemApiRequest))
+//                                    .build();
+//                            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
+//                                    .entries(systemApiCallEvent)
+//                            );
+//                            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
+//                                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
+//                                    LOGGER.info("Put event success {} {}", entry.toString(), systemApiCallEvent.toString());
+//                                } else {
+//                                    LOGGER.error("Put event failed {}", entry.toString());
+//                                }
+//                            }
+//                        } catch (JsonProcessingException ioe) {
+//                            LOGGER.error("JSON processing failed");
+//                            LOGGER.error(Utils.getFullStackTrace(ioe));
+//                            throw new RuntimeException(ioe);
+//                        } catch (SdkServiceException eventBridgeError) {
+//                            LOGGER.error("events::PutEvents");
+//                            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
+//                            throw eventBridgeError;
+//                        }
+                } else {
+                    LOGGER.error("Can't find onboarding record for tenant {}", tenantId);
                 }
             }
         }
@@ -1815,6 +1843,35 @@ public class OnboardingService {
         );
         Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         return appConfig;
+    }
+
+    protected Map<String, Object> getTenant(UUID tenantId, Context context) {
+        if (tenantId == null) {
+            throw new IllegalArgumentException("Can't fetch blank tenant id");
+        }
+        return getTenant(tenantId.toString(), context);
+    }
+
+    protected Map<String, Object> getTenant(String tenantId, Context context) {
+        if (Utils.isBlank(tenantId)) {
+            throw new IllegalArgumentException("Can't fetch blank tenant id");
+        }
+        // Fetch all of the services configured for this application
+        LOGGER.info("Calling tenant service get tenant {}", tenantId);
+        String getTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("tenants/" + tenantId)
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> tenant = Utils.fromJson(getTenantResponseBody, LinkedHashMap.class);
+        return tenant;
     }
 
     protected Map<String, Integer> getPathPriority(Map<String, Object> appConfig) {

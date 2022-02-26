@@ -16,9 +16,14 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.LinkedHashMap;
 
 public class CloudFormationEventDeserializer {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(CloudFormationEventDeserializer.class);
 
     private CloudFormationEventDeserializer() {
     }
@@ -50,7 +55,11 @@ public class CloudFormationEventDeserializer {
             } else if ("ResourceProperties".equals(key)) {
                 if (!"null".equals(value)) {
                     String json = Utils.unescapeJson(value);
-                    builder.resourceProperties(Utils.fromJson(json, LinkedHashMap.class));
+                    LinkedHashMap<String, Object> resourceProperties = Utils.fromJson(json, LinkedHashMap.class);
+                    if (resourceProperties == null) {
+                        LOGGER.error("Can't deserialize unescaped JSON {}", json);
+                    }
+                    builder.resourceProperties(resourceProperties);
                 }
             } else if ("ResourceStatus".equals(key)) {
                 builder.resourceStatus(nullIf(value));

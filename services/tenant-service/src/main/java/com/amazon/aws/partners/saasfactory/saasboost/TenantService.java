@@ -162,11 +162,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
                 if (existing.isProvisioned()) {
                     // Need to trigger an update for this tenant's provisioned resources
                     LOGGER.info("Triggering provisioned tenant update for {}", tenantId);
-                    Map<String, Object> systemApiRequest = new HashMap<>();
-                    systemApiRequest.put("resource", "onboarding/update/tenant");
-                    systemApiRequest.put("method", "PUT");
-                    systemApiRequest.put("body", Utils.toJson(tenant));
-                    fireEvent(SYSTEM_API_CALL_DETAIL_TYPE, systemApiRequest);
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Updated",
+                            Map.of("tenantId", tenant.getId()));
                 }
 
                 response = new APIGatewayProxyResponseEvent()
@@ -239,12 +236,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         } else {
             Tenant tenant = dal.enableTenant(tenantId);
 
-            // Send EventBridge message so we can take action on enable/disable
-            Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenant.getId());
-            tenantStatusChangeDetails.put("status", Boolean.TRUE);
-            LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
-            fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Enabled",
+                    Map.of("tenantId", tenantId));
 
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -274,12 +267,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         } else {
             Tenant tenant = dal.disableTenant(tenantId);
 
-            // Send EventBridge message so we can take action on enable/disable
-            Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenant.getId());
-            tenantStatusChangeDetails.put("status", Boolean.FALSE);
-            LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
-            fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Enabled",
+                    Map.of("tenantId", tenantId));
 
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -351,12 +340,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
                         .withStatusCode(400)
                         .withHeaders(CORS);
             } else {
-
-                //fire event to onboarding service to delete the stack
-                LOGGER.info("Triggering tenant stack delete event");
-                Map<String, Object> deleteTenantEventDetail = new HashMap<>();
-                deleteTenantEventDetail.put("tenantId", tenantId);
-                publishEvent(deleteTenantEventDetail, "Delete Tenant");
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Deleted",
+                        Map.of("tenantId", tenantId));
 
                 //**TODO set status to deleting or disable?
                 dal.disableTenant(tenantId);
@@ -371,60 +356,26 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
-    private void publishEvent(Map<String, Object> eventBridgeDetail, String detailType) {
-        try {
-            PutEventsRequestEntry systemEvent = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .detailType(detailType)
-                    .source(EVENT_SOURCE)
-                    .detail(Utils.toJson(eventBridgeDetail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-                    .entries(systemEvent)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), systemEvent.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
-                }
-            }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents", eventBridgeError);
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
+    public void updateTenantResources(Map<String, Object> event, Context context) {
+        if ("saas-boost".equals(event.get("source")) && "Tenant Resources Updated".equals(event.get("detail-type"))) {
+            //Utils.logRequestEvent(event);
+            Tenant updatedTenant = parseTenantUpdateResourcesEvent(event);
+            Tenant tenant = dal.getTenant(updatedTenant.getId());
+            Map<String, Tenant.Resource> resources = tenant.getResources();
+            // Merge the updated resources with the existing ones. This helps the calling code not have to pull the
+            // current tenant before invoking this method. If you want to replace/delete resources from a tenant,
+            // you'll have to build the resources map you want and call updateTenant.
+            resources.putAll(updatedTenant.getResources());
+            tenant.setResources(resources);
+            dal.updateTenant(tenant);
+            LOGGER.info("Resources updated for tenant: {}", updatedTenant.getId());
+        } else {
+            LOGGER.error("Unknown event {}", Utils.toJson(event));
+            throw new IllegalArgumentException("Unknown event");
         }
     }
 
-    //handles the event for 'Tenant Update Resources'
-    public APIGatewayProxyResponseEvent updateTenantResources(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("TenantService::updateTenantResources");
-        //Utils.logRequestEvent(event);
-        Tenant updatedTenant = parseTenantUpdateResourcesEvent(event);
-        Tenant tenant = dal.getTenant(updatedTenant.getId());
-        Map<String, Tenant.Resource> resources = tenant.getResources();
-        // Merge the updated resources with the existing ones. This helps the calling code not have to pull the
-        // current tenant before invoking this method. If you want to replace/delete resources from a tenant,
-        // you'll have to build the resources map you want and call updateTenant.
-        resources.putAll(updatedTenant.getResources());
-        tenant.setResources(resources);
-        tenant = dal.updateTenant(tenant);
-        LOGGER.info("TenantService::updateTenantResources - Updated resources for tenant: {}", updatedTenant.getId());
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TenantService::updateTenantResources exec {}", totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(tenant));
-    }
-
-    static Tenant parseTenantUpdateResourcesEvent(Map<String, Object> event) {
+    protected static Tenant parseTenantUpdateResourcesEvent(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String tenantId = (String) detail.get("tenantId");
         LOGGER.info("Processing Tenant Update Resources event for tenant {}", tenantId);
@@ -445,34 +396,11 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         Map<String, Tenant.Resource> resources = new HashMap<>();
         for (Map.Entry<String, Object> resource : updatedResources.entrySet()) {
             Map<String, String> res = (Map<String, String>) resource.getValue();
-            resources.put(resource.getKey(), new Tenant.Resource(res.get("name"), res.get("arn"), res.get("consoleUrl")));
+            resources.put(resource.getKey(), new Tenant.Resource(res.get("name"), res.get("arn"),
+                    res.get("consoleUrl")));
         }
         tenant.setResources(resources);
         return tenant;
     }
 
-    private void fireEvent(String type, Map<String, Object> detail) {
-        try {
-            PutEventsRequestEntry event = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .source("saas-boost")
-                    .detailType(type)
-                    .detail(Utils.toJson(detail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(request -> request
-                    .entries(event)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), event.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
-                }
-            }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents");
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
-        }
-    }
 }

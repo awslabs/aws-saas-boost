@@ -789,6 +789,8 @@ Resources:
                   - codepipeline:GetPipeline
                   - codepipeline:GetPipelineState
                   - codepipeline:DeletePipeline
+                  - codepipeline:TagResource
+                  - codepipeline:UntagResource
                 Resource:
                   - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-tenant*
               - Effect: Allow
@@ -1163,7 +1165,7 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt OnboardingServiceEventHandler.Arn
-          Id: OnboardingServiceEventHandler
+          Id: !Sub sb-${Environment}-onboarding-events
   OnboardingServiceEventsPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1192,7 +1194,7 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt OnboardingServiceEventHandler.Arn
-          Id: OnboardingServiceCodePipelineEventHandler
+          Id: !Sub sb-${Environment}-codepipeline-state
   OnboardingDeploymentPipelineEventPermission:
     Type: AWS::Lambda::Permission
     Properties:
