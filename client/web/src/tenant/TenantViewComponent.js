@@ -194,10 +194,10 @@ function TenantViewComponent(props) {
                             style={{ paddingTop: 0 }}
                             active={true}
                             target="_blank"
-                            href={`http://${tenant.resources.LOAD_BALANCER_DNSNAME}`}
+                            href={`http://${tenant.resources.LOAD_BALANCER.consoleUrl}`}
                             className="pl-0"
                           >
-                            {`http://${tenant.resources.LOAD_BALANCER_DNSNAME}`}
+                            {`http://${tenant.resources.LOAD_BALANCER.arn}`}
                             <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
@@ -276,7 +276,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.ALB}
+                            href={tenant.resources.LOAD_BALANCER.consoleUrl}
                             className="pl-0"
                           >
                             Application Load Balancer Details
@@ -291,7 +291,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.VPC}
+                            href={tenant.resources.VPC.consoleUrl}
                             className="pl-0"
                           >
                             VPC Details
@@ -311,7 +311,7 @@ function TenantViewComponent(props) {
                             href={tenant.resources.CODE_PIPELINE}
                             className="pl-0"
                           >
-                            CodePipeline Details
+                            CodePipeline Details (deprecated)
                             <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
@@ -323,7 +323,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.CLOUDFORMATION}
+                            href={tenant.resources.CLOUDFORMATION.consoleUrl}
                             className="pl-0"
                           >
                             CloudFormation Details
@@ -343,7 +343,7 @@ function TenantViewComponent(props) {
                             href={tenant.resources.ECS_CLUSTER_LOG_GROUP}
                             className="pl-0"
                           >
-                            ECS Cluster CloudWatch Log
+                            ECS Cluster CloudWatch Log (deprecated)
                             <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
                           </NavLink>
                         )}
@@ -355,7 +355,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.ECS_CLUSTER}
+                            href={tenant.resources.ECS_CLUSTER.consoleUrl}
                             className="pl-0"
                           >
                             ECS Cluster Details
