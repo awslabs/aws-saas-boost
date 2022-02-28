@@ -614,6 +614,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxWindowsMountDrive = "";
             String fsxUseOntap = "";
             String fsxOntapVolumeSize = "0";
+            String fsxStorageGbOntap = "0";
+            String fsxThroughputMbsOntap = "0";
 
 
             if (null != fileSystemType && !fileSystemType.isEmpty()) {
@@ -680,6 +682,30 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                             LOGGER.info("Override default FSX ONTAP volume size with {}", fsxOntapVolumeSize);
                         } catch (NumberFormatException nfe) {
                             LOGGER.error("Can't parse tenant task FSX ONTAP volume size from {}", tenant.get("fsxOntapVolumeSize"));
+                            dal.updateStatus(onboardingId, OnboardingStatus.failed);
+                            LOGGER.error(Utils.getFullStackTrace(nfe));
+                        }
+                    }
+
+                    fsxStorageGbOntap = settings.get("FSX_STORAGE_GB_ONTAP"); // GB 1024 to 102400
+                    if (tenant.get("fsxStorageGbOntap") != null) {
+                        try {
+                            fsxStorageGbOntap = ((Integer) tenant.get("fsxStorageGbOntap")).toString();
+                            LOGGER.info("Override default FSX Storage GB with {}", fsxStorageGbOntap);
+                        } catch (NumberFormatException nfe) {
+                            LOGGER.error("Can't parse tenant task FSX Storage GB from {}", tenant.get("fsxStorageGbOntap"));
+                            dal.updateStatus(onboardingId, OnboardingStatus.failed);
+                            LOGGER.error(Utils.getFullStackTrace(nfe));
+                        }
+                    }
+
+                    fsxThroughputMbsOntap = settings.get("FSX_THROUGHPUT_MBS_ONTAP"); // MB/s
+                    if (tenant.get("fsxThroughputMbsOntap") != null) {
+                        try {
+                            fsxThroughputMbsOntap = ((Integer) tenant.get("fsxThroughputMbsOntap")).toString();
+                            LOGGER.info("Override default FSX Throughput with {}", fsxThroughputMbsOntap);
+                        } catch (NumberFormatException nfe) {
+                            LOGGER.error("Can't parse tenant task FSX Throughput from {}", tenant.get("fsxThroughputMbsOntap"));
                             dal.updateStatus(onboardingId, OnboardingStatus.failed);
                             LOGGER.error(Utils.getFullStackTrace(nfe));
                         }
@@ -819,6 +845,8 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
             templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").parameterValue(fsxUseOntap).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").parameterValue(fsxOntapVolumeSize).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacityOntap").parameterValue(fsxThroughputMbsOntap).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacityOntap").parameterValue(fsxStorageGbOntap).build());
             // <<-
             templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
             templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
@@ -1234,6 +1262,9 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").usePreviousValue(Boolean.TRUE).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacityOntap").usePreviousValue(Boolean.TRUE).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacityOntap").usePreviousValue(Boolean.TRUE).build());
+            
 
             if (taskMemory != null) {
                 LOGGER.info("Overriding previous template parameter TaskMemory to {}", taskMemory);

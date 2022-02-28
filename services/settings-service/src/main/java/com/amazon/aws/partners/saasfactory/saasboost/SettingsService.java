@@ -74,7 +74,10 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "FSX_WEEKLY_MAINTENANCE_TIME",//d:HH:MM in UTC
                     "FSX_WINDOWS_MOUNT_DRIVE",
                     "FSX_USE_ONTAP",
-                    "FSX_ONTAP_VOLUME_SIZE_MBS") // MB/s
+                    "FSX_ONTAP_VOLUME_SIZE_MBS",// MB/s
+                    "FSX_STORAGE_GB_ONTAP", // GB 1024 to 102400
+                    "FSX_THROUGHPUT_MBS_ONTAP" // MB/s
+                    ) 
     );
     final static List<String> TENANT_PARAMS = Collections.unmodifiableList(
             Arrays.asList("DB_HOST", "ALB")

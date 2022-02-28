@@ -40,6 +40,8 @@ Metadata:
           - SubnetRouteTableId
           - TenantId
           - OntapVolumeSize
+          - StorageCapacityOntap
+          - ThroughputCapacityOntap
           - UseOntap
       - Label:
           default: AWS Managed Microsoft AD settings for Amazon FSx
@@ -69,6 +71,10 @@ Metadata:
         default: Storage size
       ThroughputCapacity:
         default: Throughput capacity of Amazon FSx file system
+      StorageCapacityOntap:
+        default: Storage size for ONTAP
+      ThroughputCapacityOntap:
+        default: Throughput capacity of Amazon FSx ONTAP file system
       OntapVolumeSize:
         default: Volume size for ONTAP FSx
       FSxAllowedCIDR:
@@ -137,6 +143,16 @@ Parameters:
   ThroughputCapacity:
     Default: 8
     Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
+      Consider choosing a higher value for better performance.
+    Type: Number
+  StorageCapacityOntap:
+    Default: 1024
+    Description: Specify the storage capacity of the file system being created, in gibibytes.
+      Valid values are 1024 GiB - 102400 GiB. Consider choosing a higher value for greater capacity.
+    Type: Number
+  ThroughputCapacityOntap:
+    Default: 128
+    Description: Specify the throughput of the Amazon FSx ONTAP file system. Valid values are 128 - 2048.
       Consider choosing a higher value for better performance.
     Type: Number
   OntapVolumeSize:
@@ -535,7 +551,7 @@ Resources:
           - !Ref 'FSxExistingKeyID'
           - !Ref 'FSxKMSKey'
         - !Ref 'AWS::NoValue'
-      StorageCapacity: !Ref 'StorageCapacity'
+      StorageCapacity: !Ref 'StorageCapacityOntap'
       SecurityGroupIds:
         - !Ref 'FSxSecurityGroup'
       Tags:
@@ -549,7 +565,7 @@ Resources:
         PreferredSubnetId: !Ref PrivateSubnet1ID
         RouteTableIds:
           - !Ref SubnetRouteTableId
-        ThroughputCapacity: !Ref 'ThroughputCapacity'
+        ThroughputCapacity: !Ref 'ThroughputCapacityOntap'
         AutomaticBackupRetentionDays: !Ref 'BackupRetention'
         DailyAutomaticBackupStartTime: !Ref 'DailyBackupTime'
         WeeklyMaintenanceStartTime: !Ref 'WeeklyMaintenanceTime'

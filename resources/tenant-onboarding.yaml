@@ -199,6 +199,16 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: false
     Type: String
+  FSxStorageCapacityOntap:
+    Default: 1024
+    Description: Specify the storage capacity of the file system being created, in gibibytes.
+      Valid values are 1024 GiB - 102400 GiB. Consider choosing a higher value for greater capacity.
+    Type: Number
+  FSxThroughputCapacityOntap:
+    Default: 128
+    Description: Specify the throughput of the Amazon FSx file system. Valid values are 128 - 2048.
+      Consider choosing a higher value for better performance.
+    Type: Number
   FSxOntapVolumeSize:
     Default: 40
     Description: Specify the volume size for ONTAP FSx. Valid values are 0 - 2147483647.
@@ -1376,6 +1386,8 @@ Resources:
         SubnetRouteTableId: !GetAtt TenantRouteTablePrivate.RouteTableId
         UseOntap: !Ref FsxUseOntap
         OntapVolumeSize: !Ref FSxOntapVolumeSize
+        StorageCapacityOntap: !Ref FSxStorageCapacityOntap
+        ThroughputCapacityOntap: !Ref FSxThroughputCapacityOntap
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS

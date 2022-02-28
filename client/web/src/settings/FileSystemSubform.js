@@ -336,11 +336,11 @@ const FsxFilesystemOptions = (props) => {
   );
 };
 const FsxFilesystemOntapOptions = (props) => {
-  const fsMarks = {
+  const fsMarksOntap = {
     1024: '1024',
     10240: '10240',
   };
-  const tpMarks = {
+  const tpMarksOntap = {
     128: '128',
     2048: '2048',
   };
@@ -348,11 +348,11 @@ const FsxFilesystemOntapOptions = (props) => {
     1: '1',
     100: '100',
   };
-  const onStorageChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.storageGb', val);
+  const onStorageChangeOntap = (val) => {
+    props.formik.setFieldValue('filesystem.fsx.storageGbOntap', val);
   };
-  const onThroughputChange = (val) => {
-    props.formik.setFieldValue('filesystem.fsx.throughputMbs', val);
+  const onThroughputChangeOntap = (val) => {
+    props.formik.setFieldValue('filesystem.fsx.throughputMbsOntap', val);
   };
   const onOntapVolumeChange = (val) => {
     props.formik.setFieldValue('filesystem.fsx.ontapVolumeSize', val);
@@ -383,7 +383,7 @@ const FsxFilesystemOntapOptions = (props) => {
                   id="storageVal"
                   className="mb-4"
                   type="number"
-                  value={props.values?.fsx.storageGb}
+                  value={props.values?.fsx.storageGbOntap}
                   readOnly
                 ></Input>
               </FormGroup>
@@ -393,10 +393,10 @@ const FsxFilesystemOntapOptions = (props) => {
                 <Label htmlFor="storage">In GB</Label>
                 <Slider
                   id="storage"
-                  defaultValue={props.values?.fsx.storageGb}
-                  onChange={onStorageChange}
+                  defaultValue={props.values?.fsx.storageGbOntap}
+                  onChange={onStorageChangeOntap}
                   className="mb-4"
-                  marks={fsMarks}
+                  marks={fsMarksOntap}
                   included={false}
                   min={1024}
                   max={10240}
@@ -413,7 +413,7 @@ const FsxFilesystemOntapOptions = (props) => {
                   id="throughputVal"
                   className="mb-4"
                   type="number"
-                  value={props.values?.fsx.throughputMbs}
+                  value={props.values?.fsx.throughputMbsOntap}
                   readOnly
                 ></Input>
               </FormGroup>
@@ -423,9 +423,9 @@ const FsxFilesystemOntapOptions = (props) => {
                 <Label htmlFor="throughput">In MB/s</Label>
                 <Slider
                   id="throughput"
-                  defaultValue={props.values?.fsx.throughputMbs}
-                  onChange={onThroughputChange}
-                  marks={tpMarks}
+                  defaultValue={props.values?.fsx.throughputMbsOntap}
+                  onChange={onThroughputChangeOntap}
+                  marks={tpMarksOntap}
                   className="mb-4"
                   included={false}
                   min={128}
