@@ -48,10 +48,11 @@ const ServicesComponent = (props) => {
   }
 
   const deleteService = (index) => {
-    console.log('delService ' + index)
-    console.log(formik.values.services)
+    // we can't just remove this service from the list because it'll mess with our indices
     formik.values.services[index].tombstone = true
     setServices(formik.values.services)
+    // kick off validation so the schema recognizes the tombstone and clears any pending errors
+    formik.validateForm()
   }
 
   const nextServiceIndex = services.length
