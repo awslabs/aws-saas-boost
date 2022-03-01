@@ -36,6 +36,7 @@ const ServicesComponent = (props) => {
     tiers,
     initService,
   } = props
+
   const [services, setServices] = useState(formik.values.services)
 
   const addService = (serviceName) => {
@@ -86,7 +87,8 @@ const ServicesComponent = (props) => {
                     tiers={tiers}
                     isLocked={hasTenants}
                     formikService={services[index]}
-                    serviceValues={service}
+                    serviceValues={formik.values.services[index]}
+                    setFieldValue={formik.setFieldValue}
                     dbOptions={dbOptions}
                     onFileSelected={onFileSelected}
                     formikServicePrefix={'services[' + index + ']'}
@@ -113,4 +115,4 @@ ServicesComponent.propTypes = {
   formikErrors: PropTypes.object,
 }
 
-export default React.memo(ServicesComponent)
+export default ServicesComponent

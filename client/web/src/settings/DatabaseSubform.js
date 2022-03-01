@@ -85,8 +85,8 @@ export default class DatabaseSubform extends React.Component {
     }
     const instance = engine.instances.find((i) => i.instance === instanceVal)
     const version = instance.versions.find((ver) => ver.version === v)
-    this.props.values.database.version = v
-    this.props.values.database.family = version.family
+    this.props.values.version = v
+    this.props.values.family = version.family
   }
 
   render() {
@@ -101,7 +101,6 @@ export default class DatabaseSubform extends React.Component {
                   name={this.props.formikTierPrefix + ".provisionDb"}
                   id={this.props.formikTierPrefix + ".provisionDb"}
                   label="Provision a database for the application"
-                  value={this.props.provisionDb}
                 />
                 {this.props.provisionDb && (
                   <Row>

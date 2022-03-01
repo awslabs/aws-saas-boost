@@ -153,6 +153,7 @@ export function ApplicationComponent(props) {
       ...thisService,
       name: thisService?.name || '',
       path: thisService?.path || '',
+      public: thisService?.public || false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
@@ -165,7 +166,7 @@ export function ApplicationComponent(props) {
 
   const parseServicesFromAppConfig = () => {
     let initialServiceValues = []
-    for (var serviceName in appConfig.services) {
+    for (const serviceName of Object.keys(appConfig.services).sort()) {
       initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
     }
     return initialServiceValues
@@ -282,10 +283,13 @@ export function ApplicationComponent(props) {
     return tombstone ? schema : schema.required(message)
   }
 
+  // TODO path is only required for public services
+  // TODO path default is '/*'
+  // TODO public service paths cannot match
   const validationSpecs = Yup.object({
     name: Yup.string().required('Name is a required field.'),
     services: Yup.array(Yup.object({
-      public: Yup.boolean(),
+      public: Yup.boolean().required(),
       name: Yup.string().when('tombstone', (tombstone, schema) => {
         return requiredIfNotTombstoned(tombstone, schema, 'Service Name is a required field.')
       }),
