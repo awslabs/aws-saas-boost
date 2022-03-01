@@ -21,7 +21,7 @@ import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea }
 import { PropTypes } from 'prop-types'
 
 const ServiceSettingsSubform = (props) => {
-  const { osOptions, isLocked, serviceIndex } = props
+  const { formikErrors, formikService, osOptions, isLocked, serviceIndex } = props
   const getWinServerOptions = () => {
     if (!osOptions) {
       return null
@@ -35,7 +35,7 @@ const ServiceSettingsSubform = (props) => {
         </option>
       )
     })
-    return props.formik.values.operatingSystem === 'WINDOWS' && osOptions ? (
+    return formikService.operatingSystem === 'WINDOWS' && osOptions ? (
       <FormGroup>
         <SaasBoostSelect
           type="select"
@@ -52,16 +52,19 @@ const ServiceSettingsSubform = (props) => {
 
   // Normally we'd let formik handle this, but we also need to change the fylesystem type
   // based on the container OS
-  const onOperatingSystemChange = (val, serviceName) => {
-    const os = val?.target?.value
-    props.formik.setFieldValue(serviceName + '.operatingSystem', os)
-    if (os === 'WINDOWS') {
-      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'FSX')
-    }
-    if (os === 'LINUX') {
-      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'EFS')
-    }
-  }
+//  const onOperatingSystemChange = (val, serviceName) => {
+//    const os = val?.target?.value
+//    props.formik.setFieldValue(serviceName + '.operatingSystem', os)
+//    if (os === 'WINDOWS') {
+//      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'FSX')
+//    }
+//    if (os === 'LINUX') {
+//      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'EFS')
+//    }
+//  }
+
+// onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+// onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
 
   return (
     <>
@@ -112,7 +115,7 @@ const ServiceSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id="inline-radio1"
-                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="LINUX"
                         disabled={isLocked}
@@ -126,7 +129,7 @@ const ServiceSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id="inline-radio2"
-                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="WINDOWS"
                         disabled={isLocked}
@@ -137,12 +140,12 @@ const ServiceSettingsSubform = (props) => {
                     </FormGroup>
                     <FormFeedback
                       invalid={
-                        props.formik.errors.operatingSystem
-                          ? props.formik.errors.operatingSystem
+                        formikErrors.operatingSystem
+                          ? formikErrors.operatingSystem
                           : undefined
                       }
                     >
-                      {props.formik.errors.operatingSystem}
+                      {formikErrors.operatingSystem}
                     </FormFeedback>
                   </FormGroup>
                   {getWinServerOptions()}
@@ -153,6 +156,7 @@ const ServiceSettingsSubform = (props) => {
                     label="Container Repo"
                     name={"services[" + serviceIndex + "].containerRepo"}
                     type="text"
+                    value=""
                     disabled={true}
                   />
                   <SaasBoostInput
@@ -189,8 +193,9 @@ const ServiceSettingsSubform = (props) => {
 ServiceSettingsSubform.propTypes = {
   osOptions: PropTypes.object,
   isLocked: PropTypes.bool,
-  formik: PropTypes.object,
+  formikService: PropTypes.object,
+  formikErrors: PropTypes.object,
   serviceIndex: PropTypes.number,
 }
 
-export default ServiceSettingsSubform
+export default React.memo(ServiceSettingsSubform)

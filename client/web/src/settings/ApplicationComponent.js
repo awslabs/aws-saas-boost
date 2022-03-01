@@ -62,7 +62,7 @@ export function ApplicationComponent(props) {
 
   // TODO we should be using state for this so we can add tiers?
   // TODO better solution is to grab this from a Tiers API
-  const tiers = ['default', 'test']
+  const tiers = ['default']
 
   const getParts = (dateTime) => {
     const parts = dateTime.split(':')
@@ -73,7 +73,6 @@ export function ApplicationComponent(props) {
   }
 
   const updateConfig = (values) => {
-    console.log("updateConfig!")
     updateConfiguration(values)
     window.scrollTo(0, 0)
   }
@@ -98,74 +97,76 @@ export function ApplicationComponent(props) {
     }
   }
 
-  // this appears to be re-done twice per ApplicationComponent render
-  // and ApplicationComponent appears to render twice per page load
+  const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
+    let thisService = appConfig.services[serviceName]
+    const os = !!thisService?.operatingSystem
+      ? appConfig.services[serviceName].operatingSystem === LINUX ? LINUX : WINDOWS
+      : ''
+    let initialTierValues = {}
+    for (var i = 0; i < tiers.length; i++) {
+      var tierName = tiers[i]
+      // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
+      let thisTier = thisService?.tiers[tierName] || {
+        min: 0,
+        max: 0,
+        computeSize: '',
+      }
+      const filesystem = {
+        ...thisTier.filesystem,
+        mountPoint: thisTier.filesystem?.mountPoint || '',
+        // Start off with FSX if Windows and EFS if Linux
+        fileSystemType: thisTier.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
+        efs: thisTier.filesystem?.efs || {
+          lifecycle: '0',
+          encryptAtRest: '',
+        },
+        fsx: getFsx(thisTier.filesystem?.fsx),
+      }
+      const db = !!thisTier.database ? {
+        ...thisTier.database,
+        //This is frail, but try to see if the incoming password is base64d
+        //If so, assume it's encrypted
+        //Also store a copy in the encryptedPassword field
+        hasEncryptedPassword: !!thisTier.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
+        encryptedPassword: thisTier.database.password,
+      } : {
+        engine: '',
+        family: '',
+        version: '',
+        instance: '',
+        username: '',
+        password: '',
+        hasEncryptedPassword: false,
+        encryptedPassword: '',
+        database: '',
+        bootstrapFilename: '',
+      }
+      initialTierValues[tierName] = {
+        ...thisTier,
+        filesystem: filesystem,
+        database: db,
+        provisionDb: !!thisService?.database || false,
+        provisionFS: !!thisService?.filesystem || false,
+      }
+    }
+    return {
+      ...thisService,
+      name: thisService?.name || '',
+      path: thisService?.path || '',
+      healthCheckUrl: thisService?.healthCheckUrl || '/',
+      containerPort: thisService?.containerPort || 0,
+      containerTag: thisService?.containerTag || 'latest',
+      description: thisService?.description || '',
+      operatingSystem: os,
+      tiers: initialTierValues,
+      tombstone: false,
+    }
+  }
+
   const parseServicesFromAppConfig = () => {
     let initialServiceValues = []
     for (var serviceName in appConfig.services) {
-      let thisService = appConfig.services[serviceName]
-      const os = !!thisService.operatingSystem
-        ? appConfig.services[serviceName].operatingSystem === LINUX ? LINUX : WINDOWS
-        : ''
-      let initialTierValues = {}
-      for (var i = 0; i < tiers.length; i++) {
-        var tierName = tiers[i]
-        // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-        let thisTier = thisService.tiers[tierName] || {
-          min: 0,
-          max: 0,
-          computeSize: '',
-        }
-        const filesystem = {
-          ...thisTier.filesystem,
-          mountPoint: thisTier.filesystem?.mountPoint || '',
-          // Start off with FSX if Windows and EFS if Linux
-          fileSystemType: thisTier.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
-          efs: thisTier.filesystem?.efs || {
-            lifecycle: '0',
-            encryptAtRest: '',
-          },
-          fsx: getFsx(thisTier.filesystem?.fsx),
-        }
-        const db = !!thisTier.database ? {
-          ...thisTier.database,
-          //This is frail, but try to see if the incoming password is base64d
-          //If so, assume it's encrypted
-          //Also store a copy in the encryptedPassword field
-          hasEncryptedPassword: !!thisTier.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
-          encryptedPassword: thisTier.database.password,
-        } : {
-          engine: '',
-          family: '',
-          version: '',
-          instance: '',
-          username: '',
-          password: '',
-          hasEncryptedPassword: false,
-          encryptedPassword: '',
-          database: '',
-          bootstrapFilename: '',
-        }
-        initialTierValues[tierName] = {
-          ...thisTier,
-          filesystem: filesystem,
-          database: db,
-        }
-      }
-      // public, name, description, path, tiers, containerPort, containerRepo, containerTag, healthCheckUrl, operatingSystem
-      initialServiceValues.push({
-        ...thisService,
-        name: thisService.name || '',
-        path: thisService.name || '',
-        healthCheckUrl: thisService.healthCheckUrl || '/',
-        containerPort: thisService.containerPort || 0,
-        containerTag: thisService.containerTag || 'latest',
-        description: thisService.description || '',
-        operatingSystem: os,
-        tiers: initialTierValues,
-        provisionDb: !!thisService.database || false,
-        provisionFS: !!thisService.filesystem || false,
-      })
+      initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
     }
     return initialServiceValues
   }
@@ -300,8 +301,8 @@ export function ApplicationComponent(props) {
     provisionBilling: Yup.boolean(),
   })
 
-  const onFileSelected = (formik, file) => {
-    formik.setFieldValue('database.bootstrapFilename', file.name)
+  const onFileSelected = (databaseObject, file) => {
+    databaseObject.bootstrapFilename = file.name
     props.onFileSelected(file)
   }
 
@@ -352,12 +353,13 @@ export function ApplicationComponent(props) {
                 <AppSettingsSubform isLocked={hasTenants}></AppSettingsSubform>
                 <ServicesComponent
                   formik={formik}
-                  appConfig={appConfig}
+                  formikErrors={formik.errors}
                   hasTenants={hasTenants}
                   osOptions={osOptions}
                   dbOptions={dbOptions}
                   onFileSelected={onFileSelected}
                   tiers={tiers}
+                  initService={generateAppConfigOrDefaultInitialValuesForService}
                 ></ServicesComponent>
                 <BillingSubform
                   provisionBilling={formik.values.provisionBilling}

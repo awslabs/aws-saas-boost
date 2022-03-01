@@ -136,52 +136,85 @@ export function ApplicationContainer(props) {
 
     try {
       const {
-        windowsVersion,
-        operatingSystem,
-        provisionDb,
-        provisionFS,
-        provisionBilling,
-        filesystem,
-        database,
+        services,
         billing,
+        provisionBilling,
         ...rest
       } = values
-      let { filesystemLifecycle, ...cleanedFs } = filesystem
-      let { weeklyMaintenanceDay, weeklyMaintenanceTime: time, ...cleanedFsx } = cleanedFs.fsx
-      const weeklyTime = getFormattedTime(time)
-      const fsx = {
-        ...cleanedFsx,
-        weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
-      }
-      cleanedFs = {
-        ...cleanedFs,
-        efs: cleanedFs.fileSystemType === EFS ? cleanedFs.efs : null,
-        fsx: cleanedFs.fileSystemType === FSX ? fsx : null,
-      }
-      const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database
-      // If we detected an encrypted password coming in, and it looks like they haven't changed it
-      // then send the encrypted password back to the server. Otherwise send what they changed.
-      const cleanedDb = {
-        ...restDb,
-        password:
-          hasEncryptedPassword && isMatch(restDb.password, encryptedPassword)
-            ? encryptedPassword
-            : restDb.password,
+      let cleanedServicesMap = {}
+      for (var serviceIndex in services) {
+        let thisService = services[serviceIndex]
+        if (thisService.tombstone) continue
+        // update the tier config
+        let cleanedTiersMap = {}
+        for (var tierName in thisService.tiers) {
+          const {
+            filesystem,
+            database,
+            provisionDb,
+            provisionFS,
+            ...rest
+          } = thisService.tiers[tierName]
+          let { filesystemLifecycle, ...cleanedFs } = filesystem
+          let { weeklyMaintenanceDay, weeklyMaintenanceTime: time, ...cleanedFsx } = cleanedFs.fsx
+          const weeklyTime = getFormattedTime(time)
+          const fsx = {
+            ...cleanedFsx,
+            weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
+          }
+          cleanedFs = {
+            ...cleanedFs,
+            efs: cleanedFs.fileSystemType === EFS ? cleanedFs.efs : null,
+            fsx: cleanedFs.fileSystemType === FSX ? fsx : null,
+          }
+          const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database
+          // If we detected an encrypted password coming in, and it looks like they haven't changed it
+          // then send the encrypted password back to the server. Otherwise send what they changed.
+          const cleanedDb = {
+            ...restDb,
+            password:
+              hasEncryptedPassword && isMatch(restDb.password, encryptedPassword)
+                ? encryptedPassword
+                : restDb.password,
+          }
+          cleanedTiersMap[tierName] = {
+            ...rest,
+            filesystem: provisionFS ? cleanedFs : null,
+            database: provisionDb ? cleanedDb : null,
+          }
+        }
+        // update the service config
+        const {
+          name,
+          windowsVersion,
+          operatingSystem,
+          filesystem,
+          tombstone,
+          ...rest
+        } = thisService
+        cleanedServicesMap[name] = {
+          ...rest,
+          name,
+          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+          tiers: cleanedTiersMap,
+        }
       }
 
+      // compile the complete appConfig
       const configToSend = {
         ...rest,
-        filesystem: provisionFS ? cleanedFs : null,
-        database: provisionDb ? cleanedDb : null,
         billing: provisionBilling ? billing : null,
-        operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+        services: cleanedServicesMap,
       }
-      if (!!file && file.name && provisionDb) {
-        // await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }))
-      }
-      console.log("NOT sending the following config!")
+
+// TODO this file is controlled as a single state and setter passed to all DB forms
+// TODO also, the settings API implementation of the DB init file will need to change for multiple services as well
+//      if (!!file && file.name && provisionDb) {
+//        await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }))
+//      }
+      console.log('dispatching the following appConfig...')
       console.log(configToSend)
-      // await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend))
+      await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend))
     } catch (e) {
       console.error(e)
     }

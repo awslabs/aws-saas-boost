@@ -85,8 +85,8 @@ export default class DatabaseSubform extends React.Component {
     }
     const instance = engine.instances.find((i) => i.instance === instanceVal)
     const version = instance.versions.find((ver) => ver.version === v)
-    this.props.formik.setFieldValue('database.version', v)
-    this.props.formik.setFieldValue('database.family', version.family)
+    this.props.values.database.version = v
+    this.props.values.database.family = version.family
   }
 
   render() {
@@ -98,8 +98,8 @@ export default class DatabaseSubform extends React.Component {
               <CardHeader>Database</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  name={this.props.formikServicePrefix + ".provisionDb"}
-                  id={this.props.formikServicePrefix + ".provisionDb"}
+                  name={this.props.formikTierPrefix + ".provisionDb"}
+                  id={this.props.formikTierPrefix + ".provisionDb"}
                   label="Provision a database for the application"
                   value={this.props.provisionDb}
                 />
@@ -188,7 +188,6 @@ export default class DatabaseSubform extends React.Component {
 DatabaseSubform.propTypes = {
   dbOptions: PropTypes.array,
   values: PropTypes.object,
-  formik: PropTypes.object,
   provisionDb: PropTypes.bool,
   isLocked: PropTypes.bool,
   onFileSelected: PropTypes.func,
