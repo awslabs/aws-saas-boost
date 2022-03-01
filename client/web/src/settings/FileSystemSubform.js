@@ -45,7 +45,7 @@ export default class FileSystemSubform extends React.Component {
                 <SaasBoostCheckbox
                   id={this.props.formikTierPrefix + ".provisionFS"}
                   name={this.props.formikTierPrefix + ".provisionFS"}
-                  value={this.props.provisionFs}
+                  value={!!this.props.provisionFs}
                   label="Provision a File System for the application."
                 />
                 <EfsFilesystemOptions
@@ -56,7 +56,6 @@ export default class FileSystemSubform extends React.Component {
                   formikTierPrefix={this.props.formikTierPrefix}
                 ></EfsFilesystemOptions>
                 <FsxFilesystemOptions
-                  formik={this.props.formik}
                   provisionFs={this.props.provisionFs}
                   containerOs={this.props.containerOs}
                   isLocked={this.props.isLocked}
@@ -79,7 +78,6 @@ FileSystemSubform.propTypes = {
   filesystem: PropTypes.object,
   formik: PropTypes.object,
   values: PropTypes.object,
-  serviceIndex: PropTypes.number,
 }
 
 const EfsFilesystemOptions = (props) => {
@@ -142,19 +140,23 @@ const FsxFilesystemOptions = (props) => {
   }
 
   const onStorageChange = (val) => {
-    props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.storageGb', val)
+    // props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.storageGb', val)
+    this.props.values.fsx.storageGb = val
   }
 
   const onThroughputChange = (val) => {
-    props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.throughputMbs', val)
+    // props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.throughputMbs', val)
+    this.props.values.fsx.throughputMbs = val
   }
 
   const onWeeklyMaintTimeChange = (val) => {
-    props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceTime', val.target.value)
+    // props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceTime', val.target.value)
+    this.props.values.fsx.weeklyMaintenanceTime = val.target.value
   }
 
   const onWeeklyDayChange = (val) => {
-    props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceDay', val.target.value)
+    // props.formik.setFieldValue(this.props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceDay', val.target.value)
+    this.props.values.fsx.weeklyMaintenanceDay = val.target.value
   }
 
   return (
@@ -314,7 +316,6 @@ const FsxFilesystemOptions = (props) => {
 }
 
 FsxFilesystemOptions.propTypes = {
-  formik: PropTypes.object,
   provisionFs: PropTypes.bool,
   containerOs: PropTypes.string,
   isLocked: PropTypes.bool,

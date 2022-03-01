@@ -30,7 +30,7 @@ import FileSystemSubform from './FileSystemSubform'
 import DatabaseSubform from './DatabaseSubform'
 
 const TierServiceSettingsSubform = (props) => {
-  const { formik, isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
+  const { formikService, isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
 
   const [selectedTier, setSelectedTier] = useState(tiers[0])
 
@@ -101,22 +101,18 @@ const TierServiceSettingsSubform = (props) => {
                 <Col>
                   <FileSystemSubform
                     isLocked={isLocked}
-                    formik={formik}
                     formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
                     filesystem={serviceValues?.tiers[selectedTier]?.filesystem}
-                    provisionFs={serviceValues?.provisionFS}
+                    provisionFs={serviceValues?.tiers[selectedTier]?.provisionFS}
                     containerOs={serviceValues?.operatingSystem}
-                    serviceIndex={serviceIndex}
                   ></FileSystemSubform>
                   <DatabaseSubform
                     isLocked={isLocked}
-                    formik={formik}
                     formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
                     dbOptions={dbOptions}
-                    provisionDb={serviceValues?.provisionDb}
+                    provisionDb={serviceValues?.tiers[selectedTier]?.provisionDb}
                     values={serviceValues?.tiers[selectedTier]?.database}
-                    onFileSelected={(file) => onFileSelected(formik, file)}
-                    serviceIndex={serviceIndex}
+                    onFileSelected={(file) => onFileSelected(serviceValues?.tiers[selectedTier]?.database, file)}
                   ></DatabaseSubform>
                 </Col>
               </Row>
@@ -132,9 +128,9 @@ TierServiceSettingsSubform.propTypes = {
   serviceValues: PropTypes.object,
   isLocked: PropTypes.bool,
   serviceIndex: PropTypes.number,
-  formik: PropTypes.object,
+  formikService: PropTypes.object,
   formikServiceNamePrefix: PropTypes.string,
   onFileSelected: PropTypes.func,
 }
 
-export default TierServiceSettingsSubform
+export default React.memo(TierServiceSettingsSubform)

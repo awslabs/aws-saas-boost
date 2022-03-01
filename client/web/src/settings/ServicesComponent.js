@@ -27,50 +27,34 @@ import ServiceSettingsSubform from './ServiceSettingsSubform'
 
 const ServicesComponent = (props) => {
   const {
-    appConfig,
     formik,
+    formikErrors,
     hasTenants,
     osOptions,
     dbOptions,
     onFileSelected,
-    tiers
+    tiers,
+    initService,
   } = props
+  const [services, setServices] = useState(formik.values.services)
 
-  console.log('render ServicesComponent')
-
-  // we should default this to the list of services defined in the appConfig, or just default otherwise
-  // let's say services here is just a list of names
-  const [services, setServices] = useState((!!appConfig && !!appConfig.services) ? Object.keys(appConfig?.services) : [])
-
-  console.log('ServicesComponent services are')
-  console.log(services)
-
-  let serviceIndex = services.length
-
-  /*
-    <Row><Col xs={12}><Card><Row><Col>???
-  */
-
-  const addService = () => {
-    console.log('addService!')
-    let newServiceName = 'service' + serviceIndex
-    const extendedServices = [
-      newServiceName,
-      ...services
-    ]
-    setServices(extendedServices)
-    serviceIndex++
+  const addService = (serviceName) => {
+    console.log('addService ' + serviceName)
+    let newService = initService(serviceName)
+    formik.values.services.push(newService)
+    setServices([
+      ...formik.values.services
+    ])
   }
 
-  const deleteService = (serviceName) => {
-    console.log('deleting ' + serviceName)
-    const index = services.indexOf(serviceName)
-    if (index > -1) {
-      services.splice(index, 1)
-    }
-    setServices(services)
-    // TODO currently delete doesn't actually delete the accordionItem if expanded
+  const deleteService = (index) => {
+    console.log('delService ' + index)
+    console.log(formik.values.services)
+    formik.values.services[index].tombstone = true
+    setServices(formik.values.services)
   }
+
+  const nextServiceIndex = services.length
 
   // TODO alwaysOpen=true in CAccordion has a bug when creating multiple services then opening
   return (
@@ -86,30 +70,31 @@ const ServicesComponent = (props) => {
         </CardHeader>
         <CardBody>
           <CAccordion alwaysOpen={false}>
-            {services.map((serviceName, index) => (
+            {services.map((service, index) => !service.tombstone && (
               <CAccordionItem key={"service" + index} itemKey={"service" + index}>
-                <CAccordionHeader>{serviceName}</CAccordionHeader>
+                <CAccordionHeader>{service.name}</CAccordionHeader>
                 <CAccordionBody>
                   <ServiceSettingsSubform
                     isLocked={hasTenants}
-                    formik={formik}
+                    formikService={services[index]}
+                    formikErrors={formikErrors}
                     osOptions={osOptions}
                     serviceIndex={index}
                   ></ServiceSettingsSubform>
                   <TierServiceSettingsSubform
                     tiers={tiers}
                     isLocked={hasTenants}
-                    formik={formik}
-                    serviceValues={formik.values.services[index]}
+                    formikService={services[index]}
+                    serviceValues={service}
                     dbOptions={dbOptions}
-                    onFileSelected={(file) => onFileSelected(formik, file)}
+                    onFileSelected={onFileSelected}
                     formikServicePrefix={'services[' + index + ']'}
                   ></TierServiceSettingsSubform>
                   <CButton
                       size="sm"
                       color="danger"
                       type="button"
-                      onClick={() => deleteService(serviceName)}>
+                      onClick={() => deleteService(index)}>
                     <CIcon icon={cilX} />
                   </CButton>
                 </CAccordionBody>
@@ -123,8 +108,8 @@ const ServicesComponent = (props) => {
 }
 
 ServicesComponent.propTypes = {
-  appConfig: PropTypes.object,
-  formik: PropTypes.object,
+  formikServices: PropTypes.array,
+  formikErrors: PropTypes.object,
 }
 
-export default ServicesComponent
+export default React.memo(ServicesComponent)
