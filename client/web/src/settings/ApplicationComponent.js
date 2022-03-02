@@ -152,7 +152,7 @@ export function ApplicationComponent(props) {
     return {
       ...thisService,
       name: thisService?.name || '',
-      path: thisService?.path || '',
+      path: thisService?.path || '/*',
       public: thisService?.public || false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
@@ -282,11 +282,9 @@ export function ApplicationComponent(props) {
   }
 
   const requiredIfNotTombstoned = (tombstone, schema, requiredMessage) => {
-    return tombstone ? schema : schema.required(message)
+    return tombstone ? schema : schema.required(requiredMessage)
   }
 
-  // TODO path is only required for public services
-  // TODO path default is '/*'
   // TODO public service paths cannot match
   const validationSpecs = Yup.object({
     name: Yup.string().required('Name is a required field.'),
@@ -296,9 +294,12 @@ export function ApplicationComponent(props) {
         return requiredIfNotTombstoned(tombstone, schema, 'Service Name is a required field.')
       }),
       description: Yup.string(),
-      path: Yup.string().matches(/^.+$/, 'error message',).when('tombstone', (tombstone, schema) => {
-        return requiredIfNotTombstoned(tombstone, schema, 'Path Name is a required field.')
-      }),
+      path: Yup.string().when(['public','tombstone'], (isPublic, tombstone, schema) => {
+          if (isPublic) {
+            return requiredIfNotTombstoned(tombstone, schema, 'Path is required for public services')
+          }
+          return schema
+        }).matches(/^\/.+$/, 'Path must start with / and be followed by at least one character.',),
       containerPort: Yup.number()
         .integer('Container port must be an integer value.')
         .required('Container port is a required field.'),
