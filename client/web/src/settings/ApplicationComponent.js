@@ -166,8 +166,10 @@ export function ApplicationComponent(props) {
 
   const parseServicesFromAppConfig = () => {
     let initialServiceValues = []
-    for (const serviceName of Object.keys(appConfig.services).sort()) {
-      initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
+    if (!!appConfig?.services) {
+      for (const serviceName of Object.keys(appConfig?.services).sort()) {
+        initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
+      }
     }
     return initialServiceValues
   }
