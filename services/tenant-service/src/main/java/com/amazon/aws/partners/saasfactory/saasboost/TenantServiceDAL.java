@@ -167,7 +167,7 @@ public class TenantServiceDAL {
             // object was persisted
             tenant.setModified(LocalDateTime.now());
             Map<String, AttributeValue> item = toAttributeValueMap(tenant);
-            PutItemResponse response = ddb.putItem(request -> request.tableName(TENANTS_TABLE).item(item));
+            ddb.putItem(request -> request.tableName(TENANTS_TABLE).item(item));
         } catch (DynamoDbException e) {
             LOGGER.error("TenantServiceDAL::updateTenant " + Utils.getFullStackTrace(e));
             throw new RuntimeException(e);
@@ -288,14 +288,13 @@ public class TenantServiceDAL {
         try {
             Map<String, AttributeValue> key = new HashMap<>();
             key.put("id", AttributeValue.builder().s(tenantId).build());
-            DeleteItemResponse response = ddb.deleteItem(request -> request.tableName(TENANTS_TABLE).key(key));
+            ddb.deleteItem(request -> request.tableName(TENANTS_TABLE).key(key));
         } catch (DynamoDbException e) {
             LOGGER.error("TenantServiceDAL::deleteTenant " + Utils.getFullStackTrace(e));
             throw new RuntimeException(e);
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TenantServiceDAL::deleteTenant exec " + totalTimeMillis);
-        return;
     }
 
     public static Map<String, AttributeValue> toAttributeValueMap(Tenant tenant) {
@@ -311,10 +310,13 @@ public class TenantServiceDAL {
             item.put("active", AttributeValue.builder().bool(tenant.getActive()).build());
         }
         if (Utils.isNotBlank(tenant.getOnboardingStatus())) {
-            item.put("onboarding", AttributeValue.builder().s(tenant.getOnboardingStatus()).build());
+            item.put("onboardingStatus", AttributeValue.builder().s(tenant.getOnboardingStatus()).build());
         }
         if (Utils.isNotBlank(tenant.getName())) {
             item.put("name", AttributeValue.builder().s(tenant.getName()).build());
+        }
+        if (Utils.isNotBlank(tenant.getHostname())) {
+            item.put("hostname", AttributeValue.builder().s(tenant.getHostname()).build());
         }
         if (Utils.isNotBlank(tenant.getSubdomain())) {
             item.put("subdomain", AttributeValue.builder().s(tenant.getSubdomain()).build());
@@ -323,7 +325,17 @@ public class TenantServiceDAL {
             item.put("tier", AttributeValue.builder().s(tenant.getTier()).build());
         }
         if (Utils.isNotBlank(tenant.getBillingPlan())) {
-            item.put("planId", AttributeValue.builder().s(tenant.getBillingPlan()).build());
+            item.put("billingPlan", AttributeValue.builder().s(tenant.getBillingPlan()).build());
+        }
+        if (tenant.getAttributes() != null) {
+            item.put("attributes", AttributeValue.builder().m(tenant.getAttributes().entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    entry -> entry.getKey(),
+                                    entry -> AttributeValue.builder().s(entry.getValue()).build()
+                            ))
+                    ).build()
+            );
         }
         if (tenant.getResources() != null) {
             item.put("resources", AttributeValue.builder().m(tenant.getResources().entrySet()
@@ -379,17 +391,34 @@ public class TenantServiceDAL {
             if (item.containsKey("tier")) {
                 tenant.setTier(item.get("tier").s());
             }
-            if (item.containsKey("onboarding")) {
-                tenant.setOnboardingStatus(item.get("onboarding").s());
+            if (item.containsKey("onboardingStatus")) {
+                tenant.setOnboardingStatus(item.get("onboardingStatus").s());
             }
             if (item.containsKey("name")) {
                 tenant.setName(item.get("name").s());
             }
+            if (item.containsKey("hostname")) {
+                tenant.setHostname(item.get("hostname").s());
+            }
             if (item.containsKey("subdomain")) {
                 tenant.setSubdomain(item.get("subdomain").s());
             }
-            if (item.containsKey("planId")) {
-                tenant.setBillingPlan(item.get("planId").s());
+            if (item.containsKey("billingPlan")) {
+                tenant.setBillingPlan(item.get("billingPlan").s());
+            }
+            if (item.containsKey("attributes")) {
+                try {
+                    tenant.setAttributes(item.get("attributes").m().entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    entry -> entry.getKey(),
+                                    entry -> entry.getValue().s()
+                            ))
+                    );
+                } catch (Exception e) {
+                    LOGGER.error("Failed to parse resources from database: {}", item.get("resources").m());
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                }
             }
             if (item.containsKey("resources")) {
                 try {

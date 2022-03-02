@@ -16,10 +16,16 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -30,11 +36,15 @@ import static org.junit.Assert.*;
 public class TenantServiceDALTest {
 
     private static UUID tenantId;
+    private static HashMap<String, String> attributes;
     private static HashMap<String, Tenant.Resource> resources;
 
     @BeforeClass
     public static void setup() throws Exception {
         tenantId = UUID.fromString("d1c1e3cc-962f-4f03-b4a8-d8a7c1f986c3");
+
+        attributes = new HashMap<>();
+        attributes.put("User Defined Key", "User Defined Value");
 
         resources = new HashMap<>();
         resources.put("VPC", new Tenant.Resource("vpc-0f28a79bbbcce70bb",
@@ -62,7 +72,9 @@ public class TenantServiceDALTest {
         tenant.setName("Test Tenant");
         tenant.setOnboardingStatus("succeeded");
         tenant.setBillingPlan("Billing Plan");
+        tenant.setHostname("test-tenant.saas-example.com");
         tenant.setSubdomain("test-tenant");
+        tenant.setAttributes(attributes);
         tenant.setResources(resources);
 
         Map<String, AttributeValue> expected = new HashMap<>();
@@ -72,9 +84,19 @@ public class TenantServiceDALTest {
         expected.put("modified", AttributeValue.builder().s(modified.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
         expected.put("tier", AttributeValue.builder().s("default").build());
         expected.put("name", AttributeValue.builder().s("Test Tenant").build());
-        expected.put("onboarding", AttributeValue.builder().s("succeeded").build());
+        expected.put("onboardingStatus", AttributeValue.builder().s("succeeded").build());
+        expected.put("hostname", AttributeValue.builder().s("test-tenant.saas-example.com").build());
         expected.put("subdomain", AttributeValue.builder().s("test-tenant").build());
-        expected.put("planId", AttributeValue.builder().s("Billing Plan").build());
+        expected.put("billingPlan", AttributeValue.builder().s("Billing Plan").build());
+        expected.put("attributes", AttributeValue.builder().m(attributes.entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getKey(),
+                        entry -> AttributeValue.builder().s(
+                                String.valueOf(entry.getValue())
+                        ).build()
+                ))
+        ).build());
         expected.put("resources", AttributeValue.builder().m(resources.entrySet()
                 .stream()
                 .collect(Collectors.toMap(
@@ -85,13 +107,38 @@ public class TenantServiceDALTest {
                                         "arn", AttributeValue.builder().s(entry.getValue().getArn()).build(),
                                         "consoleUrl", AttributeValue.builder().s(entry.getValue().getConsoleUrl()).build()
                                 )).build()
-                ))).build());
+                ))
+        ).build());
 
         Map<String, AttributeValue> actual = TenantServiceDAL.toAttributeValueMap(tenant);
 
+        // DynamoDB marshalling
         assertEquals("Size unequal", expected.size(), actual.size());
-        expected.keySet().stream().forEach((key) -> {
+        expected.keySet().stream().forEach(key -> {
             assertEquals("Value mismatch for '" + key + "'", expected.get(key), actual.get(key));
+        });
+
+        // Ignore read only properties from JSON serialization
+        Collection<String> ignoreProperties = new HashSet<>();
+        try {
+            for (PropertyDescriptor reflection : Introspector.getBeanInfo(Tenant.class).getPropertyDescriptors()) {
+                Method getter = reflection.getReadMethod();
+                if (getter != null) {
+                    JsonProperty jsonProperty = getter.getDeclaredAnnotation(JsonProperty.class);
+                    if (jsonProperty != null && jsonProperty.access() == JsonProperty.Access.READ_ONLY) {
+                        ignoreProperties.add(reflection.getName());
+                    }
+                }
+            }
+        } catch (IntrospectionException ie) {
+            System.err.println(Utils.getFullStackTrace(ie));
+        }
+        // Have we reflected all class properties we serialize for API calls in DynamoDB?
+        Map<String, Object> json = Utils.fromJson(Utils.toJson(tenant), LinkedHashMap.class);
+        json.keySet().stream()
+                .filter(key -> !ignoreProperties.contains(key))
+                .forEach(key -> {
+            assertTrue("Class property '" + key + "' does not exist in DynamoDB attribute map", actual.containsKey(key));
         });
     }
 }

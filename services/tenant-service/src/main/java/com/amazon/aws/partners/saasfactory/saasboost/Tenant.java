@@ -28,13 +28,14 @@ public class Tenant {
     private UUID id;
     private LocalDateTime created;
     private LocalDateTime modified;
-    private Boolean active = Boolean.FALSE;
+    private Boolean active;
     private String tier;
     private String onboardingStatus;
     private String name;
     private String subdomain;
     private String hostname;
     private String billingPlan;
+    private Map<String, String> attributes = new HashMap<>();
     private Map<String, Resource> resources = new HashMap<>();
 
     public Tenant() {
@@ -70,7 +71,7 @@ public class Tenant {
     }
 
     public Boolean getActive() {
-        return active;
+        return Boolean.TRUE.equals(active);
     }
 
     public void setActive(Boolean active) {
@@ -125,12 +126,20 @@ public class Tenant {
         this.billingPlan = billingPlan;
     }
 
+    public Map<String, String> getAttributes() {
+        return attributes;
+    }
+
+    public void setAttributes(Map<String, String> attributes) {
+        this.attributes = attributes != null ? attributes : new HashMap<>();
+    }
+
     public Map<String, Resource> getResources() {
         return resources;
     }
 
     public void setResources(Map<String, Resource> resources) {
-        this.resources = resources;
+        this.resources = resources != null ? resources : new HashMap<>();
     }
 
     public boolean equals(Object obj) {
@@ -144,6 +153,19 @@ public class Tenant {
             return false;
         }
         final Tenant other = (Tenant) obj;
+
+        boolean attributesEqual = attributes != null && other.attributes != null;
+        if (attributesEqual) {
+            attributesEqual = attributes.size() == other.attributes.size();
+            if (attributesEqual) {
+                for (Map.Entry<String, String> attribute : attributes.entrySet()) {
+                    attributesEqual = attribute.getValue().equals(other.attributes.get(attribute.getKey()));
+                    if (!attributesEqual) {
+                        break;
+                    }
+                }
+            }
+        }
 
         boolean resourcesEqual = resources != null && other.resources != null;
         if (resourcesEqual) {
@@ -168,12 +190,15 @@ public class Tenant {
                 && ((subdomain == null && other.subdomain == null) || (subdomain != null && subdomain.equals(other.subdomain)))
                 && ((hostname == null && other.hostname == null) || (hostname != null && hostname.equals(other.hostname)))
                 && ((billingPlan == null && other.billingPlan == null) || (billingPlan != null && billingPlan.equals(other.billingPlan)))
+                && ((attributes == null && other.attributes == null) || attributesEqual)
                 && ((resources == null && other.resources == null) || resourcesEqual));
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, hostname, billingPlan)
+                + Arrays.hashCode(attributes != null ? attributes.keySet().toArray(new String[0]) : null)
+                + Arrays.hashCode(attributes != null ? attributes.values().toArray(new Object[0]) : null)
                 + Arrays.hashCode(resources != null ? resources.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(resources != null ? resources.values().toArray(new Resource[0]) : null);
     }
