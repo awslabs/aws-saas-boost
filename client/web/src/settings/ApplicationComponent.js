@@ -107,8 +107,8 @@ export function ApplicationComponent(props) {
       var tierName = tiers[i]
       // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
       let thisTier = thisService?.tiers[tierName] || {
-        min: 0,
-        max: 0,
+        min: 1,
+        max: 1,
         computeSize: '',
       }
       const filesystem = {
@@ -153,6 +153,7 @@ export function ApplicationComponent(props) {
       ...thisService,
       name: thisService?.name || '',
       path: thisService?.path || '',
+      public: thisService?.public || false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
@@ -165,8 +166,10 @@ export function ApplicationComponent(props) {
 
   const parseServicesFromAppConfig = () => {
     let initialServiceValues = []
-    for (var serviceName in appConfig.services) {
-      initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
+    if (!!appConfig?.services) {
+      for (const serviceName of Object.keys(appConfig?.services).sort()) {
+        initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
+      }
     }
     return initialServiceValues
   }
@@ -183,104 +186,119 @@ export function ApplicationComponent(props) {
   }
 
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-  const singleTierValidationSpec = Yup.object({
-    min: Yup.number()
-      .required('Minimum count is a required field.')
-      .integer('Minimum count must be an integer value')
-      .min(1, 'Minimum count must be at least ${min}'),
-    max: Yup.number()
-      .required('Maximum count is a required field.')
-      .integer('Maximum count must be an integer value')
-      .max(10, 'Maximum count can be no larger than ${max}')
-      .test('match', 'Max cannot be smaller than min', function (max) {
-        return max >= this.parent.min
-      }),
-    computeSize: Yup.string().required('Compute size is a required field.'),
-    database: Yup.object().when('provisionDb', {
-      is: true,
-      then: Yup.object({
-        engine: Yup.string().required('Engine is required'),
-        version: Yup.string().required('Version is required'),
-        instance: Yup.string().required('Instance is required'),
-        username: Yup.string()
-          .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
-          .required('Username is required'),
-        password: Yup.string()
-          .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password is not valid')
-          .required('Password is required'),
-        database: Yup.string(),
+  const singleTierValidationSpec = (tombstone) => {
+    return Yup.object({
+      min: requiredIfNotTombstoned(tombstone, Yup.number()
+        .integer('Minimum count must be an integer value')
+        .min(1, 'Minimum count must be at least ${min}'), 'Minimum count is a required field.'),
+      max: Yup.number()
+        .required('Maximum count is a required field.')
+        .integer('Maximum count must be an integer value')
+        .max(10, 'Maximum count can be no larger than ${max}')
+        .test('match', 'Max cannot be smaller than min', function (max) {
+          return max >= this.parent.min
         }),
-      otherwise: Yup.object(),
-      }),
-    filesystem: Yup.object().when('provisionFS', {
-      is: true,
-      then: Yup.object({
-        mountPoint: Yup.string().when('fileSystemType', {
-          is: EFS,
-          then: Yup.string()
-            .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
-            .max(100, "The full path can't exceed 100 characters in length")
-            .test(
-              'subdirectories',
-              'The path can only include up to four subdirectories',
-              (val) => (val?.match(/\//g) || []).length <= 4,
-            )
-            .required(),
-          otherwise: Yup.string()
-            .matches(
-              /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
-              'Invalid path. Ex: C:\\data',
-            )
-            .required(),
+      computeSize: requiredIfNotTombstoned(tombstone, Yup.string(), 'Compute size is a required field.'),
+      database: Yup.object().when('provisionDb', {
+        is: true,
+        then: Yup.object({
+          engine: Yup.string().required('Engine is required'),
+          version: Yup.string().required('Version is required'),
+          instance: Yup.string().required('Instance is required'),
+          username: Yup.string()
+            .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
+            .required('Username is required'),
+          password: Yup.string()
+            .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password is not valid')
+            .required('Password is required'),
+          database: Yup.string(),
           }),
-        fsx: Yup.object().when('fileSystemType', {
-          is: FSX,
-          then: Yup.object({
-            storageGb: Yup.number()
-              .required()
-              .min(32, 'Storage minimum is 32 GB')
-              .max(1048, 'Storage maximum is 1048 GB'),
-            throughputMbs: Yup.number()
-              .required()
-              .min(8, 'Throughput minimum is 8 MB/s')
-              .max(2048, 'Throughput maximum is 2048 MB/s'),
-            backupRetentionDays: Yup.number()
-              .required()
-              .min(7, 'Minimum retention time is 7 days')
-              .max(35, 'Maximum retention time is 35 days'),
-            dailyBackupTime: Yup.string().required('Daily backup time is required'),
-            weeklyMaintenanceTime: Yup.string().required('Weekly maintenance time is required'),
-            windowsMountDrive: Yup.string().required('Windows mount drive is required'),
-          }),
-          otherwise: Yup.object().nullable(),
+        otherwise: Yup.object(),
         }),
-        efs: Yup.object().when('fileSystemType', {
-          is: EFS,
-          then: Yup.object({
-            encryptAtRest: Yup.bool(),
-            lifecycle: Yup.number().required('Lifecycle is required'),
-            filesystemLifecycle: Yup.string(),
+      filesystem: Yup.object().when('provisionFS', {
+        is: true,
+        then: Yup.object({
+          mountPoint: Yup.string().when('fileSystemType', {
+            is: EFS,
+            then: Yup.string()
+              .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
+              .max(100, "The full path can't exceed 100 characters in length")
+              .test(
+                'subdirectories',
+                'The path can only include up to four subdirectories',
+                (val) => (val?.match(/\//g) || []).length <= 4,
+              )
+              .required(),
+            otherwise: Yup.string()
+              .matches(
+                /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
+                'Invalid path. Ex: C:\\data',
+              )
+              .required(),
+            }),
+          fsx: Yup.object().when('fileSystemType', {
+            is: FSX,
+            then: Yup.object({
+              storageGb: Yup.number()
+                .required()
+                .min(32, 'Storage minimum is 32 GB')
+                .max(1048, 'Storage maximum is 1048 GB'),
+              throughputMbs: Yup.number()
+                .required()
+                .min(8, 'Throughput minimum is 8 MB/s')
+                .max(2048, 'Throughput maximum is 2048 MB/s'),
+              backupRetentionDays: Yup.number()
+                .required()
+                .min(7, 'Minimum retention time is 7 days')
+                .max(35, 'Maximum retention time is 35 days'),
+              dailyBackupTime: Yup.string().required('Daily backup time is required'),
+              weeklyMaintenanceTime: Yup.string().required('Weekly maintenance time is required'),
+              windowsMountDrive: Yup.string().required('Windows mount drive is required'),
+            }),
+            otherwise: Yup.object().nullable(),
           }),
-          otherwise: Yup.object().nullable(),
+          efs: Yup.object().when('fileSystemType', {
+            is: EFS,
+            then: Yup.object({
+              encryptAtRest: Yup.bool(),
+              lifecycle: Yup.number().required('Lifecycle is required'),
+              filesystemLifecycle: Yup.string(),
+            }),
+            otherwise: Yup.object().nullable(),
+          }),
         }),
+        otherwise: Yup.object(),
       }),
-      otherwise: Yup.object(),
-    }),
-  })
-
-  const allTiersValidationSpec = {}
-  for (var i = 0; i < tiers.length; i++) {
-    var tierName = tiers[i]
-    allTiersValidationSpec[tierName] = singleTierValidationSpec
+    })
   }
 
+  const allTiersValidationSpec = (tombstone) => {
+    let allTiers = {}
+    for (var i = 0; i < tiers.length; i++) {
+      var tierName = tiers[i]
+      allTiers[tierName] = singleTierValidationSpec(tombstone)
+    }
+    return Yup.object(allTiers)
+  }
+
+  const requiredIfNotTombstoned = (tombstone, schema, requiredMessage) => {
+    return tombstone ? schema : schema.required(message)
+  }
+
+  // TODO path is only required for public services
+  // TODO path default is '/*'
+  // TODO public service paths cannot match
   const validationSpecs = Yup.object({
     name: Yup.string().required('Name is a required field.'),
     services: Yup.array(Yup.object({
-      public: Yup.boolean(),
-      name: Yup.string().required('Service Name is a required field.'),
+      public: Yup.boolean().required(),
+      name: Yup.string().when('tombstone', (tombstone, schema) => {
+        return requiredIfNotTombstoned(tombstone, schema, 'Service Name is a required field.')
+      }),
       description: Yup.string(),
-      path: Yup.string().matches(/^.+$/, 'error message',).required(),
+      path: Yup.string().matches(/^.+$/, 'error message',).when('tombstone', (tombstone, schema) => {
+        return requiredIfNotTombstoned(tombstone, schema, 'Path Name is a required field.')
+      }),
       containerPort: Yup.number()
         .integer('Container port must be an integer value.')
         .required('Container port is a required field.'),
@@ -288,7 +306,9 @@ export function ApplicationComponent(props) {
       healthCheckUrl: Yup.string()
         .required('Health Check URL is a required field')
         .matches(/^\//, 'Health Check must start with forward slash (/)'),
-      operatingSystem: Yup.string().required('Container OS is a required field.'),
+      operatingSystem: Yup.string().when('tombstone', (tombstone, schema) => {
+        return requiredIfNotTombstoned(tombstone, schema, 'Container OS is a required field.')
+      }),
       windowsVersion: Yup.string().when('operatingSystem', {
         is: (containerOs) => containerOs && containerOs === WINDOWS,
         then: Yup.string().required('Windows version is a required field'),
@@ -296,7 +316,10 @@ export function ApplicationComponent(props) {
       }),
       provisionDb: Yup.boolean(),
       provisionFS: Yup.boolean(),
-      tiers: Yup.object(allTiersValidationSpec),
+      tiers: Yup.object().when('tombstone', (tombstone, schema) => {
+        return allTiersValidationSpec(tombstone)
+      }),
+      tombstone: Yup.boolean(),
     })).min(1, 'Application must have at least ${min} service(s).'),
     provisionBilling: Yup.boolean(),
   })
@@ -343,6 +366,7 @@ export function ApplicationComponent(props) {
         <Formik
           initialValues={initialValues}
           validationSchema={validationSpecs}
+          validateOnChange={false}
           onSubmit={updateConfig}
           enableReinitialize={true}
         >

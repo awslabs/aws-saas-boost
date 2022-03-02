@@ -36,6 +36,7 @@ const ServicesComponent = (props) => {
     tiers,
     initService,
   } = props
+
   const [services, setServices] = useState(formik.values.services)
 
   const addService = (serviceName) => {
@@ -48,10 +49,11 @@ const ServicesComponent = (props) => {
   }
 
   const deleteService = (index) => {
-    console.log('delService ' + index)
-    console.log(formik.values.services)
+    // we can't just remove this service from the list because it'll mess with our indices
     formik.values.services[index].tombstone = true
     setServices(formik.values.services)
+    // kick off validation so the schema recognizes the tombstone and clears any pending errors
+    formik.validateForm()
   }
 
   const nextServiceIndex = services.length
@@ -85,7 +87,8 @@ const ServicesComponent = (props) => {
                     tiers={tiers}
                     isLocked={hasTenants}
                     formikService={services[index]}
-                    serviceValues={service}
+                    serviceValues={formik.values.services[index]}
+                    setFieldValue={formik.setFieldValue}
                     dbOptions={dbOptions}
                     onFileSelected={onFileSelected}
                     formikServicePrefix={'services[' + index + ']'}
@@ -112,4 +115,4 @@ ServicesComponent.propTypes = {
   formikErrors: PropTypes.object,
 }
 
-export default React.memo(ServicesComponent)
+export default ServicesComponent

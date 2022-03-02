@@ -30,7 +30,7 @@ import FileSystemSubform from './FileSystemSubform'
 import DatabaseSubform from './DatabaseSubform'
 
 const TierServiceSettingsSubform = (props) => {
-  const { formikService, isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
+  const { isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
 
   const [selectedTier, setSelectedTier] = useState(tiers[0])
 
@@ -67,7 +67,6 @@ const TierServiceSettingsSubform = (props) => {
                     name={formikServicePrefix + ".tiers[" + selectedTier + "].computeSize"}
                     id={formikServicePrefix + ".tiers[" + selectedTier + "].computeSize"}
                     label="Compute Size"
-                    value={serviceValues['tiers'][selectedTier]?.computeSize}
                   >
                     <option value="">Select One...</option>
                     <option value="S">Small</option>
@@ -82,7 +81,6 @@ const TierServiceSettingsSubform = (props) => {
                         label="Minimum Instance Count"
                         name={formikServicePrefix + ".tiers[" + selectedTier + "].min"}
                         type="number"
-                        value={serviceValues['tiers'][selectedTier]?.min}
                       />
                     </Col>
                     <Col>
@@ -91,7 +89,6 @@ const TierServiceSettingsSubform = (props) => {
                         label="Maximum Instance Count"
                         name={formikServicePrefix + ".tiers[" + selectedTier + "].max"}
                         type="number"
-                        value={serviceValues['tiers'][selectedTier]?.max}
                       />
                     </Col>
                   </Row>
@@ -105,6 +102,7 @@ const TierServiceSettingsSubform = (props) => {
                     filesystem={serviceValues?.tiers[selectedTier]?.filesystem}
                     provisionFs={serviceValues?.tiers[selectedTier]?.provisionFS}
                     containerOs={serviceValues?.operatingSystem}
+                    setFieldValue={props.setFieldValue}
                   ></FileSystemSubform>
                   <DatabaseSubform
                     isLocked={isLocked}
@@ -128,9 +126,9 @@ TierServiceSettingsSubform.propTypes = {
   serviceValues: PropTypes.object,
   isLocked: PropTypes.bool,
   serviceIndex: PropTypes.number,
-  formikService: PropTypes.object,
   formikServiceNamePrefix: PropTypes.string,
   onFileSelected: PropTypes.func,
+  setFieldValue: PropTypes.func,
 }
 
-export default React.memo(TierServiceSettingsSubform)
+export default TierServiceSettingsSubform
