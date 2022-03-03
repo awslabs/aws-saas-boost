@@ -22,6 +22,7 @@ EFS\
 Elastic Load Balancer\
 EventBridge\
 FSx for Windows Shares\
+FSx for NetApp ONTAP\
 Fargate\
 Glue\
 IAM\

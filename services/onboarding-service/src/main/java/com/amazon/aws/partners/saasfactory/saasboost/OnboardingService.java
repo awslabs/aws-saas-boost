@@ -678,7 +678,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     fsxOntapVolumeSize = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"); // MB/s
                     if (tenant.get("fsxOntapVolumeSize") != null) {
                         try {
-                            fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString();
+                            fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString(); // MB
                             LOGGER.info("Override default FSX ONTAP volume size with {}", fsxOntapVolumeSize);
                         } catch (NumberFormatException nfe) {
                             LOGGER.error("Can't parse tenant task FSX ONTAP volume size from {}", tenant.get("fsxOntapVolumeSize"));
@@ -843,7 +843,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
-            templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").parameterValue(fsxUseOntap).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxUseOntap").parameterValue(fsxUseOntap).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").parameterValue(fsxOntapVolumeSize).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacityOntap").parameterValue(fsxThroughputMbsOntap).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacityOntap").parameterValue(fsxStorageGbOntap).build());
@@ -1260,7 +1260,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
-            templateParameters.add(Parameter.builder().parameterKey("FsxUseOntap").usePreviousValue(Boolean.TRUE).build());
+            templateParameters.add(Parameter.builder().parameterKey("FSxUseOntap").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxOntapVolumeSize").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacityOntap").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacityOntap").usePreviousValue(Boolean.TRUE).build());
