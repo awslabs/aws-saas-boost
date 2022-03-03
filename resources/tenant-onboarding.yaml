@@ -194,7 +194,7 @@ Parameters:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
     Default: 'G:'
     Type: String
-  FsxUseOntap:
+  FSxUseOntap:
     Description: Specify whether to use FSX ONTAP as storage for windows container or not
     AllowedValues: ['true', 'false']
     Default: false
@@ -1062,7 +1062,7 @@ Resources:
 
                 Write-Output ("Getting FSx File Server domain name")
                 $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
-                If ('${FsxUseOntap}' -eq 'true')  {
+                If ('${FSxUseOntap}' -eq 'true')  {
                   $fileserverpath = "\\{0}\C$" -f "$fileserverDnsName"
                 }
                 Else {
@@ -1384,7 +1384,7 @@ Resources:
         FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
         ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS:1}}'
         SubnetRouteTableId: !GetAtt TenantRouteTablePrivate.RouteTableId
-        UseOntap: !Ref FsxUseOntap
+        UseOntap: !Ref FSxUseOntap
         OntapVolumeSize: !Ref FSxOntapVolumeSize
         StorageCapacityOntap: !Ref FSxStorageCapacityOntap
         ThroughputCapacityOntap: !Ref FSxThroughputCapacityOntap

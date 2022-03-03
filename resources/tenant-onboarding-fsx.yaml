@@ -487,8 +487,16 @@ Resources:
                 Action:
                   - fsx:DescribeFileSystems
                   - fsx:DescribeStorageVirtualMachines
-                  - ssm:*
-                Resource: '*'
+                Resource:
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+              - Effect: Allow
+                Action:
+                  - ssm:Get*
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
   CustomADResource:
     Type: AWS::CloudFormation::CustomResource
     Condition: UseOntap

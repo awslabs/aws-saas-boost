@@ -323,8 +323,6 @@ Resources:
                   - ec2:Describe*
                   - ec2:CreateNetworkInterface
                   - ecs:CreateCapacityProvider
-                  - iam:*
-                  - lambda:*
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -394,6 +392,7 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/Tenant*
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
               - Effect: Allow
                 Action:
@@ -568,8 +567,10 @@ Resources:
                   - lambda:CreateFunction
                   - lambda:InvokeFunction
                   - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:Tenant* 
               - Effect: Allow
                 Action:
                   - ec2:RevokeSecurityGroupEgress
@@ -728,6 +729,7 @@ Resources:
                   - iam:DeleteRolePolicy
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/Tenant*
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
               - Effect: Allow
                 Action:
@@ -891,8 +893,10 @@ Resources:
                   - lambda:GetFunctionConfiguration
                   - lambda:InvokeFunction
                   - lambda:DeleteFunction
+                  - lambda:CreateFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:Tenant* 
               - Effect: Allow
                 Action:
                   - ssm:Get*
