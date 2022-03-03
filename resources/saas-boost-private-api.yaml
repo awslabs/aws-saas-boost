@@ -43,9 +43,6 @@ Parameters:
   TenantServiceGetProvisioned:
     Description: Tenant Service get provisioned tenants Lambda ARN
     Type: String
-  TenantServiceUpdateOnboarding:
-    Description: Tenant Service update tenant onboarding status Lambda ARN
-    Type: String
   OnboardingUpdateAppConfig:
     Description: Onboarding Service update application config Lambda ARN
     Type: String
@@ -184,12 +181,6 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref TenantServiceResource
       PathPart: '{id}'
-  TenantServiceTenantOnboardingResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ParentId: !Ref TenantServiceByIdResource
-      PathPart: 'onboarding'
   TenantServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -334,62 +325,6 @@ Resources:
             ResponseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  TenantServiceTenantOnboardingUpdateMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref TenantServiceTenantOnboardingResource
-      HttpMethod: PUT
-      AuthorizationType: AWS_IAM
-      RequestParameters: {method.request.path.id: true}
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdateOnboarding}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  TenantServiceUpdateOnboardingLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref TenantServiceUpdateOnboarding
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/PUT/tenants/{id}/onboarding
-  TenantServiceTenantOnboardingResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref TenantServiceTenantOnboardingResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Max-Age: "'3600'"
               method.response.header.X-Requested-With: "'*'"
@@ -1015,8 +950,6 @@ Resources:
       - TenantServiceGetByIdMethod
       - TenantServiceInsertMethod
       - TenantServiceResourceCORS
-      - TenantServiceTenantOnboardingUpdateMethod
-      - TenantServiceTenantOnboardingResourceCORS
       - OnboardingServiceUpdateAppConfigMethod
       - OnboardingServiceUpdateAppConfigResourceCORS
       - SettingsServiceGetAllMethod

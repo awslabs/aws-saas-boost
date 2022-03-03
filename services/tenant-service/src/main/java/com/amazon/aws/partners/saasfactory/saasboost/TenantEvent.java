@@ -20,22 +20,17 @@ import java.util.Map;
 import java.util.UUID;
 
 // TODO Make a marker interface of SaaSBoostEvent?
-public enum OnboardingEvent {
-    ONBOARDING_INITIATED("Onboarding Initiated"),
-    ONBOARDING_VALID("Onboarding Validated"),
-    ONBOARDING_TENANT_ASSIGNED("Onboarding Tenant Assigned"),
-    ONBOARDING_STACK_STATUS_CHANGED("Onboarding Stack Status Changed"),
-    ONBOARDING_BASE_PROVISIONED("Onboarding Base Provisioned"),
-    ONBOARDING_PROVISIONED("Onboarding Provisioned"),
-    ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED("Onboarding Deployment Pipeline Change"),
-    ONBOARDING_DEPLOYED("Onboarding Deployed"),
-    ONBOARDING_COMPLETED("Onboarding Completed"),
-    ONBOARDING_FAILED("Onboarding Failed")
+public enum TenantEvent {
+    TENANT_ONBOARDING_STATUS_CHANGED("Tenant Onboarding Status Changed"),
+    TENANT_RESOURCES_CHANGED("Tenant Resources Changed"),
+    TENANT_HOSTNAME_CHANGED("Tenant Hostname Changed"),
+    TENANT_ENABLED("Tenant Enabled"),
+    TENANT_DISABLED("Tenant Disabled")
     ;
 
     private final String detailType;
 
-    OnboardingEvent(String detailType) {
+    TenantEvent(String detailType) {
         this.detailType = detailType;
     }
 
@@ -43,11 +38,11 @@ public enum OnboardingEvent {
         return detailType;
     }
 
-    public static OnboardingEvent fromDetailType(String detailType) {
-        OnboardingEvent event = null;
-        for (OnboardingEvent onboardingEvent : OnboardingEvent.values()) {
-            if (onboardingEvent.detailType().equals(detailType)) {
-                event = onboardingEvent;
+    public static TenantEvent fromDetailType(String detailType) {
+        TenantEvent event = null;
+        for (TenantEvent tenantEvent : TenantEvent.values()) {
+            if (tenantEvent.detailType().equals(detailType)) {
+                event = tenantEvent;
                 break;
             }
         }
@@ -64,11 +59,11 @@ public enum OnboardingEvent {
         }
         try {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-            if (detail == null || !detail.containsKey("onboardingId")) {
+            if (detail == null || !detail.containsKey("tenantId")) {
                 return false;
             }
             try {
-                UUID.fromString(String.valueOf(detail.get("onboardingId")));
+                UUID.fromString(String.valueOf(detail.get("tenantId")));
             } catch (IllegalArgumentException iae) {
                 return false;
             }

@@ -136,7 +136,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                 // The update tenant resources API call is additive, so we don't need to pull the
                                 // current tenant object ourselves.
                                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                                        "Tenant Resources Updated",
+                                        "Tenant Resources Changed",
                                         Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
                                 );
                             }

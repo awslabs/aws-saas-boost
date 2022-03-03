@@ -84,7 +84,7 @@ public class TenantServiceDAL {
 
         // Get all tenants who haven't just started provisioning (created)
         // or who had an error during provisioning (failed)
-        String filter = "attribute_exists(onboarding) AND onboarding <> :created AND onboarding <> :failed AND onboarding <> :deleted";
+        String filter = "attribute_exists(onboardingStatus) AND onboardingStatus <> :created AND onboardingStatus <> :failed AND onboardingStatus <> :deleted";
         Map<String, AttributeValue> expressions = new HashMap<>();
         expressions.put(":created", AttributeValue.builder().s("created").build());
         expressions.put(":failed", AttributeValue.builder().s("failed").build());
@@ -177,7 +177,7 @@ public class TenantServiceDAL {
         return tenant;
     }
 
-    public Tenant updateTenantOnboarding(UUID tenantId, String onboardingStatus) {
+    public Tenant updateTenantOnboardingStatus(UUID tenantId, String onboardingStatus) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::updateTenantOnboarding {} {}", tenantId.toString(), onboardingStatus);
         Tenant updated = new Tenant();
@@ -192,12 +192,9 @@ public class TenantServiceDAL {
                     .tableName(TENANTS_TABLE)
                     .key(key)
                     .updateExpression("SET onboarding = :onboarding, modified = :modified")
-                    .expressionAttributeValues(Stream
-                            .of(
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":onboarding", AttributeValue.builder().s(onboardingStatus).build()),
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":modified", AttributeValue.builder().s(modified).build())
-                            )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeValues(Map.of(
+                            ":onboarding", AttributeValue.builder().s(onboardingStatus).build(),
+                            ":modified", AttributeValue.builder().s(modified).build())
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );
@@ -208,6 +205,34 @@ public class TenantServiceDAL {
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TenantServiceDAL::updateTenantOnboarding exec {}", totalTimeMillis);
+        return updated;
+    }
+
+    public Tenant updateTenantHostname(UUID tenantId, String hostname) {
+        Tenant updated = new Tenant();
+        updated.setId(tenantId);
+        updated.setHostname(hostname);
+        updated.setModified(LocalDateTime.now());
+        String modified = updated.getModified().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        try {
+            Map<String, AttributeValue> key = new HashMap<>();
+            key.put("id", AttributeValue.builder().s(tenantId.toString()).build());
+            UpdateItemResponse response = ddb.updateItem(request -> request
+                    .tableName(TENANTS_TABLE)
+                    .key(key)
+                    .updateExpression("SET hostname = :hostname, modified = :modified")
+                    .expressionAttributeValues(Map.of(
+                            ":hostname", AttributeValue.builder().s(hostname).build(),
+                            ":modified", AttributeValue.builder().s(modified).build())
+                    )
+                    .returnValues(ReturnValue.ALL_NEW)
+            );
+            updated = fromAttributeValueMap(response.attributes());
+        } catch (DynamoDbException e) {
+            LOGGER.error("TenantServiceDAL::updateTenantHostname {}", e.awsErrorDetails().errorMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw e;
+        }
         return updated;
     }
 

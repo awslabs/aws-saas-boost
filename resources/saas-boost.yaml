@@ -760,7 +760,6 @@ Resources:
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
-        TenantServiceUpdateOnboarding: !GetAtt tenant.Outputs.TenantServiceUpdateOnboardingArn
         OnboardingUpdateAppConfig: !GetAtt onboarding.Outputs.OnboardingUpdateAppConfigArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn

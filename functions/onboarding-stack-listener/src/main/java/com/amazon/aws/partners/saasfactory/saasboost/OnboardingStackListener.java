@@ -67,7 +67,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
 
     @Override
     public Object handleRequest(SNSEvent event, Context context) {
-        LOGGER.info(Utils.toJson(event));
+        //LOGGER.info(Utils.toJson(event));
 
         List<SNSEvent.SNSRecord> records = event.getRecords();
         SNSEvent.SNS sns = records.get(0).getSNS();
@@ -79,6 +79,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
         // We want to process the resources of the tenant-onboarding.yaml CloudFormation stack only after the
         // stack has finished being created or updated so we don't trigger anything downstream prematurely.
         if (filter(cloudFormationEvent)) {
+            LOGGER.info(Utils.toJson(event));
             String stackName = cloudFormationEvent.getStackName();
             String stackStatus = cloudFormationEvent.getResourceStatus();
             String stackId = cloudFormationEvent.getStackId();
@@ -124,7 +125,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                     }
                 }
                 // Fire a tenant hostname changed event
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "TENANT_HOSTNAME_CHANGE",
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Hostname Changed",
                         Map.of("tenantId", tenantId, "hostname", hostname));
             } catch (SdkServiceException cfnError) {
                 LOGGER.error("cfn:DescribeStacks error", cfnError);
@@ -238,7 +239,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                 // Fire a tenant resources updated event
                 LOGGER.info("Updating tenant resources AWS console links");
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                        "Tenant Resources Updated",
+                        "Tenant Resources Changed",
                         Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResources))
                 );
 

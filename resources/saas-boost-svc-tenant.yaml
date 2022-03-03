@@ -218,37 +218,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Tenant"
-  TenantServiceUpdateOnboardingLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenants-update-onboarding
-      RetentionInDays: 30
-  TenantServiceUpdateOnboarding:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-tenants-update-onboarding
-      Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::updateTenantOnboarding
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/TenantService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          TENANTS_TABLE: !Ref TenantsTable
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tenant"
   TenantServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -373,59 +342,63 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Tenant"
-  TenantServiceUpdateResourcesLogGroup:
+  TenantServiceEventHandlerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenants-update-resources
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenant-events
       RetentionInDays: 30
-  TenantServiceUpdateResourcesFunction:
+  TenantServiceEventHandler:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-tenants-update-resources
+      FunctionName: !Sub sb-${Environment}-tenant-events
+      Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java11
-      Timeout: 300
-      MemorySize: 384
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          TENANTS_TABLE: !Ref TenantsTable
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::updateTenantResources
+      Timeout: 45
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::handleTenantEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/TenantService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Role: !GetAtt TenantServiceExecutionRole.Arn
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          TENANTS_TABLE: !Ref TenantsTable
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Tenant"
-  TenantServiceUpdateResourcesEventRule:
+  TenantServiceEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-tenant-update-resources
-      Description: Tenant's provisioned resources changed
+      Name: !Sub sb-${Environment}-tenant-events
+      Description: SaaS Boost tenant events
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:
-        detail-type:
-          - Tenant Resources Updated
-        source:
-          - saas-boost
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [{
+            "prefix": "Tenant "
+          }]
+        }
       State: ENABLED
       Targets:
-        - Arn: !GetAtt TenantServiceUpdateResourcesFunction.Arn
-          Id: TenantServiceUpdateResourcesFunction
-  TenantServiceUpdateResourcesFunctionPermission:
+        - Arn: !GetAtt TenantServiceEventHandler.Arn
+          Id: !Sub sb-${Environment}-tenant-events
+  TenantServiceEventsPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt TenantServiceUpdateResourcesFunction.Arn
+      FunctionName: !Ref TenantServiceEventHandler
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt TenantServiceUpdateResourcesEventRule.Arn
+      SourceArn: !GetAtt TenantServiceEventRule.Arn
 Outputs:
   TenantServiceGetAllArn:
     Description: Tenant Service get all tenants Lambda ARN
@@ -451,7 +424,4 @@ Outputs:
   TenantServiceDisableArn:
     Description: Tenant Service disable tenant Lambda ARN
     Value: !GetAtt TenantServiceDisable.Arn
-  TenantServiceUpdateOnboardingArn:
-    Description: Tenant Service update tenant onboarding status Lambda ARN
-    Value: !GetAtt TenantServiceUpdateOnboarding.Arn
 ...

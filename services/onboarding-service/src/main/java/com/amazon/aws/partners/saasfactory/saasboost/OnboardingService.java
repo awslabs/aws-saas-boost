@@ -370,9 +370,8 @@ public class OnboardingService {
         if (Utils.isBlank(ONBOARDING_VALIDATION_QUEUE)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_VALIDATION_QUEUE");
         }
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        if (detail != null && detail.containsKey("onboardingId")
-                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+        if (OnboardingEvent.validate(event)) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 if (OnboardingStatus.created == onboarding.getStatus()) {
@@ -417,9 +416,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
         }
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        if (detail != null && detail.containsKey("onboardingId")
-                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+        if (OnboardingEvent.validate(event)) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 if (onboarding.getTenantId() != null) {
@@ -500,13 +498,12 @@ public class OnboardingService {
         if (Utils.isBlank(ONBOARDING_STACK_SNS)) {
             throw new IllegalArgumentException("Missing required environment variable ONBOARDING_STACK_SNS");
         }
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        if (detail != null && detail.containsKey("onboardingId")
-                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+        if (OnboardingEvent.validate(event, "tenant")) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
-            String tenantId = onboarding.getTenantId().toString();
-            Map<String, Object> tenant = (Map<String, Object>) detail.get("tenant");
             if (onboarding != null) {
+                String tenantId = onboarding.getTenantId().toString();
+                Map<String, Object> tenant = (Map<String, Object>) detail.get("tenant");
                 String cidrBlock = dal.getCidrBlock(onboarding.getTenantId());
                 if (Utils.isBlank(cidrBlock)) {
                     // TODO rethrow to DLQ?
@@ -572,6 +569,13 @@ public class OnboardingService {
                     onboarding.addStack(new OnboardingStack(stackName, stackId, true, "CREATE_IN_PROGRESS"));
                     dal.updateOnboarding(onboarding);
                     LOGGER.info("OnboardingService::provisionTenant stack id " + stackId);
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Tenant Onboarding Status Changed",
+                            Map.of(
+                                    "tenantId", tenantId,
+                                    "onboardingStatus", "provisioning"
+                            )
+                    );
                 } catch (SdkServiceException cfnError) {
                     LOGGER.error("cloudformation::createStack failed {}", cfnError.getMessage());
                     LOGGER.error(Utils.getFullStackTrace(cfnError));
@@ -590,45 +594,56 @@ public class OnboardingService {
     }
 
     protected void handleOnboardingStackStatusChanged(Map<String, Object> event, Context context) {
+        // TODO stack events don't have the onboardingId, so we can't use OnboardingEvent::validate as written
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        String stackId = (String) detail.get("stackId");
-        String stackStatus = (String) detail.get("stackStatus");
-        OnboardingStatus status = OnboardingStatus.fromStackStatus(stackStatus);
+        if (detail != null && detail.containsKey("tenantId") && detail.containsKey("stackId")
+                && detail.containsKey("stackStatus")) {
+            String tenantId = (String) detail.get("tenantId");
+            String stackId = (String) detail.get("stackId");
+            String stackStatus = (String) detail.get("stackStatus");
+            OnboardingStatus status = OnboardingStatus.fromStackStatus(stackStatus);
 
-        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-        if (onboarding != null) {
-            LOGGER.info("Updating onboarding stack status {} {}", onboarding.getId(), stackId);
-            for (OnboardingStack stack : onboarding.getStacks()) {
-                if (stackId.equals(stack.getArn())) {
-                    if (!stackStatus.equals(stack.getStatus())) {
-                        LOGGER.info("Stack status changing from {} to {}", stack.getStatus(), stackStatus);
-                        stack.setStatus(stackStatus);
-                    }
-                    if (status != onboarding.getStatus()) {
-                        onboarding.setStatus(status);
-                        LOGGER.info("Onboarding status changing from {} to {}", onboarding.getStatus(), status);
-                    }
-                    dal.updateOnboarding(onboarding);
-                    if (stack.isComplete()) {
-                        if (stack.isBaseStack() && onboarding.baseStacksComplete()) {
-                            LOGGER.info("Onboarding base stacks provisioned!");
-                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                                    OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
-                                    Map.of("onboardingId", onboarding.getId())
-                            );
-                        } else if (onboarding.stacksComplete()) {
-                            LOGGER.info("All onboarding stacks provisioned!");
-                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                                    OnboardingEvent.ONBOARDING_PROVISIONED.detailType(),
-                                    Map.of("onboardingId", onboarding.getId())
-                            );
+            Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+            if (onboarding != null) {
+                LOGGER.info("Updating onboarding stack status {} {}", onboarding.getId(), stackId);
+                for (OnboardingStack stack : onboarding.getStacks()) {
+                    if (stackId.equals(stack.getArn())) {
+                        if (!stackStatus.equals(stack.getStatus())) {
+                            LOGGER.info("Stack status changing from {} to {}", stack.getStatus(), stackStatus);
+                            stack.setStatus(stackStatus);
                         }
+                        if (status != onboarding.getStatus()) {
+                            onboarding.setStatus(status);
+                            LOGGER.info("Onboarding status changing from {} to {}", onboarding.getStatus(), status);
+                        }
+                        dal.updateOnboarding(onboarding);
+                        if (stack.isComplete()) {
+                            if (stack.isBaseStack() && onboarding.baseStacksComplete()) {
+                                LOGGER.info("Onboarding base stacks provisioned!");
+                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                        OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
+                                        Map.of("onboardingId", onboarding.getId())
+                                );
+                            } else if (onboarding.stacksComplete()) {
+                                LOGGER.info("All onboarding stacks provisioned!");
+                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                        OnboardingEvent.ONBOARDING_PROVISIONED.detailType(),
+                                        Map.of("onboardingId", onboarding.getId())
+                                );
+                            }
+                        }
+                        break;
                     }
-                    break;
                 }
+                // TODO what about DELETE_COMPLETE stack status? Do we need to fire an event?
+            } else {
+                // Can't find an onboarding record for this id
+                LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
+                // TODO Throw here? Would end up in DLQ.
             }
-            // TODO what about DELETE_COMPLETE stack status? Do we need to fire an event?
+        } else {
+            LOGGER.error("Missing onboardingId in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
         }
     }
 
@@ -649,10 +664,9 @@ public class OnboardingService {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_APP_STACK_SNS");
         }
 
-        Utils.logRequestEvent(event);
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        if (detail != null && detail.containsKey("onboardingId")
-                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+        //Utils.logRequestEvent(event);
+        if (OnboardingEvent.validate(event)) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 String tenantId = onboarding.getTenantId().toString();
@@ -965,9 +979,8 @@ public class OnboardingService {
         // Provisioning is complete so we can deploy the workloads. Doing this after all stacks have finished
         // instead of as each non base stack finishes because until all services are up and ready the tenant
         // can't use the solution.
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        if (detail != null && detail.containsKey("onboardingId")
-                && Utils.isNotBlank((String) detail.get("onboardingId"))) {
+        if (OnboardingEvent.validate(event)) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 LOGGER.info("Triggering deployment pipelines for tenant {}", onboarding.getTenantId());
@@ -1023,42 +1036,23 @@ public class OnboardingService {
                         // if we made the source available (the docker image to deploy), there's no guarantee that the
                         // container infrastructure would be ready yet. We trigger the first run of the pipeline after
                         // all of the infrastructure is provisioned.
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                "Tenant Onboarding Status Changed",
+                                Map.of(
+                                        "tenantId", tenantId,
+                                        "onboardingStatus", "failed"
+                                )
+                        );
                     } else if ("SUCCEEDED".equals(pipelineState)) {
                         // TODO need to track all pipelines to know whether the entire solution is deployed
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                "Tenant Onboarding Status Changed",
+                                Map.of(
+                                        "tenantId", tenantId,
+                                        "onboardingStatus", "succeeded"
+                                )
+                        );
                     }
-
-                    // And update the tenant record
-//                    if (OnboardingStatus.deployed == onboarding.getStatus()) {
-//                        try {
-//                            ObjectNode systemApiRequest = MAPPER.createObjectNode();
-//                            systemApiRequest.put("resource", "tenants/" + tenantId + "/onboarding");
-//                            systemApiRequest.put("method", "PUT");
-//                            systemApiRequest.put("body", "{\"id\":\"" + tenantId + "\", \"onboardingStatus\":\"succeeded\"}");
-//                            PutEventsRequestEntry systemApiCallEvent = PutEventsRequestEntry.builder()
-//                                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-//                                    .detailType(SYSTEM_API_CALL_DETAIL_TYPE)
-//                                    .source(EVENT_SOURCE)
-//                                    .detail(MAPPER.writeValueAsString(systemApiRequest))
-//                                    .build();
-//                            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-//                                    .entries(systemApiCallEvent)
-//                            );
-//                            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-//                                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-//                                    LOGGER.info("Put event success {} {}", entry.toString(), systemApiCallEvent.toString());
-//                                } else {
-//                                    LOGGER.error("Put event failed {}", entry.toString());
-//                                }
-//                            }
-//                        } catch (JsonProcessingException ioe) {
-//                            LOGGER.error("JSON processing failed");
-//                            LOGGER.error(Utils.getFullStackTrace(ioe));
-//                            throw new RuntimeException(ioe);
-//                        } catch (SdkServiceException eventBridgeError) {
-//                            LOGGER.error("events::PutEvents");
-//                            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-//                            throw eventBridgeError;
-//                        }
                 } else {
                     LOGGER.error("Can't find onboarding record for tenant {}", tenantId);
                 }

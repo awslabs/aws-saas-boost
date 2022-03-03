@@ -62,16 +62,13 @@ public class TenantServiceTest {
     }
 
     @Test
-    public void parseTenantUpdateResourcesEventTest() throws Exception {
-        Tenant expected = new Tenant();
-        expected.setId(UUID.fromString(tenantId));
-        expected.setResources(resources);
+    public void testFromTenantResourcesChangedEvent() {
+        Map<String, Tenant.Resource> expected = resources;
+        Map<String, Tenant.Resource> actual = TenantService.fromTenantResourcesChangedEvent(event);
 
-        Tenant actual = TenantService.parseTenantUpdateResourcesEvent(event);
-
-        assertEquals("Size unequal", expected.getResources().size(), actual.getResources().size());
-        expected.getResources().keySet().stream().forEach((key) -> {
-            assertEquals("Value mismatch for '" + key + "'", expected.getResources().get(key), actual.getResources().get(key));
+        assertEquals("Size unequal", expected.size(), actual.size());
+        expected.keySet().stream().forEach((key) -> {
+            assertEquals("Value mismatch for '" + key + "'", expected.get(key), actual.get(key));
         });
     }
 
