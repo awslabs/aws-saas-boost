@@ -24,6 +24,7 @@ public enum TenantEvent {
     TENANT_ONBOARDING_STATUS_CHANGED("Tenant Onboarding Status Changed"),
     TENANT_RESOURCES_CHANGED("Tenant Resources Changed"),
     TENANT_HOSTNAME_CHANGED("Tenant Hostname Changed"),
+    TENANT_TIER_CHANGED("Tenant Tier Changed"),
     TENANT_ENABLED("Tenant Enabled"),
     TENANT_DISABLED("Tenant Disabled")
     ;

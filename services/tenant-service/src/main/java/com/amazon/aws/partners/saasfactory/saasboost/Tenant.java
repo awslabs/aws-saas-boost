@@ -28,7 +28,7 @@ public class Tenant {
     private UUID id;
     private LocalDateTime created;
     private LocalDateTime modified;
-    private Boolean active;
+    private boolean active = true;
     private String tier;
     private String onboardingStatus;
     private String name;
@@ -183,7 +183,7 @@ public class Tenant {
                 ((id == null && other.id == null) || (id != null && id.equals(other.id)))
                 && ((created == null && other.created == null) || (created != null && created.equals(other.created)))
                 && ((modified == null && other.modified == null) || (modified != null && modified.equals(other.modified)))
-                && ((active == null && other.active == null) || (active != null && active.equals(other.active)))
+                && (active == other.active)
                 && ((tier == null && other.tier == null) || (tier != null && tier.equals(other.tier)))
                 && ((onboardingStatus == null && other.onboardingStatus == null) || (onboardingStatus != null && onboardingStatus.equals(other.onboardingStatus)))
                 && ((name == null && other.name == null) || (name != null && name.equals(other.name)))

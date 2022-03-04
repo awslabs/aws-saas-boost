@@ -659,28 +659,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Tenant"
-  TenantEnableDisableEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub sb-${Environment}-tenant-enable-disable
-      Description: A filter for when a tenant status is updated
-      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
-      EventPattern:
-        detail-type:
-          - Tenant Status Update
-        source:
-          - saas-boost
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt TenantEnableDisableListenerFunction.Arn
-          Id: TenantEnableDisableListenerFunction
-  TenantEnableDisableListenerPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt TenantEnableDisableListenerFunction.Arn
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt TenantEnableDisableEventRule.Arn
   EcsShutdownServicesExecRole:
     Type: AWS::IAM::Role
     Properties:

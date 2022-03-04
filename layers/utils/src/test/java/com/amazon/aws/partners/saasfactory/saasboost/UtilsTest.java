@@ -16,6 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import jdk.jshell.execution.Util;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -36,5 +37,22 @@ public class UtilsTest {
             assertEquals("Character " + character + " is illegal", -1, illegalCharacters.indexOf(character));
             assertTrue("Character " + character + " is legal", legalCharacters.contains(character));
         }
+    }
+
+    @Test
+    public void testToSnakeCase() {
+        assertNull(Utils.toSnakeCase(null));
+        assertEquals("", Utils.toSnakeCase(""));
+        assertEquals("  ", Utils.toSnakeCase("  "));
+        assertEquals("a", Utils.toSnakeCase("a"));
+        assertEquals("a", Utils.toSnakeCase("A"));
+        assertEquals("?", Utils.toSnakeCase("?"));
+        assertEquals("snake_case", Utils.toSnakeCase("snake_case"));
+        assertEquals("camel_case", Utils.toSnakeCase("camelCase"));
+        assertEquals("pascal_case", Utils.toSnakeCase("PascalCase"));
+        assertEquals("snake_case", Utils.toSnakeCase("Snake Case"));
+        assertEquals("foo_bar", Utils.toSnakeCase("foo baR"));
+        assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBaz"));
+        assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBAZ"));
     }
 }

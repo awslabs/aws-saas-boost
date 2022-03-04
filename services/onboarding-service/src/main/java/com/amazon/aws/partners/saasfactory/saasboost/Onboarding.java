@@ -16,8 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +31,7 @@ public class Onboarding {
     private UUID tenantId;
     private OnboardingRequest request;
     private List<OnboardingStack> stacks = new ArrayList<>();
-    private String zipFileUrl;
+    private String zipFile;
 
     public Onboarding() {
     }
@@ -44,14 +42,6 @@ public class Onboarding {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public void setZipFileUrl(String zipFileUrl) {
-        this.zipFileUrl = zipFileUrl;
-    }
-
-    public String getZipFileUrl() {
-        return zipFileUrl;
     }
 
     public LocalDateTime getCreated() {
@@ -98,6 +88,14 @@ public class Onboarding {
         return stacks;
     }
 
+    public void setZipFile(String zipFile) {
+        this.zipFile = zipFile;
+    }
+
+    public String getZipFile() {
+        return zipFile;
+    }
+
     public void setStacks(List<OnboardingStack> stacks) {
         this.stacks = stacks != null ? new ArrayList<>(stacks) : new ArrayList<>();
     }
@@ -122,6 +120,17 @@ public class Onboarding {
 
     public boolean baseStacksComplete() {
         return stacksComplete(true);
+    }
+
+    public boolean stacksDeployed() {
+        boolean deployed = true;
+        for (OnboardingStack stack : getStacks()) {
+            if (!stack.isDeployed()) {
+                deployed = false;
+                break;
+            }
+        }
+        return deployed;
     }
 
     protected boolean stacksComplete(boolean baseStacks) {

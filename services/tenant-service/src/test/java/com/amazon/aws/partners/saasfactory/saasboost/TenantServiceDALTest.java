@@ -84,10 +84,10 @@ public class TenantServiceDALTest {
         expected.put("modified", AttributeValue.builder().s(modified.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
         expected.put("tier", AttributeValue.builder().s("default").build());
         expected.put("name", AttributeValue.builder().s("Test Tenant").build());
-        expected.put("onboardingStatus", AttributeValue.builder().s("succeeded").build());
+        expected.put("onboarding_status", AttributeValue.builder().s("succeeded").build());
         expected.put("hostname", AttributeValue.builder().s("test-tenant.saas-example.com").build());
         expected.put("subdomain", AttributeValue.builder().s("test-tenant").build());
-        expected.put("billingPlan", AttributeValue.builder().s("Billing Plan").build());
+        expected.put("billing_plan", AttributeValue.builder().s("Billing Plan").build());
         expected.put("attributes", AttributeValue.builder().m(attributes.entrySet()
                 .stream()
                 .collect(Collectors.toMap(
@@ -137,6 +137,7 @@ public class TenantServiceDALTest {
         Map<String, Object> json = Utils.fromJson(Utils.toJson(tenant), LinkedHashMap.class);
         json.keySet().stream()
                 .filter(key -> !ignoreProperties.contains(key))
+                .map(key -> Utils.toSnakeCase(key))
                 .forEach(key -> {
             assertTrue("Class property '" + key + "' does not exist in DynamoDB attribute map", actual.containsKey(key));
         });

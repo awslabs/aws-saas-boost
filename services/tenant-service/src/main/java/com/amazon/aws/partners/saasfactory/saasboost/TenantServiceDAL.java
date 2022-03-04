@@ -285,9 +285,6 @@ public class TenantServiceDAL {
         LOGGER.info("TenantServiceDAL::insertTenant {}", tenant.getName());
         UUID tenantId = UUID.randomUUID();
         tenant.setId(tenantId);
-        if (tenant.getActive() == null) {
-            tenant.setActive(Boolean.TRUE);
-        }
         // Created and Modified are owned by the DAL since they reflect when the object was persisted
         LocalDateTime now = LocalDateTime.now();
         tenant.setCreated(now);
@@ -335,7 +332,7 @@ public class TenantServiceDAL {
             item.put("active", AttributeValue.builder().bool(tenant.getActive()).build());
         }
         if (Utils.isNotBlank(tenant.getOnboardingStatus())) {
-            item.put("onboardingStatus", AttributeValue.builder().s(tenant.getOnboardingStatus()).build());
+            item.put("onboarding_status", AttributeValue.builder().s(tenant.getOnboardingStatus()).build());
         }
         if (Utils.isNotBlank(tenant.getName())) {
             item.put("name", AttributeValue.builder().s(tenant.getName()).build());
@@ -350,7 +347,7 @@ public class TenantServiceDAL {
             item.put("tier", AttributeValue.builder().s(tenant.getTier()).build());
         }
         if (Utils.isNotBlank(tenant.getBillingPlan())) {
-            item.put("billingPlan", AttributeValue.builder().s(tenant.getBillingPlan()).build());
+            item.put("billing_plan", AttributeValue.builder().s(tenant.getBillingPlan()).build());
         }
         if (tenant.getAttributes() != null) {
             item.put("attributes", AttributeValue.builder().m(tenant.getAttributes().entrySet()
@@ -416,8 +413,8 @@ public class TenantServiceDAL {
             if (item.containsKey("tier")) {
                 tenant.setTier(item.get("tier").s());
             }
-            if (item.containsKey("onboardingStatus")) {
-                tenant.setOnboardingStatus(item.get("onboardingStatus").s());
+            if (item.containsKey("onboarding_status")) {
+                tenant.setOnboardingStatus(item.get("onboarding_status").s());
             }
             if (item.containsKey("name")) {
                 tenant.setName(item.get("name").s());
@@ -428,8 +425,8 @@ public class TenantServiceDAL {
             if (item.containsKey("subdomain")) {
                 tenant.setSubdomain(item.get("subdomain").s());
             }
-            if (item.containsKey("billingPlan")) {
-                tenant.setBillingPlan(item.get("billingPlan").s());
+            if (item.containsKey("billing_plan")) {
+                tenant.setBillingPlan(item.get("billing_plan").s());
             }
             if (item.containsKey("attributes")) {
                 try {

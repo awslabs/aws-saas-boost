@@ -6,40 +6,45 @@ public class OnboardingStack {
     private String arn;
     private boolean baseStack;
     private String status;
+    private String pipeline;
+    private String pipelineStatus;
 
-    public OnboardingStack() {
-        this(null, null, false, null);
+    private OnboardingStack() {
     }
 
-    public OnboardingStack(String name, String arn, boolean baseStack, String status) {
-        this.name = name;
-        this.arn = arn;
-        this.baseStack = baseStack;
-        this.status = status;
+    private OnboardingStack(Builder builder) {
+        this.name = builder.name;
+        this.arn = builder.arn;
+        this.baseStack = builder.baseStack;
+        this.status = builder.status;
+        this.pipeline = builder.pipeline;
+        this.pipelineStatus = builder.pipelineStatus;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(OnboardingStack copyMe) {
+        return new Builder()
+                .name(copyMe.name)
+                .arn(copyMe.arn)
+                .baseStack(copyMe.baseStack)
+                .status(copyMe.status)
+                .pipeline(copyMe.pipeline)
+                .pipelineStatus(copyMe.pipelineStatus);
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public String getArn() {
         return arn;
     }
 
-    public void setArn(String arn) {
-        this.arn = arn;
-    }
-
     public boolean isBaseStack() {
         return baseStack;
-    }
-
-    public void setBaseStack(boolean baseStack) {
-        this.baseStack = baseStack;
     }
 
     public String getStatus() {
@@ -50,8 +55,28 @@ public class OnboardingStack {
         this.status = status;
     }
 
+    public String getPipeline() {
+        return pipeline;
+    }
+
+    public void setPipeline(String pipeline) {
+        this.pipeline = pipeline;
+    }
+
+    public String getPipelineStatus() {
+        return pipelineStatus;
+    }
+
+    public void setPipelineStatus(String pipelineStatus) {
+        this.pipelineStatus = pipelineStatus;
+    }
+
     public boolean isComplete() {
         return "CREATE_COMPLETE".equals(getStatus()) || "UPDATE_COMPLETE".equals(getStatus());
+    }
+
+    public boolean isDeployed() {
+        return (isComplete() && isBaseStack()) || (isComplete() && "SUCCEEDED".equals(getPipelineStatus()));
     }
 
     public String getCloudFormationUrl() {
@@ -69,5 +94,52 @@ public class OnboardingStack {
             }
         }
         return url;
+    }
+
+    public static final class Builder {
+
+        private String name;
+        private String arn;
+        private boolean baseStack;
+        private String status;
+        private String pipeline;
+        private String pipelineStatus;
+
+        private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder arn(String arn) {
+            this.arn = arn;
+            return this;
+        }
+
+        public Builder baseStack(boolean baseStack) {
+            this.baseStack = baseStack;
+            return this;
+        }
+
+        public Builder status(String status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder pipeline(String pipeline) {
+            this.pipeline = pipeline;
+            return this;
+        }
+
+        public Builder pipelineStatus(String pipelineStatus) {
+            this.pipelineStatus = pipelineStatus;
+            return this;
+        }
+
+        public OnboardingStack build() {
+            return new OnboardingStack(this);
+        }
     }
 }

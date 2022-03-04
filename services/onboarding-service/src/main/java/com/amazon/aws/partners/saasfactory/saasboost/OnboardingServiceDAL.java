@@ -18,7 +18,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
+import org.w3c.dom.Attr;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
@@ -27,7 +27,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class OnboardingServiceDAL {
 
@@ -331,6 +330,9 @@ public class OnboardingServiceDAL {
         if (onboarding.getTenantId() != null) {
             item.put("tenant_id", AttributeValue.builder().s(onboarding.getTenantId().toString()).build());
         }
+        if (onboarding.getZipFile() != null) {
+            item.put("zip_file", AttributeValue.builder().s(onboarding.getZipFile()).build());
+        }
         if (onboarding.getRequest() != null) {
             OnboardingRequest request = onboarding.getRequest();
             Map<String, AttributeValue> requestMap = new HashMap<>();
@@ -357,14 +359,26 @@ public class OnboardingServiceDAL {
         if (!onboarding.getStacks().isEmpty()) {
             item.put("stacks", AttributeValue.builder().l(onboarding.getStacks()
                     .stream()
-                    .map(entry -> AttributeValue.builder().m(
-                            Map.of(
-                                    "name", AttributeValue.builder().s(entry.getName()).build(),
-                                    "arn", AttributeValue.builder().s(entry.getArn()).build(),
-                                    "baseStack", AttributeValue.builder().bool(entry.isBaseStack()).build(),
-                                    "status", AttributeValue.builder().s(entry.getStatus()).build()
-                            )).build()
-                    )
+                    .map(stack -> {
+                        Map<String, AttributeValue> stackItem = new HashMap<>();
+                        if (stack.getName() != null) {
+                            stackItem.put("name", AttributeValue.builder().s(stack.getName()).build());
+                        }
+                        if (stack.getArn() != null) {
+                            stackItem.put("arn", AttributeValue.builder().s(stack.getArn()).build());
+                        }
+                        stackItem.put("baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build());
+                        if (stack.getStatus() != null) {
+                            stackItem.put("status", AttributeValue.builder().s(stack.getStatus()).build());
+                        }
+                        if (stack.getPipeline() != null) {
+                            stackItem.put("pipeline", AttributeValue.builder().s(stack.getPipeline()).build());
+                        }
+                        if (stack.getPipelineStatus() != null) {
+                            stackItem.put("pipelineStatus", AttributeValue.builder().s(stack.getPipelineStatus()).build());
+                        }
+                        return AttributeValue.builder().m(stackItem).build();
+                    })
                     .collect(Collectors.toList())
                     ).build()
             );
@@ -418,6 +432,9 @@ public class OnboardingServiceDAL {
                     LOGGER.error(Utils.getFullStackTrace(e));
                 }
             }
+            if (item.containsKey("zip_file")) {
+                onboarding.setZipFile(item.get("zip_file").s());
+            }
             if (item.containsKey("request")) {
                 Map<String, AttributeValue> requestMap = item.get("request").m();
                 OnboardingRequest request = new OnboardingRequest(requestMap.get("name").s());
@@ -442,12 +459,17 @@ public class OnboardingServiceDAL {
             if (item.containsKey("stacks")) {
                 onboarding.setStacks(item.get("stacks").l()
                         .stream()
-                        .map(stackItem -> new OnboardingStack(
-                                stackItem.m().get("name").s(),
-                                stackItem.m().get("arn").s(),
-                                stackItem.m().get("baseStack").bool(),
-                                stackItem.m().get("status").s()
-                        ))
+                        .map(stackItem -> {
+                            Map<String, AttributeValue> stack = stackItem.m();
+                            return OnboardingStack.builder()
+                                    .name(stack.containsKey("name") ? stack.get("name").s() : null)
+                                    .arn(stack.containsKey("arn") ? stack.get("arn").s() : null)
+                                    .baseStack(stack.containsKey("baseStack") ? stack.get("baseStack").bool() : false)
+                                    .status(stack.containsKey("status") ? stack.get("status").s() : null)
+                                    .pipeline(stack.containsKey("pipeline") ? stack.get("pipeline").s() : null)
+                                    .pipelineStatus(stack.containsKey("pipelineStatus") ? stack.get("pipelineStatus").s() : null)
+                                    .build();
+                        })
                         .collect(Collectors.toList())
                 );
             }

@@ -42,4 +42,5 @@ public class TenantTest {
         Tenant deserialized = Utils.fromJson(json, Tenant.class);
         assertTrue("Deserialized tenant is provisioned", deserialized.isProvisioned());
     }
+
 }

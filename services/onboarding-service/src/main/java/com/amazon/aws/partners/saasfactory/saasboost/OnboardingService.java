@@ -20,9 +20,6 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.lambda.runtime.events.SQSBatchResponse;
 import com.amazonaws.services.lambda.runtime.events.SQSEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
@@ -37,9 +34,6 @@ import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
 import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResultEntry;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.*;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -62,7 +56,6 @@ import java.util.stream.Collectors;
 public class OnboardingService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
     private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
     private static final String EVENT_SOURCE = "saas-boost";
@@ -273,6 +266,8 @@ public class OnboardingService {
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Tenant name is required.\"}");
         }
+        // TODO check for duplicate tenant name? Do it by just looking at the local onboarding requests, or make
+        // a call out to the tenant service?
 
         // Create a new onboarding request record for a tenant
         Onboarding onboarding = new Onboarding();
@@ -295,7 +290,7 @@ public class OnboardingService {
                 )
                 .build()
         );
-        onboarding.setZipFileUrl(presignedObject.url().toString());
+        onboarding.setZipFile(presignedObject.url().toString());
         onboarding = dal.updateOnboarding(onboarding);
         LOGGER.info("Updated onboarding request with S3 URL");
 
@@ -343,9 +338,9 @@ public class OnboardingService {
                         LOGGER.info("Handling Onboarding Provisioning Complete");
                         handleOnboardingProvisioned(event, context);
                         break;
-                    case ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED:
-                        LOGGER.info("Handling Onboarding Deployment Pipeline Changed");
-                        handleOnboardingDeploymentPipelineChanged(event, context);
+                    case ONBOARDING_DEPLOYMENT_PIPELINE_CREATED:
+                        LOGGER.info("Handling Onboarding Deployment Pipeline Created");
+                        handleOnboardingDeploymentPipelineCreated(event, context);
                         break;
                     case ONBOARDING_DEPLOYED:
                         LOGGER.info("Handling Onboarding Workloads Deployed");
@@ -464,6 +459,15 @@ public class OnboardingService {
                     return;
                 }
 
+                // Let the tenant service know the onboarding status
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        "Tenant Onboarding Status Changed",
+                        Map.of(
+                                "tenantId", tenantId,
+                                "onboardingStatus",  onboarding.getStatus()
+                        )
+                );
+
                 // Ready to provision the base infrastructure for this tenant
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                         OnboardingEvent.ONBOARDING_TENANT_ASSIGNED.detailType(),
@@ -548,7 +552,7 @@ public class OnboardingService {
                     }
                 }
 
-                String tenantShortId = tenantId.toString().substring(0, 8);
+                String tenantShortId = tenantId.substring(0, 8);
                 String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId;
 
                 // Now run the onboarding stack to provision the infrastructure for this tenant
@@ -566,14 +570,20 @@ public class OnboardingService {
                     );
                     stackId = cfnResponse.stackId();
                     onboarding.setStatus(OnboardingStatus.provisioning);
-                    onboarding.addStack(new OnboardingStack(stackName, stackId, true, "CREATE_IN_PROGRESS"));
+                    onboarding.addStack(OnboardingStack.builder()
+                            .name(stackName)
+                            .arn(stackId)
+                            .baseStack(true)
+                            .status("CREATE_IN_PROGRESS")
+                            .build()
+                    );
                     dal.updateOnboarding(onboarding);
                     LOGGER.info("OnboardingService::provisionTenant stack id " + stackId);
                     Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                             "Tenant Onboarding Status Changed",
                             Map.of(
                                     "tenantId", tenantId,
-                                    "onboardingStatus", "provisioning"
+                                    "onboardingStatus", onboarding.getStatus()
                             )
                     );
                 } catch (SdkServiceException cfnError) {
@@ -722,8 +732,6 @@ public class OnboardingService {
                         return;
                     }
 
-                    List<String> applicationServiceStacks = new ArrayList<>();
-
                     Map<String, Integer> pathPriority = getPathPriority(appConfig);
                     Properties serviceDiscovery = new Properties();
 
@@ -842,7 +850,7 @@ public class OnboardingService {
     //        templateParameters.add(Parameter.builder().parameterKey("CodePipelineRoleArn").parameterValue(settings.get("CODE_PIPELINE_ROLE")).build());
 
                         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
-                        templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId).build());
                         templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
                         templateParameters.add(Parameter.builder().parameterKey("ServiceResourceName").parameterValue(serviceResourceName).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
@@ -901,7 +909,7 @@ public class OnboardingService {
                         }
 
                         // Make the stack name look like what CloudFormation would have done for a nested stack
-                        String tenantShortId = tenantId.toString().substring(0, 8);
+                        String tenantShortId = tenantId.substring(0, 8);
                         String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
                                 + "-" + Utils.randomString(12).toUpperCase();
                         if (stackName.length() > 128) {
@@ -925,10 +933,15 @@ public class OnboardingService {
                             );
                             stackId = cfnResponse.stackId();
                             onboarding.setStatus(OnboardingStatus.provisioning);
-                            onboarding.addStack(new OnboardingStack(stackName, stackId, false, "CREATE_IN_PROGRESS"));
+                            onboarding.addStack(OnboardingStack.builder()
+                                    .name(stackName)
+                                    .arn(stackId)
+                                    .baseStack(false)
+                                    .status("CREATE_IN_PROGRESS")
+                                    .build()
+                            );
                             onboarding = dal.updateOnboarding(onboarding);
                             LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
-                            applicationServiceStacks.add(stackId);
                         } catch (CloudFormationException cfnError) {
                             LOGGER.error("cloudformation::createStack failed", cfnError);
                             LOGGER.error(Utils.getFullStackTrace(cfnError));
@@ -938,7 +951,7 @@ public class OnboardingService {
                     }
 
                     if (!serviceDiscovery.isEmpty()) {
-                        String environmentFile = "tenants/" + tenantId.toString() + "/ServiceDiscovery.env";
+                        String environmentFile = "tenants/" + tenantId + "/ServiceDiscovery.env";
                         ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
                         try (Writer writer = new BufferedWriter(new OutputStreamWriter(
                                 environmentFileContents, StandardCharsets.UTF_8)
@@ -954,12 +967,10 @@ public class OnboardingService {
                             LOGGER.error("Error putting service discovery file to S3");
                             LOGGER.error(Utils.getFullStackTrace(s3Error));
                             failOnboarding(onboarding.getId(), s3Error.awsErrorDetails().errorMessage());
-                            return;
                         } catch (IOException ioe) {
                             LOGGER.error("Error writing service discovery data to output stream");
                             LOGGER.error(Utils.getFullStackTrace(ioe));
                             failOnboarding(onboarding.getId(), "Error writing service discovery data to output stream");
-                            return;
                         }
                     }
                 } else {
@@ -1007,6 +1018,35 @@ public class OnboardingService {
         }
     }
 
+    protected  void handleOnboardingDeploymentPipelineCreated(Map<String, Object> event, Context context) {
+        // TODO stack events don't have the onboardingId, so we can't use OnboardingEvent::validate as written
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        if (detail != null && detail.containsKey("tenantId") && detail.containsKey("stackId")
+                && detail.containsKey("stackName") && detail.containsKey("pipeline")) {
+            String tenantId = (String) detail.get("tenantId");
+            String stackId = (String) detail.get("stackId");
+            String stackName = (String) detail.get("stackName");
+            String pipeline = (String) detail.get("pipeline");
+
+            Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+            if (onboarding != null) {
+                for (OnboardingStack stack : onboarding.getStacks()) {
+                    if (stackId.equals(stack.getArn())) {
+                        LOGGER.info("Updating onboarding {} stack {} pipeline {}", onboarding.getId(),
+                                stackName, pipeline);
+                        stack.setPipeline(pipeline);
+                        dal.updateOnboarding(onboarding);
+                        break;
+                    }
+                }
+            } else {
+                LOGGER.error("Can't find onboarding record for tenant {}", tenantId);
+            }
+        } else {
+            LOGGER.error("Missing required keys in event detail {}", Utils.toJson(event.get("detail")));
+        }
+    }
+
     protected void handleOnboardingDeploymentPipelineChanged(Map<String, Object> event, Context context) {
         if ("aws.codepipeline".equals(event.get("source"))) {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
@@ -1026,32 +1066,71 @@ public class OnboardingService {
                 if (onboarding != null) {
                     tenantId = onboarding.getTenantId().toString();
 
-                    Object pipelineState = detail.get("state");
+                    String pipelineState = (String) detail.get("state");
+                    for (OnboardingStack stack : onboarding.getStacks()) {
+                        if (pipeline.equals(stack.getPipeline())) {
+                            // When the pipeline is created it is automatically started (there's no way to prevent this)
+                            // and will fail because the source for the pipeline is not available when it's created. Even
+                            // if we made the source available (the docker image to deploy), there's no guarantee that the
+                            // container infrastructure would be ready yet. We trigger the first run of the pipeline after
+                            // all of the infrastructure is provisioned.
+
+                            // Skip setting the failed status the first time around
+                            if ("FAILED".equals(pipelineState) && Utils.isEmpty(stack.getPipelineStatus())) {
+                                LOGGER.info("Onboarding {} stack {} ignoring initial failed pipeline state",
+                                        onboarding.getId(), stack.getName());
+                                break;
+                            }
+
+                            // Otherwise, update the pipeline status
+                            LOGGER.info("Updating onboarding {} stack {} pipeline {} state to {}", onboarding.getId(),
+                                    stack.getName(), pipeline, pipelineState);
+                            stack.setPipelineStatus(pipelineState);
+                            onboarding = dal.updateOnboarding(onboarding);
+                            break;
+                        }
+                    }
+
                     if ("STARTED".equals(pipelineState)) {
                         dal.updateStatus(onboarding.getId(), OnboardingStatus.deploying);
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                "Tenant Onboarding Status Changed",
+                                Map.of(
+                                        "tenantId", tenantId,
+                                        "onboardingStatus", OnboardingStatus.deploying
+                                )
+                        );
                     } else if ("FAILED".equals(pipelineState) || "CANCELED".equals(pipelineState)) {
-                        // TODO how do we track this? No op? Retry?
-                        // When the pipeline is created it is automatically started (there's no way to prevent this)
-                        // and will fail because the source for the pipeline is not available when it's created. Even
-                        // if we made the source available (the docker image to deploy), there's no guarantee that the
-                        // container infrastructure would be ready yet. We trigger the first run of the pipeline after
-                        // all of the infrastructure is provisioned.
-                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                                "Tenant Onboarding Status Changed",
-                                Map.of(
-                                        "tenantId", tenantId,
-                                        "onboardingStatus", "failed"
-                                )
-                        );
+                        boolean firstFailure = false;
+                        for (OnboardingStack stack : onboarding.getStacks()) {
+                            if (pipeline.equals(stack.getPipeline())) {
+                                if (Utils.isEmpty(stack.getPipelineStatus())) {
+                                    firstFailure = true;
+                                }
+                                break;
+                            }
+                        }
+                        if (!firstFailure) {
+                            failOnboarding(onboarding.getId(), "Pipeline " + pipeline + " failed");
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                    "Tenant Onboarding Status Changed",
+                                    Map.of(
+                                            "tenantId", tenantId,
+                                            "onboardingStatus", "failed"
+                                    )
+                            );
+                        }
                     } else if ("SUCCEEDED".equals(pipelineState)) {
-                        // TODO need to track all pipelines to know whether the entire solution is deployed
-                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                                "Tenant Onboarding Status Changed",
-                                Map.of(
-                                        "tenantId", tenantId,
-                                        "onboardingStatus", "succeeded"
-                                )
-                        );
+                        if (onboarding.stacksDeployed()) {
+                            dal.updateStatus(onboarding.getId(), OnboardingStatus.deployed);
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                    "Tenant Onboarding Status Changed",
+                                    Map.of(
+                                            "tenantId", tenantId,
+                                            "onboardingStatus", "succeeded"
+                                    )
+                            );
+                        }
                     }
                 } else {
                     LOGGER.error("Can't find onboarding record for tenant {}", tenantId);
@@ -1085,14 +1164,12 @@ public class OnboardingService {
                 LOGGER.error("No onboarding request data for {}", onboardingId);
                 fatal.add(message);
                 failOnboarding(onboardingId, "Onboarding record has no request content");
-                continue;
             } else if (OnboardingStatus.validating != onboarding.getStatus()) {
                 LOGGER.warn("Onboarding in unexpected state for validation {} {}", onboardingId
                         , onboarding.getStatus());
                 fatal.add(message);
                 failOnboarding(onboardingId, "Onboarding can't be validated when in state "
                         + onboarding.getStatus());
-                continue;
             } else {
                 Map<String, Object> appConfig = getAppConfig(context);
                 // Check to see if there are any images in the ECR repo before allowing onboarding
@@ -1103,7 +1180,6 @@ public class OnboardingService {
                             .withItemIdentifier(messageId)
                             .build()
                     );
-                    continue;
                 } else {
                     int missingImages = 0;
                     for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
@@ -1868,7 +1944,7 @@ public class OnboardingService {
         return tenant;
     }
 
-    protected Map<String, Integer> getPathPriority(Map<String, Object> appConfig) {
+    protected static Map<String, Integer> getPathPriority(Map<String, Object> appConfig) {
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
         Map<String, Integer> pathLength = new HashMap<>();
 

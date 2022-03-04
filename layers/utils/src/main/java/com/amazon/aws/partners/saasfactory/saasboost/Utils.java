@@ -246,11 +246,62 @@ public class Utils {
         if (str == null) {
             return  null;
         }
-        if (isBlank(str)) {
+        return toSnakeCase(str).toUpperCase();
+    }
+
+    public static String toSnakeCase(String str) {
+        if (str == null) {
+            return null;
+        }
+        if (str.isBlank()) {
             return str;
         }
-        // Don't prefix or suffix with underscore
-        return str.trim().toUpperCase().replaceAll("\\s+", "_");
+        if (str.length() == 1) {
+            return str.toLowerCase();
+        }
+        StringBuilder buffer = new StringBuilder();
+        boolean skip = false;
+        char[] chars = str.toCharArray();
+        for (int ch = 0; ch < chars.length; ch++) {
+            char character = chars[ch];
+            if (ch == 0) {
+                buffer.append(Character.toLowerCase(character));
+                continue;
+            }
+            if ('_' == character || '-' == character || ' ' == character) {
+                buffer.append('_');
+                skip = true;
+                continue;
+            }
+            if (Character.isLowerCase(character) || Character.isDigit(character)) {
+                buffer.append(character);
+                continue;
+            }
+            char previous = chars[(ch - 1)];
+            if (!Character.isLetter(previous) || Character.isLowerCase(previous)) {
+                if (skip) {
+                    skip = false;
+                } else {
+                    buffer.append('_');
+                }
+                buffer.append(Character.toLowerCase(character));
+                continue;
+            }
+            if (ch < (chars.length - 1)) {
+                char last = chars[(ch + 1)];
+                if (Character.isLowerCase(last)) {
+                    if (skip) {
+                        skip = false;
+                    } else {
+                        buffer.append('_');
+                    }
+                    buffer.append(Character.toLowerCase(character));
+                    continue;
+                }
+            }
+            buffer.append(Character.toLowerCase(character));
+        }
+        return buffer.toString();
     }
 
     public static String randomString(int length) {

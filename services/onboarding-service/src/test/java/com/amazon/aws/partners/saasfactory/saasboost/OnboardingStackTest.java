@@ -44,10 +44,21 @@ public class OnboardingStackTest {
             "UPDATE_ROLLBACK_FAILED",
             "UPDATE_ROLLBACK_IN_PROGRESS");
 
+    private static final List<String> CODEPIPELINE_STATES = Arrays.asList(
+            "CANCELED",
+            "FAILED",
+            "RESUMED",
+            "STARTED",
+            "STOPPED",
+            "STOPPING",
+            "SUCCEEDED",
+            "SUPERSEDED"
+    );
+
     @Test
     public void testIsComplete() {
         for (String status : CLOUDFORMAION_STACK_STATUSES) {
-            OnboardingStack stack = new OnboardingStack();
+            OnboardingStack stack = OnboardingStack.builder().build();
             assertFalse(stack.isComplete());
             stack.setStatus(status);
             if ("CREATE_COMPLETE".equals(status)) {
@@ -56,6 +67,46 @@ public class OnboardingStackTest {
                 assertTrue(stack.isComplete());
             } else {
                 assertFalse(stack.isComplete());
+            }
+        }
+    }
+
+    @Test
+    public void testIsDeployed() {
+        for (String status : CLOUDFORMAION_STACK_STATUSES) {
+            for (String pipelineStatus : CODEPIPELINE_STATES) {
+                OnboardingStack stack = OnboardingStack.builder().build();
+                assertFalse(stack.isDeployed());
+                stack.setStatus(status);
+                stack.setPipelineStatus(pipelineStatus);
+
+                // Base stacks don't get workloads deployed to them, they just need to be complete
+                OnboardingStack baseStack = OnboardingStack.builder().baseStack(true).build();
+                baseStack.setStatus(status);
+                baseStack.setPipelineStatus(pipelineStatus);
+                if ("CREATE_COMPLETE".equals(status)) {
+                    assertTrue(baseStack.isDeployed());
+                } else if ("UPDATE_COMPLETE".equals(status)) {
+                    assertTrue(baseStack.isDeployed());
+                } else {
+                    assertFalse(baseStack.isDeployed());
+                }
+
+                // Application stacks get workloads deployed
+                OnboardingStack appStack = OnboardingStack.builder().baseStack(false).build();
+                appStack.setStatus(status);
+                appStack.setPipelineStatus(pipelineStatus);
+                if ("SUCCEEDED".equals(appStack.getPipelineStatus())) {
+                    if ("CREATE_COMPLETE".equals(status)) {
+                        assertTrue(appStack.isDeployed());
+                    } else if ("UPDATE_COMPLETE".equals(status)) {
+                        assertTrue(appStack.isDeployed());
+                    } else {
+                        assertFalse(appStack.isDeployed());
+                    }
+                } else {
+                    assertFalse(appStack.isDeployed());
+                }
             }
         }
     }

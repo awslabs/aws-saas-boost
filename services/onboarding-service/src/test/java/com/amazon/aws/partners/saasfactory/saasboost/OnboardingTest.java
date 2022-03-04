@@ -26,8 +26,8 @@ public class OnboardingTest {
 
     @Test
     public void testBaseStacksComplete() {
-        OnboardingStack stack1 = new OnboardingStack();
-        OnboardingStack stack2 = new OnboardingStack();
+        OnboardingStack stack1 = OnboardingStack.builder().baseStack(true).build();
+        OnboardingStack stack2 = OnboardingStack.builder().baseStack(false).build();
 
         Onboarding onboarding = new Onboarding();
         assertFalse("No stacks", onboarding.baseStacksComplete());
@@ -36,22 +36,18 @@ public class OnboardingTest {
         assertFalse("Empty stacks", onboarding.baseStacksComplete());
 
         stack1.setStatus("CREATE_COMPLETE");
-        stack1.setBaseStack(true);
-
         stack2.setStatus("UPDATE_COMPLETE");
-        stack2.setBaseStack(false);
         assertTrue("All base stacks complete", onboarding.baseStacksComplete());
 
-        OnboardingStack stack3 = new OnboardingStack();
-        stack3.setBaseStack(true);
+        OnboardingStack stack3 = OnboardingStack.builder().baseStack(true).build();
         onboarding.addStack(stack3);
         assertFalse("Not every base stack is complete", onboarding.baseStacksComplete());
     }
 
     @Test
     public void testStacksComplete() {
-        OnboardingStack stack1 = new OnboardingStack();
-        OnboardingStack stack2 = new OnboardingStack();
+        OnboardingStack stack1 = OnboardingStack.builder().build();
+        OnboardingStack stack2 = OnboardingStack.builder().build();
 
         Onboarding onboarding = new Onboarding();
         assertFalse("No stacks", onboarding.stacksComplete());
@@ -65,7 +61,7 @@ public class OnboardingTest {
         stack2.setStatus("UPDATE_COMPLETE");
         assertTrue("All stacks complete", onboarding.stacksComplete());
 
-        onboarding.addStack(new OnboardingStack());
+        onboarding.addStack(OnboardingStack.builder().build());
         assertFalse("Not every stack is complete", onboarding.stacksComplete());
     }
 }

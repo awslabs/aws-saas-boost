@@ -309,6 +309,10 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             TenantEvent tenantEvent = TenantEvent.fromDetailType((String) event.get("detail-type"));
             if (tenantEvent != null) {
                 switch (tenantEvent) {
+                    case TENANT_HOSTNAME_CHANGED:
+                        LOGGER.info("Handling Tenant Hostname Changed");
+                        handleTenantHostnameChanged(event, context);
+                        break;
                     case TENANT_ONBOARDING_STATUS_CHANGED:
                         LOGGER.info("Handling Tenant Onboarding Status Changed");
                         handleTenantOnboardingStatusChanged(event, context);
@@ -339,6 +343,28 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
                 LOGGER.info("Updating tenant {} onboarding status from {} to {}", tenantId,
                         tenant.getOnboardingStatus(), onboardingStatus);
                 dal.updateTenantOnboardingStatus(tenant.getId(), onboardingStatus);
+            } else {
+                // Can't find an tenant record for this id
+                LOGGER.error("Can't find tenant record for {}", tenantId);
+                // TODO Throw here? Would end up in DLQ.
+            }
+        } else {
+            LOGGER.error("Missing tenantId or onboardingStatus in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected void handleTenantHostnameChanged(Map<String, Object> event, Context context) {
+        //Utils.logRequestEvent(event);
+        if (TenantEvent.validate(event, "hostname")) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+            String tenantId = (String) detail.get("tenantId");
+            String hostname = (String) detail.get("hostname");
+            Tenant tenant = dal.getTenant(tenantId);
+            if (tenant != null) {
+                LOGGER.info("Updating tenant {} hostname to {}", tenantId, hostname);
+                tenant.setHostname(hostname);
+                dal.updateTenant(tenant);
             } else {
                 // Can't find an tenant record for this id
                 LOGGER.error("Can't find tenant record for {}", tenantId);

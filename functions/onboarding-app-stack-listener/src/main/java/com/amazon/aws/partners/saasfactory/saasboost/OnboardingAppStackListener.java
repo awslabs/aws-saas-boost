@@ -139,6 +139,16 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                         "Tenant Resources Changed",
                                         Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
                                 );
+
+                                // Link this pipeline to the stack that created it in Onboarding so we can keep
+                                // track of when all pipeline executions for an onboarding request
+                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                        "Onboarding Deployment Pipeline Created",
+                                        Map.of("tenantId", tenantId,
+                                                "stackId", stackId,
+                                                "stackName", stackName,
+                                                "pipeline", codePipeline)
+                                );
                             }
                             //                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
                             //                            //this is the rds sub-stack so get the cluster and instance ids
