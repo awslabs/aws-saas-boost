@@ -18,7 +18,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Attr;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
@@ -71,7 +70,7 @@ public class OnboardingServiceDAL {
     public Onboarding getOnboarding(String onboardingId) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboarding");
-        Map<String, AttributeValue> item = null;
+        Map<String, AttributeValue> item;
         try {
             Map<String, AttributeValue> key = new HashMap<>();
             key.put("id", AttributeValue.builder().s(onboardingId).build());
@@ -246,7 +245,7 @@ public class OnboardingServiceDAL {
         if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
             throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
         }
-        boolean available = false;
+        boolean available;
         try {
             ScanResponse scan = ddb.scan(r -> r
                     .tableName(CIDR_BLOCK_TABLE)
@@ -349,7 +348,7 @@ public class OnboardingServiceDAL {
                 requestMap.put("attributes", AttributeValue.builder().m(request.getAttributes().entrySet()
                         .stream()
                         .collect(Collectors.toMap(
-                                entry -> entry.getKey(),
+                                Map.Entry::getKey,
                                 entry -> AttributeValue.builder().s(entry.getValue()).build())
                         )
                 ).build());
@@ -447,7 +446,7 @@ public class OnboardingServiceDAL {
                 if (requestMap.containsKey("attributes")) {
                     request.setAttributes(requestMap.get("attributes").m().entrySet().stream()
                             .collect(Collectors.toMap(
-                                    entry -> entry.getKey(),
+                                    Map.Entry::getKey,
                                     entry -> entry.getValue().s(),
                                     (valForKey, valForDupKey) -> valForKey,
                                     LinkedHashMap::new
