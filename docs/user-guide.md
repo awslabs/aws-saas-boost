@@ -169,12 +169,25 @@ The following options can be configured for your file system:
 - Lifecycle - Amazon Elastic File System (Amazon EFS) lifecycle management automatically manages cost-effective file storage for your file systems. When enabled, lifecycle management migrates files that have not been accessed for a set period of time to the Infrequent Access (IA) storage class. You define that period of time by using a lifecycle policy. After lifecycle management moves a file into the IA storage class, the file remains there indefinitely. Amazon EFS lifecycle management uses an internal timer to track when a file was last accessed.
 - Encrypt at rest - Check this box if you want your files to be encrypted at rest. 
 
-If you've selected Windows as your operating system, the system will display a different set of configuration options (since Windows requires a different type of file system infrastructure). Selecting the **Provision a file system for the application** check box for a Windows operating system will show a page similar to the following:
+If you've selected Windows as your operating system, the system will display a different set of configuration options (since Windows requires a different type of file system infrastructure). Selecting the **Provision a file system for the application** check box for a Windows operating system will show a page similar to one of the following based on whether you choose "FSx ONTAP" or "FSx Windows":
 
-![Figure 11 - Configure a file system for the Windows operating system](images/ug-filesystem-fsx.png?raw=true "Figure 11 - Configure a file system for the Windows operating system")
-<p align="center">Figure 11 - Configure a file system for the Windows operating system</p>
+![Figure 11 - Configure a Netapp ONTAP FSx file system for the Windows operating system](images/ug-filesystem-fsx-ontap.png?raw=true "Figure 11 - Configure a Netapp ONTAP file system for the Windows operating system")
+<p align="center">Figure 11 - Configure a Netapp ONTAP file system for the Windows operating system</p>
 
-The following options can be configured for your file system:
+![Figure 12 - Configure a Windows FSx file system for the Windows operating system](images/ug-filesystem-fsx-windows.png?raw=true "Figure 12 - Configure a Windows FSx file system for the Windows operating system")
+<p align="center">Figure 12 - Configure a Windows FSx file system for the Windows operating system</p>
+
+The following options can be configured for your Netapp ONTAP FSx file system:
+- Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
+- Storage Capacity - Enter the size of the file system you want to provision.
+- Throughput - Enter the level of throughput you want to be supported by your file system.
+- Daily Backup Time - Provide the time of day the file system will be backed up each day.
+- Drive Letter Assignment - Select the logical drive letter that will be used for the file system.
+- Weekly Maintenance Day/Time - Provide the day/time when you want maintenance to be applied to your file system.
+- Backup Retention - Enter the number of days a backup will be retained.
+- ONTAP Volume Size - Enter the size of the Volume in GB that you want to create.
+
+The following options can be configured for your Windows FSx file system:
 - Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
 - Storage - Enter the size of the file system you want to provision.
 - Throughput - Enter the level of throughput you want to be supported by your file system.
@@ -188,8 +201,8 @@ In many cases, the application you're moving into AWS SaaS Boost has a database 
 
 The first step in configuring the database options is to select the **Provision a database for the application**. This expands the database options portion of the page similar to what is shown below.
 
-![Figure 12 - Configure a database](images/ug-database.png?raw=true "Figure 12 - Configure a database")
-<p align="center">Figure 12 - Configure a database</p>
+![Figure 13 - Configure a database](images/ug-database.png?raw=true "Figure 13 - Configure a database")
+<p align="center">Figure 13 - Configure a database</p>
 
 The goal on this page is to select the type and size of the database that your application will use. The configuration you select here applies to each tenant that is deployed in your system. The database options, at this point, are focused on relational databases. 
 
@@ -212,8 +225,8 @@ SaaS Boost will securely expose the following environment variables to your appl
 ### Billing
 AWS SaaS Boost includes integration with Stripe for billing tenants for use of your SaaS applications (more detail in the billing section below). This integration requires SaaS providers to create an account with Stripe. As part of this process, you also need to get the API key from Stripe for your account. To enable this option, select the **Configure Billing Provider** check box to show the configuration options for Stripe.
 
-![Figure 13 - Configure billing provider](images/ug-billing.png?raw=true "Figure 13 - Configure billing provider")
-<p align="center">Figure 13 - Configure billing provider</p>
+![Figure 14 - Configure billing provider](images/ug-billing.png?raw=true "Figure 14 - Configure billing provider")
+<p align="center">Figure 14 - Configure billing provider</p>
 
 Enter the Stripe API key. This key will be used as data is metered from your application and sent to Stripe to generate tenant bills. When you configure your application for billing, SaaS Boost will securely expose an environment variable called `SAAS_BOOST_EVENT_BUS`. Use this EventBridge event bus to publish metering events from your application if you'd like to take advantage of consumption-based billing.
 
@@ -236,8 +249,8 @@ To better understand how this works, let's go through the process of uploading a
 - Select any of the available databases (MariaDB with a db.t3.micro instance class will provision the fastest)
 - Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
 
-![Figure 14 - Configure the sample application](images/ug-sample-app.png?raw=true "Figure 14 - Configure the sample application")
-<p align="center">Figure 14 - Configure the sample application</p>
+![Figure 15 - Configure the sample application](images/ug-sample-app.png?raw=true "Figure 15 - Configure the sample application")
+<p align="center">Figure 15 - Configure the sample application</p>
 
 Once you have saved your Application Setup, you can build and containerize the sample application. To create a Docker image of this sample application, you will need to have Docker running on your local machine. Navigate to the **samples/java/** directory in your clone of the AWS SaaS Boost repo and execute the build script which will build, containerize, and push your containerized application to the AWS SaaS Boost ECR repository. You can review the steps in this example shell script to see how you might enhance your current build process for your application to integrate with AWS SaaS Boost.
 
@@ -271,13 +284,13 @@ AWS SaaS Boost offers two paths for onboarding tenants: self-service and interna
 
 To access the built-in tenant onboarding experience, select the **Onboarding** entry from the navigation pane and the following page will appear:
 
-![Figure 15 - Tenant Onboarding](images/ug-tenant-onboarding.png?raw=true "Figure 15 - Tenant Onboarding")
-<p align="center">Figure 15 - Tenant Onboarding</p>
+![Figure 16 - Tenant Onboarding](images/ug-tenant-onboarding.png?raw=true "Figure 16 - Tenant Onboarding")
+<p align="center">Figure 16 - Tenant Onboarding</p>
 
 In this example, the list of tenants is empty. This because you have not yet provisioned a tenant. At the top right of this page is a Provision Tenant button. Select this button to provision a tenant with the sample application that you uploaded before. The following form appears.
 
-![Figure 16 - Provision a Tenant](images/ug-tenant-provision.png?raw=true "Figure 16 - Provision a Tenant")
-<p align="center">Figure 16 - Provision a Tenant</p>
+![Figure 17 - Provision a Tenant](images/ug-tenant-provision.png?raw=true "Figure 17 - Provision a Tenant")
+<p align="center">Figure 17 - Provision a Tenant</p>
 
 To complete this form, provide the following settings:
 - Tenant Name - The friendly name of the tenant (often the name of the business)
@@ -288,38 +301,38 @@ To complete this form, provide the following settings:
 ### Monitoring the Onboarding Process
 After you've submitted a tenant for provisioning, the system allows you to monitor the status of the onboarding progress. If you select the **Onboarding** option from the navigation, the onboarding page provides a list of tenants that are being onboarded. This is true if the tenant is provisioned through the API or the AWS SaaS Boost administration application.
 
-The image in Figure 17 provides an example of a page where tenants have been provisioned. The list includes detail on the provisioning status for each tenant.
+The image in Figure 18 provides an example of a page where tenants have been provisioned. The list includes detail on the provisioning status for each tenant.
 
-![Figure 17 - Monitor onboarding status](images/ug-onboarding-status.png?raw=true "Figure 17 - Monitor onboarding status")
-<p align="center">Figure 17 - Monitor onboarding status</p>
+![Figure 18 - Monitor onboarding status](images/ug-onboarding-status.png?raw=true "Figure 18 - Monitor onboarding status")
+<p align="center">Figure 18 - Monitor onboarding status</p>
 
 This example shows five tenants that have been provisioned. The status of the first four are shown as **Deployed**. This indicates that the tenant has been successfully provisioned. The final tenant in the list has a status of **Failed**. This should be a rare condition that could be triggered by different states of your environment or configuration. 
 
 The provisioning process goes through multiple steps, each of which is reflected as a separate phase of the provisioning lifecycle. The states include created, provisioning, provisioned, deploying, and deployed.
 
-![Figure 18 - View onboarding detail](images/ug-onboarding-detail.png?raw=true "Figure 18 - View onboarding detail")
-<p align="center">Figure 18 - View onboarding detail</p>
+![Figure 19 - View onboarding detail](images/ug-onboarding-detail.png?raw=true "Figure 19 - View onboarding detail")
+<p align="center">Figure 19 - View onboarding detail</p>
 
-When a tenant is fully provisioned, you can examine details about the provisioned tenant environment by selecting an individual tenant row from the list of provisioned tenants. The detail page is shown in Figure 18.
+When a tenant is fully provisioned, you can examine details about the provisioned tenant environment by selecting an individual tenant row from the list of provisioned tenants. The detail page is shown in Figure 19.
 
 This detail view allows you to navigate directly to the tenant that was provisioned by selecting the link under **Tenant**. You can also access the AWS CloudFormation stack associated with this tenant by selecting the link under **Stack Id**.
 
 ## Managing Tenants
 The onboarding flow described above is used to initially provision a tenant. Once that step is complete, it's unlikely that you'll return to the onboarding page (unless you're looking for specific tenant provisioning details). Instead, access any additional activity for tenants through the **Tenants** navigation on the left. 
 
-![Figure 19 - Managing tenants](images/ug-tenant-management.png?raw=true "Figure 19 - Managing tenants")
-<p align="center">Figure 19 - Managing tenants</p>
+![Figure 20 - Managing tenants](images/ug-tenant-management.png?raw=true "Figure 20 - Managing tenants")
+<p align="center">Figure 20 - Managing tenants</p>
 
-Selecting **Tenants** from the navigation pane presents you with a list of the tenants for your system. Figure 19 provides a sample of the tenant list.
+Selecting **Tenants** from the navigation pane presents you with a list of the tenants for your system. Figure 20 provides a sample of the tenant list.
 
-This page includes a list of all the tenants in the system along with key attributes associated with each tenant. If you select a single tenant, a more detailed view of the tenant appears. The tenant detail view is shown in Figure 20.
+This page includes a list of all the tenants in the system along with key attributes associated with each tenant. If you select a single tenant, a more detailed view of the tenant appears. The tenant detail view is shown in Figure 21.
 
 Within this detail view, you'll see two distinct sections. The top half of the page contains more information about the state of the selected tenants. The two key attributes you'll want to pay attention to here are the subdomain the Load Balancer DNS. These attributes play a role in how tenants access their environments.
 
 If you've supplied a subdomain, tenant uses this subdomain to access your SaaS application. The subdomain is combined with the domain that was setup with your application (see [Application Configuration](#application-configuration) above) to construct the URL for each tenant. If you, for example, provide a subdomain of `abccompany` and the domain you setup in the application was `my-saas.com`, then tenant URL would be `abccompany.my-saas.com`. If you setup another tenant as `xyzcompany`, their URL would be `xyzcompany.my-saas.com`.
 
-![Figure 20 - Tenant detail](images/ug-tenant-detail.png?raw=true "Figure 20 - Tenant detail")
-<p align="center">Figure 20 - Tenant detail</p>
+![Figure 21 - Tenant detail](images/ug-tenant-detail.png?raw=true "Figure 21 - Tenant detail")
+<p align="center">Figure 21 - Tenant detail</p>
 
 In the scenario where you do not setup your domain and subdomain, you'd then need to refer to the Load Balancer DNS to get the URL to access a tenant's environment. This URL is available in both scenarios. However, if you're relying on the subdomain model, you don't need to rely on this Load Balancer DNS URL. Generally, this Load Balancer DNS URL would mostly be used as a way to access the system before you've configured your domain.
 
@@ -327,36 +340,36 @@ The bottom half of this page includes links to AWS resources that were provision
 
 In the tenant detail view you also have the option to disable/enable or edit individual tenants. The detail view also has an **Actions** button at the top right of the page. When you select this button, you'll are presented with a list of options.
 
-Selecting the **edit** option from this **Actions** list opens a form (shown in Figure 21) that allows you to edit the data for a tenant. This includes modifying the tenant's name, description, and subdomain.
+Selecting the **edit** option from this **Actions** list opens a form (shown in Figure 22) that allows you to edit the data for a tenant. This includes modifying the tenant's name, description, and subdomain.
 
 The **disable/enable** action for tenants is used to change whether a tenant is allowed to access the system. If a tenant is set to a **disabled** status, they are not allowed to login to the system until they have been re-enabled. This feature allows a SaaS provider to selectively determine which tenants are active and which are not.
 
-![Figure 21 - Edit tenant](images/ug-tenant-edit.png?raw=true "Figure 21 - Edit tenant")
-<p align="center">Figure 21 - Edit tenant</p>
+![Figure 22 - Edit tenant](images/ug-tenant-edit.png?raw=true "Figure 22 - Edit tenant")
+<p align="center">Figure 22 - Edit tenant</p>
 
 The **delete** action is used to delete the tenant stack. __**This action is not reversible and all data will be lost**__. All deployed resources such as the database and the file system will be deleted. Before selecting the delete action, make sure you have backups for the resources in case you want to restore a tenant's data.
 
 ## Managing Users
 The AWS SaaS Boost provisioning process created an initial user for your system. However, you'll probably want to introduce additional users to AWS SaaS Boost. To manage these users, select the **Users** link from the navigation pane at the left. This displays the current list of users as shown below. 
 
-![Figure 22 - Manage users](images/ug-user-management.png?raw=true "Figure 22 - Manage users")
-<p align="center">Figure 22 - Manage users</p>
+![Figure 23 - Manage users](images/ug-user-management.png?raw=true "Figure 23 - Manage users")
+<p align="center">Figure 23 - Manage users</p>
 
-The page displays all the key information about each user. At the top right of this page is a **Create User** button. Upon choosing this button, enter the data that is associated with a new user. The image in Figure 23 provides an example of the **User Details** form.
+The page displays all the key information about each user. At the top right of this page is a **Create User** button. Upon choosing this button, enter the data that is associated with a new user. The image in Figure 24 provides an example of the **User Details** form.
 
-![Figure 23 - Edit user](images/ug-user-edit.png?raw=true "Figure 23 - Edit user")
-<p align="center">Figure 23 - Edit user</p>
+![Figure 24 - Edit user](images/ug-user-edit.png?raw=true "Figure 24 - Edit user")
+<p align="center">Figure 24 - Edit user</p>
 
 This form collects basic user information (username, first name, last name, and email address). It also includes a check box at the bottom of the form that is used to control how the new user is verified. 
 - If the box is checked, the system treats the user as verified and does not send an email for verification. 
 - If the box is not checked, the system sends a verification email to the user. When the user attempts to log in, they are required to create a new password.
 
-If you select an individual item from the list of users, you are presented with a detail page for that user (shown in Figure 24). 
+If you select an individual item from the list of users, you are presented with a detail page for that user (shown in Figure 25). 
 
-![Figure 24 - User details](images/ug-user-details.png?raw=true "Figure 24 - User details")
-<p align="center">Figure 24 - User details</p>
+![Figure 25 - User details](images/ug-user-details.png?raw=true "Figure 25 - User details")
+<p align="center">Figure 25 - User details</p>
 
-From this **User Details** page, you can edit, delete, and disable or enable individual users. These options are all invoked from the **Actions** button at the top right of the page. Choosing Edit displays same form shown in Figure 23. 
+From this **User Details** page, you can edit, delete, and disable or enable individual users. These options are all invoked from the **Actions** button at the top right of the page. Choosing Edit displays same form shown in Figure 24. 
 
 Choosing the **Enable** and **Disable** options from the **Actions** list causes the user to be activated or deactivated. This allows you to selectively disable a user's access to the system without deleting the user. 
 
@@ -371,10 +384,10 @@ The other goal of AWS SaaS Boost operational insights is to remain focused on of
 
 To access the operational insights, open the Dashboard list from the navigation pane. This displays three categories of visualization (requests, compute, and usage). Each of these entries corresponds to data visualizations that can be used to analyze activity in your SaaS system. 
 
-At the top of each data visualization page, you'll see a set of filters that are common to all of the analytics views. Figure 25 provides a snapshot of the Requests view within the dashboard page.
+At the top of each data visualization page, you'll see a set of filters that are common to all of the analytics views. Figure 26 provides a snapshot of the Requests view within the dashboard page.
 
-![Figure 25 - Graph filtering options](images/ug-dashboard-home.png?raw=true "Figure 25 - Graph filtering options")
-<p align="center">Figure 25 - Graph filtering options</p>
+![Figure 26 - Graph filtering options](images/ug-dashboard-home.png?raw=true "Figure 26 - Graph filtering options")
+<p align="center">Figure 26 - Graph filtering options</p>
 
 - The dropdown on the left of this Requests page is used to filter the charts on the page by tenant. When you select an individual tenant from the dropdown, all of the graphs are scoped to that tenants. 
 - The same is true for the time period at the top right of this page. It is used to adjust the window of time that is reflected in each of the graphs on the page.
@@ -385,10 +398,10 @@ The first set of graphs provide data on request activity. The general theme here
 The graphs on **Requests** page are broken into two types. The left-hand side of the page is focused on identifying trends of tenants and allowing you to better understand the patterns of tenant activity over time. The right-hand side of the page is more about identity specific totals of counts by tenant. The sections that follow cover the various request-based graphs.
 
 #### Request Count
-The graph at the top left of the **Requests** page is used to generally profile the trends related to tenant activity. The goal of this chart is to categorize the request volume across a window of time. The graph in Figure 26 provides a sample of this activity.
+The graph at the top left of the **Requests** page is used to generally profile the trends related to tenant activity. The goal of this chart is to categorize the request volume across a window of time. The graph in Figure 27 provides a sample of this activity.
 
-![Figure 26 - Percentile request count](images/ug-dashboard-chart-p90.png?raw=true "Figure 26 - Percentile request count")
-<p align="center">Figure 26 - Percentile request count</p>
+![Figure 27 - Percentile request count](images/ug-dashboard-chart-p90.png?raw=true "Figure 27 - Percentile request count")
+<p align="center">Figure 27 - Percentile request count</p>
 
 Here we have a three-hour window of time during which we received requests. Those requests have been categorized and rendered as separate lines in this graph. These three lines correspond the P90, P70, and P50 show in the legend at the top of the graph.
 
@@ -397,17 +410,17 @@ These graphs enable you to find key boundaries that can classify request activit
 You can filter this view by selecting items in the legend. When you select one of the legend items, it toggles the visibility of a given percentile. This allows you to filter the view in the graph based one or more percentiles.
 
 #### Requests - Top Tenant
-In addition to seeing global trends across all tenants, the system also shows you a breakdown of the most active tenants. This view shows the request activity of individual tenants (or at least those that are most active). Figure 27 provides an example of the request count graph.
+In addition to seeing global trends across all tenants, the system also shows you a breakdown of the most active tenants. This view shows the request activity of individual tenants (or at least those that are most active). Figure 28 provides an example of the request count graph.
 
-![Figure 27 - Tenant request count](images/ug-dashboard-chart-count.png?raw=true "Figure 27 - Tenant request count")
-<p align="center">Figure 27 - Tenant request count</p>
+![Figure 28 - Tenant request count](images/ug-dashboard-chart-count.png?raw=true "Figure 28 - Tenant request count")
+<p align="center">Figure 28 - Tenant request count</p>
 
 This graph represents three tenants with relatively even distribution. However, you can imagine having the top 10 tenants here with widely varying loads. This would give you quick information about whether a particular set of tenants are putting excess load on the system.
 
 #### Request Failures (4XX and 5XX)
 Being able to see trends in error conditions is also valuable. Here, you'll see trending data (on the left) and tenant counts (on the right) that correlate to HTTP 4XX and 5XX errors events.
 
-This follows the pattern shown in Figure 26 where the P50, P70, and P90 percentiles are used to categorize the error conditions. Meanwhile the counts give you a clearer view of which specific tenants may be seeing more of these errors.
+This follows the pattern shown in Figure 27 where the P50, P70, and P90 percentiles are used to categorize the error conditions. Meanwhile the counts give you a clearer view of which specific tenants may be seeing more of these errors.
 
 ### Compute Analytics
 Compute analytics are used to give you a better sense of how tenants are exercising the compute load placed on your multi-tenant environment. With AWS SaaS Boost, you can create some specific tenant-aware visualizations that help you identify potential scaling or compute bottlenecks.
@@ -415,12 +428,12 @@ Compute analytics are used to give you a better sense of how tenants are exercis
 The breakdown of compute trends is focused on CPU and memory at this point. You'll see a graph on the left that illustrated the general consumption trends and a graph on the right that illustrates specific tenant consumption patterns.
 
 #### CPU Utilization
-When you select **Compute** option from the **Dashboard** menu, you will be presented with a colletion of compute related graphs. CPU utilization is represented with another P50, P70, P90 graph that shows the CPU consumption over a window of time. Each of these three lines gives you a sense of how CPU consumption is distributed across your tenants. Are most tenants pressing the CPU or are most under consumed? These are questions you'll be able to answer from the CPU utilization graph that could influence the sizing of your application and tenant environments. Figure 28 provides an example of a CPU utilization graph. 
+When you select **Compute** option from the **Dashboard** menu, you will be presented with a colletion of compute related graphs. CPU utilization is represented with another P50, P70, P90 graph that shows the CPU consumption over a window of time. Each of these three lines gives you a sense of how CPU consumption is distributed across your tenants. Are most tenants pressing the CPU or are most under consumed? These are questions you'll be able to answer from the CPU utilization graph that could influence the sizing of your application and tenant environments. Figure 29 provides an example of a CPU utilization graph. 
 
 The CPU utilization also includes a graph that illustrates the tenants that are the top consumers of CPU resources. These two graphs provide a macro level view into which tenants are placing load on the CPU in specific windows of time.
 
-![Figure 28 - Compute utilization trend](images/ug-dashboard-trend.png?raw=true "Figure 28 - Compute utilization trend")
-<p align="center">Figure 28 - Compute utilization trend</p>
+![Figure 29 - Compute utilization trend](images/ug-dashboard-trend.png?raw=true "Figure 29 - Compute utilization trend")
+<p align="center">Figure 29 - Compute utilization trend</p>
 
 #### Memory Utilization
 Memory utilization mirrors the same experience that was shown above with CPU utilization. The only difference here is that you're looking at a different compute-related metric. The data from memory utilization and tenant trends can help you better assess any correlation in consumption that may be causing bottlenecks across both resource types.
@@ -430,10 +443,10 @@ As a SaaS provider, you want to have some sense of how tenants are consuming the
 
 The general approach here is to examine the various URL paths that tenants access and summarize the consumption of these entry points to your application. This approach assumes that there is some natural correlation between the paths being accessed and the features of your application.
 
-This data is broken out by request types, illustrating the distribution of the top paths being accessed by tenants. The graph in Figure 29 provides a view of the request counts by path.
+This data is broken out by request types, illustrating the distribution of the top paths being accessed by tenants. The graph in Figure 30 provides a view of the request counts by path.
 
-![Figure 29 - Request count by endpoint](images/ug-dashboard-endpoints.png?raw=true "Figure 29 - Request count by endpoint")
-<p align="center">Figure 29 - Request count by endpoint</p>
+![Figure 30 - Request count by endpoint](images/ug-dashboard-endpoints.png?raw=true "Figure 30 - Request count by endpoint")
+<p align="center">Figure 30 - Request count by endpoint</p>
 
 ## Metrics and Analytics
 SaaS providers generally need to collect a broad spectrum of analytics that span business and technical scenarios. The metrics and analytics tend to be specific to an application or domain.
@@ -443,10 +456,10 @@ To support a broader notion of metrics and analytics, AWS SaaS Boost includes a 
 This metrics module equips your team with the basic infrastructure it needs to support this analytics experience. However, with this more generalized approach, it becomes your responsibility to publish the metrics that you want to aggregate and analyze.
 
 ### Metrics Architecture
-Before looking at how you'll instrument your application with metrics, let's first take a quick look at the high-level metrics architecture. The image in Figure 30 provides a conceptual view of the core elements of the metrics solution:
+Before looking at how you'll instrument your application with metrics, let's first take a quick look at the high-level metrics architecture. The image in Figure 31 provides a conceptual view of the core elements of the metrics solution:
 
-![Figure 30 - Metrics and analytics architecture](images/ug-analytics-arch.png?raw=true "Figure 30 - Metrics and analytics architecture")
-<p align="center">Figure 30 - Metrics and analytics architecture</p>
+![Figure 31 - Metrics and analytics architecture](images/ug-analytics-arch.png?raw=true "Figure 31 - Metrics and analytics architecture")
+<p align="center">Figure 31 - Metrics and analytics architecture</p>
 
 This metrics architecture represents a commonly used analytics pattern. In this model, your application publishes a metric event to the AWS SaaS Boost Metrics API. The metrics are aggregated and stored in an Amazon Redshift database. Once the data is ingested, your business and technical teams can use Amazon QuickSight to build dashboards that surface any metrics that are essential analyzing trends in your SaaS environment.
 
@@ -516,15 +529,15 @@ For running AWS SaaS Boost in production environments, you will want to create a
 
 For testing and development environments of AWS SaaS Boost, after creating the account in Stripe, access the API key for your Stripe integration by selecting the Secret key from the Stripe navigation pane. This provides a page similar to the image shown below.
 
-![Figure 31 - Stripe](images/ug-stripe.png?raw=true "Figure 31 - Stripe")
-<p align="center">Figure 31 - Stripe API Key</p>
+![Figure 32 - Stripe](images/ug-stripe.png?raw=true "Figure 32 - Stripe")
+<p align="center">Figure 32 - Stripe API Key</p>
 
-When you access the page, you can view the API keys that are published for this account (shown in Figure 31). Copy the Secret or restricted key from this page and return to the AWS SaaS Boost environment to set up your billing experience.
+When you access the page, you can view the API keys that are published for this account (shown in Figure 32). Copy the Secret or restricted key from this page and return to the AWS SaaS Boost environment to set up your billing experience.
 
-To configure billing in AWS SaaS Boost, log in to the administration application and select **Application** from the navigation pane on the left. At the bottom of this page, you'll see the **Billing** panel. Select the **Configure Billing Provider** check box to expand this panel. Figure 32 provide a view of this billing configuration experience.
+To configure billing in AWS SaaS Boost, log in to the administration application and select **Application** from the navigation pane on the left. At the bottom of this page, you'll see the **Billing** panel. Select the **Configure Billing Provider** check box to expand this panel. Figure 33 provide a view of this billing configuration experience.
 
-![Figure 32 - Configure Stripe API Key](images/ug-billing-config-api-key.png?raw=true "Figure 32 - Configure Stripe API Key")
-<p align="center">Figure 32 - Configure Stripe API Key</p>
+![Figure 33 - Configure Stripe API Key](images/ug-billing-config-api-key.png?raw=true "Figure 33 - Configure Stripe API Key")
+<p align="center">Figure 33 - Configure Stripe API Key</p>
 
 Paste the key from Stripe into this text box. This key is used to invoke Stripe APIs from the AWS SaaS Boost billing service.
 
@@ -540,10 +553,10 @@ As each metering event is sent from AWS SaaS Boost to Stripe, the system uses th
 ### Creating Stripe Customers (Tenants)
 As new tenants are onboarded via AWS SaaS Boost, each new tenant must have an account created within Stripe. The creation of these customers is handled for you as part of the AWS SaaS Boost onboarding experience. 
 
-If you return to the onboarding experience and examine the form that is used to onboard tenants, you can now see how the Stripe integration fits with the overall onboarding flow. The image in Figure 33 provides a snapshot of the form that is used to add a new tenant to the system.
+If you return to the onboarding experience and examine the form that is used to onboard tenants, you can now see how the Stripe integration fits with the overall onboarding flow. The image in Figure 34 provides a snapshot of the form that is used to add a new tenant to the system.
 
-![Figure 33 - Select a billing plan](images/ug-billing-plan.png?raw=true "Figure 33 - Select a billing plan")
-<p align="center">Figure 33 - Select a billing plan</p>
+![Figure 34 - Select a billing plan](images/ug-billing-plan.png?raw=true "Figure 34 - Select a billing plan")
+<p align="center">Figure 34 - Select a billing plan</p>
 
 At the bottom of this form, there is an option to select a **Billing Plan**. This list of plans is populated from the AWS SaaS Boost database that configures plans and correlates them to Stripe products. If you add new plans to this configuration, they would appear here.
 

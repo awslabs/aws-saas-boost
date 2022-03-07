@@ -616,6 +616,10 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxOntapVolumeSize = "0";
             String fsxStorageGbOntap = "0";
             String fsxThroughputMbsOntap = "0";
+            String ontapVolumeSizeVarOne = "";
+		    Integer ontapVolumeSizeVarTwo = 1;
+		    Integer ontapVolumeSizeVarThree = 1;
+		    String ontapVolumeSizeVarFour = "";
 
 
             if (null != fileSystemType && !fileSystemType.isEmpty()) {
@@ -674,9 +678,18 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
                     //Note:  Do not want to override the FSX_WINDOWS_MOUNT_DRIVE as that should be same for all tenants
 
                     fsxUseOntap = settings.get("FSX_USE_ONTAP");
+		    
+		    ontapVolumeSizeVarOne = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS");
+		    ontapVolumeSizeVarTwo = Integer.parseInt(ontapVolumeSizeVarOne);
+		    ontapVolumeSizeVarThree = ontapVolumeSizeVarTwo * 1024;
+		    ontapVolumeSizeVarFour = ontapVolumeSizeVarThree.toString();
+		    
+		    //fsxOntapVolumeSize = ((Integer.parseInt(settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"))) * 1024).toString(); // MB/s
+                    //LOGGER.info("fsxOntapVolumeSize {}", fsxOntapVolumeSize);
+		    fsxOntapVolumeSize = ontapVolumeSizeVarFour;
+		    LOGGER.info("fsxOntapVolumeSize {}", fsxOntapVolumeSize);
 
-                    fsxOntapVolumeSize = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"); // MB/s
-                    if (tenant.get("fsxOntapVolumeSize") != null) {
+            if (tenant.get("fsxOntapVolumeSize") != null) {
                         try {
                             fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString(); // MB
                             LOGGER.info("Override default FSX ONTAP volume size with {}", fsxOntapVolumeSize);
