@@ -613,6 +613,7 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxWeeklyMaintenanceTime = "";
             String fsxWindowsMountDrive = "";
             String fsxUseOntap = "";
+            Integer fsxOntapVolumeSizeInt = 1;
             String fsxOntapVolumeSize = "0";
             String fsxStorageGbOntap = "0";
             String fsxThroughputMbsOntap = "0";
@@ -675,10 +676,14 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
 
                     fsxUseOntap = settings.get("FSX_USE_ONTAP");
 
-                    fsxOntapVolumeSize = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"); // MB/s
+                    fsxOntapVolumeSizeInt = (Integer.parseInt(settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"))) * 1024; //GB to MB
+                    fsxOntapVolumeSize = fsxOntapVolumeSizeInt.toString();
+                    // fsxOntapVolumeSize = settings.get("FSX_ONTAP_VOLUME_SIZE_MBS"); // MB
                     if (tenant.get("fsxOntapVolumeSize") != null) {
                         try {
-                            fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString(); // MB
+                            fsxOntapVolumeSizeInt = ((Integer) tenant.get("fsxOntapVolumeSize")) * 1024; //GB to MB
+                            //fsxOntapVolumeSize = ((Integer) tenant.get("fsxOntapVolumeSize")).toString(); // MB
+                            fsxOntapVolumeSize = fsxOntapVolumeSizeInt.toString();
                             LOGGER.info("Override default FSX ONTAP volume size with {}", fsxOntapVolumeSize);
                         } catch (NumberFormatException nfe) {
                             LOGGER.error("Can't parse tenant task FSX ONTAP volume size from {}", tenant.get("fsxOntapVolumeSize"));
