@@ -617,9 +617,6 @@ public class OnboardingService implements RequestHandler<Map<String, Object>, AP
             String fsxOntapVolumeSize = "0";
             String fsxStorageGbOntap = "0";
             String fsxThroughputMbsOntap = "0";
-            Integer ontapVolumeSizeTempVarOne = 1;
-	        String ontapVolumeSizeTempVarTwo = "";
-
 
             if (null != fileSystemType && !fileSystemType.isEmpty()) {
                 mountPoint = settings.get("FILE_SYSTEM_MOUNT_POINT");
