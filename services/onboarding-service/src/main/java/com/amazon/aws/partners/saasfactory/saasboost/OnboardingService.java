@@ -1351,6 +1351,7 @@ public class OnboardingService {
     }
 
     public SQSBatchResponse processTenantConfigQueue(SQSEvent event, Context context) {
+        LOGGER.info(Utils.toJson(event));
         if (Utils.isBlank(TENANT_CONFIG_DLQ)) {
             throw new IllegalStateException("Missing required environment variable TENANT_CONFIG_DLQ");
         }
@@ -1360,14 +1361,17 @@ public class OnboardingService {
         // A new tenant custom config file was put in the onboarding "temp" folder named with the
         // onboarding id. We need to rename the file with the tenant id so it can be accessed by
         // the application. If the onboarding record doesn't have a tenant assigned yet, we'll retry.
-        for (SQSEvent.SQSMessage message : event.getRecords()) {
-            String messageId = message.getMessageId();
-            String messageBody = message.getBody();
+        for (SQSEvent.SQSMessage sqsMessage : event.getRecords()) {
+            String messageId = sqsMessage.getMessageId();
+            String messageBody = sqsMessage.getBody();
 
-            LinkedHashMap<String, Object> detail = Utils.fromJson(messageBody, LinkedHashMap.class);
+            LinkedHashMap<String, Object> message = Utils.fromJson(messageBody, LinkedHashMap.class);
+            LinkedHashMap<String, Object> detail = (LinkedHashMap<String, Object>) message.get("detail");
             String bucket = (String) ((Map<String, Object>) detail.get("bucket")).get("name");
             String key = (String) ((Map<String, Object>) detail.get("object")).get("key");
             LOGGER.info("Processing resources bucket PUT {}, {}", bucket, key);
+            // key will be something like 00temp/77baa019-d95f-4a5c-8c11-6edf1f01fcf8.zip
+            // parse the onboarding id out of the path
             String ext = key.substring(key.lastIndexOf("."));
             String onboardingId = key.substring(
                     (key.indexOf(RESOURCES_BUCKET_TEMP_FOLDER) + RESOURCES_BUCKET_TEMP_FOLDER.length()),
@@ -1410,7 +1414,7 @@ public class OnboardingService {
                     }
                 }
             } else {
-                fatal.add(message);
+                fatal.add(sqsMessage);
                 LOGGER.error("Can't find onboarding record for {}", onboardingId);
             }
         }

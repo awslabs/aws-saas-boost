@@ -35,14 +35,12 @@ public class TenantServiceDAL {
     private final DynamoDbClient ddb;
 
     public TenantServiceDAL() {
-        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(TENANTS_TABLE)) {
             throw new IllegalStateException("Missing required environment variable TENANTS_TABLE");
         }
         this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
         // Cold start performance hack -- take the TLS hit for the client in the constructor
         this.ddb.describeTable(request -> request.tableName(TENANTS_TABLE));
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     public List<Tenant> getOnboardedTenants() {
@@ -52,7 +50,7 @@ public class TenantServiceDAL {
         try {
             ScanResponse response = ddb.scan(request -> request
                     .tableName(TENANTS_TABLE)
-                    .filterExpression("attribute_exists(onboarding) AND onboarding IN (:status1, :status2)")
+                    .filterExpression("attribute_exists(onboarding_status) AND onboarding_status IN (:status1, :status2)")
                     .expressionAttributeValues(Stream
                             .of(
                                     new AbstractMap.SimpleEntry<>(":status1", AttributeValue.builder().s("succeeded").build()),
@@ -75,26 +73,19 @@ public class TenantServiceDAL {
     }
 
     public List<Tenant> getProvisionedTenants() {
-        return getProvisionedTenants(null);
-    }
-
-    public List<Tenant> getProvisionedTenants(Boolean customizedTenants) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getProvisionedTenants");
 
         // Get all tenants who haven't just started provisioning (created)
         // or who had an error during provisioning (failed)
-        String filter = "attribute_exists(onboardingStatus) AND onboardingStatus <> :created AND onboardingStatus <> :failed AND onboardingStatus <> :deleted";
+        String filter = "attribute_exists(onboarding_status) " +
+                "AND onboarding_status <> :created " +
+                "AND onboarding_status <> :failed " +
+                "AND onboarding_status <> :deleted";
         Map<String, AttributeValue> expressions = new HashMap<>();
         expressions.put(":created", AttributeValue.builder().s("created").build());
         expressions.put(":failed", AttributeValue.builder().s("failed").build());
         expressions.put(":deleted", AttributeValue.builder().s("deleted").build());
-        // Also, only get tenants who have (or have not) overridden the default
-        // compute settings for memory, CPU, and auto scaling group bounds
-        if (customizedTenants != null) {
-            filter = filter + " AND attribute_exists(overrideDefaults) AND overrideDefaults = :overrideDefaults";
-            expressions.put(":overrideDefaults", AttributeValue.builder().bool(customizedTenants).build());
-        }
         List<Tenant> tenants = new ArrayList<>();
         try {
             ScanResponse response = ddb.scan(ScanRequest.builder()
@@ -103,7 +94,7 @@ public class TenantServiceDAL {
                     .expressionAttributeValues(expressions)
                     .build()
             );
-            LOGGER.info("TenantServiceDAL::getProvisionedTenants returning {} provisioned{} tenants", response.items().size(), (customizedTenants != null ? (customizedTenants ? " and customized" : " and not customized") : ""));
+            LOGGER.info("TenantServiceDAL::getProvisionedTenants returning {} provisioned tenants", response.items().size());
             response.items().forEach(item ->
                     tenants.add(fromAttributeValueMap(item))
             );
@@ -191,7 +182,7 @@ public class TenantServiceDAL {
             UpdateItemResponse response = ddb.updateItem(request -> request
                     .tableName(TENANTS_TABLE)
                     .key(key)
-                    .updateExpression("SET onboarding = :onboarding, modified = :modified")
+                    .updateExpression("SET onboarding_status = :onboarding, modified = :modified")
                     .expressionAttributeValues(Map.of(
                             ":onboarding", AttributeValue.builder().s(onboardingStatus).build(),
                             ":modified", AttributeValue.builder().s(modified).build())
@@ -263,12 +254,11 @@ public class TenantServiceDAL {
                     .tableName(TENANTS_TABLE)
                     .key(key)
                     .updateExpression("SET active = :active, modified = :modified")
-                    .expressionAttributeValues(Stream
-                            .of(
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":active", AttributeValue.builder().bool(active).build()),
-                                    new AbstractMap.SimpleEntry<String, AttributeValue>(":modified", AttributeValue.builder().s(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build())
+                    .expressionAttributeValues(Map.of(
+                            ":active", AttributeValue.builder().bool(active).build(),
+                            ":modified", AttributeValue.builder().s(
+                                    LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build()
                             )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );

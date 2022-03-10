@@ -1229,7 +1229,7 @@ Resources:
   OnboardingTenantConfig:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-nboarding-tenant-config-event
+      FunctionName: !Sub sb-${Environment}-onboarding-tenant-config-event
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 89 # Must be less than the VisibilityTimeout setting on the queue

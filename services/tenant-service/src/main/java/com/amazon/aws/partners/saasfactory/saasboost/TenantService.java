@@ -81,12 +81,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
 
         List<Tenant> tenants;
         Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
-        if (queryParams != null && queryParams.containsKey("overrideDefaults")) {
-            Boolean customizedTenants = Boolean.valueOf(queryParams.get("overrideDefaults"));
-            tenants = dal.getProvisionedTenants(customizedTenants);
-        } else {
-            tenants = dal.getProvisionedTenants();
-        }
+        tenants = dal.getProvisionedTenants();
+
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
                 .withHeaders(CORS)
