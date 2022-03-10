@@ -16,10 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.BillingProvider;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceTierConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -330,7 +327,7 @@ public class SettingsServiceDAL {
                 if (existing != null && existing.getValue().equals(setting.getValue())) {
                     // Nothing has changed, don't overwrite the value in Parameter Store
                     LOGGER.info("Skipping update of secret because encrypted values are the same");
-                    updatedSettings.add(setting);
+                    updatedSettings.add(existing);
                     continue;
                 }
             }
@@ -349,23 +346,47 @@ public class SettingsServiceDAL {
         return appConfig;
     }
 
-    private static AppConfig toAppConfig(Map<String, String> appSettings) {
+    private AppConfig toAppConfig(Map<String, String> appSettings) {
         AppConfig.Builder appConfigBuilder = AppConfig.builder()
                 .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
                 .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
                 .hostedZone(appSettings.get(APP_BASE_PATH + "HOSTED_ZONE"))
-                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"))
-                .billing(BillingProvider.builder()
-                        .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
-                        .build());
+                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
+
+        // TODO we shouldn't assume Settings passed to this function are encrypted or decrypted
+        // but right now we are assuming they're encrypted, because they always are
+        BillingProvider billingProvider = !getSetting(APP_BASE_PATH + "BILLING_API_KEY", true).getValue().isEmpty()
+            ? BillingProvider.builder()
+            .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
+            .build()
+            : null;
+        appConfigBuilder.billing(billingProvider);
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
-            // e.g. /app/service_001/tier_001/DB_PASSWORD
+            // e.g. /app/service_001/DB_MASTER_PASSWORD
             //      /app/service_001/SERVICE_JSON
             if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
-                ServiceConfig serviceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
-                appConfigBuilder.serviceConfig(serviceConfig);
+                ServiceConfig existingServiceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
+                ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(existingServiceConfig);
+                Map<String, ServiceTierConfig> newTiers = new HashMap<>();
+                for (Map.Entry<String, ServiceTierConfig> nameAndTier : existingServiceConfig.getTiers().entrySet()) {
+                    String name = nameAndTier.getKey();
+                    ServiceTierConfig tier = nameAndTier.getValue();
+                    ServiceTierConfig.Builder editedTier = ServiceTierConfig.builder(tier);
+                    if (tier.hasDatabase()) {
+                        // if this tier has a database, override the password with the encrypted version
+                        Database.Builder editedDatabase = Database.builder(tier.getDatabase());
+                        Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/" + name + "/DB_MASTER_PASSWORD", false);
+                        if (dbMasterPasswordSetting != null) {
+                            editedDatabase.password(dbMasterPasswordSetting.getValue());
+                        }
+                        editedTier.database(editedDatabase.build());
+                    }
+                    newTiers.put(name, editedTier.build());
+                }
+                editedServiceConfig.tiers(newTiers);
+                appConfigBuilder.serviceConfig(editedServiceConfig.build());
             }
         }
 
@@ -506,7 +527,7 @@ public class SettingsServiceDAL {
                 .build();
     }
 
-    public static List<Setting> appConfigToSettings(AppConfig appConfig) {
+    public List<Setting> appConfigToSettings(AppConfig appConfig) {
         List<Setting> settings = new ArrayList<>();
 
         settings.add(Setting.builder()
@@ -548,32 +569,57 @@ public class SettingsServiceDAL {
         return settings;
     }
 
-    public static List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
+    public List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
         List<Setting> settings = new ArrayList<>();
         // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
-        // but that means we need to create the DB_MASTER_PASSWORD for each ServiceTier, as some tiers
-        // may have databases, some may not, and all may have different passwords (for whatever reason)
+        // but that means we need to create the DB_MASTER_PASSWORD for each Service
+
+        // editedServiceConfig so that we can replace the password in all databases in tiers to have empty passwords
+        // that way we aren't storing actual passwords.
+        ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(serviceConfig);
+        Map<String, ServiceTierConfig> editedTiers = new HashMap<>();
         for (Map.Entry<String, ServiceTierConfig> nameAndTierConfig : serviceConfig.getTiers().entrySet()) {
             String dbPasswordSettingValue = null;
             if (nameAndTierConfig.getValue().hasDatabase()) {
                 dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
 
                 // tiers are /saas-boost/env/app/serviceName/tierName/
+                // but we're setting db password at service level
                 Setting dbPasswordSetting = Setting.builder()
-                        .name(APP_BASE_PATH + serviceConfig.getName() + "/"
-                                + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
+                        .name(APP_BASE_PATH + serviceConfig.getName() + "/" + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
                         .value(dbPasswordSettingValue)
                         .secure(true).readOnly(false).build();
                 settings.add(dbPasswordSetting);
 
                 // place the passwordParam so appConfig holders can find the password if they need it
-                nameAndTierConfig.getValue().getDatabase().setPasswordParam(toParameterStore(dbPasswordSetting).name());
+                // and override password
+                // passwordParam should be an arn of the form
+                // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                ServiceTierConfig.Builder editedTierConfig = ServiceTierConfig.builder(nameAndTierConfig.getValue());
+                editedTierConfig.database(
+                    Database.builder(nameAndTierConfig.getValue().getDatabase())
+                        .password("**encrypted**")
+                        .passwordParam(toParameterStore(dbPasswordSetting).name())
+                        .build());
+                editedTiers.put(nameAndTierConfig.getKey(), editedTierConfig.build());
+            } else {
+                editedTiers.put(nameAndTierConfig.getKey(), nameAndTierConfig.getValue());
             }
         }
 
+        editedServiceConfig.tiers(editedTiers);
+        // if we don't remove the password from the database object in serviceConfig we'll end up storing it
+        // we can't @Ignore password because we're expecting to send it back
+        // the UI could have two defaults: '' means no database already configured, just the value of param otherwise
+        // we have this logic in the settings service to check if it's the same as the encrypted value though
+        // and we do that with the billing api key. it makes more sense to do the same with the database.
+        // which means we should return the encrypted password
+        // which means we can't ignore the password
+        // which means when we store this password in this serviceConfig we need to obfuscate.
+        // but that's what I'm saying.. it doesn't matter what I store, as long as it isn't the plaintext.
         settings.add(Setting.builder()
                 .name(APP_BASE_PATH + serviceConfig.getName() + "/SERVICE_JSON")
-                .value(Utils.toJson(serviceConfig))
+                .value(Utils.toJson(editedServiceConfig.build()))
                 .readOnly(false).build());
 
         return settings;
