@@ -175,7 +175,6 @@ public class Database {
         return username;
     }
 
-    @JsonIgnore
     public String getPassword() {
         return password;
     }
@@ -229,6 +228,19 @@ public class Database {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public static Builder builder(Database other) {
+        return new Builder()
+            .engine(other.getEngine())
+            .instance(other.getInstance())
+            .version(other.getVersion())
+            .family(other.getFamily())
+            .database(other.getDatabase())
+            .username(other.getUsername())
+            .password(other.getPassword())
+            .passwordParam(other.getPasswordParam())
+            .bootstrapFilename(other.getBootstrapFilename());
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

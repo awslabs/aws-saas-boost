@@ -45,6 +45,18 @@ public class ServiceTierConfig {
         return new ServiceTierConfig.Builder();
     }
 
+    public static ServiceTierConfig.Builder builder(ServiceTierConfig other) {
+        return new Builder()
+            .min(other.getMin())
+            .max(other.getMax())
+            .computeSize(other.getComputeSize())
+            .cpu(other.getCpu())
+            .memory(other.getMemory())
+            .instanceType(other.getInstanceType())
+            .filesystem(other.getFilesystem())
+            .database(other.getDatabase());
+    }
+
     public Integer getMin() {
         return min;
     }
@@ -109,8 +121,18 @@ public class ServiceTierConfig {
             return this;
         }
 
+        public Builder min(Integer min) {
+            this.min = min;
+            return this;
+        }
+
         public Builder max(String max) {
             this.max = max != null && !max.isEmpty() ? Integer.valueOf(max) : null;
+            return this;
+        }
+
+        public Builder max(Integer max) {
+            this.max = max;
             return this;
         }
 
