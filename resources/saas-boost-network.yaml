@@ -146,11 +146,17 @@ Resources:
     DependsOn: AttachIGW
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub sb-${Environment}-egress-nat-ip1
   IPAddress2:
    Type: AWS::EC2::EIP
    DependsOn: AttachIGW
    Properties:
      Domain: vpc
+     Tags:
+      - Key: Name
+        Value: !Sub sb-${Environment}-egress-nat-ip2
   NATGateway1:
     Type: AWS::EC2::NatGateway
     Properties:

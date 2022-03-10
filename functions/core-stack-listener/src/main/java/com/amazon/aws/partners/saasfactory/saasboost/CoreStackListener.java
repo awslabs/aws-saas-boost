@@ -94,6 +94,18 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                             systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
                             Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
                                     systemApiRequest);
+                        } else if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
+                            // Make this an event vs directly calling the Settings Service API because when this
+                            // CloudFormation stack first completes, the Settings Service may not even exist yet
+                            // Could also look at matching against UPDATE_COMPLETE
+//                            String hostedZoneId = resource.physicalResourceId();
+//                            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZoneId);
+//                            Map<String, Object> systemApiRequest = new HashMap<>();
+//                            systemApiRequest.put("resource", "settings/HOSTED_ZONE");
+//                            systemApiRequest.put("method", "PUT");
+//                            //systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
+//                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
+//                                    systemApiRequest);
                         }
                     }
                 }

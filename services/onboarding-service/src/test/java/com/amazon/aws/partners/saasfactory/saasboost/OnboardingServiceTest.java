@@ -34,6 +34,7 @@ public class OnboardingServiceTest {
         String prefix = cidr.substring(0, cidr.indexOf(".", cidr.indexOf(".") + 1));
         assertTrue("10.255".equals(prefix));
     }
+
 //
 //    @Test
 //    public void testBatchIteration() {

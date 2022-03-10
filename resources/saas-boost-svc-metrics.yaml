@@ -30,7 +30,7 @@ Parameters:
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
-  ALBAccessLogs:
+  AccessLogs:
     Description: ALB Access Logs Bucket
     Type: String
   AthenaOutput:
@@ -93,7 +93,7 @@ Mappings:
     cn-north-1:
       AccountId: '638102146993'
 Resources:
-  ALBAccessLogsDatabase:
+  AccessLogsDatabase:
     Type: AWS::Glue::Database
     Properties:
       CatalogId: !Ref 'AWS::AccountId'
@@ -104,7 +104,7 @@ Resources:
   ALBLogsBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref ALBAccessLogs
+      Bucket: !Ref AccessLogs
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -114,13 +114,13 @@ Resources:
               AWS:
                 Fn::Join: ['', ['arn:aws:iam::', !FindInMap [Region2ELBAccountId, !Ref 'AWS::Region', 'AccountId'], ':root']]
             Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${ALBAccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/*
+            Resource: !Sub arn:aws:s3:::${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/*
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
               Service: delivery.logs.amazonaws.com
             Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${ALBAccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/*
+            Resource: !Sub arn:aws:s3:::${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/*
             Condition:
               StringEquals:
                 s3:x-amz-acl: bucket-owner-full-control
@@ -129,21 +129,21 @@ Resources:
             Principal:
               Service: delivery.logs.amazonaws.com
             Action: s3:GetBucketAcl
-            Resource: !Sub arn:aws:s3:::${ALBAccessLogs}
+            Resource: !Sub arn:aws:s3:::${AccessLogs}
           - Sid: DenyNonHttps
             Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${ALBAccessLogs}/*
-              - !Sub arn:aws:s3:::${ALBAccessLogs}
+              - !Sub arn:aws:s3:::${AccessLogs}/*
+              - !Sub arn:aws:s3:::${AccessLogs}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   AccessLogsTable:
     Type: AWS::Glue::Table
     Properties:
       CatalogId: !Ref 'AWS::AccountId'
-      DatabaseName: !Ref ALBAccessLogsDatabase
+      DatabaseName: !Ref AccessLogsDatabase
       TableInput:
         Description: ALB Access Logs from Tenants
         Name: !Sub sb_${Environment}_access_logs
@@ -219,7 +219,7 @@ Resources:
             - Name: new_field
               Type: string
           Compressed: False
-          Location: !Sub s3://${ALBAccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
+          Location: !Sub s3://${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
           InputFormat: org.apache.hadoop.mapred.TextInputFormat
           OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
           SerdeInfo:
@@ -288,12 +288,12 @@ Resources:
                   - glue:BatchCreatePartition
                   - glue:GetPartitions
                 Resource:
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${ALBAccessLogsDatabase}
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${ALBAccessLogsDatabase}/${AccessLogsTable}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${AccessLogsDatabase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${AccessLogsDatabase}/${AccessLogsTable}
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
                   - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}/*
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}
+                  - !Sub arn:aws:s3:::${AccessLogs}/*
+                  - !Sub arn:aws:s3:::${AccessLogs}
   # Request count metrics
   PublishRequestCountLog:
     Type: AWS::Logs::LogGroup
@@ -323,7 +323,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
@@ -395,7 +395,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
@@ -468,11 +468,11 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          ACCESS_LOGS_PATH: !Sub s3://${ALBAccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
+          ACCESS_LOGS_PATH: !Sub s3://${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -616,12 +616,12 @@ Resources:
                   - glue:GetDatabase
                   - glue:GetPartitions
                 Resource:
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${ALBAccessLogsDatabase}
-                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${ALBAccessLogsDatabase}/${AccessLogsTable}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${AccessLogsDatabase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${AccessLogsDatabase}/${AccessLogsTable}
                   - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
                   - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}/*
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}
+                  - !Sub arn:aws:s3:::${AccessLogs}/*
+                  - !Sub arn:aws:s3:::${AccessLogs}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -688,7 +688,7 @@ Resources:
         - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
@@ -723,7 +723,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
@@ -756,7 +756,7 @@ Resources:
         - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          ATHENA_DATABASE: !Ref ALBAccessLogsDatabase
+          ATHENA_DATABASE: !Ref AccessLogsDatabase
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
@@ -771,9 +771,9 @@ Resources:
         - Key: "BoostService"
           Value: "Metrics"
 Outputs:
-  ALBAccessLogsDatabase:
+  AccessLogsDatabase:
     Description: Athena Database for ALB Access Logs
-    Value: !Ref ALBAccessLogsDatabase
+    Value: !Ref AccessLogsDatabase
   AccessLogsTable:
     Description: Athena Access Logs Table
     Value: !Ref AccessLogsTable

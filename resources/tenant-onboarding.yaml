@@ -275,7 +275,7 @@ Resources:
           Value: 'true'
         - Key: access_logs.s3.bucket
           Value:
-            Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/ALB_ACCESS_LOGS_BUCKET}}']]
+            Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/ACCESS_LOGS_BUCKET}}']]
         - Key: access_logs.s3.prefix
           Value: 'access-logs'
       Subnets:

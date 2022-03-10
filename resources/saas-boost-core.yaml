@@ -50,7 +50,24 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  DomainName:
+    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
+    Type: String
+    Default: ''
+Conditions:
+  HasDomainName: !Not [!Equals [!Ref DomainName, '']]
 Resources:
+  # Route 53 hosted zone. This hosted zone's name servers will need to be added to primary
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: HasDomainName
+    Properties:
+      HostedZoneConfig:
+        Comment: !Sub ${DomainName} Public DNS zone
+      Name: !Ref DomainName
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub sb-${Environment}-hostedzone
   WorkloadDeployLogs:
     Type: AWS::Logs::LogGroup
     Properties:

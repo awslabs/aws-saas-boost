@@ -317,24 +317,14 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - ssm:GetParameters
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_USERNAME
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_HOST
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_NAME
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/METRICS_STREAM
-              - Effect: Allow
-                Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
               - Effect: Allow
                 Action:
                   - s3:GetBucketLocation
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
               - Effect: Allow
                 Action:
                   - fsx:DescribeFileSystems
@@ -384,7 +374,7 @@ Resources:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/*
+                  - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
               - Effect: Allow
                 Action:
                   - ssmmessages:CreateControlChannel
@@ -433,31 +423,35 @@ Resources:
                   Value: !Ref Environment
                 - Name: TENANT_ID
                   Value: !Ref TenantId
-                - Name: SAAS_BOOST_BUCKET
-                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+                - Name: SAAS_BOOST_RESOURCES_BUCKET
+                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
                 - Name: SAAS_BOOST_EVENT_BUS
                   Value: !Ref EventBus
                 - Name: METRICS_STREAM
                   Value: !Ref MetricsStream
                 - Name: DB_HOST
                   Value: !GetAtt rds.Outputs.RdsEndpoint
+                - Name: DB_PORT
+                  Value: !Ref RDSPort
                 - Name: DB_NAME
                   Value: !Ref RDSDatabase
+                - Name: DB_USER
+                  Value: !Ref RDSMasterUsername
               - - Name: AWS_REGION
                   Value: !Ref AWS::Region
                 - Name: SAAS_BOOST_ENV
                   Value: !Ref Environment
                 - Name: TENANT_ID
                   Value: !Ref TenantId
-                - Name: SAAS_BOOST_BUCKET
-                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+                - Name: SAAS_BOOST_RESOURCES_BUCKET
+                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
                 - Name: SAAS_BOOST_EVENT_BUS
                   Value: !Ref EventBus
                 - Name: METRICS_STREAM
                   Value: !Ref MetricsStream
           EnvironmentFiles:
             - Type: s3
-              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
           MountPoints:
             !If
               - ProvisionEFS
@@ -476,12 +470,8 @@ Resources:
           Secrets:
             Fn::If:
               - ProvisionRDS
-              - - Name: DB_MASTER_USERNAME
-                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_USERNAME
-                - Name: DB_MASTER_PASSWORD
+              - - Name: DB_PASSWORD
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
-                - Name: DB_PORT
-                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PORT
               - !Ref 'AWS::NoValue'
       Volumes:
         !If
