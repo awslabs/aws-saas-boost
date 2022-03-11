@@ -53,11 +53,10 @@ public class CloudFormationEventDeserializer {
             } else if ("PrincipalId".equals(key)) {
                 builder.principalId(value);
             } else if ("ResourceProperties".equals(key)) {
-                if (!"null".equals(value)) {
-                    String json = Utils.unescapeJson(value);
-                    LinkedHashMap<String, Object> resourceProperties = Utils.fromJson(json, LinkedHashMap.class);
+                if (!"null".equals(value) && Utils.isNotBlank(value)) {
+                    LinkedHashMap<String, Object> resourceProperties = Utils.fromJson(value, LinkedHashMap.class);
                     if (resourceProperties == null) {
-                        LOGGER.error("Can't deserialize unescaped JSON {}", json);
+                        LOGGER.error("Can't deserialize JSON {}", value);
                     }
                     builder.resourceProperties(resourceProperties);
                 }

@@ -33,6 +33,9 @@ Parameters:
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
+  ResourcesBucket:
+    Description: S3 bucket containing tenant custom config files (zip archive)
+    Type: String
 Resources:
   TenantsTable:
     Type: AWS::DynamoDB::Table

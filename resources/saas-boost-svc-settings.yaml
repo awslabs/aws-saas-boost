@@ -598,35 +598,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
-  SettingsServiceParamStoreRefLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-ssm-param
-      RetentionInDays: 30
-  SettingsServiceParamStoreRef:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-ssm-param
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getParameterStoreReference
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
   SettingsServiceConfigOptionsLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -693,9 +664,6 @@ Outputs:
   SettingsServiceGetSecretArn:
     Description: Settings Service get decrypted secret setting Lambda ARN
     Value: !GetAtt SettingsServiceGetSecret.Arn
-  SettingsServiceParamStoreRefArn:
-    Description: Settings Service get parameter store reference for a setting Lambda ARN
-    Value: !GetAtt SettingsServiceParamStoreRef.Arn
   SettingsServiceTenantUpdateArn:
     Description: Settings Service update a tenant setting Lambda ARN
     Value: !GetAtt SettingsServiceTenantUpdate.Arn

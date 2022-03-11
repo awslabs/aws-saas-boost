@@ -47,7 +47,6 @@ import software.amazon.awssdk.services.sqs.model.SendMessageBatchResponse;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
@@ -69,6 +68,9 @@ public class OnboardingService {
     private static final String ONBOARDING_APP_STACK_SNS = System.getenv("ONBOARDING_APP_STACK_SNS");
     private static final String ONBOARDING_VALIDATION_QUEUE = System.getenv("ONBOARDING_VALIDATION_QUEUE");
     private static final String ONBOARDING_VALIDATION_DLQ = System.getenv("ONBOARDING_VALIDATION_DLQ");
+    private static final String RESOURCES_BUCKET = System.getenv("RESOURCES_BUCKET");
+    private static final String TENANT_CONFIG_DLQ = System.getenv("TENANT_CONFIG_DLQ");
+    private static final String RESOURCES_BUCKET_TEMP_FOLDER = "00temp/";
     private final OnboardingServiceDAL dal;
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
@@ -279,12 +281,12 @@ public class OnboardingService {
         onboarding = dal.insertOnboarding(onboarding);
 
         // Generate the presigned URL for this tenant's ZIP archive
-        final String key = "temp/" + onboarding.getId().toString() + ".zip";
+        final String key = RESOURCES_BUCKET_TEMP_FOLDER + onboarding.getId().toString() + ".zip";
         final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
         PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
                 .signatureDuration(expires)
                 .putObjectRequest(PutObjectRequest.builder()
-                        .bucket(SAAS_BOOST_BUCKET)
+                        .bucket(RESOURCES_BUCKET)
                         .key(key)
                         .build()
                 )
@@ -673,6 +675,9 @@ public class OnboardingService {
         if (Utils.isBlank(ONBOARDING_APP_STACK_SNS)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_APP_STACK_SNS");
         }
+        if (Utils.isBlank(RESOURCES_BUCKET)) {
+            throw new IllegalStateException("Missing required environment variable RESOURCES_BUCKET");
+        }
 
         //Utils.logRequestEvent(event);
         if (OnboardingEvent.validate(event)) {
@@ -958,7 +963,7 @@ public class OnboardingService {
                         )) {
                             serviceDiscovery.store(writer, null);
                             s3.putObject(request -> request
-                                            .bucket(SAAS_BOOST_BUCKET)
+                                            .bucket(RESOURCES_BUCKET)
                                             .key(environmentFile)
                                             .build(),
                                     RequestBody.fromBytes(environmentFileContents.toByteArray())
@@ -1148,6 +1153,12 @@ public class OnboardingService {
     }
 
     public SQSBatchResponse processValidateOnboardingQueue(SQSEvent event, Context context) {
+        if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
+            throw new IllegalStateException("Missing required environment variable SAAS_BOOST_EVENT_BUS");
+        }
+        if (Utils.isBlank(ONBOARDING_VALIDATION_DLQ)) {
+            throw new IllegalStateException("Missing required environment variable ONBOARDING_VALIDATION_DLQ");
+        }
         List<SQSBatchResponse.BatchItemFailure> retry = new ArrayList<>();
         List<SQSEvent.SQSMessage> fatal = new ArrayList<>();
         sqsMessageLoop:
@@ -1338,42 +1349,93 @@ public class OnboardingService {
         }
         return SQSBatchResponse.builder().withBatchItemFailures(retry).build();
     }
-                //update the Tenant record status
-//                try {
-//                    ObjectNode systemApiRequest = MAPPER.createObjectNode();
-//                    systemApiRequest.put("resource", "tenants/" + tenantId + "/onboarding");
-//                    systemApiRequest.put("method", "PUT");
-//                    systemApiRequest.put("body", "{\"id\":\"" + tenantId + "\", \"onboardingStatus\":\"" + status + "\"}");
-//                    PutEventsRequestEntry systemApiCallEvent = PutEventsRequestEntry.builder()
-//                            .eventBusName(SAAS_BOOST_EVENT_BUS)
-//                            .detailType(SYSTEM_API_CALL_DETAIL_TYPE)
-//                            .source(SYSTEM_API_CALL_SOURCE)
-//                            .detail(MAPPER.writeValueAsString(systemApiRequest))
-//                            .build();
-//                    PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-//                            .entries(systemApiCallEvent)
-//                    );
-//                    for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-//                        if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-//                            LOGGER.info("Put event success {} {}", entry.toString(), systemApiCallEvent.toString());
-//                        } else {
-//                            LOGGER.error("Put event failed {}", entry.toString());
-//                        }
-//                    }
-//
-//                    if (status.equals(OnboardingStatus.provisioned)) {
-//                        //move the s3 file from the SAAS_BOOST_BUCKET to a key for the tenant and name it config.zip
-//                        moveTenantConfigFile(onboarding.getId().toString(), tenantId);
-//                    }
-//                } catch (JsonProcessingException ioe) {
-//                    LOGGER.error("JSON processing failed");
-//                    LOGGER.error(Utils.getFullStackTrace(ioe));
-//                    throw new RuntimeException(ioe);
-//                } catch (SdkServiceException eventBridgeError) {
-//                    LOGGER.error("events::PutEvents");
-//                    LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-//                    throw eventBridgeError;
-//                }
+
+    public SQSBatchResponse processTenantConfigQueue(SQSEvent event, Context context) {
+        LOGGER.info(Utils.toJson(event));
+        if (Utils.isBlank(TENANT_CONFIG_DLQ)) {
+            throw new IllegalStateException("Missing required environment variable TENANT_CONFIG_DLQ");
+        }
+        List<SQSBatchResponse.BatchItemFailure> retry = new ArrayList<>();
+        List<SQSEvent.SQSMessage> fatal = new ArrayList<>();
+
+        // A new tenant custom config file was put in the onboarding "temp" folder named with the
+        // onboarding id. We need to rename the file with the tenant id so it can be accessed by
+        // the application. If the onboarding record doesn't have a tenant assigned yet, we'll retry.
+        for (SQSEvent.SQSMessage sqsMessage : event.getRecords()) {
+            String messageId = sqsMessage.getMessageId();
+            String messageBody = sqsMessage.getBody();
+
+            LinkedHashMap<String, Object> message = Utils.fromJson(messageBody, LinkedHashMap.class);
+            LinkedHashMap<String, Object> detail = (LinkedHashMap<String, Object>) message.get("detail");
+            String bucket = (String) ((Map<String, Object>) detail.get("bucket")).get("name");
+            String key = (String) ((Map<String, Object>) detail.get("object")).get("key");
+            LOGGER.info("Processing resources bucket PUT {}, {}", bucket, key);
+            // key will be something like 00temp/77baa019-d95f-4a5c-8c11-6edf1f01fcf8.zip
+            // parse the onboarding id out of the path
+            String ext = key.substring(key.lastIndexOf("."));
+            String onboardingId = key.substring(
+                    (key.indexOf(RESOURCES_BUCKET_TEMP_FOLDER) + RESOURCES_BUCKET_TEMP_FOLDER.length()),
+                    (key.length() - ext.length())
+            );
+            Onboarding onboarding = dal.getOnboarding(onboardingId);
+            if (onboarding != null) {
+                UUID tenantId = onboarding.getTenantId();
+                if (tenantId == null) {
+                    // It's possible that the file upload finished before a tenant record got
+                    // assigned to this onboarding record. We'll retry after a short timeout.
+                    LOGGER.warn("No tenant id yet for onboarding {}", onboardingId);
+                    retry.add(SQSBatchResponse.BatchItemFailure.builder()
+                            .withItemIdentifier(messageId)
+                            .build()
+                    );
+                } else {
+                    String destination = "tenants/" + tenantId.toString() + "/" + tenantId.toString() + ext;
+                    try {
+                        s3.copyObject(request -> request
+                                .sourceBucket(bucket)
+                                .sourceKey(key)
+                                .destinationBucket(bucket)
+                                .destinationKey(destination)
+                        );
+                        s3.deleteObject(request -> request
+                                .bucket(bucket)
+                                .key(key)
+                        );
+                        LOGGER.info("Renamed tenant config file to {}", destination);
+                        // TODO store the config file location in the tenant record?
+                    } catch (S3Exception s3Error) {
+                        LOGGER.error("Failed to move object {}/{} to {}", bucket, key, destination);
+                        LOGGER.error(s3Error.awsErrorDetails().errorMessage());
+                        LOGGER.error(Utils.getFullStackTrace(s3Error));
+                        retry.add(SQSBatchResponse.BatchItemFailure.builder()
+                                .withItemIdentifier(messageId)
+                                .build()
+                        );
+                    }
+                }
+            } else {
+                fatal.add(sqsMessage);
+                LOGGER.error("Can't find onboarding record for {}", onboardingId);
+            }
+        }
+
+        if (!fatal.isEmpty()) {
+            LOGGER.info("Moving non-recoverable failures to DLQ");
+            SendMessageBatchResponse dlq = sqs.sendMessageBatch(request -> request
+                    .queueUrl(TENANT_CONFIG_DLQ)
+                    .entries(fatal.stream()
+                            .map(msg -> SendMessageBatchRequestEntry.builder()
+                                    .id(msg.getMessageId())
+                                    .messageBody(msg.getBody())
+                                    .build()
+                            )
+                            .collect(Collectors.toList())
+                    )
+            );
+            LOGGER.info(dlq.toString());
+        }
+        return SQSBatchResponse.builder().withBatchItemFailures(retry).build();
+    }
 
     public Object deleteTenant(Map<String, Object> event, Context context) {
         /*
@@ -1408,75 +1470,6 @@ public class OnboardingService {
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("OnboardingService::deleteTenant exec " + totalTimeMillis);
         return null;
-    }
-
-    private void moveTenantConfigFile(String onboardingId, String tenantId) {
-        if (Utils.isBlank(SAAS_BOOST_BUCKET)) {
-            throw new IllegalStateException("Missing required environment variable SAAS_BOOST_BUCKET");
-        }
-
-        String sourceFile = "temp/" + onboardingId + ".zip";
-        LOGGER.info("Start: Move tenant config zip file {} for tenant {}", sourceFile, tenantId);
-
-        //check if S3 file with name onboardingId.zip exists
-        String encodedUrl;
-
-        try {
-            encodedUrl = URLEncoder.encode(SAAS_BOOST_BUCKET + "/" + sourceFile, StandardCharsets.UTF_8.toString());
-        } catch (UnsupportedEncodingException e) {
-            LOGGER.error("URL could not be encoded: " + e.getMessage());
-            throw new RuntimeException("Unable to move tenant zip file " +  sourceFile);
-        }
-
-        try {
-            ListObjectsRequest listObjects = ListObjectsRequest
-                    .builder()
-                    .bucket(SAAS_BOOST_BUCKET)
-                    .prefix(sourceFile)
-                    .build();
-
-            ListObjectsResponse res = s3.listObjects(listObjects);
-            if (res.contents().isEmpty()) {
-                //no file to copy
-                LOGGER.info("No config zip file to copy for tenant {}", tenantId);
-                return;
-            }
-
-            s3.getObject(GetObjectRequest.builder()
-                    .bucket(SAAS_BOOST_BUCKET)
-                    .key(sourceFile)
-                    .build());
-        } catch (S3Exception e) {
-            LOGGER.error("Error fetching config zip file {} ", sourceFile + " for tenant " + tenantId);
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException("Unable to copy config zip file " +  sourceFile + " for tenant " + tenantId);
-        }
-        try {
-            s3.copyObject(CopyObjectRequest.builder()
-                    .copySource(encodedUrl)
-                    .destinationBucket(SAAS_BOOST_BUCKET)
-                    .destinationKey("tenants/" + tenantId + "/config.zip")
-                    .serverSideEncryption("AES256")
-                    .build());
-        } catch (S3Exception e) {
-            LOGGER.error("Error copying config zip file {} to {}", sourceFile, tenantId + "/config.zip");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException("Unable to copy config zip file " +  sourceFile + " for tenant " + tenantId);
-        }
-
-        //delete the existing file
-        try {
-            s3.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(SAAS_BOOST_BUCKET)
-                    .key(sourceFile)
-                    .build());
-        } catch (S3Exception e) {
-            LOGGER.error("Error deleting tenant zip file {}", sourceFile);
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException("Unable to delete tenant zip file " +  sourceFile + " for tenant " + tenantId);
-        }
-
-        LOGGER.info("Completed: Move tenant config file {} for tenant {}", sourceFile, tenantId);
     }
 
     public APIGatewayProxyResponseEvent updateProvisionedTenant(Map<String, Object> event, Context context) {
@@ -1763,6 +1756,7 @@ public class OnboardingService {
         }
 
         Map<String, Object> appConfig = getAppConfig(context);
+        String domainName = (String) appConfig.getOrDefault("domainName", "");
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
 
         LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stackName);
@@ -1777,13 +1771,13 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("DomainName").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("SSLCertificate").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(String.join(",", services.keySet())).build()
                     )
                     .build()

@@ -58,7 +58,7 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: 'false'
   ADPasswordParam:
-    Description: 'SSM Parameter name to use for AD User password:'
+    Description: SSM Parameter name to use for AD User password
     Type: String
   ApplicationServices:
     Description: Comma separated list of application service names to create ECR repositories for
@@ -87,7 +87,7 @@ Resources:
       Value: !Ref LambdaSourceFolder
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
-  LoggingBucket:
+  Logging:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: LogDeliveryWrite
@@ -113,19 +113,19 @@ Resources:
   LoggingBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref LoggingBucket
+      Bucket: !Ref Logging
       PolicyDocument:
         Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${LoggingBucket}/*
-              - !Sub arn:aws:s3:::${LoggingBucket}
+              - !Sub arn:aws:s3:::${Logging}/*
+              - !Sub arn:aws:s3:::${Logging}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket needed for CodePipeline to drive tenant deployment workflow
-  CodePipelineBucket:
+  Pipelines:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
@@ -141,7 +141,7 @@ Resources:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
       LoggingConfiguration:
-        DestinationBucketName: !Ref LoggingBucket
+        DestinationBucketName: !Ref Logging
         LogFilePrefix: codepipeline-logs
       Tags:
         - Key: SaaS Boost
@@ -149,19 +149,19 @@ Resources:
   CodePipelineBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref CodePipelineBucket
+      Bucket: !Ref Pipelines
       PolicyDocument:
         Statement:
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${CodePipelineBucket}/*
-              - !Sub arn:aws:s3:::${CodePipelineBucket}
+              - !Sub arn:aws:s3:::${Pipelines}/*
+              - !Sub arn:aws:s3:::${Pipelines}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket for Access Logs for ALBs for Tenants
-  ALBAccessLogs:
+  AccessLogs:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
@@ -226,7 +226,7 @@ Resources:
               Bool: { 'aws:SecureTransport': false }
   # Bucket to host the admin console web application
   # NOTE: The deny non-secure policy is in the web template.
-  WebS3Bucket:
+  AdminWeb:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
@@ -240,8 +240,29 @@ Resources:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
       LoggingConfiguration:
-        DestinationBucketName: !Ref LoggingBucket
+        DestinationBucketName: !Ref Logging
         LogFilePrefix: web-logs
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  # Bucket to hold optional tenant configuration files (zip archive)
+  # Onboarding will be notified of put object events via EventBridge
+  Resources:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -305,21 +326,23 @@ Resources:
                   - s3:ListBucketVersions
                   - s3:GetBucketVersioning
                 Resource:
-                  - !Sub arn:aws:s3:::${WebS3Bucket}
-                  - !Sub arn:aws:s3:::${CodePipelineBucket}
+                  - !Sub arn:aws:s3:::${AdminWeb}
+                  - !Sub arn:aws:s3:::${Pipelines}
                   - !Sub arn:aws:s3:::${AthenaOutput}
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}
-                  - !Sub arn:aws:s3:::${LoggingBucket}
+                  - !Sub arn:aws:s3:::${AccessLogs}
+                  - !Sub arn:aws:s3:::${Logging}
+                  - !Sub arn:aws:s3:::${Resources}
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::${WebS3Bucket}/*
-                  - !Sub arn:aws:s3:::${CodePipelineBucket}/*
+                  - !Sub arn:aws:s3:::${AdminWeb}/*
+                  - !Sub arn:aws:s3:::${Pipelines}/*
                   - !Sub arn:aws:s3:::${AthenaOutput}/*
-                  - !Sub arn:aws:s3:::${ALBAccessLogs}/*
-                  - !Sub arn:aws:s3:::${LoggingBucket}/*
+                  - !Sub arn:aws:s3:::${AccessLogs}/*
+                  - !Sub arn:aws:s3:::${Logging}/*
+                  - !Sub arn:aws:s3:::${Resources}/*
   #ClearBucketLogs:
   #  Type: AWS::Logs::LogGroup
   #  # For testing
@@ -342,6 +365,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/ClearS3Bucket-lambda.zip
       Layers:
          - !Ref SaaSBoostUtilsLayer
+         - !Ref CloudFormationUtilsLayer
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -355,7 +379,7 @@ Resources:
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref CodePipelineBucket
+      Bucket: !Ref Pipelines
   InvokeClearAthenaBucket:
     Type: Custom::CustomResource
     DependsOn:
@@ -369,20 +393,25 @@ Resources:
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref ALBAccessLogs
+      Bucket: !Ref AccessLogs
   InvokeClearWebsiteBucket:
     Type: Custom::CustomResource
     DependsOn:
       - InvokeClearLoggingBucket
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref WebS3Bucket
+      Bucket: !Ref AdminWeb
   # TODO: Do we want to clear the access logs bucket?
   InvokeClearLoggingBucket:
     Type: Custom::CustomResource
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref LoggingBucket
+      Bucket: !Ref Logging
+  InvokeClearResourcesBucket:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ClearBucket.Arn
+      Bucket: !Ref Resources
   ApplicationServicesMacroExecutionRole:
     Type: AWS::IAM::Role
     DependsOn:
@@ -555,8 +584,6 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         Environment: !Ref Environment
-        DomainName: !Ref DomainName
-        SSLCertificate: !Ref SSLCertificate
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
@@ -579,7 +606,7 @@ Resources:
       Parameters:
         Environment: !Ref Environment
         AdminEmailAddress: !Ref AdminEmailAddress
-        WebS3Bucket: !Ref WebS3Bucket
+        WebS3Bucket: !Ref AdminWeb
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -594,10 +621,11 @@ Resources:
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
-        CodePipelineBucket: !Ref CodePipelineBucket
+        CodePipelineBucket: !Ref Pipelines
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
+        DomainName: !Ref DomainName
       NotificationARNs:
         - !Ref CoreStackListenerTopic
   billing:
@@ -640,7 +668,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        ALBAccessLogs: !Ref ALBAccessLogs
+        AccessLogs: !Ref AccessLogs
         AthenaOutput: !Ref AthenaOutput
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
@@ -658,6 +686,7 @@ Resources:
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
+        ResourcesBucket: !Ref Resources
   quota:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
@@ -694,6 +723,7 @@ Resources:
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
+        ResourcesBucket: !Ref Resources
   user:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -763,7 +793,6 @@ Resources:
         OnboardingUpdateAppConfig: !GetAtt onboarding.Outputs.OnboardingUpdateAppConfigArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
-        SettingsServiceParamStoreRef: !GetAtt settings.Outputs.SettingsServiceParamStoreRefArn
         SettingsServiceTenantGetAll: !GetAtt settings.Outputs.SettingsServiceTenantGetAllArn
         SettingsServiceTenantById: !GetAtt settings.Outputs.SettingsServiceTenantByIdArn
         SettingsServiceTenantUpdate: !GetAtt settings.Outputs.SettingsServiceTenantUpdateArn
@@ -784,7 +813,7 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/VERSION
       Type: String
       Value: !Ref Version
-  SSMParamSaaSBoostTemplate:
+  SSMParamSaaSBoostStack:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_STACK
@@ -793,15 +822,27 @@ Resources:
   SSMParamALBOutputBucket:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ALB_ACCESS_LOGS_BUCKET
+      Name: !Sub /saas-boost/${Environment}/ACCESS_LOGS_BUCKET
       Type: String
-      Value: !Ref ALBAccessLogs
+      Value: !Ref AccessLogs
   SSMParamCodePipelineBucket:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub /saas-boost/${Environment}/CODE_PIPELINE_BUCKET
       Type: String
-      Value: !Ref CodePipelineBucket
+      Value: !Ref Pipelines
+  SSMParamResourcesBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/RESOURCES_BUCKET
+      Type: String
+      Value: !Ref Resources
+  SSMParamAdminWebBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ADMIN_WEBSITE_BUCKET
+      Type: String
+      Value: !Ref AdminWeb
 Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources
@@ -810,21 +851,21 @@ Outputs:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:saasBoostBucket
   WebS3Bucket:
     Description: S3 bucket for web assets
-    Value: !Ref WebS3Bucket
+    Value: !Ref AdminWeb
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:webBucket
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
-    Value: !Ref CodePipelineBucket
+    Value: !Ref Pipelines
   AthenaOutputBucket:
     Description: S3 bucket for Athena queries output
     Value: !Ref AthenaOutput
-  ALBAccessLogsBucket:
+  AccessLogsBucket:
     Description: S3 bucket for ALB access logs
-    Value: !Ref ALBAccessLogs
+    Value: !Ref AccessLogs
   LoggingBucket:
     Description: S3 bucket for s3 access logging
-    Value: !Ref LoggingBucket
+    Value: !Ref Logging
   SaaSBoostUtilsLayer:
     Description: SaaS Boost Utils Layer
     Value: !Ref SaaSBoostUtilsLayer

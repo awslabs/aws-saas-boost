@@ -52,9 +52,6 @@ Parameters:
   SettingsServiceGetSecret:
     Description: Settings Service get decrypted secret setting Lambda ARN
     Type: String
-  SettingsServiceParamStoreRef:
-    Description: Settings Service get parameter store reference for a setting Lambda ARN
-    Type: String
   SettingsServiceTenantGetAll:
     Description: Settings Service get all tenant settings Lambda ARN
     Type: String
@@ -429,12 +426,6 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref SettingsServiceByIdResource
       PathPart: 'secret'
-  SettingsServiceParamStoreRefResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ParentId: !Ref SettingsServiceByIdResource
-      PathPart: 'ref'
   SettingsServiceTenantResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -556,62 +547,6 @@ Resources:
     Properties:
       RestApiId: !Ref PrivateApi
       ResourceId: !Ref SettingsServiceSecretResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  SettingsServiceParamStoreRefMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref SettingsServiceParamStoreRefResource
-      HttpMethod: GET
-      AuthorizationType: AWS_IAM
-      RequestParameters: {method.request.path.id: true}
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceParamStoreRef}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceParamStoreRefPrivateLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceParamStoreRef
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/settings/{id}/ref
-  SettingsServiceParamStoreRefResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref SettingsServiceParamStoreRefResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -956,8 +891,6 @@ Resources:
       - SettingsServiceResourceCORS
       - SettingsServiceSecretMethod
       - SettingsServiceSecretResourceCORS
-      - SettingsServiceParamStoreRefMethod
-      - SettingsServiceParamStoreRefResourceCORS
       - SettingsServiceByTenantIdMethod
       - SettingsServiceByTenantIdResourceCORS
       - SettingsServiceGetTenantSettingMethod

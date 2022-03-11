@@ -24,48 +24,8 @@ Parameters:
   Environment:
     Description: SaaS Boost "environment" such as test, prod, beta, etc...
     Type: String
-  DomainName:
-    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
-    Type: String
-    Default: ''
-  SSLCertificate:
-    Description: The AWS Certificate Manager ARN for the domain name
-    Type: String
-    Default: ''
-Conditions:
-  HasDomainName: !Not [!Equals [!Ref DomainName, '']]
-  HasSslCert: !Not [!Equals [!Ref SSLCertificate, '']]
 Resources:
-  # Route 53 hosted zone. This hosted zone's name servers will need to be added to primary
-  HostedZone:
-    Type: AWS::Route53::HostedZone
-    Condition: HasDomainName
-    Properties:
-      HostedZoneConfig:
-        Comment: !Sub ${DomainName} Public DNS zone
-      Name: !Ref DomainName
-      HostedZoneTags:
-        - Key: Name
-          Value: !Sub sb-${Environment}-hostedzone
-  SSMParamDomainName:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/DOMAIN_NAME
-      Type: String
-      Value: !If [HasDomainName, !Ref DomainName, 'N/A']
-  SSMParamHostedZone:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/HOSTED_ZONE
-      Type: String
-      Value: !If [HasDomainName, !Ref HostedZone, 'N/A']
-  SSMParamSSLCertificate:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SSL_CERTIFICATE
-      Type: String
-      Value: !If [HasSslCert, !Ref SSLCertificate, 'N/A']
-  # VPC and Transit Gateway for egress from Tenant VPCs for SaaS Boost
+  # VPC and Transit Gateway for egress from Tenant VPCs
   TransitGateway:
     Type: AWS::EC2::TransitGateway
     Properties:
@@ -146,11 +106,17 @@ Resources:
     DependsOn: AttachIGW
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub sb-${Environment}-egress-nat-ip1
   IPAddress2:
    Type: AWS::EC2::EIP
    DependsOn: AttachIGW
    Properties:
      Domain: vpc
+     Tags:
+      - Key: Name
+        Value: !Sub sb-${Environment}-egress-nat-ip2
   NATGateway1:
     Type: AWS::EC2::NatGateway
     Properties:

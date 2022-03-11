@@ -42,6 +42,9 @@ Parameters:
   PrivateApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
+  ResourcesBucket:
+    Description: S3 bucket containing tenant custom config files (zip archive)
+    Type: String
 Resources:
   OnboardingTable:
     Type: AWS::DynamoDB::Table
@@ -87,6 +90,65 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub sb-${Environment}-onboarding-validation-dlq
+  OnboardingTenantConfigQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-tenant-config
+      VisibilityTimeout: 90
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OnboardingTenantConfigDLQ.Arn
+        maxReceiveCount: 10
+  OnboardingTenantConfigDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-tenant-config-dlq
+  OnboardingTenantConfigQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref OnboardingTenantConfigQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Resource: !GetAtt OnboardingTenantConfigQueue.Arn
+            Action:
+              - SQS:SendMessage
+  OnboardingTenantConfigEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-onboarding-tenant-config
+      Description: SaaS Boost onboarding tenant config bucket events
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created"
+          ],
+          "detail": {
+            "reason": [
+              "PutObject"
+            ],
+            "bucket": {
+              "name": [
+                "${ResourcesBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "00temp"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt OnboardingTenantConfigQueue.Arn
+          Id: !Sub sb-${Environment}-onboarding-tenant-config
   PopulateDynamoDBExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -186,6 +248,7 @@ Resources:
               - s3:ListBucket
             Resource:
               - !Sub arn:aws:s3:::${SaaSBoostBucket}
+              - !Sub arn:aws:s3:::${ResourcesBucket}
           - Effect: Allow
             Action:
               - s3:Get*
@@ -193,6 +256,7 @@ Resources:
               - s3:DeleteObject
             Resource:
               - !Sub arn:aws:s3:::${SaaSBoostBucket}/*
+              - !Sub arn:aws:s3:::${ResourcesBucket}/*
           - Effect: Allow
             Action:
               - events:PutEvents
@@ -216,6 +280,13 @@ Resources:
               - sqs:ChangeMessageVisibility
             Resource:
               - !GetAtt OnboardingValidationQueue.Arn
+              - !GetAtt OnboardingTenantConfigQueue.Arn
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+            Resource:
+              - !GetAtt OnboardingValidationDLQ.Arn
+              - !GetAtt OnboardingTenantConfigDLQ.Arn
           - Effect: Allow
             Action:
               - sts:AssumeRole
@@ -235,14 +306,14 @@ Resources:
               - arn:aws:apigateway:*::/restapis/*/resources
           - Effect: Allow
             Action:
-              - lambda:Get*
-              - lambda:CreateFunction
+              #- lambda:Get*
+              #- lambda:CreateFunction
               - lambda:InvokeFunction
-              - lambda:UpdateFunctionCode
+              #- lambda:UpdateFunctionCode
               - lambda:AddPermission
               - lambda:RemovePermission
             Resource:
-              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+              #- !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
   OnboardingServiceTenantProvisionPolicy:
@@ -991,6 +1062,7 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          RESOURCES_BUCKET: !Ref ResourcesBucket
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -1094,6 +1166,8 @@ Resources:
           ONBOARDING_APP_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS}}'
           ONBOARDING_VALIDATION_QUEUE: !Ref OnboardingValidationQueue
           ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -1145,6 +1219,54 @@ Resources:
       Enabled: true
       EventSourceArn: !GetAtt OnboardingValidationQueue.Arn
       FunctionName: !GetAtt OnboardingServiceValidation.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+  OnboardingTenantConfigLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-tenant-config-event
+      RetentionInDays: 30
+  OnboardingTenantConfig:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-tenant-config-event
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 89 # Must be less than the VisibilityTimeout setting on the queue
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::processTenantConfigQueue
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
+          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+  OnboardingTenantConfigEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      Enabled: true
+      EventSourceArn: !GetAtt OnboardingTenantConfigQueue.Arn
+      FunctionName: !GetAtt OnboardingTenantConfig.Arn
       FunctionResponseTypes:
         - ReportBatchItemFailures
   OnboardingServiceEventRule:

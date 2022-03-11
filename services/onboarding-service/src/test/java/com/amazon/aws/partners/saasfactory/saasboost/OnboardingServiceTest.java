@@ -16,6 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazonaws.services.lambda.runtime.events.SQSEvent;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -34,7 +35,7 @@ public class OnboardingServiceTest {
         String prefix = cidr.substring(0, cidr.indexOf(".", cidr.indexOf(".") + 1));
         assertTrue("10.255".equals(prefix));
     }
-//
+
 //    @Test
 //    public void testBatchIteration() {
 //        final int maxBatchSize = 50;
