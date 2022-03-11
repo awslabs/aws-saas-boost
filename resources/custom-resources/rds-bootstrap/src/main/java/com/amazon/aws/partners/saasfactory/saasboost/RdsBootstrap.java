@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,42 +13,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.ssm.SsmClient;
 
-import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(RdsBootstrap.class);
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
-    private S3Client s3;
-    private SsmClient ssm;
+    private static final Logger LOGGER = LoggerFactory.getLogger(RdsBootstrap.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private final S3Client s3;
+    private final SsmClient ssm;
 
-    public RdsBootstrap() throws URISyntaxException {
-        long startTimeMillis = System.currentTimeMillis();
+    public RdsBootstrap() {
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
+        this.ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME);
     }
 
     @Override
@@ -66,22 +62,24 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         final String bootstrapFileKey = (String) resourceProperties.get("BootstrapFileKey");
         final String driverClassName = driverClassNameFromPort(port);
         final String type = typeFromPort(port);
-        final boolean createAndBootstrap = (bootstrapFileBucket != null && !bootstrapFileBucket.isBlank()
-                && bootstrapFileKey != null && !bootstrapFileKey.isBlank());
+        final boolean createAndBootstrap = Utils.isNotBlank(bootstrapFileBucket) && Utils.isNotBlank(bootstrapFileKey);
 
         ExecutorService service = Executors.newSingleThreadExecutor();
-        ObjectNode responseData = JsonNodeFactory.instance.objectNode();
+        Map<String, Object> responseData = new HashMap<>();
         try {
             Runnable r = () -> {
                 if ("Create".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE");
 
                     LOGGER.info("Getting database password secret from Parameter Store");
-                    String password = null;
+                    String password;
                     try {
-                        password = ssm.getParameter(request -> request.withDecryption(true).name(passwordParam)).parameter().value();
+                        password = ssm.getParameter(request -> request
+                                .withDecryption(true)
+                                .name(passwordParam)
+                        ).parameter().value();
                     } catch (SdkServiceException ssmError) {
-                        LOGGER.error("ssm:GetParameter error", ssmError.getMessage());
+                        LOGGER.error("ssm:GetParameter error", ssmError);
                         throw ssmError;
                     }
                     if (password == null) {
@@ -99,11 +97,11 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                         dbCheck = "master";
                     }
 
-                    // Create the database if it doesn't exist - this is helpful
-                    // for SQL Server because RDS/CloudFormation won't create a
-                    // database when you bring up an instance.
+                    // Create the database if it doesn't exist - this is helpful for SQL Server because
+                    // RDS/CloudFormation won't create a database when you bring up an instance.
                     LOGGER.info("Checking if database {} exists", database);
-                    try (Connection dbCheckConn = DriverManager.getConnection(jdbcUrl(type, driverClassName, host, port, dbCheck), username, password)) {
+                    try (Connection dbCheckConn = DriverManager.getConnection(
+                            jdbcUrl(type, driverClassName, host, port, dbCheck), username, password)) {
                         String engine = dbCheckConn.getMetaData().getDatabaseProductName().toLowerCase();
                         if (!databaseExists(dbCheckConn, engine, database)) {
                             createdb(dbCheckConn, engine, database);
@@ -111,61 +109,59 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                             LOGGER.info("Database {} exists", database);
                         }
                     } catch (SQLException e) {
-                        LOGGER.error("Can't connect to database host", e.getMessage());
+                        LOGGER.error("Can't connect to database host", e);
                         throw new RuntimeException(e);
                     }
 
                     if (createAndBootstrap) {
                         LOGGER.info("Getting SQL file from S3 s3://{}/{}", bootstrapFileBucket, bootstrapFileKey);
-                        InputStream bootstrapSQL = null;
                         try {
-                            ResponseBytes<GetObjectResponse> responseBytes = s3.getObjectAsBytes(request -> request
+                            ResponseInputStream<GetObjectResponse> bootstrapSql = s3.getObject(request -> request
                                     .bucket(bootstrapFileBucket)
                                     .key(bootstrapFileKey)
                             );
-                            bootstrapSQL = responseBytes.asInputStream();
-                        } catch (SdkServiceException s3Error) {
-                            LOGGER.error("s3:GetObject error", s3Error.getMessage());
-                            throw s3Error;
-                        }
-                        // We have a database. Execute the SQL commands in the bootstrap file stored in S3.
-                        LOGGER.info("Executing bootstrap SQL");
-                        try (Connection conn = DriverManager.getConnection(jdbcUrl(type, driverClassName, host, port, database), username, password);
-                             Statement sql = conn.createStatement()) {
-                            conn.setAutoCommit(false);
-                            Scanner sqlScanner = new Scanner(bootstrapSQL, "UTF-8");
-                            sqlScanner.useDelimiter(";");
-                            int batch = 0;
-                            while (sqlScanner.hasNext()) {
-                                String ddl = sqlScanner.next().trim();
-                                if (!ddl.isEmpty()) {
-                                    //LOGGER.info(String.format("%02d %s", ++batch, ddl));
-                                    sql.addBatch(ddl);
+                            // We have a database. Execute the SQL commands in the bootstrap file stored in S3.
+                            LOGGER.info("Executing bootstrap SQL");
+                            try (Connection conn = DriverManager.getConnection(
+                                    jdbcUrl(type, driverClassName, host, port, database), username, password);
+                                    Statement sql = conn.createStatement()) {
+                                conn.setAutoCommit(false);
+                                Scanner sqlScanner = new Scanner(bootstrapSql, StandardCharsets.UTF_8);
+                                sqlScanner.useDelimiter(";");
+                                while (sqlScanner.hasNext()) {
+                                    String ddl = sqlScanner.next().trim();
+                                    if (!ddl.isEmpty()) {
+                                        //LOGGER.info(String.format("%02d %s", ++batch, ddl));
+                                        sql.addBatch(ddl);
+                                    }
                                 }
-                            }
-                            sql.executeBatch();
-                            conn.commit();
+                                sql.executeBatch();
+                                conn.commit();
 
-                            LOGGER.info("Finished initializing database");
-                            sendResponse(event, context, "SUCCESS", responseData);
-                        } catch (SQLException e) {
-                            LOGGER.error("Error executing bootstrap SQL", e.getMessage());
-                            throw new RuntimeException(e);
+                                LOGGER.info("Finished initializing database");
+                                CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                            } catch (SQLException e) {
+                                LOGGER.error("Error executing bootstrap SQL", e);
+                                throw new RuntimeException(e);
+                            }
+                        } catch (SdkServiceException s3Error) {
+                            LOGGER.error("s3:GetObject error", s3Error);
+                            throw s3Error;
                         }
                     } else {
                         // We were just creating a database and there isn't a SQL file to execute
-                        sendResponse(event, context, "SUCCESS", responseData);
+                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                     }
                 } else if ("Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("UPDATE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else {
                     LOGGER.error("FAILED unknown requestType " + requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
-                    sendResponse(event, context, "FAILED", responseData);
+                    CloudFormationResponse.send(event, context, "FAILED", responseData);
                 }
             };
             Future<?> f = service.submit(r);
@@ -175,72 +171,22 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
             LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             responseData.put("Reason", e.getMessage());
-            sendResponse(event, context, "FAILED", responseData);
+            CloudFormationResponse.send(event, context, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
         return null;
     }
 
-    /**
-     * Send a response to CloudFormation regarding progress in creating resource.
-     *
-     * @param event
-     * @param context
-     * @param responseStatus
-     * @param responseData
-     * @return
-     */
-    public final Object sendResponse(final Map<String, Object> event, final Context context, final String responseStatus, ObjectNode responseData) {
-        String responseUrl = (String) event.get("ResponseURL");
-        LOGGER.info("ResponseURL: " + responseUrl + "\n");
-
-        URL url;
-        try {
-            url = new URL(responseUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "");
-            connection.setRequestMethod("PUT");
-
-            ObjectNode responseBody = JsonNodeFactory.instance.objectNode();
-            responseBody.put("Status", responseStatus);
-            responseBody.put("RequestId", (String) event.get("RequestId"));
-            responseBody.put("LogicalResourceId", (String) event.get("LogicalResourceId"));
-            responseBody.put("StackId", (String) event.get("StackId"));
-            responseBody.put("PhysicalResourceId", (String) event.get("LogicalResourceId"));
-            if (!"FAILED".equals(responseStatus)) {
-                responseBody.set("Data", responseData);
-            } else {
-                responseBody.put("Reason", responseData.get("Reason").asText());
-            }
-            LOGGER.info("Response Body: " + responseBody.toString());
-
-            try (OutputStreamWriter response = new OutputStreamWriter(connection.getOutputStream())) {
-                response.write(responseBody.toString());
-            } catch (IOException ioe) {
-                LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(Utils.getFullStackTrace(ioe));
-            }
-
-            LOGGER.info("Response Code: " + connection.getResponseCode());
-            connection.disconnect();
-        } catch (IOException e) {
-            LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(Utils.getFullStackTrace(e));
-        }
-
-        return null;
-    }
-
     private static boolean databaseExists(Connection conn, String engine, String database) throws SQLException {
         boolean databaseExists = false;
-        ResultSet rs = null;
-        if (engine.equals("postgresql")) {
+        ResultSet rs;
+        if ("postgresql".equals(engine)) {
             // Postgres doesn't support multiple databases (catalogs) per connection, so we can't use the JDBC
             // metadata to get a list of all the databases on the host like you can with MySQL/MariaDB
-            Statement sql = conn.createStatement();
-            rs = sql.executeQuery("SELECT datname AS TABLE_CAT FROM pg_database WHERE datistemplate = false");
+            try (Statement sql = conn.createStatement()) {
+                rs = sql.executeQuery("SELECT datname AS TABLE_CAT FROM pg_database WHERE datistemplate = false");
+            }
         } else {
             DatabaseMetaData dbMetaData = conn.getMetaData();
             rs = dbMetaData.getCatalogs();
@@ -252,26 +198,28 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                 break;
             }
         }
+        rs.close();
         return databaseExists;
     }
 
     public static void createdb(Connection conn, String engine, String database) throws SQLException {
         LOGGER.info("Creating {} database", engine);
         try (Statement create = conn.createStatement()) {
-            if (engine.indexOf("postgresql") != -1) {
+            if (engine.contains("postgresql")) {
                 // Postgres has no real way of doing CREATE DATABASE IF NOT EXISTS...
                 create.executeUpdate("CREATE DATABASE " + database);
-            } else if (engine.indexOf("microsoft") != -1) {
-                create.executeUpdate("IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '" + database + "')\n" +
-                        "BEGIN\n" +
-                        "CREATE DATABASE " + database + "\n" +
-                        "END"
+            } else if (engine.contains("microsoft")) {
+                create.executeUpdate("IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '" + database + "')\n"
+                        + "BEGIN\n"
+                        + "CREATE DATABASE " + database + "\n"
+                        + "END"
                 );
-            } else if (engine.indexOf("mysql") != -1 || engine.indexOf("mariadb") != -1) {
+            } else if (engine.contains("mysql") || engine.contains("mariadb")) {
                 create.executeUpdate("CREATE DATABASE IF NOT EXISTS " + database);
             }
         } catch (SQLException e) {
             LOGGER.error("Error creating database", e);
+            LOGGER.error(Utils.getFullStackTrace(e));
             throw e;
         }
     }
@@ -287,7 +235,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         url.append(host);
         url.append(":");
         url.append(port);
-        if (database != null && !database.isEmpty()) {
+        if (Utils.isNotBlank(database)) {
             if (!"com.microsoft.sqlserver.jdbc.SQLServerDriver".equals(driverClassName)) {
                 url.append("/");
             } else {
@@ -300,7 +248,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
     }
 
     private static String typeFromPort(String port) {
-        String type = null;
+        String type;
         switch (port) {
             case "5432":
                 type = "postgresql";
@@ -314,12 +262,14 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
             case "1521":
                 type = "oracle:thin"; // Probably realistic to not support the OCI driver...
                 break;
+            default:
+                type = null;
         }
         return type;
     }
 
     private static String driverClassNameFromPort(String port) {
-        String driverClassName = null;
+        String driverClassName;
         switch (port) {
             case "5432":
                 driverClassName = "org.postgresql.Driver";
@@ -333,6 +283,8 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
             case "1521":
                 driverClassName = "oracle.jdbc.driver.OracleDriver";
                 break;
+            default:
+                driverClassName = null;
         }
         return driverClassName;
     }

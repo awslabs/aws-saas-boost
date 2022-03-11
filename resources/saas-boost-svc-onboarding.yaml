@@ -565,34 +565,31 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
-              - rds:DescribeDBClusters
-            Resource:
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-          - Effect: Allow
-            Action:
-              - rds:CreateDBCluster
               - rds:AddTagsToResource
               - rds:RemoveTagsFromResource
+              - rds:CreateDBInstance
+              - rds:CreateDBCluster
             Resource:
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:sb-${Environment}-*tenant*
+          - Effect: Allow
+            Action:
+              - rds:DescribeDBClusters
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
           - Effect: Allow
             Action:
               - rds:DescribeDBSubnetGroups
               - rds:CreateDBSubnetGroup
             Resource:
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
           - Effect: Allow
             Action:
               - rds:DescribeDBInstances
-              - rds:CreateDBInstance
-              - rds:AddTagsToResource
             Resource:
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:secgrp:*
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:sb-${Environment}-*tenant*
           - Effect: Allow
             Action:
               - iam:GetRole
@@ -601,7 +598,7 @@ Resources:
               - iam:PutRolePolicy
               - iam:PassRole
             Resource:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-*tenant*
               - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
   OnboardingServiceStorageProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy

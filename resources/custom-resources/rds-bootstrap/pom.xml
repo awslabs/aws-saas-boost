@@ -32,7 +32,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>15</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -93,6 +93,13 @@ limitations under the License.
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>url-connection-client</artifactId>
             <version>${aws.java.sdk.version}</version>
@@ -135,7 +142,7 @@ limitations under the License.
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>2.6.0</version>
+            <version>2.7.5</version>
         </dependency>
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>

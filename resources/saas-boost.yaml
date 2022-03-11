@@ -843,6 +843,18 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/ADMIN_WEBSITE_BUCKET
       Type: String
       Value: !Ref AdminWeb
+  SSMParamLambdaUtilsLayer:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/UTILS_LAYER
+      Type: String
+      Value: !Ref SaaSBoostUtilsLayer
+  SSMParamLambdaCloudFormationUtilsLayer:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/CFN_UTILS_LAYER
+      Type: String
+      Value: !Ref SaaSBoostUtilsLayer
 Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources

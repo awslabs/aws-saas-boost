@@ -826,8 +826,8 @@ public class OnboardingService {
                         String dbEngine = "";
                         String dbVersion = "";
                         String dbFamily = "";
-                        String dbMasterUsername = "";
-                        String dbMasterPasswordRef = "";
+                        String dbUsername = "";
+                        String dbPasswordRef = "";
                         Integer dbPort = -1;
                         String dbDatabase = "";
                         String dbBootstrap = "";
@@ -838,12 +838,10 @@ public class OnboardingService {
                             dbVersion = (String) database.get("version");
                             dbFamily = (String) database.get("family");
                             dbInstanceClass = (String) database.get("instanceClass");
-                            dbMasterUsername = (String) database.get("username");
+                            dbUsername = (String) database.get("username");
                             dbPort = (Integer) database.get("port");
-                            dbDatabase = (String) database.get("database");
                             // TODO fix this dbBootstrap = (String) database.get("DB_BOOTSTRAP_FILE");
-                            //dbMasterPasswordRef = (String) database.get("password");
-                            dbMasterPasswordRef = "/saas-boost/" + SAAS_BOOST_ENV + "/DB_MASTER_PASSWORD";
+                            dbPasswordRef = (String) database.get("passwordParam");
                         }
 
                         List<Parameter> templateParameters = new ArrayList<>();
@@ -895,8 +893,8 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSEngine").parameterValue(dbEngine).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSEngineVersion").parameterValue(dbVersion).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSParameterGroupFamily").parameterValue(dbFamily).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSMasterUsername").parameterValue(dbMasterUsername).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSMasterPasswordParam").parameterValue(dbMasterPasswordRef).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSUsername").parameterValue(dbUsername).build());
+                        templateParameters.add(Parameter.builder().parameterKey("RDSPasswordParam").parameterValue(dbPasswordRef).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());

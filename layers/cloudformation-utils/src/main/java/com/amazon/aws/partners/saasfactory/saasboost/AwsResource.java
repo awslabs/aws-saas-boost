@@ -11,7 +11,7 @@ public enum AwsResource {
             "",
             "AWS::RDS::DBCluster", false),
     RDS_INSTANCE("https://%s.console.aws.amazon.com/rds/home?region=%s#dbinstance:id=%s",
-            "",
+            "arn:%s:rds:%s:%s:db:%s",
             "AWS::RDS::DBInstance", true),
     ECS_CLUSTER("https://%s.console.aws.amazon.com/ecs/home#/clusters/%s",
             "arn:%s:ecs:%s:%s:cluster/%s",

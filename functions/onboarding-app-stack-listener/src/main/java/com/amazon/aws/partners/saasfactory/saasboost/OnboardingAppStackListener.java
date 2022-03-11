@@ -36,7 +36,6 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String UPDATE_TENANT_RESOURCES = "TENANT_RESOURCES_CHANGE";
     private static final String EVENT_SOURCE = "saas-boost";
     private static final Pattern STACK_NAME_PATTERN = Pattern
             .compile("^sb-" + SAAS_BOOST_ENV + "-tenant-[a-z0-9]{8}-app-.+-.+$");
@@ -60,7 +59,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
 
     @Override
     public Object handleRequest(SNSEvent event, Context context) {
-        LOGGER.info(Utils.toJson(event));
+        //LOGGER.info(Utils.toJson(event));
 
         List<SNSEvent.SNSRecord> records = event.getRecords();
         for (SNSEvent.SNSRecord record : records) {
@@ -107,6 +106,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                     final String partition = lambdaArn[1];
                     final String accountId = lambdaArn[4];
 
+                    Map<String, Object> tenantResources = new HashMap<>();
                     // We're looking for CodePipeline repository resources in a CREATE_COMPLETE state. There could be
                     // multiple pipelines provisioned depending on how the application services are configured.
                     try {
@@ -114,6 +114,7 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                 .stackName(cloudFormationEvent.getStackId())
                         );
                         for (StackResourceSummary resource : resources.stackResourceSummaries()) {
+                            LOGGER.info("Processing {} {}", resource.resourceStatusAsString(), resource.resourceType());
                             if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())) {
                                 if ("AWS::CodePipeline::Pipeline".equals(resource.resourceType())) {
                                     String codePipeline = resource.physicalResourceId();
@@ -125,20 +126,12 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                     LOGGER.info("Publishing update tenant resources event for tenant {} {} {}", tenantId,
                                             key, codePipeline);
 
-                                    Map<String, Object> tenantResource = new HashMap<>();
-                                    tenantResource.put(key, Map.of(
+                                    tenantResources.put(key, Map.of(
                                             "name", codePipeline,
                                             "arn", AwsResource.CODE_PIPELINE.formatArn(partition, AWS_REGION, accountId,
                                                     codePipeline),
                                             "consoleUrl", AwsResource.CODE_PIPELINE.formatUrl(AWS_REGION, codePipeline)
                                     ));
-
-                                    // The update tenant resources API call is additive, so we don't need to pull the
-                                    // current tenant object ourselves.
-                                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                                            "Tenant Resources Changed",
-                                            Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResource))
-                                    );
 
                                     // Link this pipeline to the stack that created it in Onboarding so we can keep
                                     // track of when all pipeline executions for an onboarding request
@@ -149,11 +142,48 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                                                     "stackName", stackName,
                                                     "pipeline", codePipeline)
                                     );
+                                } else if ("AWS::CloudFormation::Stack".equals(resource.resourceType())
+                                        && "rds".equals(resource.logicalResourceId())) {
+                                    // RDS nested stack
+                                    ListStackResourcesResponse rdsResources = cfn.listStackResources(req -> req
+                                            .stackName(resource.physicalResourceId())
+                                    );
+                                    for (StackResourceSummary rdsResource : rdsResources.stackResourceSummaries()) {
+                                        if ("CREATE_COMPLETE".equals(rdsResource.resourceStatusAsString())) {
+                                            if ("AWS::RDS::DBInstance".equals(rdsResource.resourceType())) {
+                                                String dbInstanceKey = serviceNameResourceKey(serviceName, "DB_HOST");
+                                                String dbInstance = rdsResource.physicalResourceId();
+                                                tenantResources.put(dbInstanceKey, Map.of(
+                                                        "name", dbInstance,
+                                                        "arn", AwsResource.RDS_INSTANCE.formatArn(partition, AWS_REGION, accountId, dbInstance),
+                                                        "consoleUrl", AwsResource.RDS_INSTANCE.formatUrl(AWS_REGION, dbInstance)
+                                                ));
+                                                LOGGER.info("Publishing update tenant resources event for tenant {} {} {}", tenantId,
+                                                        dbInstanceKey, dbInstance);
+                                            } else if ("AWS::RDS::DBCluster".equals(rdsResource.resourceType())) {
+                                                String dbClusterKey = serviceNameResourceKey(serviceName, "DB_HOST");
+                                                String dbCluster = rdsResource.physicalResourceId();
+                                                tenantResources.put(dbClusterKey, Map.of(
+                                                        "name", dbCluster,
+                                                        "arn", AwsResource.RDS_CLUSTER.formatArn(partition, AWS_REGION, accountId, dbCluster),
+                                                        "consoleUrl", AwsResource.RDS_CLUSTER.formatUrl(AWS_REGION, dbCluster)
+                                                ));
+                                                LOGGER.info("Publishing update tenant resources event for tenant {} {} {}", tenantId,
+                                                        dbClusterKey, dbCluster);
+                                            }
+                                        }
+                                    }
                                 }
-                                //                        } else if ("AWS::CloudFormation::Stack".equals(resourceType) && "rds".equals(logicalId)) {
-                                //                            //this is the rds sub-stack so get the cluster and instance ids
-                                //                            getRdsResources(physicalResourceId, tenantResources);
                             }
+                        }
+
+                        if (!tenantResources.isEmpty()) {
+                            // The update tenant resources API call is additive, so we don't need to pull the
+                            // current tenant object ourselves.
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                    "Tenant Resources Changed",
+                                    Map.of("tenantId", tenantId, "resources", Utils.toJson(tenantResources))
+                            );
                         }
                     } catch (SdkServiceException cfnError) {
                         LOGGER.error("cfn:ListStackResources error", cfnError);
@@ -166,17 +196,6 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                         "Onboarding Stack Status Changed",
                         Map.of("tenantId", tenantId, "stackId", stackId, "stackStatus", stackStatus));
-
-//                // Persist the tenant specific things as tenant settings
-//                if (dbHost != null) {
-//                    LOGGER.info("Saving tenant database host setting");
-//                    Map<String, Object> systemApiRequest = new HashMap<>();
-//                    systemApiRequest.put("resource", "settings/tenant/" + tenantId + "/DB_HOST");
-//                    systemApiRequest.put("method", "PUT");
-//                    systemApiRequest.put("body", "{\"name\":\"DB_HOST\", \"value\":\"" + dbHost + "\"}");
-//                    publishEvent(systemApiRequest, SYSTEM_API_CALL);
-//                }
-
             }
         }
         return null;
@@ -201,41 +220,4 @@ public class OnboardingAppStackListener implements RequestHandler<SNSEvent, Obje
                 && EVENTS_OF_INTEREST.contains(cloudFormationEvent.getResourceStatus()));
     }
 
-//                LOGGER.info("Stack Outputs:");
-//                for (Output output : stack.outputs()) {
-//                    LOGGER.info("{} => {}", output.outputKey(), output.outputValue());
-//                    if ("RdsEndpoint".equals(output.outputKey())) {
-//                        if (Utils.isNotBlank(output.outputValue())) {
-//                            dbHost = output.outputValue();
-//                        }
-//                    }
-//                    if ("BillingPlan".equals(output.outputKey())) {
-//                        if (Utils.isNotBlank(output.outputValue())) {
-//                            billingPlan = output.outputValue();
-//                        }
-//                    }
-//                }
-
-//    private void getRdsResources(String stackId, Map<String, String> consoleResources) {
-//        try {
-//            ListStackResourcesResponse resources = cfn.listStackResources(request -> request.stackName(stackId));
-//            for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-//                String resourceType = resource.resourceType();
-//                String physicalResourceId = resource.physicalResourceId();
-//                AwsResource url = null;
-//                if (resourceType.equalsIgnoreCase(AwsResource.RDS_INSTANCE.getResourceType())) {
-//                    url = AwsResource.RDS_INSTANCE;
-//                } else if (resourceType.equalsIgnoreCase(AwsResource.RDS_CLUSTER.getResourceType())) {
-//                    url = AwsResource.RDS_CLUSTER;
-//                }
-//                if (url != null) {
-//                    consoleResources.put(url.name(), url.formatUrl(AWS_REGION, physicalResourceId));
-//                }
-//            }
-//        } catch (SdkServiceException cfnError) {
-//            LOGGER.error("cfn:ListStackResources error", cfnError);
-//            LOGGER.error(Utils.getFullStackTrace(cfnError));
-//            throw cfnError;
-//        }
-//    }
 }

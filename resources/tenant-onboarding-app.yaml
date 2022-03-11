@@ -145,10 +145,10 @@ Parameters:
   RDSParameterGroupFamily:
     Description: The database parameter group family supporting the engine and engine version. Only used for Aurora clusters.
     Type: String
-  RDSMasterUsername:
+  RDSUsername:
     Description: The master username for the database
     Type: String
-  RDSMasterPasswordParam:
+  RDSPasswordParam:
     Description: The Parameter Store secure string parameter and version containing the master database password
     Type: String
   RDSPort:
@@ -436,7 +436,7 @@ Resources:
                 - Name: DB_NAME
                   Value: !Ref RDSDatabase
                 - Name: DB_USER
-                  Value: !Ref RDSMasterUsername
+                  Value: !Ref RDSUsername
               - - Name: AWS_REGION
                   Value: !Ref AWS::Region
                 - Name: SAAS_BOOST_ENV
@@ -471,7 +471,7 @@ Resources:
             Fn::If:
               - ProvisionRDS
               - - Name: DB_PASSWORD
-                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
       Volumes:
         !If
@@ -987,8 +987,6 @@ Resources:
   fsx:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFsx
-    #Metadata:
-    #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
       Parameters:
@@ -1009,8 +1007,6 @@ Resources:
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
-    #Metadata:
-    #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-efs.yaml'
       Parameters:
@@ -1024,14 +1020,11 @@ Resources:
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
-    #Metadata:
-    #  ForceUpdate: !Ref LambdaSourceFolder
     Properties:
       TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-rds.yaml'
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
-        #LambdaSourceFolder: !Ref LambdaSourceFolder
         TenantId: !Ref TenantId
         VPC: !Ref VPC
         PrivateSubnetA: !Ref SubnetPrivateA
@@ -1041,8 +1034,8 @@ Resources:
         RDSEngine: !Ref RDSEngine
         RDSEngineVersion: !Ref RDSEngineVersion
         RDSParameterGroupFamily: !Ref RDSParameterGroupFamily
-        RDSMasterUsername: !Ref RDSMasterUsername
-        RDSMasterPasswordParam: !Ref RDSMasterPasswordParam
+        RDSUsername: !Ref RDSUsername
+        RDSPasswordParam: !Ref RDSPasswordParam
         RDSPort: !Ref RDSPort
         RDSDatabase: !Ref RDSDatabase
         RDSBootstrap: !Ref RDSBootstrap
