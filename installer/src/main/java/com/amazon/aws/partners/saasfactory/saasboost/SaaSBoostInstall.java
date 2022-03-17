@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
@@ -284,7 +285,7 @@ public class SaaSBoostInstall {
 
         System.out.println("If your application runs on Windows and uses a shared file system, Active Directory is required.");
         System.out.print("Would you like to provision AWS Directory Service to use with FSx for Windows File Server (y or n)? ");
-        boolean setupActiveDirectory = Keyboard.readBoolean();
+        final boolean setupActiveDirectory = Keyboard.readBoolean();
 
         System.out.println();
         outputMessage("===========================================================");
@@ -373,7 +374,7 @@ public class SaaSBoostInstall {
         // project and have CloudFormation own building/copying the web files to S3.
         // Wait for completion and then build web app
         outputMessage("Build website and upload to S3");
-        String webUrl = buildAndCopyWebApp();
+        final String webUrl = buildAndCopyWebApp();
 
         if (useAnalyticsModule) {
             LOGGER.info("Install metrics and analytics module");
@@ -391,8 +392,9 @@ public class SaaSBoostInstall {
     protected void updateSaaSBoost() {
         LOGGER.info("Perform Update of AWS SaaS Boost deployment");
         outputMessage("******* W A R N I N G *******");
-        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test an updated install in a non-production environment\n" +
-                "before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
+        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test an "
+                + "updated install in a non-production environment\n"
+                + "before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
         System.out.print("Enter y to continue with UPDATE of " + stackName + " or n to CANCEL: ");
         boolean continueUpgrade = Keyboard.readBoolean();
         if (!continueUpgrade) {
@@ -409,7 +411,7 @@ public class SaaSBoostInstall {
         // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
         // different S3 folder as a way to force CloudFormation to update the function resources. After we copy the
         // function code up to S3 in the new folder, we can delete the existing one to save space/money on S3.
-        String existingLambdaSourceFolder = this.lambdaSourceFolder;
+        final String existingLambdaSourceFolder = this.lambdaSourceFolder;
 
         // Now create a new S3 folder for the Lambda functions so that CloudFormation sees a change that will
         // trigger an update function call to the Lambda service.
@@ -1019,7 +1021,7 @@ public class SaaSBoostInstall {
          */
         LOGGER.info("User for QuickSight: " + this.quickSightUsername);
         LOGGER.info("Create data source in QuickSight for metrics Redshift table in Region: " + AWS_REGION.id());
-        CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
+        final CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
                 .dataSourceId("sb-" + this.envName + "-metrics-source")
                 .name("sb-" + this.envName + "-metrics-source")
                 .awsAccountId(accountId)
@@ -1269,14 +1271,6 @@ public class SaaSBoostInstall {
         }
         return valid;
     }
-
-//    protected static boolean validateDomain(String domainName) {
-//        boolean valid = false;
-//        if (domainName != null) {
-//            valid = domainName.matches("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$");
-//        }
-//        return valid;
-//    }
 
     protected SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket() {
         LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
@@ -1685,7 +1679,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected boolean checkCloudFormationStack (final String stackName) {
+    protected boolean checkCloudFormationStack(final String stackName) {
         LOGGER.info("checkCloudFormationStack stack " + stackName);
         boolean exists = false;
         try {
@@ -2077,7 +2071,7 @@ public class SaaSBoostInstall {
      * Generate a random password that matches the password policy of the Cognito user pool
      * @return a random password that matches the password policy of the Cognito user pool
      */
-    public static String generatePassword (int passwordLength) {
+    public static String generatePassword(int passwordLength) {
         if (passwordLength < 8) {
             throw new IllegalArgumentException("Invalid password length. Minimum of 8 characters is required.");
         }
