@@ -147,7 +147,11 @@ public class SaaSBoostInstall {
     public static void main(String[] args) {
         SaaSBoostInstall installer = new SaaSBoostInstall();
         try {
-            installer.start();
+            String existingBucket = null;
+            if (args.length > 0) {
+                existingBucket = args[0];
+            }
+            installer.start(existingBucket);
         } catch (Exception e) {
             outputMessage("===========================================================");
             outputMessage("Installation Error: " + e.getLocalizedMessage());
@@ -161,7 +165,7 @@ public class SaaSBoostInstall {
 //        processLambdas();
     }
 
-    public void start() {
+    public void start(String existingBucket) {
         outputMessage("===========================================================");
         outputMessage("Welcome to the AWS SaaS Boost Installer");
         outputMessage("Installer Version: " + VERSION);
@@ -197,7 +201,7 @@ public class SaaSBoostInstall {
 
         switch (installOption) {
             case INSTALL:
-                installSaaSBoost();
+                installSaaSBoost(existingBucket);
                 break;
             case UPDATE:
                 updateSaaSBoost();
@@ -226,7 +230,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void installSaaSBoost() {
+    protected void installSaaSBoost(String existingBucket) {
         LOGGER.info("Performing new installation of AWS SaaS Boost");
 
         // Check if yarn.lock exists in the client/web folder
@@ -314,18 +318,29 @@ public class SaaSBoostInstall {
         outputMessage("Checking for necessary AWS service linked roles");
         setupAwsServiceRoles();
 
-        // Create the S3 artifacts bucket
-        outputMessage("Creating S3 artifacts bucket");
-        saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
-        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
+        if (existingBucket == null) {
+            // Create the S3 artifacts bucket
+            outputMessage("Creating S3 artifacts bucket");
+            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+            outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
-        // Copy the CloudFormation templates
-        outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-        copyTemplateFilesToS3();
+            // Copy the CloudFormation templates
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyTemplateFilesToS3();
 
-        // Compile all the source code
-        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
-        processLambdas();
+            // Compile all the source code
+            outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+            processLambdas();
+        } else {
+            outputMessage("Reusing existing artifacts bucket " + existingBucket);
+            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            try {
+                s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
+            } catch (SdkServiceException s3error) {
+                outputMessage("Bucket " + existingBucket + " does not exist!");
+                throw s3error;
+            }
+        }
 
         final String activeDirectoryPasswordParameterName = "/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD";
         if (setupActiveDirectory) {
@@ -1406,6 +1421,7 @@ public class SaaSBoostInstall {
             // package to S3 below. Build utils before anything else.
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "cloudformation-utils")));
 
             DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
             functions.forEach(sourceDirectories::add);
@@ -1459,13 +1475,14 @@ public class SaaSBoostInstall {
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                            .stackName(stackName)
-                            //.onFailure("DO_NOTHING") // TODO bug on roll back?
-                            //.timeoutInMinutes(90)
-                            .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
-                            .parameters(templateParameters)
-                            .build()
+                    .stackName(stackName)
+                    .disableRollback(true)
+                    //.onFailure("DO_NOTHING") // TODO bug on roll back?
+                    //.timeoutInMinutes(90)
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
+                    .parameters(templateParameters)
+                    .build()
             );
             stackId = cfnResponse.stackId();
             LOGGER.info("createSaaSBoostStack::stack id " + stackId);
@@ -1779,6 +1796,7 @@ public class SaaSBoostInstall {
 
         // Sync files to the web bucket
         outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
+        // First, clear out any files that are currently in the web bucket
         cleanUpS3(webBucket, "");
         Map<String, String> metadata = Stream
                 .of(new AbstractMap.SimpleEntry<>("Cache-Control", "no-store"))
@@ -1792,11 +1810,14 @@ public class SaaSBoostInstall {
                 // Remove the parent client/web/build path from the S3 key
                 String key = fileToUpload.subpath(yarnBuildDir.getNameCount(), fileToUpload.getNameCount()).toString();
                 try {
-                    // TODO this really should be a delete and copy like aws s3 sync --delete
+                    // Now copy all of the files from the Node build up to the web bucket
                     LOGGER.info("Uploading to S3 " + fileToUpload.toString() + " -> " + key);
                     s3.putObject(PutObjectRequest.builder()
                             .bucket(webBucket)
-                            .key(key)
+                            // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
+                            // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
+                            // definitions of the Lambda functions will always use forward slashes for the S3Key property.
+                            .key(key.replace('\\', '/'))
                             .metadata(metadata)
                             .build(), RequestBody.fromFile(fileToUpload)
                     );
