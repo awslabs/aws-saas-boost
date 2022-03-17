@@ -305,7 +305,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}/bootstrap.sql
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/services/*'
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -352,6 +352,9 @@ Resources:
       Layers:
          - !Sub '{{resolve:ssm:/saas-boost/${Environment}/UTILS_LAYER}}'
          - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CFN_UTILS_LAYER}}'
+      Environment:
+        Variables:
+          SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -384,8 +387,8 @@ Resources:
       Database: !Ref RDSDatabase
       User: !Ref RDSUsername
       Password: !Ref RDSPasswordParam # CloudFormation doesn't allow auto decrypting of secure params here...
-      BootstrapFileBucket: !Ref SaaSBoostBucket
-      BootstrapFileKey: !If [BootstrapFile, 'bootstrap.sql', '']
+      BootstrapFileBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
+      BootstrapFileKey: !Ref RDSBootstrap
 Outputs:
   RdsEndpoint:
     Description: RDS endpoint

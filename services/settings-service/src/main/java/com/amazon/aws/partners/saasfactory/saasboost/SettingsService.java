@@ -597,7 +597,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             AppConfig changedAppConfig = Utils.fromJson(json, AppConfig.class);
             if (changedAppConfig != null) {
                 AppConfig existingAppConfig = dal.getAppConfig();
-                if (AppConfigHelper.isHostedZoneChanged(existingAppConfig, changedAppConfig)) {
+                // Only updated the hosted zone if it was passed in
+                if (json.contains("hostedZone")
+                        && AppConfigHelper.isHostedZoneChanged(existingAppConfig, changedAppConfig)) {
                     LOGGER.info("Updating hosted zone from {} to {}", existingAppConfig.getHostedZone(),
                             changedAppConfig.getHostedZone());
                     // TODO be nice to fix this so you don't have to know the secret path
@@ -607,7 +609,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                             .build()
                     );
                 }
-                if (changedAppConfig.getServices() != null) {
+                // Only update the services if they were passed in
+                if (json.contains("services") && changedAppConfig.getServices() != null) {
                     for (Map.Entry<String, ServiceConfig> changedService : changedAppConfig.getServices().entrySet()) {
                         String changedServiceName = changedService.getKey();
                         ServiceConfig changedServiceConfig = changedService.getValue();

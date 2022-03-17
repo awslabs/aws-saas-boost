@@ -854,7 +854,7 @@ Resources:
     Properties:
       Name: !Sub /saas-boost/${Environment}/CFN_UTILS_LAYER
       Type: String
-      Value: !Ref SaaSBoostUtilsLayer
+      Value: !Ref CloudFormationUtilsLayer
 Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources

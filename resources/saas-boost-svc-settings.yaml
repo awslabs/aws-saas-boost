@@ -555,6 +555,13 @@ Resources:
       Targets:
         - Arn: !GetAtt AppConfigEventHandler.Arn
           Id: !Sub sb-${Environment}-settings-app-config-file-event
+  AppConfigResourceFilesEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AppConfigResourceFilesEventRule.Arn
 Outputs:
   SettingsServiceGetAllArn:
     Description: Settings Service get all settings Lambda ARN

@@ -562,6 +562,12 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
+              - logs:CreateLogGroup
+              - logs:PutRetentionPolicy
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
               - rds:AddTagsToResource
               - rds:RemoveTagsFromResource
               - rds:CreateDBInstance

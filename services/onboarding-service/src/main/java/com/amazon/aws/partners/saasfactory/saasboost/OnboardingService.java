@@ -845,9 +845,10 @@ public class OnboardingService {
                             dbVersion = (String) database.get("version");
                             dbFamily = (String) database.get("family");
                             dbInstanceClass = (String) database.get("instanceClass");
+                            dbDatabase = (String) database.get("database");
                             dbUsername = (String) database.get("username");
                             dbPort = (Integer) database.get("port");
-                            // TODO fix this dbBootstrap = (String) database.get("DB_BOOTSTRAP_FILE");
+                            dbBootstrap = (String) database.get("bootstrapFilename");
                             dbPasswordRef = (String) database.get("passwordParam");
                         }
 

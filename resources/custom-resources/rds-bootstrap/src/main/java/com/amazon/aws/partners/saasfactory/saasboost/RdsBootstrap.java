@@ -203,7 +203,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
     }
 
     public static void createdb(Connection conn, String engine, String database) throws SQLException {
-        LOGGER.info("Creating {} database", engine);
+        LOGGER.info("Creating {} database {}", engine, database);
         try (Statement create = conn.createStatement()) {
             if (engine.contains("postgresql")) {
                 // Postgres has no real way of doing CREATE DATABASE IF NOT EXISTS...
