@@ -42,7 +42,7 @@ public class ParameterStoreFacade {
                     .name(parameterName)
                     .withDecryption(decrypt)).parameter();
         } catch (ParameterNotFoundException pnfe) {
-            LOGGER.error("Parameter {} does not exist", parameterName);
+            LOGGER.warn("Parameter {} does not exist", parameterName);
         } catch (SdkServiceException ssmError) {
             LOGGER.error("Error fetching parameter", ssmError);
             throw ssmError;

@@ -39,6 +39,13 @@ public final class AppConfigHelper {
                 && !altered.getSslCertificate().equalsIgnoreCase(existing.getSslCertificate())));
     }
 
+    public static boolean isHostedZoneChanged(AppConfig existing, AppConfig altered) {
+        return ((existing.getHostedZone() != null
+                && !existing.getHostedZone().equalsIgnoreCase(altered.getHostedZone()))
+                || (altered.getHostedZone() != null
+                && !altered.getHostedZone().equalsIgnoreCase(existing.getHostedZone())));
+    }
+
     public static boolean isBillingChanged(AppConfig existing, AppConfig altered) {
         return ((existing.getBilling() != null && !existing.getBilling().equals(altered.getBilling()))
                 || (altered.getBilling() != null && !altered.getBilling().equals(existing.getBilling())));
@@ -52,35 +59,6 @@ public final class AppConfigHelper {
     public static boolean isBillingRemoved(AppConfig existing, AppConfig altered) {
         return ((existing.getBilling() != null && existing.getBilling().hasApiKey())
                 && (altered.getBilling() == null || !altered.getBilling().hasApiKey()));
-    }
-
-    public static boolean isComputeChanged(AppConfig existing, AppConfig altered) {
-        return true;
-        // TODO POEPPT
-//        int existingMemory = existing.getDefaultMemory() != null ? existing.getDefaultMemory() : -1;
-//        int existingCpu = existing.getDefaultCpu() != null ? existing.getDefaultCpu() : -1;
-//
-//        int alteredMemory = altered.getDefaultMemory() != null ? altered.getDefaultMemory() : -1;
-//        int alteredCpu = altered.getDefaultCpu() != null ? altered.getDefaultCpu() : -1;
-//
-//        return (
-//                (existing.getComputeSize() != null && existing.getComputeSize() != altered.getComputeSize()) ||
-//                (existing.getComputeSize() == null && altered.getComputeSize() != null) ||
-//                (existingMemory != alteredMemory) ||
-//                (existingCpu != alteredCpu)
-//        );
-    }
-
-    public static boolean isAutoScalingChanged(AppConfig existing, AppConfig altered) {
-        return true;
-        // TODO POEPPT
-//        int existingMin = existing.getMinCount() != null ? existing.getMinCount() : -1;
-//        int existingMax = existing.getMaxCount() != null ? existing.getMaxCount() : -1;
-//
-//        int alteredMin = altered.getMinCount() != null ? altered.getMinCount() : -1;
-//        int alteredMax = altered.getMaxCount() != null ? altered.getMaxCount() : -1;
-//
-//        return ((existingMin != alteredMin) || (existingMax != alteredMax));
     }
 
     public static Set<String> removedServices(AppConfig existing, AppConfig altered) {

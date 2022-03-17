@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -77,6 +78,15 @@ public class AppConfig {
 
     public Map<String, ServiceConfig> getServices() {
         return services != null ? Map.copyOf(services) : null;
+    }
+
+    @JsonIgnore
+    public boolean isEmpty() {
+        return (Utils.isBlank(name) && Utils.isBlank(domainName) && Utils.isBlank(hostedZone)
+                && Utils.isBlank(sslCertificate)
+                && (billing == null || !billing.hasApiKey())
+                && (services == null || services.isEmpty())
+        );
     }
 
     @Override

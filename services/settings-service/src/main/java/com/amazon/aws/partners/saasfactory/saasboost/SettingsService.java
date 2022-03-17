@@ -16,22 +16,15 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfigHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.OperatingSystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResultEntry;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -50,16 +43,12 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
     private static final Logger LOGGER = LoggerFactory.getLogger(SettingsService.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
-    private static final String CLOUDFRONT_DISTRIBUTION = System.getenv("CLOUDFRONT_DISTRIBUTION");
+    private static final String RESOURCES_BUCKET = System.getenv("RESOURCES_BUCKET");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
-    private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
-    private static final String SYSTEM_API_CALL_SOURCE = "saas-boost";
-    private static final Map<String, String> CORS = Stream
-            .of(new AbstractMap.SimpleEntry<>("Access-Control-Allow-Origin", "*"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
+
     static final List<String> REQUIRED_PARAMS = Collections.unmodifiableList(
             Arrays.asList("SAAS_BOOST_BUCKET", "CODE_PIPELINE_BUCKET", "CODE_PIPELINE_ROLE", "ECR_REPO", "ONBOARDING_WORKFLOW",
                     "ONBOARDING_SNS", "ONBOARDING_TEMPLATE", "TRANSIT_GATEWAY", "TRANSIT_GATEWAY_ROUTE_TABLE", "EGRESS_ROUTE_TABLE",
@@ -81,9 +70,6 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "FSX_WINDOWS_MOUNT_DRIVE")
     );
 
-    static final List<String> TENANT_PARAMS = Collections.unmodifiableList(
-            Arrays.asList("DB_HOST", "ALB")
-    );
     private final SettingsServiceDAL dal;
     private final EventBridgeClient eventBridge;
     private final S3Client s3;
@@ -293,157 +279,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         return response;
     }
 
-    public APIGatewayProxyResponseEvent getTenantSettings(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        //Utils.logRequestEvent(event);
-
-        Map<String, String> params = (Map) event.get("pathParameters");
-        String id = params.get("id");
-        UUID tenantId;
-        try {
-            tenantId = UUID.fromString(id);
-        } catch (IllegalArgumentException e) {
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Invalid id for setting.\"}");
-        }
-        List<Setting> settings = dal.getTenantSettings(tenantId);
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::getTenantSettings exec " + totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(settings));
-    }
-
-    public APIGatewayProxyResponseEvent getTenantSetting(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        //Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, String> params = (Map) event.get("pathParameters");
-        String id = params.get("id");
-        String settingName = params.get("setting");
-        LOGGER.info("SettingsService::getTenantSetting " + settingName);
-        UUID tenantId;
-        try {
-            tenantId = UUID.fromString(id);
-        } catch (IllegalArgumentException e) {
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Invalid id for setting.\"}");
-        }
-
-        Setting setting = dal.getTenantSetting(tenantId, settingName);
-        if (setting != null) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(200)
-                    .withHeaders(CORS)
-                    .withBody(Utils.toJson(setting));
-        } else {
-            response = new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(404);
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::getTenantSetting exec " + totalTimeMillis);
-        return response;
-    }
-
-    public APIGatewayProxyResponseEvent updateTenantSetting(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsService::updateTenantSetting");
-        Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, String> params = (Map) event.get("pathParameters");
-        LOGGER.info(Utils.toJson(params));
-        String tenantId = params.get("id");
-        String key = params.get("setting");
-        LOGGER.info("SettingsService::updateTenantSetting " + key);
-        try {
-            Setting setting = Utils.fromJson((String) event.get("body"), Setting.class);
-            if (setting == null) {
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody("{\"message\":\"Invalid resource for setting.\"}");
-            } else {
-                if (setting.getName() == null || !setting.getName().equals(key)) {
-                    LOGGER.error("SettingsService::updateTenantSetting Can't update setting " + setting.getName() + " at resource " + key);
-                    response = new APIGatewayProxyResponseEvent()
-                            .withHeaders(CORS)
-                            .withStatusCode(400)
-                            .withBody("{\"message\":\"Invalid resource for setting.\"}");
-                } else {
-                    setting = dal.updateTenantSetting(UUID.fromString(tenantId), setting);
-                    response = new APIGatewayProxyResponseEvent()
-                            .withStatusCode(200)
-                            .withHeaders(CORS)
-                            .withBody(Utils.toJson(setting));
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Unable to update");
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Invalid Json\"}");
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::updateTenantSetting exec " + totalTimeMillis);
-        return response;
-    }
-
-    public APIGatewayProxyResponseEvent deleteTenantSettings(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsService::deleteTenantSettings");
-        Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, String> params = (Map) event.get("pathParameters");
-        LOGGER.info(Utils.toJson(params));
-        String tenantId = params.get("id");
-
-        try {
-            dal.deleteTenantSettings(UUID.fromString(tenantId));
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(200);
-        } catch (Exception e) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Error deleting tenant settings.\"}");
-        }
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::deleteTenantSettings exec " + totalTimeMillis);
-        return response;
-    }
-
     public APIGatewayProxyResponseEvent configOptions(Map<String, Object> event, Context context) {
-        if (Utils.isBlank(CLOUDFRONT_DISTRIBUTION)) {
-            throw new IllegalStateException("Missing environment variable CLOUDFRONT_DISTRIBUTION");
-        }
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
@@ -459,58 +295,6 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         Collectors.toMap(OperatingSystem::name, OperatingSystem::getDescription)
                 ));
         options.put("dbOptions", dal.rdsOptions());
-
-        // Create a presigned S3 URL to upload the database bootstrap file to
-        String bucket = Utils.isNotBlank(SAAS_BOOST_BUCKET) ? SAAS_BOOST_BUCKET : dal.getSetting("SAAS_BOOST_BUCKET").getValue();
-        String key = "bootstrap.sql";
-        final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
-
-        // Make sure we have a CORS bucket policy in place
-        GetBucketCorsResponse corsResponse = null;
-        boolean corsDoesntExists = false;
-        try {
-            corsResponse = s3.getBucketCors(request -> request.bucket(bucket));
-        } catch (S3Exception corsConfigError) {
-            corsDoesntExists = corsConfigError.getMessage().startsWith("The CORS configuration does not exist");
-        }
-        if (corsDoesntExists || (corsResponse != null && (!corsResponse.hasCorsRules() || corsResponse.corsRules().isEmpty()))) {
-            LOGGER.info("SaaS Boost bucket does not have a CORS policy yet");
-            try {
-                PutBucketCorsResponse cors = s3.putBucketCors(request -> request
-                        .bucket(bucket)
-                        .corsConfiguration(CORSConfiguration.builder()
-                                .corsRules(Arrays.asList(
-                                        CORSRule.builder()
-                                                .allowedOrigins("http://localhost:3000")
-                                                .allowedMethods("PUT").build(),
-                                        CORSRule.builder()
-                                                .allowedOrigins(CLOUDFRONT_DISTRIBUTION)
-                                                .allowedMethods("PUT").build()
-                                ))
-                                .build()
-                        )
-                );
-            } catch (SdkServiceException s3Error) {
-                LOGGER.error("S3 error placing CORS policy on SaaS Boost bucket", s3Error);
-                LOGGER.error(Utils.getFullStackTrace(s3Error));
-                throw s3Error;
-            }
-        }
-        // Generate the presigned URL
-        PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
-                .signatureDuration(expires)
-                .putObjectRequest(PutObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(key)
-                        .build()
-                )
-                .build()
-        );
-        Map<String, Object> uploadOptions = new HashMap<>();
-        uploadOptions.put("url", presignedObject.url());
-        uploadOptions.put("headers", presignedObject.signedHeaders());
-        uploadOptions.put("method", presignedObject.httpRequest().method().toString());
-        options.put("sqlUploadOptions", uploadOptions);
 
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
@@ -548,6 +332,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_EVENT_BUS");
         }
+        if (Utils.isBlank(RESOURCES_BUCKET)) {
+            throw new IllegalStateException("Missing environment variable RESOURCES_BUCKET");
+        }
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
@@ -570,54 +357,71 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
                         .withStatusCode(400)
-                        .withBody("{\"message\":\"Application name is required.\"");
+                        .withBody("{\"message\":\"Application name is required.\"}");
             } else {
-                // There are some settings which may be set by the installer before this API
-                // is ever called
                 AppConfig currentAppConfig = dal.getAppConfig();
+                if (!currentAppConfig.isEmpty()) {
+                    // We should be calling update if we already have a (partially)filled out app config
+                    LOGGER.error("Can't insert an application configuration when one already exists");
+                    response = new APIGatewayProxyResponseEvent()
+                            .withHeaders(CORS)
+                            .withStatusCode(400)
+                            .withBody("{\"message\":\"Existing configuration.\"}");
+                } else {
+                    // Save all the settings for this app config
+                    appConfig = dal.setAppConfig(appConfig);
 
-                // Save all the settings for this app config
-                appConfig = dal.setAppConfig(appConfig);
-
-                // If they didn't tell the installer to use a domain name, but now have passed it in with
-                // app config, we need to update the CloudFormation stack so it will create a hosted zone
-                if (AppConfigHelper.isDomainChanged(currentAppConfig, appConfig)) {
-                    LOGGER.info("AppConfig domain name has changed");
-                    triggerDomainNameChange();
-                }
-
-                // If billing is enabled, trigger the event to establish the master billing provider account
-                // artifacts using the 3rd party API key the ISV provided as part of the config.
-                if (AppConfigHelper.isBillingChanged(currentAppConfig, appConfig)
-                        && AppConfigHelper.isBillingFirstTime(currentAppConfig, appConfig)) {
-                    LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
-                    triggerBillingSetup();
-                }
-
-                if (AppConfigHelper.isServicesChanged(currentAppConfig, appConfig)) {
-                    Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, appConfig);
-                    if (!removedServices.isEmpty()) {
-                        LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
-                        for (String serviceName : removedServices) {
-                            dal.deleteServiceConfig(currentAppConfig, serviceName);
+                    // Create the pre-signed S3 URLs for the bootstrap SQL files. We won't save these to the
+                    // database record because the user might not upload any SQL files. If they do, we'll
+                    // process those uploads async and persist the relevant data to the database.
+                    for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
+                        String serviceName = serviceConfig.getKey();
+                        ServiceConfig service = serviceConfig.getValue();
+                        for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
+                            ServiceTierConfig tier = tierConfig.getValue();
+                            if (tier.hasDatabase()) {
+                                try {
+                                    // Create a presigned S3 URL to upload the database bootstrap file to
+                                    final String key = "services/" + serviceName + "/bootstrap.sql";
+                                    final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
+                                    PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
+                                            .signatureDuration(expires)
+                                            .putObjectRequest(PutObjectRequest.builder()
+                                                    .bucket(RESOURCES_BUCKET)
+                                                    .key(key)
+                                                    .build()
+                                            )
+                                            .build()
+                                    );
+                                    tier.getDatabase().setBootstrapFilename(presignedObject.url().toString());
+                                } catch (S3Exception s3Error) {
+                                    LOGGER.error("s3 presign url failed", s3Error);
+                                    LOGGER.error(Utils.getFullStackTrace(s3Error));
+                                    throw s3Error;
+                                }
+                            }
                         }
                     }
-                    LOGGER.info("AppConfig application services changed");
-                    triggerServiceConfigChange();
-                }
 
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withHeaders(CORS)
-                        .withBody(Utils.toJson(appConfig));
+                    // Let everyone else know app config has changed
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                            "Application Configuration Changed",
+                            Collections.EMPTY_MAP
+                    );
+
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(200)
+                            .withHeaders(CORS)
+                            .withBody(Utils.toJson(appConfig));
+                }
             }
         } catch (Exception e) {
-            LOGGER.error("Unable to parse incoming JSON");
+            LOGGER.error("Unexpected error", e);
             LOGGER.error(Utils.getFullStackTrace(e));
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
-                    .withBody("{\"message\":\"Invalid JSON\"}");
+                    .withBody("{\"message\":\"Unexpected error\"}");
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::setAppConfig exec " + totalTimeMillis);
@@ -658,14 +462,17 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
-                    .withBody("{\"message\":\"Application name is required.\"");
+                    .withBody("{\"message\":\"Application name is required.\"}");
         } else {
             AppConfig currentAppConfig = dal.getAppConfig();
             updatedAppConfig = dal.setAppConfig(updatedAppConfig);
 
+            boolean fireAppConfigChangedEvent = false;
             if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
                 LOGGER.info("AppConfig domain name has changed");
-                triggerDomainNameChange();
+                // TODO do we want to support this?
+                LOGGER.info("AppConfig application services changed");
+                fireAppConfigChangedEvent = true;
             }
 
             if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
@@ -677,7 +484,10 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     // Existing provisioned tenants won't be subscribed to a billing plan
                     // so we don't need to update the tenant stacks.
                     LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
-                    triggerBillingSetup();
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                            "Billing System Setup",
+                            Map.of("message", "System Setup")
+                    );
                 } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
                     // 2. We had a billing provider and now we don't, disable integration
                     LOGGER.info("AppConfig has removed the billing provider.");
@@ -690,47 +500,28 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                 }
             }
 
-            if (AppConfigHelper.isComputeChanged(currentAppConfig, updatedAppConfig)
-                    || AppConfigHelper.isAutoScalingChanged(currentAppConfig, updatedAppConfig)) {
-                LOGGER.info("AppConfig compute and/or scaling has changed. Triggering update of default setting tenants.");
-                // Get all the provisioned tenants who have not customized
-                // their compute settings so we can update them to the new
-                // global settings.
-                try {
-                    String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                            ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, ApiRequest.builder()
-                                    .resource("tenants/provisioned?overrideDefaults=false")
-                                    .method("GET")
-                                    .build()),
-                            API_TRUST_ROLE,
-                            context.getAwsRequestId()
-                    );
-                    ArrayList<Map<String, Object>> provisionedTenantsWithDefaultSettings = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
-                    if (provisionedTenantsWithDefaultSettings != null) {
-                        LOGGER.info("{} tenants with default settings to update", provisionedTenantsWithDefaultSettings.size());
-                        for (Map<String, Object> tenant : provisionedTenantsWithDefaultSettings) {
-                            // The onboarding service update tenant call expects to be given the
-                            // values to use as parameters for the CloudFormation stack.
-                            // AppConfig will delegate to ComputeSize for memory and cpu if it's set.
-                            // TODO POEPPT
-                            //tenant.put("memory", updatedAppConfig.getDefaultMemory());
-                            //tenant.put("cpu", updatedAppConfig.getDefaultCpu());
-                            //tenant.put("minCount", updatedAppConfig.getMinCount());
-                            //tenant.put("maxCount", updatedAppConfig.getMaxCount());
+            // TODO do we want to allow deleting services of the config?
+            if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
+//                Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
+//                if (!removedServices.isEmpty()) {
+//                    LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
+//                    for (String serviceName : removedServices) {
+//                        dal.deleteServiceConfig(currentAppConfig, serviceName);
+//                    }
+//                }
+                LOGGER.info("AppConfig application services changed");
+                fireAppConfigChangedEvent = true;
+            }
 
-                            LOGGER.info("Triggering update for tenant {}", tenant.get("id"));
-                            Map<String, Object> systemApiRequest = new HashMap<>();
-                            systemApiRequest.put("resource", "onboarding/update/tenant");
-                            systemApiRequest.put("method", "PUT");
-                            systemApiRequest.put("body", Utils.toJson(tenant));
-                            publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, systemApiRequest);
-                        }
-                    }
-                } catch (Exception e) {
-                    LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/tenants/provisioned?overrideDefaults=false");
-                    LOGGER.error(Utils.getFullStackTrace(e));
-                    throw new RuntimeException(e);
-                }
+            // TODO how do we want to deal with tier settings changes?
+
+            // TODO do we want to allow adding new services to the config?
+
+            if (fireAppConfigChangedEvent) {
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                        AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
+                        Collections.EMPTY_MAP
+                );
             }
 
             response = new APIGatewayProxyResponseEvent()
@@ -772,102 +563,104 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         return response;
     }
 
-    public APIGatewayProxyResponseEvent updateServiceConfig(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsService::updateServiceConfig");
-        Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-
-        final Map<String, BiFunction<ServiceConfig.Builder, String, ServiceConfig.Builder>> allowedKeys = Map.of(
-                "ECR_REPO", ServiceConfig.Builder::containerRepo
-        );
-
-        // PUT /settings/config/{serviceName}/{key}
-        Map<String, String> pathParameters = (Map) event.get("pathParameters");
-        String serviceName = pathParameters.get("serviceName");
-        String jsonKey = pathParameters.get("key");
-
-        if (!allowedKeys.containsKey(jsonKey)) {
-            // we only accept allowedKeys, 400 Bad Request otherwise
-            String errorMessage = String.format("Can only accept keys: %s", allowedKeys.keySet());
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"" + errorMessage + ".\"}");
-        }
-
-        String jsonValue = (String) Utils.fromJson((String) event.get("body"), HashMap.class).get("value");
-        // get AppConfig and alter the config
-        AppConfig existingAppConfig = dal.getAppConfig();
-        ServiceConfig requestedService = existingAppConfig.getServices().get(serviceName);
-        ServiceConfig editedService = null;
-
-        // the service they request to update must actually exist
-        if (requestedService != null) {
-            editedService = allowedKeys.get(jsonKey).apply(ServiceConfig.builder(requestedService), jsonValue).build();
-            dal.setServiceConfig(editedService);
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(200)
-                    .withBody(Utils.toJson(editedService));
-        } else {
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(404)
-                    .withBody("{\"message\":\"Service not found.\"}");
-        }
-
-        LOGGER.info("SettingsService::updateServiceConfig exec " + (System.currentTimeMillis() - startTimeMillis));
-        return response;
-    }
-
-    private void triggerBillingSetup() {
-        Map<String, Object> billingSetupDetail = new HashMap<>();
-        billingSetupDetail.put("message", "System Setup");
-        publishEvent("Billing System Setup", "saas-boost", billingSetupDetail);
-    }
-
-    private void triggerDomainNameChange() {
-        Map<String, Object> domainNameDetail = new HashMap<>();
-        domainNameDetail.put("resource", "onboarding/update/domain");
-        domainNameDetail.put("method", "PUT");
-        publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, domainNameDetail);
-    }
-
-    private void triggerServiceConfigChange() {
-        Map<String, Object> serviceConfigDetail = new HashMap<>();
-        serviceConfigDetail.put("resource", "onboarding/update/services");
-        serviceConfigDetail.put("method", "PUT");
-        publishEvent(SYSTEM_API_CALL_DETAIL_TYPE, SYSTEM_API_CALL_SOURCE, serviceConfigDetail);
-    }
-
-    private void publishEvent(String type, String source, Map<String, Object> detail) {
-        try {
-            PutEventsRequestEntry event = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .detailType(type)
-                    .source(source)
-                    .detail(Utils.toJson(detail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-                    .entries(event)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), event.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
+    public void handleAppConfigEvent(Map<String, Object> event, Context context) {
+        if ("saas-boost".equals(event.get("source"))) {
+            AppConfigEvent appConfigEvent = AppConfigEvent.fromDetailType((String) event.get("detail-type"));
+            if (appConfigEvent != null) {
+                switch (appConfigEvent) {
+                    case APP_CONFIG_RESOURCE_CHANGED:
+                        LOGGER.info("Handling App Config Resource Changed");
+                        handleAppConfigResourceChanged(event, context);
+                        break;
+                    case APP_CONFIG_CHANGED:
+                        // We produce this event, but currently aren't consuming it
+                        break;
                 }
+            } else {
+                LOGGER.error("Can't find app config event for detail-type {}", event.get("detail-type"));
+                // TODO Throw here? Would end up in DLQ.
             }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents", eventBridgeError);
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
+        } else if ("aws.s3".equals(event.get("source"))) {
+            LOGGER.info("Handling App Config Resources File S3 Event");
+            handleAppConfigResourcesFileEvent(event, context);
+        } else {
+            LOGGER.error("Unknown event source " + event.get("source"));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected void handleAppConfigResourceChanged(Map<String, Object> event, Context context) {
+        Utils.logRequestEvent(event);
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String json = Utils.toJson(detail);
+        if (json != null) {
+            AppConfig changedAppConfig = Utils.fromJson(json, AppConfig.class);
+            if (changedAppConfig != null) {
+                AppConfig existingAppConfig = dal.getAppConfig();
+                if (AppConfigHelper.isHostedZoneChanged(existingAppConfig, changedAppConfig)) {
+                    LOGGER.info("Updating hosted zone from {} to {}", existingAppConfig.getHostedZone(),
+                            changedAppConfig.getHostedZone());
+                    // TODO be nice to fix this so you don't have to know the secret path
+                    dal.updateSetting(Setting.builder()
+                            .name(SettingsServiceDAL.APP_BASE_PATH + "HOSTED_ZONE")
+                            .value(changedAppConfig.getHostedZone())
+                            .build()
+                    );
+                }
+                if (changedAppConfig.getServices() != null) {
+                    for (Map.Entry<String, ServiceConfig> changedService : changedAppConfig.getServices().entrySet()) {
+                        String changedServiceName = changedService.getKey();
+                        ServiceConfig changedServiceConfig = changedService.getValue();
+                        ServiceConfig requestedService = existingAppConfig.getServices().get(changedServiceName);
+                        if (requestedService != null) {
+                            String changedContainerRepo = changedServiceConfig.getContainerRepo();
+                            String existingContainerRepo = requestedService.getContainerRepo();
+                            if (!Utils.nullableEquals(existingContainerRepo, changedContainerRepo)) {
+                                LOGGER.info("Updating service {} ECR repo from {} to {}", changedServiceName,
+                                        requestedService.getContainerRepo(), changedServiceConfig.getContainerRepo());
+                                ServiceConfig editedService = ServiceConfig.builder(requestedService)
+                                        .containerRepo(changedServiceConfig.getContainerRepo())
+                                        .build();
+                                dal.setServiceConfig(editedService);
+                            }
+                        } else {
+                            LOGGER.error("Can't find app config service {}", changedServiceName);
+                        }
+                    }
+                }
+            } else {
+                LOGGER.error("Can't parse event detail as AppConfig {}", json);
+            }
+        } else {
+            LOGGER.error("Can't serialize detail to JSON {}", event.get("detail"));
+        }
+    }
+
+    protected void handleAppConfigResourcesFileEvent(Map<String, Object> event, Context context) {
+        Utils.logRequestEvent(event);
+
+        // A database bootstrap file was uploaded for one of the app config services.
+        // We'll update the service config so Onboarding will know to run the file as
+        // part of provisioning RDS.
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String bucket = (String) ((Map<String, Object>) detail.get("bucket")).get("name");
+        String key = (String) ((Map<String, Object>) detail.get("object")).get("key");
+        LOGGER.info("Processing resources bucket PUT {}, {}", bucket, key);
+
+        // key will be services/${service_name}/bootstrap.sql
+        String serviceName = key.substring("services/".length(), (key.length() - "/bootstrap.sql".length()));
+        AppConfig appConfig = dal.getAppConfig();
+        for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
+            if (serviceName.equals(serviceConfig.getKey())) {
+                ServiceConfig service = serviceConfig.getValue();
+                for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
+                    ServiceTierConfig tier = tierConfig.getValue();
+                    LOGGER.info("Saving bootstrap.sql file for {} {} tier", service.getName(), tierConfig.getKey());
+                    tier.getDatabase().setBootstrapFilename(key);
+                }
+                dal.setServiceConfig(service);
+                break;
+            }
         }
     }
 

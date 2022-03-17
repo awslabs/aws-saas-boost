@@ -58,7 +58,7 @@ Parameters:
   SettingsServiceById:
     Description: Settings Service get setting Lambda ARN
     Type: String
-  SettingsServiceConfigOptions:
+  SettingsServiceOptions:
     Description: Settings Service get configuration options Lambda ARN
     Type: String
   SettingsServiceGetAppConfig:
@@ -69,12 +69,6 @@ Parameters:
     Type: String
   SettingsServiceUpdateAppConfig:
     Description: Settings Service update application configuration Lambda ARN
-    Type: String
-  SettingsServiceTenantGetAll:
-    Description: Settings Service get all settings for a tenant Lambda ARN
-    Type: String
-  SettingsServiceTenantById:
-    Description: Settings Service get setting for a tenant Lambda ARN
     Type: String
   TenantServiceGetAll:
     Description: Tenant Service get all tenants Lambda ARN
@@ -683,24 +677,6 @@ Resources:
       RestApiId: !Ref PublicApi
       ParentId: !Ref SettingsServiceResource
       PathPart: '{id}'
-  SettingsServiceTenantResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PublicApi
-      ParentId: !Ref SettingsServiceResource
-      PathPart: 'tenant'
-  SettingsServiceByTenantIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PublicApi
-      ParentId: !Ref SettingsServiceTenantResource
-      PathPart: '{id}'
-  SettingsServiceTenantSettingResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PublicApi
-      ParentId: !Ref SettingsServiceByTenantIdResource
-      PathPart: '{setting}'
   SettingsServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -771,19 +747,19 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceConfigOptions}/invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceOptions}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceConfigOptionsPermission:
+  SettingsServiceOptionsPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceConfigOptions
+      FunctionName: !Ref SettingsServiceOptions
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/options
   SettingsServiceOptionsResourceCORS:
     Type: AWS::ApiGateway::Method
@@ -960,128 +936,6 @@ Resources:
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceByIdResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  SettingsServiceByTenantIdMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceByTenantIdResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      RequestParameters: {method.request.path.id: true}
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantGetAll}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceByTenantIdLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceTenantGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/tenant/{id}
-  SettingsServiceByTenantIdResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceByTenantIdResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  SettingsServiceTenantSettingMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceTenantSettingResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      RequestParameters:
-        method.request.path.id: true
-        method.request.path.setting: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceTenantById}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters:
-          integration.request.path.id: 'method.request.path.id'
-          integration.request.path.setting: 'method.request.path.setting'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceTenantSettingLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceTenantById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/tenant/{id}/{setting}
-  SettingsServiceTenantSettingResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceTenantSettingResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1889,6 +1743,8 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+  # To Do: Remove deployment from CloudFormation and deal with it either through
+  # CodePipeline or a custom resource, or some other external deployment action.
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -1917,10 +1773,6 @@ Resources:
       - SettingsServiceConfigResourceCORS
       - SettingsServiceGetByIdMethod
       - SettingsServiceByIdResourceCORS
-      - SettingsServiceByTenantIdMethod
-      - SettingsServiceByTenantIdResourceCORS
-      - SettingsServiceTenantSettingMethod
-      - SettingsServiceTenantSettingResourceCORS
       - TenantServiceGetAllMethod
       - TenantServiceResourceCORS
       - TenantServiceProvisionedMethod

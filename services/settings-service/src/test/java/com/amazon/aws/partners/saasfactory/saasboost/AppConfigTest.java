@@ -117,4 +117,32 @@ public class AppConfigTest {
             throw new RuntimeException(ioe);
         }
     }
+
+    @Test
+    public void testIsEmpty() {
+        AppConfig config = AppConfig.builder().build();
+        assertTrue(config.isEmpty());
+
+        AppConfig config2 = AppConfig.builder().name("test").build();
+        assertFalse(config2.isEmpty());
+
+        AppConfig config3 = AppConfig.builder().domainName("example.com").build();
+        assertFalse(config3.isEmpty());
+
+        AppConfig config4 = AppConfig.builder().hostedZone("123456").build();
+        assertFalse(config4.isEmpty());
+
+        AppConfig config5 = AppConfig.builder().sslCertificate("arn:aws:acm:xxxxx").build();
+        assertFalse(config5.isEmpty());
+
+        AppConfig config6 = AppConfig.builder().services(Map.of("foo", ServiceConfig.builder().build())).build();
+        assertFalse(config6.isEmpty());
+
+        AppConfig config7 = AppConfig.builder().billing(BillingProvider.builder().build()).build();
+        assertTrue(config7.isEmpty());
+
+        AppConfig config8 = AppConfig.builder().billing(BillingProvider.builder().apiKey("test").build()).build();
+        assertFalse(config8.isEmpty());
+    }
+
 }

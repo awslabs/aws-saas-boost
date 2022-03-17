@@ -313,7 +313,8 @@ public class OnboardingService {
 
     public void handleOnboardingEvent(Map<String, Object> event, Context context) {
         if ("saas-boost".equals(event.get("source"))) {
-            OnboardingEvent onboardingEvent = OnboardingEvent.fromDetailType((String) event.get("detail-type"));
+            String detailType = (String) event.get("detail-type");
+            OnboardingEvent onboardingEvent = OnboardingEvent.fromDetailType(detailType);
             if (onboardingEvent != null) {
                 switch (onboardingEvent) {
                     case ONBOARDING_INITIATED:
@@ -349,6 +350,12 @@ public class OnboardingService {
                         handleOnboardingDeployed(event, context);
                         break;
                 }
+            } else if (detailType.startsWith("Application Configuration ")) {
+                LOGGER.info("Handling App Config Event");
+                handleAppConfigEvent(event, context);
+            } else if (detailType.startsWith("Tenant ")) {
+                LOGGER.info("Handling Tenant Event");
+                handleTenantEvent(event, context);
             } else {
                 LOGGER.error("Can't find onboarding event for detail-type {}", event.get("detail-type"));
                 // TODO Throw here? Would end up in DLQ.
@@ -845,13 +852,6 @@ public class OnboardingService {
                         }
 
                         List<Parameter> templateParameters = new ArrayList<>();
-    //        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(settings.get("SAAS_BOOST_BUCKET")).build());
-    //        templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(settings.get("SAAS_BOOST_LAMBDAS_FOLDER")).build());
-    //        templateParameters.add(Parameter.builder().parameterKey("ArtifactBucket").parameterValue(settings.get("CODE_PIPELINE_BUCKET")).build());
-    //        templateParameters.add(Parameter.builder().parameterKey("ALBAccessLogsBucket").parameterValue(settings.get("ALB_ACCESS_LOGS_BUCKET")).build());
-    //        templateParameters.add(Parameter.builder().parameterKey("BillingPlan").parameterValue(billingPlan).build());
-    //        templateParameters.add(Parameter.builder().parameterKey("CodePipelineRoleArn").parameterValue(settings.get("CODE_PIPELINE_ROLE")).build());
-
                         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
                         templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId).build());
                         templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
@@ -1722,7 +1722,16 @@ public class OnboardingService {
         return response;
     }
 
-    public APIGatewayProxyResponseEvent updateAppConfig(Map<String, Object> event, Context context) {
+    protected void handleAppConfigEvent(Map<String, Object> event, Context context) {
+        if ("saas-boost".equals(event.get("source"))) {
+            String detailType = (String) event.get("detail-type");
+            if ("Application Configuration Changed".equals(detailType)) {
+               handleUpdateInfrastructure(event, context);
+            }
+        }
+    }
+
+    protected void handleUpdateInfrastructure(Map<String, Object> event, Context context) {
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
         }
@@ -1732,19 +1741,22 @@ public class OnboardingService {
         if (Utils.isBlank(API_TRUST_ROLE)) {
             throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
         }
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("OnboardingService::updateAppConfig");
-        Utils.logRequestEvent(event);
+        LOGGER.info("Handling App Config Update Infrastructure Event");
 
         String stackName;
+        // Have to cheat here and ask for a secret until we can authenticate against the public api
+        // or we have to copy the settings get by id resource to the private api.
         ApiRequest getSettingsRequest = ApiRequest.builder()
                 .resource("settings/SAAS_BOOST_STACK/secret")
                 .method("GET")
                 .build();
-        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
+        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper
+                .getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
         LOGGER.info("Fetching SaaS Boost stack name from Settings Service");
         try {
-            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
+            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                    getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId()
+            );
             Map<String, String> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, LinkedHashMap.class);
             stackName = getSettingsResponse.get("value");
         } catch (Exception e) {
@@ -1754,8 +1766,19 @@ public class OnboardingService {
         }
 
         Map<String, Object> appConfig = getAppConfig(context);
-        String domainName = (String) appConfig.getOrDefault("domainName", "");
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        String domainName = (String) appConfig.getOrDefault("domainName", "");
+        String hostedZone = getExistingHostedZone(domainName);
+
+        // If there's an existing hosted zone, we need to tell the AppConfig about it
+        // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
+        // and the stack listener will tell AppConfig about the newly created one.
+        if (Utils.isNotBlank(hostedZone)) {
+            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZone);
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                    "Application Configuration Resource Changed",
+                    Map.of("hostedZone", hostedZone));
+        }
 
         LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stackName);
         String stackId = null;
@@ -1769,14 +1792,15 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("SSLCertificate").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build(),
-                            Parameter.builder().parameterKey("ApplicationServices").parameterValue(String.join(",", services.keySet())).build()
+                            Parameter.builder().parameterKey("HostedZone").parameterValue(hostedZone).build(),
+                            Parameter.builder().parameterKey("ApplicationServices").parameterValue(
+                                    String.join(",", services.keySet())).build()
                     )
                     .build()
             );
@@ -1793,22 +1817,9 @@ public class OnboardingService {
                 throw cfnError;
             }
         }
-
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
-                .withHeaders(CORS)
-                .withBody("{\"stackId\": \"" + stackId + "\"}");
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("OnboardingService::updateAppConfig exec " + totalTimeMillis);
-        return response;
     }
 
-    public void handleTenantEvent(Map<String, Object> event, Context context) {
-
-    }
-
-    public void handleAppConfigEvent(Map<String, Object> event, Context context) {
+    protected void handleTenantEvent(Map<String, Object> event, Context context) {
 
     }
 
@@ -1890,7 +1901,7 @@ public class OnboardingService {
 
     protected Map<String, Object> getAppConfig(Context context) {
         // Fetch all of the services configured for this application
-        LOGGER.info("Calling settings service get app config API");
+        LOGGER.info("Calling settings service to fetch app config");
         String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                 ApiGatewayHelper.getApiRequest(
                         API_GATEWAY_HOST,
@@ -1919,7 +1930,7 @@ public class OnboardingService {
             throw new IllegalArgumentException("Can't fetch blank tenant id");
         }
         // Fetch all of the services configured for this application
-        LOGGER.info("Calling tenant service get tenant {}", tenantId);
+        LOGGER.info("Calling tenant service to fetch tenant {}", tenantId);
         String getTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                 ApiGatewayHelper.getApiRequest(
                         API_GATEWAY_HOST,
@@ -1965,5 +1976,45 @@ public class OnboardingService {
             pathPriority.put(publicService, ++priority);
         }
         return pathPriority;
+    }
+
+    protected String getExistingHostedZone(String domainName) {
+        String existingHostedZone = "";
+        if (Utils.isNotEmpty(domainName)) {
+            String nextDnsName = null;
+            String nextHostedZone = null;
+            ListHostedZonesByNameResponse response;
+            do {
+                response = route53.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
+                        .dnsName(nextDnsName)
+                        .hostedZoneId(nextHostedZone)
+                        .maxItems("100")
+                        .build()
+                );
+                nextDnsName = response.nextDNSName();
+                nextHostedZone = response.nextHostedZoneId();
+                if (response.hasHostedZones()) {
+                    for (HostedZone hostedZone : response.hostedZones()) {
+                        // If there are multiple hosted zones for a given domain name, what should we do?
+                        // We could sort the response by "CallerReference" which appears to be a timestamp.
+                        // In the documentation, we can just tell people if they're suffering from
+                        // https://github.com/awslabs/aws-saas-boost/issues/74 to go clean things up manually first?
+                        if (hostedZone.name().startsWith(domainName)
+                                && hostedZone.config() != null
+                                && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
+                            // Created by SaaS Boost CloudFormation?
+                            // TODO do we do this check? seems safest for now.
+                            if ((domainName + " Public DNS zone").equals(hostedZone.config().comment())) {
+                                LOGGER.info("Found existing hosted zone {} for domain {}", hostedZone, domainName);
+                                // Hosted zone id will be prefixed with /hostedzone/
+                                existingHostedZone = hostedZone.id().replace("/hostedzone/", "");
+                                break;
+                            }
+                        }
+                    }
+                }
+            } while (response.isTruncated());
+        }
+        return existingHostedZone;
     }
 }

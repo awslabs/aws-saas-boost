@@ -78,36 +78,37 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 ListStackResourcesResponse resources = cfn.listStackResources(req -> req
                         .stackName(cloudFormationEvent.getStackId())
                 );
+                Map<String, Object> appConfig = new HashMap<>();
+                Map<String, Object> services = new HashMap<>();
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
 //                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
 //                            resource.resourceStatusAsString(), resource.logicalResourceId(),
 //                            resource.physicalResourceId());
-                    if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())) {
-                        if ("AWS::ECR::Repository".equals(resource.resourceType())) {
-                            String ecrRepo = resource.physicalResourceId();
-                            String serviceName = resource.logicalResourceId();
-                            LOGGER.info("Publishing appConfig update event for ECR repository {} {}", serviceName,
-                                    ecrRepo);
-                            Map<String, Object> systemApiRequest = new HashMap<>();
-                            systemApiRequest.put("resource", "settings/config/" + serviceName + "/ECR_REPO");
-                            systemApiRequest.put("method", "PUT");
-                            systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
-                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
-                                    systemApiRequest);
-                        } else if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
-                            // Make this an event vs directly calling the Settings Service API because when this
-                            // CloudFormation stack first completes, the Settings Service may not even exist yet
-                            // Could also look at matching against UPDATE_COMPLETE
-//                            String hostedZoneId = resource.physicalResourceId();
-//                            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZoneId);
-//                            Map<String, Object> systemApiRequest = new HashMap<>();
-//                            systemApiRequest.put("resource", "settings/HOSTED_ZONE");
-//                            systemApiRequest.put("method", "PUT");
-//                            //systemApiRequest.put("body", Utils.toJson(Map.of("value", ecrRepo)));
-//                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, SYSTEM_API_CALL,
-//                                    systemApiRequest);
+                    if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())
+                            && "AWS::ECR::Repository".equals(resource.resourceType())) {
+                        String ecrRepo = resource.physicalResourceId();
+                        String serviceName = resource.logicalResourceId();
+                        LOGGER.info("Publishing appConfig update event for ECR repository {} {}", serviceName,
+                                ecrRepo);
+                        services.put(serviceName, Map.of("containerRepo", ecrRepo));
+                    } else if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())
+                            || "UPDATE_COMPLETE".equals(resource.resourceStatusAsString())) {
+                        if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
+                            // When CloudFormation stack first completes, the Settings Service won't even exist yet.
+                            String hostedZoneId = resource.physicalResourceId();
+                            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZoneId);
+                            appConfig.put("hostedZone", hostedZoneId);
                         }
                     }
+                }
+                // Only fire one event for all the app config resources changes by this stack
+                if (!services.isEmpty()) {
+                    appConfig.put("services", services);
+                }
+                if (!appConfig.isEmpty()) {
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Application Configuration Resource Changed",
+                            appConfig);
                 }
             } catch (SdkServiceException cfnError) {
                 LOGGER.error("cfn:ListStackResources error", cfnError);

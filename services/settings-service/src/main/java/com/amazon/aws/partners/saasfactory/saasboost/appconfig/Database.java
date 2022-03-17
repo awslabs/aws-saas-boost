@@ -16,7 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -127,8 +126,7 @@ public class Database {
     private final String database;
     private final String username;
     private final String password;
-    private final String bootstrapFilename;
-
+    private String bootstrapFilename;
     private String passwordParam;
 
     private Database(Builder builder) {
@@ -193,6 +191,10 @@ public class Database {
 
     public void setPasswordParam(String passwordParam) {
         this.passwordParam = passwordParam;
+    }
+
+    public void setBootstrapFilename(String bootstrapFilename) {
+        this.bootstrapFilename = bootstrapFilename;
     }
 
     @Override

@@ -41,15 +41,11 @@ public class SettingsServiceDAL {
     // Package private for testing
     static final String SAAS_BOOST_PREFIX = "saas-boost";
     static final String APP_BASE_PATH = "app/";
-    static final String TENANT_BASE_PATH = "tenant/";
     static final String PARAMETER_STORE_PREFIX = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
     static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + "(.+)$");
     // e.g. /saas-boost/test/app/APP_NAME or /saas-boost/test/app/myService/SERVICE_JSON
     static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + APP_BASE_PATH + "(.+)$");
-    // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    static final Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + TENANT_BASE_PATH
-            + "(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})/(.+)$");
 
     private final ParameterStoreFacade parameterStore;
     private DynamoDbClient ddb;
@@ -86,13 +82,6 @@ public class SettingsServiceDAL {
         return getAllParametersUnder(PARAMETER_STORE_PREFIX + APP_BASE_PATH, true)
                 .stream()
                 .map(SettingsServiceDAL::fromAppParameterStore)
-                .collect(Collectors.toList());
-    }
-
-    public List<Setting> getTenantSettings(UUID tenantId) {
-        return getAllParametersUnder(PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString(), false)
-                .stream()
-                .map(parameter -> SettingsServiceDAL.fromTenantParameterStore(tenantId, parameter))
                 .collect(Collectors.toList());
     }
 
@@ -139,39 +128,6 @@ public class SettingsServiceDAL {
     public String getParameterStoreReference(String settingName) {
         Setting setting = getSetting(settingName);
         return PARAMETER_STORE_PREFIX + setting.getName() + ":" + setting.getVersion();
-    }
-
-    public Setting getTenantSetting(UUID tenantId, String settingName) {
-        return getTenantSetting(tenantId, settingName, false);
-    }
-
-    public Setting getTenantSetting(UUID tenantId, String settingName, boolean decrypt) {
-        return fromTenantParameterStore(tenantId, parameterStore.getParameter(
-                toTenantParameterStore(tenantId, Setting.builder().name(settingName).build()).name(), decrypt));
-    }
-
-    public Setting getTenantSecret(UUID tenantId, String settingName) {
-        return getTenantSetting(tenantId, settingName, true);
-    }
-
-    public Setting updateTenantSetting(UUID tenantId, Setting setting) {
-        Parameter updated = parameterStore.putParameter(toTenantParameterStore(tenantId, setting));
-        return fromTenantParameterStore(tenantId, updated);
-    }
-
-    public void deleteTenantSettings(UUID tenantId) {
-        final long startTimeMillis = System.currentTimeMillis();
-
-        String parameterStorePath = PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString();
-        List<String> parametersToDelete = SettingsService.TENANT_PARAMS.stream()
-                .map(s -> parameterStorePath + "/" + s)
-                .collect(Collectors.toList());
-        parameterStore.deleteParameters(parametersToDelete);
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::deleteTenantSettings exec " + totalTimeMillis);
-
-        return;
     }
 
     public Setting updateSetting(Setting setting) {
@@ -250,7 +206,9 @@ public class SettingsServiceDAL {
         return Integer.compare(sizes.indexOf(size1), sizes.indexOf(size2));
     });
 
-    public static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR.thenComparing(INSTANCE_GENERATION_COMPARATOR).thenComparing(INSTANCE_SIZE_COMPARATOR);
+    public static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR
+            .thenComparing(INSTANCE_GENERATION_COMPARATOR)
+            .thenComparing(INSTANCE_SIZE_COMPARATOR);
 
     public static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
         Map<String, Object> option = new LinkedHashMap<>();
@@ -355,11 +313,13 @@ public class SettingsServiceDAL {
 
         // TODO we shouldn't assume Settings passed to this function are encrypted or decrypted
         // but right now we are assuming they're encrypted, because they always are
-        BillingProvider billingProvider = !getSetting(APP_BASE_PATH + "BILLING_API_KEY", true).getValue().isEmpty()
-            ? BillingProvider.builder()
-            .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
-            .build()
-            : null;
+        BillingProvider billingProvider = null;
+        Setting billingApiKey = getSetting(APP_BASE_PATH + "BILLING_API_KEY", true);
+        if (billingApiKey != null && Utils.isNotBlank(billingApiKey.getValue())) {
+            billingProvider = BillingProvider.builder()
+                    .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
+                    .build();
+        }
         appConfigBuilder.billing(billingProvider);
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
@@ -483,48 +443,6 @@ public class SettingsServiceDAL {
                     .build();
         }
         return setting;
-    }
-
-    public static Setting fromTenantParameterStore(UUID tenantId, Parameter parameter) {
-        Setting setting = null;
-        if (parameter != null) {
-            String parameterStoreName = parameter.name();
-            if (Utils.isEmpty(parameterStoreName)) {
-                throw new RuntimeException("Can't get Setting name for blank Parameter Store name");
-            }
-            String settingName = null;
-            Matcher regex = SAAS_BOOST_TENANT_PATTERN.matcher(parameterStoreName);
-            if (regex.matches()) {
-                if (!regex.group(1).equals(tenantId.toString())) {
-                    throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not belong to tenant " + tenantId.toString());
-                }
-                settingName = regex.group(2);
-            }
-            if (settingName == null) {
-                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern " + SAAS_BOOST_TENANT_PATTERN.toString());
-            }
-            setting = Setting.builder()
-                    .name(settingName)
-                    .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
-                    .readOnly(false)
-                    .secure(ParameterType.SECURE_STRING == parameter.type())
-                    .version(parameter.version())
-                    .build();
-        }
-        return setting;
-    }
-
-    public static Parameter toTenantParameterStore(UUID tenantId, Setting setting) {
-        if (setting == null || Utils.isEmpty(setting.getName())) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
-        }
-        String parameterName = PARAMETER_STORE_PREFIX + TENANT_BASE_PATH + tenantId.toString() + "/" + setting.getName();
-        String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
-        return Parameter.builder()
-                .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
-                .name(parameterName)
-                .value(parameterValue)
-                .build();
     }
 
     public List<Setting> appConfigToSettings(AppConfig appConfig) {

@@ -36,8 +36,8 @@ Parameters:
     Description: The domain your workload is hosted at formatted as [env].[domain].[com]
     Type: String
     Default: ''
-  SSLCertificate:
-    Description: The AWS Certificate Manager ARN for the domain name
+  HostedZone:
+    Description: The existing Route53 hosted zone id for the domain name
     Type: String
     Default: ''
   PublicApiStage:
@@ -263,6 +263,13 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
           EventBridgeEnabled: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - http://localhost:3000
+              - !GetAtt web.Outputs.CloudFrontDistributionUrl
+            AllowedMethods:
+              - PUT
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -626,6 +633,7 @@ Resources:
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
         DomainName: !Ref DomainName
+        HostedZone: !Ref HostedZone
       NotificationARNs:
         - !Ref CoreStackListenerTopic
   billing:
@@ -711,7 +719,7 @@ Resources:
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
-        CloudFrontDistribution: !GetAtt web.Outputs.CloudFrontDistributionUrl
+        ResourcesBucket: !Ref Resources
   tenant:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -755,12 +763,10 @@ Resources:
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
-        SettingsServiceConfigOptions: !GetAtt settings.Outputs.SettingsServiceConfigOptionsArn
+        SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
         SettingsServiceSetAppConfig: !GetAtt settings.Outputs.SettingsServiceSetAppConfigArn
         SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
-        SettingsServiceTenantGetAll: !GetAtt settings.Outputs.SettingsServiceTenantGetAllArn
-        SettingsServiceTenantById: !GetAtt settings.Outputs.SettingsServiceTenantByIdArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
@@ -790,16 +796,10 @@ Resources:
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
-        OnboardingUpdateAppConfig: !GetAtt onboarding.Outputs.OnboardingUpdateAppConfigArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
-        SettingsServiceTenantGetAll: !GetAtt settings.Outputs.SettingsServiceTenantGetAllArn
-        SettingsServiceTenantById: !GetAtt settings.Outputs.SettingsServiceTenantByIdArn
-        SettingsServiceTenantUpdate: !GetAtt settings.Outputs.SettingsServiceTenantUpdateArn
-        SettingsServiceTenantDelete: !GetAtt settings.Outputs.SettingsServiceTenantDeleteArn
         SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-        SettingsServiceUpdateServiceConfig: !GetAtt settings.Outputs.SettingsServiceUpdateServiceConfigArn
   SSMParamMetricsAnalyticsDeployed:
     Type: AWS::SSM::Parameter
     Properties:

@@ -120,7 +120,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub sb-${Environment}-onboarding-tenant-config
-      Description: SaaS Boost onboarding tenant config bucket events
+      Description: SaaS Boost onboarding tenant config resources bucket events
       EventPattern: !Sub |
         {
           "source": [
@@ -306,14 +306,10 @@ Resources:
               - arn:aws:apigateway:*::/restapis/*/resources
           - Effect: Allow
             Action:
-              #- lambda:Get*
-              #- lambda:CreateFunction
               - lambda:InvokeFunction
-              #- lambda:UpdateFunctionCode
               - lambda:AddPermission
               - lambda:RemovePermission
             Resource:
-              #- !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
   OnboardingServiceTenantProvisionPolicy:
@@ -384,6 +380,7 @@ Resources:
               - arn:aws:route53:::change/*
           - Effect: Allow
             Action:
+              - route53:ListHostedZonesByName
               - route53:CreateHostedZone
               - ec2:CreateInternetGateway
               - ec2:CreateVpc
@@ -1279,7 +1276,9 @@ Resources:
           ],
           "detail-type": [{
             "prefix": "Onboarding "
-          }]
+          },
+          "Application Configuration Changed"
+          ]
         }
       State: ENABLED
       Targets:
@@ -1321,39 +1320,6 @@ Resources:
       FunctionName: !Ref OnboardingServiceEventHandler
       Principal: events.amazonaws.com
       SourceArn: !GetAtt OnboardingDeploymentPipelineEventRule.Arn
-  OnboardingUpdateAppConfigLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-appconfig
-      RetentionInDays: 30
-  OnboardingUpdateAppConfig:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-appconfig
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateAppConfig
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
 Outputs:
   OnboardingServiceGetAllArn:
     Description: Onboarding Service get all onboarding requests Lambda ARN
@@ -1364,7 +1330,4 @@ Outputs:
   OnboardingServiceByIdArn:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Value: !GetAtt OnboardingServiceGetById.Arn
-  OnboardingUpdateAppConfigArn:
-    Description: Onboarding Service update application config Lambda ARN
-    Value: !GetAtt OnboardingUpdateAppConfig.Arn
 ...

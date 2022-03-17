@@ -34,7 +34,6 @@ import static org.junit.Assert.*;
 public class SettingsServiceDALTest {
 
     private static String env;
-    private static UUID tenantId;
     private static Setting emptyBillingApiKey;
     private static Setting billingApiKey;
     private HashMap<String, String> appSettings;
@@ -48,7 +47,6 @@ public class SettingsServiceDALTest {
     @BeforeClass
     public static void setup() {
         env = System.getenv("SAAS_BOOST_ENV");
-        tenantId = UUID.randomUUID();
         emptyBillingApiKey = Setting.builder()
                 .name("BILLING_API_KEY")
                 .value("")
@@ -86,8 +84,6 @@ public class SettingsServiceDALTest {
 
     @Test
     public void testFromParameterStore() {
-        System.out.println("testFromParameterStore");
-
         String settingName = "SAAS_BOOST_BUCKET";
         String parameterName = "/" + SettingsServiceDAL.SAAS_BOOST_PREFIX + "/" + env + "/" + settingName;
         String parameterValue = "sb-" + env + "-artifacts-test";
@@ -166,8 +162,6 @@ public class SettingsServiceDALTest {
 
     @Test
     public void testToParameterStore() {
-        System.out.println("testToParameterStore");
-
         String settingName = "SAAS_BOOST_BUCKET";
         String parameterName = "/" + SettingsServiceDAL.SAAS_BOOST_PREFIX + "/" + env + "/" + settingName;
         String parameterValue = "sb-" + env + "-artifacts-test";
@@ -246,149 +240,6 @@ public class SettingsServiceDALTest {
                 .readOnly(false)
                 .build();
         assertEquals("Setting secret value equals secure parameter", expectedSecretParameter, SettingsServiceDAL.toParameterStore(settingSecretValue));
-    }
-
-    @Test
-    public void testFromTenantParameterStore() {
-        System.out.println("testFromTenantParameterStore");
-
-        String parameterName = "/" + SettingsServiceDAL.SAAS_BOOST_PREFIX + "/" + env + "/tenant/" + tenantId + "/DB_HOST";
-
-        assertThrows("null tenant id throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(null, Parameter.builder().name(parameterName).build());});
-        assertTrue("null parameter returns null setting", SettingsServiceDAL.fromTenantParameterStore(tenantId, null) == null);
-        assertThrows("null parameter name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(tenantId, Parameter.builder().build());});
-        assertThrows("Empty parameter name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(tenantId, Parameter.builder().name("").build());});
-        assertThrows("Blank parameter name is invalid pattern throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(tenantId, Parameter.builder().name(" ").build());});
-        assertThrows("Invalid pattern parameter name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(tenantId, Parameter.builder().name("foobar").build());});
-
-        Parameter validParam = Parameter.builder()
-                .name(parameterName)
-                .value("localhost.localdomain")
-                .build();
-        Setting expectedValidSetting = Setting.builder()
-                .name("DB_HOST")
-                .value("localhost.localdomain")
-                .readOnly(false)
-                .secure(false)
-                .version(null)
-                .description(null)
-                .build();
-        assertThrows("Mismatched tenant id's throw RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.fromTenantParameterStore(UUID.randomUUID(), validParam);});
-        assertEquals("Valid DB_HOST param equals DB_HOST setting", expectedValidSetting, SettingsServiceDAL.fromTenantParameterStore(tenantId, validParam));
-
-        // Can't call ssm:PutParameter with a null or empty value, so we use N/A as a sentinel value in parameter store
-        // and set that to the empty string in our setting objects
-        Parameter blankParam = Parameter.builder()
-                .name(parameterName)
-                .value("N/A")
-                .build();
-        Setting expectedBlankSetting = Setting.builder()
-                .name("DB_HOST")
-                .value("")
-                .readOnly(false)
-                .secure(false)
-                .version(null)
-                .description(null)
-                .build();
-        assertEquals("Valid DB_HOST param equals DB_HOST setting", expectedBlankSetting, SettingsServiceDAL.fromTenantParameterStore(tenantId, blankParam));
-
-        Parameter secretParam = Parameter.builder()
-                .name(parameterName)
-                .value("N/A")
-                .type(ParameterType.SECURE_STRING)
-                .build();
-        Setting expectedSecretSetting = Setting.builder()
-                .name("DB_HOST")
-                .value("")
-                .readOnly(false)
-                .secure(true)
-                .version(null)
-                .description(null)
-                .build();
-        assertEquals("Valid DB_HOST param equals DB_HOST setting", expectedSecretSetting, SettingsServiceDAL.fromTenantParameterStore(tenantId, secretParam));
-    }
-
-    @Test
-    public void testToTenantParameterStore() {
-        System.out.println("testToTenantParameterStore");
-
-        String settingName = "DB_HOST";
-        String parameterName = "/" + SettingsServiceDAL.SAAS_BOOST_PREFIX + "/" + env + "/tenant/" + tenantId + "/" + settingName;
-
-        assertThrows("null tenant id throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toTenantParameterStore(null, Setting.builder().name(settingName).build());});
-        assertThrows("null setting throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toTenantParameterStore(tenantId, null);});
-        assertThrows("null setting name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toTenantParameterStore(tenantId, Setting.builder().build());});
-        assertThrows("Empty setting name throws RuntimeException", RuntimeException.class, () -> {SettingsServiceDAL.toTenantParameterStore(tenantId, Setting.builder().name("").build());});
-
-        Parameter expectedEmptyParameter = Parameter.builder()
-                .name(parameterName)
-                .type(ParameterType.STRING)
-                .value("N/A")
-                .build();
-        Setting settingNullValue = Setting.builder()
-                .name(settingName)
-                .value(null)
-                .description(null)
-                .version(null)
-                .secure(false)
-                .readOnly(false)
-                .build();
-        assertEquals("null setting value equals N/A parameter value", expectedEmptyParameter, SettingsServiceDAL.toTenantParameterStore(tenantId, settingNullValue));
-
-        Setting settingEmptyValue = Setting.builder()
-                .name(settingName)
-                .value("")
-                .description(null)
-                .version(null)
-                .secure(false)
-                .readOnly(false)
-                .build();
-        assertEquals("Empty setting value equals N/A parameter value", expectedEmptyParameter, SettingsServiceDAL.toTenantParameterStore(tenantId, settingEmptyValue));
-
-        Parameter expectedBlankParameter = Parameter.builder()
-                .name(parameterName)
-                .type(ParameterType.STRING)
-                .value(" ")
-                .build();
-        Setting settingBlankValue = Setting.builder()
-                .name(settingName)
-                .value(" ")
-                .description(null)
-                .version(null)
-                .secure(false)
-                .readOnly(false)
-                .build();
-        assertEquals("Blank setting value equals N/A parameter value", expectedBlankParameter, SettingsServiceDAL.toTenantParameterStore(tenantId, settingBlankValue));
-
-        Parameter expectedValueParameter = Parameter.builder()
-                .name(parameterName)
-                .type(ParameterType.STRING)
-                .value("localhost.localdomain")
-                .build();
-        Setting settingWithValue = Setting.builder()
-                .name(settingName)
-                .value("localhost.localdomain")
-                .description(null)
-                .version(null)
-                .secure(false)
-                .readOnly(false)
-                .build();
-        assertEquals("Setting value equals parameter value", expectedValueParameter, SettingsServiceDAL.toTenantParameterStore(tenantId, settingWithValue));
-
-        Parameter expectedSecretParameter = Parameter.builder()
-                .name(parameterName)
-                .type(ParameterType.SECURE_STRING)
-                .value("localhost.localdomain")
-                .build();
-        Setting settingSecretValue = Setting.builder()
-                .name(settingName)
-                .value("localhost.localdomain")
-                .description(null)
-                .version(null)
-                .secure(true)
-                .readOnly(false)
-                .build();
-        assertEquals("Setting secret value equals secure parameter", expectedSecretParameter, SettingsServiceDAL.toTenantParameterStore(tenantId, settingSecretValue));
     }
 
     @Test
@@ -583,7 +434,6 @@ public class SettingsServiceDALTest {
 
     @Test
     public void testRdsOptionsSorting() throws Exception {
-        System.out.println("testRdsOptionsSorting");
         try (InputStream json = Files.newInputStream(Path.of(this.getClass().getClassLoader().getResource("rdsInstancesUnsorted.json").toURI()))) {
             LinkedHashMap<String, Object> options = Utils.fromJson(json, LinkedHashMap.class);
             ArrayList<LinkedHashMap<String, Object>> instances = (ArrayList<LinkedHashMap<String, Object>>) options.get("instances");
