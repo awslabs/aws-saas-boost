@@ -276,23 +276,25 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         if (tenant == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
-                    .withHeaders(CORS);
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Invalid request body\"}");
         } else {
             if (tenant.getId() == null || !tenant.getId().toString().equals(tenantId)) {
                 LOGGER.error("Can't delete tenant {} at resource {}", tenant.getId(), tenantId);
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(400)
-                        .withHeaders(CORS);
+                        .withHeaders(CORS)
+                        .withBody("{\"message\": \"Invalid request for specified resource\"}");
             } else {
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Deleted",
-                        Map.of("tenantId", tenantId));
-
-                //**TODO set status to deleting or disable?
                 dal.disableTenant(tenantId);
                 //dal.deleteTenant(tenantId);
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
                         .withStatusCode(200);
+
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        TenantEvent.TENANT_DELETED.detailType(),
+                        Map.of("tenantId", tenantId));
             }
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;

@@ -246,7 +246,7 @@ public class TenantServiceDAL {
     }
 
     private Tenant setStatus(String tenantId, Boolean active) {
-        Tenant updated = null;
+        Tenant updated;
         try {
             Map<String, AttributeValue> key = new HashMap<>();
             key.put("id", AttributeValue.builder().s(tenantId).build());

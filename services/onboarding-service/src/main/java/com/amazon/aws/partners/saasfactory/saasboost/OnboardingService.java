@@ -654,14 +654,17 @@ public class OnboardingService {
                         break;
                     }
                 }
-                // TODO what about DELETE_COMPLETE stack status? Do we need to fire an event?
+                if (onboarding.appStacksDeleted()) {
+                    LOGGER.info("All app stacks deleted");
+                    handleBaseProvisioningReadyToDelete(event, context);
+                }
             } else {
                 // Can't find an onboarding record for this id
-                LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
+                LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
                 // TODO Throw here? Would end up in DLQ.
             }
         } else {
-            LOGGER.error("Missing onboardingId in event detail {}", Utils.toJson(event.get("detail")));
+            LOGGER.error("Missing tenantId and/or stackId in event detail {}", Utils.toJson(event.get("detail")));
             // TODO Throw here? Would end up in DLQ.
         }
     }
@@ -1436,41 +1439,6 @@ public class OnboardingService {
         return SQSBatchResponse.builder().withBatchItemFailures(retry).build();
     }
 
-    public Object deleteTenant(Map<String, Object> event, Context context) {
-        /*
-        Handles a event message to delete a tenant
-         */
-
-        //*TODO - Add Lambda function and event rule for "Delete Tenant"
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("OnboardingService::deleteTenant");
-        Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-        if (onboarding != null) {
-            LOGGER.info("OnboardingService::deleteTenant Updating Onboarding status for tenant " + onboarding.getTenantId() + " to DELETING");
-            dal.updateStatus(onboarding.getId(), OnboardingStatus.deleting);
-        }
-
-        //Now lets delete the CloudFormation stack
-        String tenantStackId = "Tenant-" + tenantId.split("-")[0];
-        try {
-            cfn.deleteStack(DeleteStackRequest.builder().stackName(tenantStackId).build());
-        } catch (SdkServiceException cfnError) {
-            if (null == cfnError.getMessage() || !cfnError.getMessage().contains("does not exist")) {
-                LOGGER.error("deleteCloudFormationStack::deleteStack failed {}", cfnError.getMessage());
-                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                throw cfnError;
-            }
-        }
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("OnboardingService::deleteTenant exec " + totalTimeMillis);
-        return null;
-    }
-
     public APIGatewayProxyResponseEvent updateProvisionedTenant(Map<String, Object> event, Context context) {
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
@@ -1644,91 +1612,10 @@ public class OnboardingService {
         return response;
     }
 
-    public APIGatewayProxyResponseEvent resetDomainName(Map<String, Object> event, Context context) {
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
-        }
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("OnboardingService::resetDomainName");
-        Utils.logRequestEvent(event);
-
-        Map<String, String> settings;
-        ApiRequest getSettingsRequest = ApiRequest.builder()
-                .resource("settings?setting=SAAS_BOOST_STACK&setting=DOMAIN_NAME")
-                .method("GET")
-                .build();
-        SdkHttpFullRequest getSettingsApiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, getSettingsRequest);
-        LOGGER.info("Fetching SaaS Boost stack and domain name from Settings Service");
-        try {
-            String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(getSettingsApiRequest, API_TRUST_ROLE, context.getAwsRequestId());
-            ArrayList<Map<String, String>> getSettingsResponse = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
-            settings = getSettingsResponse
-                    .stream()
-                    .collect(Collectors.toMap(
-                            setting -> setting.get("name"), setting -> setting.get("value")
-                    ));
-        } catch (Exception e) {
-            LOGGER.error("Error invoking API settings");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-
-        LOGGER.info("Calling cloudFormation update-stack --stack-name {}", settings.get("SAAS_BOOST_STACK"));
-        String stackId = null;
-        try {
-            UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
-                    .stackName(settings.get("SAAS_BOOST_STACK"))
-                    .usePreviousTemplate(Boolean.TRUE)
-                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .parameters(
-                            Parameter.builder().parameterKey("DomainName").parameterValue(settings.get("DOMAIN_NAME")).build(),
-                            Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build()
-                    )
-                    .build()
-            );
-            stackId = cfnResponse.stackId();
-            LOGGER.info("OnboardingService::resetDomainName stack id " + stackId);
-        } catch (SdkServiceException cfnError) {
-            // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
-            // need to be updated. Swallow this error.
-            if (cfnError.getMessage().contains("No updates are to be performed")) {
-                LOGGER.warn("cloudformation::updateStack error {}", cfnError.getMessage());
-            } else {
-                LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
-                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                throw cfnError;
-            }
-        }
-
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
-                .withHeaders(CORS)
-                .withBody("{\"stackId\": \"" + stackId + "\"}");
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("OnboardingService::resetDomainName exec " + totalTimeMillis);
-        return response;
-    }
-
     protected void handleAppConfigEvent(Map<String, Object> event, Context context) {
-        if ("saas-boost".equals(event.get("source"))) {
-            String detailType = (String) event.get("detail-type");
-            if ("Application Configuration Changed".equals(detailType)) {
-               handleUpdateInfrastructure(event, context);
-            }
+        String detailType = (String) event.get("detail-type");
+        if ("Application Configuration Changed".equals(detailType)) {
+           handleUpdateInfrastructure(event, context);
         }
     }
 
@@ -1821,7 +1708,89 @@ public class OnboardingService {
     }
 
     protected void handleTenantEvent(Map<String, Object> event, Context context) {
+        String detailType = (String) event.get("detail-type");
+        if ("Tenant Deleted".equals(detailType)) {
+            handleTenantDeleted(event, context);
+        }
+    }
 
+    protected void handleTenantDeleted(Map<String, Object> event, Context context) {
+        LOGGER.info("Handling Tenant Deleted Event");
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String tenantId = (String) detail.get("tenantId");
+        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+        if (onboarding != null) {
+            LOGGER.info("Deleting application stacks for tenant {}", tenantId);
+            for (OnboardingStack stack : onboarding.getStacks()) {
+                if (!stack.isBaseStack() && !Arrays.asList("DELETE_COMPLETE", "DELETE_IN_PROGRESS")
+                        .contains(stack.getStatus())) {
+                    try {
+                        cfn.deleteStack(request -> request.stackName(stack.getArn()));
+                    } catch (SdkServiceException cfnError) {
+                        if (cfnError.getMessage().contains("does not exist")) {
+                            LOGGER.warn("Stack {} does not exist!", stack.getArn());
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                    "Onboarding Stack Status Changed",
+                                    Map.of("tenantId", tenantId,
+                                            "stackId", stack.getArn(),
+                                            "stackStatus", "DELETE_COMPLETE")
+                            );
+                        } else {
+                            LOGGER.error("CloudFormation error", cfnError);
+                            LOGGER.error(Utils.getFullStackTrace(cfnError));
+                        }
+                    }
+                }
+            }
+            // Just in case we're called with no app stacks
+            if (onboarding.appStacksDeleted()) {
+                handleBaseProvisioningReadyToDelete(event, context);
+            }
+        } else {
+            // Can't find an onboarding record for this id
+            LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected void handleBaseProvisioningReadyToDelete(Map<String, Object> event, Context context) {
+        LOGGER.info("Handling Tenant Deleted Event");
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String tenantId = (String) detail.get("tenantId");
+        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+        if (onboarding != null) {
+            LOGGER.info("Deleting application stacks for tenant {}", tenantId);
+            if (onboarding.appStacksDeleted()) {
+                for (OnboardingStack stack : onboarding.getStacks()) {
+                    if (stack.isBaseStack() && !Arrays.asList("DELETE_COMPLETE", "DELETE_IN_PROGRESS")
+                            .contains(stack.getStatus())) {
+                        try {
+                            LOGGER.info("Deleting base stacks for tenant {}", tenantId);
+                            cfn.deleteStack(request -> request.stackName(stack.getArn()));
+                        } catch (SdkServiceException cfnError) {
+                            if (cfnError.getMessage().contains("does not exist")) {
+                                LOGGER.warn("Stack {} does not exist!", stack.getArn());
+                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                        "Onboarding Stack Status Changed",
+                                        Map.of("tenantId", tenantId,
+                                                "stackId", stack.getArn(),
+                                                "stackStatus", "DELETE_COMPLETE")
+                                );
+                            } else {
+                                LOGGER.error("CloudFormation error", cfnError);
+                                LOGGER.error(Utils.getFullStackTrace(cfnError));
+                            }
+                        }
+                    }
+                }
+            } else {
+                LOGGER.error("App stacks still exist. Can't delete base stacks.");
+            }
+        } else {
+            // Can't find an onboarding record for this id
+            LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
+            // TODO Throw here? Would end up in DLQ.
+        }
     }
 
     protected void failOnboarding(String onboardingId, String message) {

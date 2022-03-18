@@ -339,6 +339,8 @@ Resources:
       Timeout: 870
       MemorySize: 640
       # Has to be a VPC Lambda because we're talking to RDS
+      # Have to make sure the entire network is still up when you delete
+      # or we won't be able to call back to the CFN response URL
       VpcConfig:
         SecurityGroupIds:
           - !Ref RDSBootstrapSecurityGroup
@@ -375,10 +377,8 @@ Resources:
   InvokeRDSBootstrapDatabase:
     Type: Custom::CustomResource
     Condition: BootstrapDatabase
-    # Have to make sure the entire network is still up when you delete
-    # or we won't be able to call back to the CFN response URL
     DependsOn:
-      - RDSBootstrapDatabase
+      - RDSBootstrapDatabaseLogs
       - BootstrapWaitCondition
     Properties:
       ServiceToken: !GetAtt RDSBootstrapDatabase.Arn

@@ -26,7 +26,8 @@ public enum TenantEvent {
     TENANT_HOSTNAME_CHANGED("Tenant Hostname Changed"),
     TENANT_TIER_CHANGED("Tenant Tier Changed"),
     TENANT_ENABLED("Tenant Enabled"),
-    TENANT_DISABLED("Tenant Disabled")
+    TENANT_DISABLED("Tenant Disabled"),
+    TENANT_DELETED("Tenant Deleted")
     ;
 
     private final String detailType;

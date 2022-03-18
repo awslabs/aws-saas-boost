@@ -64,4 +64,46 @@ public class OnboardingTest {
         onboarding.addStack(OnboardingStack.builder().build());
         assertFalse("Not every stack is complete", onboarding.stacksComplete());
     }
+
+    @Test
+    public void testHasAppStacks() {
+        OnboardingStack baseStack = OnboardingStack.builder().baseStack(true).build();
+        OnboardingStack appStack = OnboardingStack.builder().baseStack(false).build();
+
+        Onboarding onboarding = new Onboarding();
+        assertFalse("No stacks", onboarding.hasAppStacks());
+
+        onboarding.addStack(baseStack);
+        assertFalse("Only base stacks", onboarding.hasAppStacks());
+
+        onboarding.addStack(appStack);
+        assertTrue("App stacks", onboarding.hasAppStacks());
+    }
+
+    @Test
+    public void testAppStacksDeleted() {
+        OnboardingStack baseStack = OnboardingStack.builder().baseStack(true).status("CREATE_COMPLETE").build();
+        OnboardingStack appStack1 = OnboardingStack.builder().baseStack(false).status("DELETE_IN_PROGRESS").build();
+        OnboardingStack appStack2 = OnboardingStack.builder().baseStack(false).status("DELETE_COMPLETE").build();
+        OnboardingStack appStack3 = OnboardingStack.builder().baseStack(false).status("DELETE_COMPLETE").build();
+
+        Onboarding onboarding = new Onboarding();
+        assertTrue("No Stacks", onboarding.appStacksDeleted());
+
+        onboarding.addStack(baseStack);
+        onboarding.appStacksDeleted();
+        assertTrue("Only base stacks", onboarding.appStacksDeleted());
+
+        onboarding.addStack(appStack1);
+        assertFalse("App stacks not deleted", onboarding.appStacksDeleted());
+
+        onboarding.addStack(appStack2);
+        assertFalse("App stacks not deleted", onboarding.appStacksDeleted());
+
+        onboarding.addStack(appStack3);
+        assertFalse("App stacks not deleted", onboarding.appStacksDeleted());
+
+        appStack1.setStatus("DELETE_COMPLETE");
+        assertTrue("App stacks deleted", onboarding.appStacksDeleted());
+    }
 }

@@ -114,6 +114,23 @@ public class Onboarding {
                 .isEmpty();
     }
 
+    public boolean hasAppStacks() {
+        return !getStacks()
+                .stream()
+                .filter(s -> !s.isBaseStack())
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
+    public boolean appStacksDeleted() {
+        return !hasAppStacks() || getStacks()
+                .stream()
+                .filter(s -> !s.isBaseStack())
+                .filter(s -> !"DELETE_COMPLETE".equals(s.getStatus()))
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
     public boolean stacksComplete() {
         return stacksComplete(false);
     }
