@@ -59,36 +59,23 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getTenants");
         //Utils.logRequestEvent(event);
-        List<Tenant> tenants = dal.getOnboardedTenants();
+        List<Tenant> tenants = new ArrayList<>();
+        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
+        if (queryParams != null && queryParams.containsKey("status")) {
+            if ("provisioned".equalsIgnoreCase(queryParams.get("status"))) {
+                tenants.addAll(dal.getProvisionedTenants());
+            } else if ("onboarded".equalsIgnoreCase(queryParams.get("status"))) {
+                tenants.addAll(dal.getOnboardedTenants());
+            }
+        } else {
+            tenants.addAll(dal.getAllTenants());
+        }
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
                 .withHeaders(CORS)
                 .withBody(Utils.toJson(tenants));
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TenantService::getTenants exec " + totalTimeMillis);
-        return response;
-    }
-
-    public APIGatewayProxyResponseEvent getProvisionedTenants(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("TenantService::getProvisionedTenants");
-        //Utils.logRequestEvent(event);
-
-        List<Tenant> tenants;
-        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
-        tenants = dal.getProvisionedTenants();
-
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
-                .withHeaders(CORS)
-                .withBody(Utils.toJson(tenants));
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TenantService::getProvisionedTenants exec {}", totalTimeMillis);
         return response;
     }
 

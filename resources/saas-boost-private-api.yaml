@@ -40,9 +40,6 @@ Parameters:
   TenantServiceGetAll:
     Description: Tenant Service get all tenants Lambda ARN
     Type: String
-  TenantServiceGetProvisioned:
-    Description: Tenant Service get provisioned tenants Lambda ARN
-    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -148,12 +145,6 @@ Resources:
       RestApiId: !Ref PrivateApi
       ParentId: !Ref RootResourceId
       PathPart: 'tenants'
-  TenantServiceProvisionedResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ParentId: !Ref TenantServiceResource
-      PathPart: 'provisioned'
   TenantServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -250,60 +241,6 @@ Resources:
             ResponseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  TenantServiceProvisionedMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref TenantServiceProvisionedResource
-      HttpMethod: GET
-      AuthorizationType: AWS_IAM
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetProvisioned}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  TenantServiceGetProvisionedLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref TenantServiceGetProvisioned
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/GET/tenants/provisioned
-  TenantServiceProvisionedResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PrivateApi
-      ResourceId: !Ref TenantServiceProvisionedResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Max-Age: "'3600'"
               method.response.header.X-Requested-With: "'*'"

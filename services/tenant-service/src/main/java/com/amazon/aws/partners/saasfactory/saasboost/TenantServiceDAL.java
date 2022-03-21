@@ -26,7 +26,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class TenantServiceDAL {
 
@@ -46,20 +45,24 @@ public class TenantServiceDAL {
     public List<Tenant> getOnboardedTenants() {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getTenants");
+
+        // Get all tenants that have the workload deployed and are ready to use the system
+        // or who have had the workload deployed and are in an update/deployment cycle
         List<Tenant> tenants = new ArrayList<>();
         try {
             ScanResponse response = ddb.scan(request -> request
                     .tableName(TENANTS_TABLE)
-                    .filterExpression("attribute_exists(onboarding_status) AND onboarding_status IN (:status1, :status2)")
-                    .expressionAttributeValues(Stream
-                            .of(
-                                    new AbstractMap.SimpleEntry<>(":status1", AttributeValue.builder().s("succeeded").build()),
-                                    new AbstractMap.SimpleEntry<>(":status2", AttributeValue.builder().s("updated").build())
-                            )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                    )
+                    .filterExpression("attribute_exists(onboarding_status) "
+                            + "AND onboarding_status IN (:updating, :updated, :deploying, :deployed)")
+                    .expressionAttributeValues(Map.of(
+                            ":updating", AttributeValue.builder().s("updating").build(),
+                            ":updated", AttributeValue.builder().s("updated").build(),
+                            ":deploying", AttributeValue.builder().s("deploying").build(),
+                            ":deployed", AttributeValue.builder().s("deployed").build()
+                    ))
+                    .build()
             );
-            LOGGER.info("TenantServiceDAL::getTenants returning " + response.items().size() + " onboarded tenants");
+            LOGGER.info("TenantServiceDAL::getTenants returning {} onboarded tenants", response.items().size());
             response.items().forEach(item ->
                     tenants.add(fromAttributeValueMap(item))
             );
@@ -76,22 +79,20 @@ public class TenantServiceDAL {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::getProvisionedTenants");
 
-        // Get all tenants who haven't just started provisioning (created)
-        // or who had an error during provisioning (failed)
-        String filter = "attribute_exists(onboarding_status) " +
-                "AND onboarding_status <> :created " +
-                "AND onboarding_status <> :failed " +
-                "AND onboarding_status <> :deleted";
-        Map<String, AttributeValue> expressions = new HashMap<>();
-        expressions.put(":created", AttributeValue.builder().s("created").build());
-        expressions.put(":failed", AttributeValue.builder().s("failed").build());
-        expressions.put(":deleted", AttributeValue.builder().s("deleted").build());
+        // Get all tenants that have infrastructure running or being created
         List<Tenant> tenants = new ArrayList<>();
         try {
             ScanResponse response = ddb.scan(ScanRequest.builder()
                     .tableName(TENANTS_TABLE)
-                    .filterExpression(filter)
-                    .expressionAttributeValues(expressions)
+                    .filterExpression("attribute_exists(onboarding_status) "
+                            + "AND onboarding_status <> :failed "
+                            + "AND onboarding_status <> :deleting "
+                            + "AND onboarding_status <> :deleted") // Can't use NOT IN (...) in DynamoDB
+                    .expressionAttributeValues(Map.of(
+                            ":failed", AttributeValue.builder().s("failed").build(),
+                            ":deleting", AttributeValue.builder().s("deleting").build(),
+                            ":deleted", AttributeValue.builder().s("deleted").build()
+                    ))
                     .build()
             );
             LOGGER.info("TenantServiceDAL::getProvisionedTenants returning {} provisioned tenants", response.items().size());
