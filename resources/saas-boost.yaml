@@ -765,7 +765,6 @@ Resources:
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
         SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-        SettingsServiceSetAppConfig: !GetAtt settings.Outputs.SettingsServiceSetAppConfigArn
         SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn

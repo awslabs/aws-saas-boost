@@ -16,8 +16,11 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
+import java.util.Objects;
 
 @JsonDeserialize(builder = ServiceTierConfig.Builder.class)
 public class ServiceTierConfig {
@@ -100,6 +103,42 @@ public class ServiceTierConfig {
 
     public boolean hasDatabase() {
         return database != null;
+    }
+
+    @Override
+    public String toString() {
+        return Utils.toJson(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final ServiceTierConfig other = (ServiceTierConfig) obj;
+        return (
+                ((min == null && other.min == null) || (min != null && min.equals(other.min)))
+                && ((max == null && other.max == null) || (max != null && max.equals(other.max)))
+                && ((computeSize == null && other.computeSize == null) || (computeSize == other.computeSize))
+                && ((cpu == null && other.cpu == null) || (cpu != null && cpu.equals(other.cpu)))
+                && ((memory == null && other.memory == null) || (memory != null && memory.equals(other.memory)))
+                && ((instanceType == null && other.instanceType == null) || (instanceType != null && instanceType.equals(other.instanceType)))
+                && ((filesystem == null && other.filesystem == null) || (filesystem != null && filesystem.equals(other.filesystem)))
+                && ((database == null && other.database == null) || (database != null && database.equals(other.database)))
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(min, max, computeSize, cpu, memory, instanceType, filesystem, database);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

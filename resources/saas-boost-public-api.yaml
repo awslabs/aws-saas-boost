@@ -64,9 +64,6 @@ Parameters:
   SettingsServiceGetAppConfig:
     Description: Settings Service get application configuration Lambda ARN
     Type: String
-  SettingsServiceSetAppConfig:
-    Description: Settings Service set application configuration Lambda ARN
-    Type: String
   SettingsServiceUpdateAppConfig:
     Description: Settings Service update application configuration Lambda ARN
     Type: String
@@ -815,33 +812,6 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAppConfig
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
-  SettingsServiceSetAppConfigMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceConfigResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceSetAppConfig}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceSetAppConfigLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceSetAppConfig
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/settings/config
   SettingsServiceUpdateAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1702,7 +1672,6 @@ Resources:
       - SettingsServiceOptionsMethod
       - SettingsServiceOptionsResourceCORS
       - SettingsServiceGetAppConfigMethod
-      - SettingsServiceSetAppConfigMethod
       - SettingsServiceUpdateAppConfigMethod
       - SettingsServiceConfigResourceCORS
       - SettingsServiceGetByIdMethod
