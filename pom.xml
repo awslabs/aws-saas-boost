@@ -41,6 +41,7 @@
         <aws.java.sdk.version>2.17.132</aws.java.sdk.version>
         <log4j.version>2.17.1</log4j.version>
         <junit.version>4.13.2</junit.version>
+        <mockito.version>3.12.4</mockito.version>
         <slf4j.version>1.7.32</slf4j.version>
     </properties>
     <!-- Define default configurations for some dependencies. Each child POM chooses which dependencies to include. -->
@@ -50,6 +51,12 @@
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
