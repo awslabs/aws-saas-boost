@@ -33,6 +33,8 @@ import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
 import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
+import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
+import software.amazon.awssdk.services.elasticloadbalancingv2.model.*;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.*;
@@ -48,6 +50,7 @@ import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -79,6 +82,7 @@ public class OnboardingService {
     private final S3Presigner presigner;
     private final Route53Client route53;
     private final SqsClient sqs;
+    private final ElasticLoadBalancingV2Client elb;
 
     public OnboardingService() {
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
@@ -101,6 +105,7 @@ public class OnboardingService {
         }
         this.route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME);
         this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
+        this.elb = Utils.sdkClient(ElasticLoadBalancingV2Client.builder(), ElasticLoadBalancingV2Client.SERVICE_NAME);
     }
 
     /**
@@ -257,16 +262,25 @@ public class OnboardingService {
         // Parse the onboarding request
         OnboardingRequest onboardingRequest = Utils.fromJson((String) event.get("body"), OnboardingRequest.class);
         if (null == onboardingRequest) {
+            LOGGER.error("Onboarding request is invalid");
             return new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Invalid onboarding request.\"}");
         }
         if (Utils.isBlank(onboardingRequest.getName())) {
+            LOGGER.error("Onboarding request is missing tenant name");
             return new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Tenant name is required.\"}");
+        }
+        if (Utils.isBlank(onboardingRequest.getTier())) {
+            LOGGER.error("Onboarding request is missing tier");
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(400)
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Tier is required.\"}");
         }
         // TODO check for duplicate tenant name? Do it by just looking at the local onboarding requests, or make
         // a call out to the tenant service?
@@ -275,8 +289,7 @@ public class OnboardingService {
         Onboarding onboarding = new Onboarding();
         onboarding.setRequest(onboardingRequest);
         // We're using the generated onboarding id as part of the S3 key
-        // so, first we need to persist the onboarding record, then we'll
-        // have to update it. TODO rethink this...
+        // so, first we need to persist the onboarding record.
         LOGGER.info("Saving new onboarding request");
         onboarding = dal.insertOnboarding(onboarding);
 
@@ -293,8 +306,8 @@ public class OnboardingService {
                 .build()
         );
         onboarding.setZipFile(presignedObject.url().toString());
-        onboarding = dal.updateOnboarding(onboarding);
-        LOGGER.info("Updated onboarding request with S3 URL");
+        // Don't save the temporary presigned URL to the database. If the user actually uploads
+        // a tenant config file, we'll persist the information then.
 
         // Let everyone know we've created an onboarding request so it can be validated
         Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
@@ -643,20 +656,19 @@ public class OnboardingService {
                                         OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
                                         Map.of("onboardingId", onboarding.getId())
                                 );
-                            } else if (onboarding.stacksComplete()) {
+                            } else if (!stack.isBaseStack() && onboarding.stacksComplete()) {
                                 LOGGER.info("All onboarding stacks provisioned!");
                                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                                         OnboardingEvent.ONBOARDING_PROVISIONED.detailType(),
                                         Map.of("onboardingId", onboarding.getId())
                                 );
                             }
+                        } else if (!stack.isBaseStack() && stack.isDeleted() && onboarding.appStacksDeleted()) {
+                            LOGGER.info("All app stacks deleted");
+                            handleBaseProvisioningReadyToDelete(event, context);
                         }
                         break;
                     }
-                }
-                if (onboarding.appStacksDeleted()) {
-                    LOGGER.info("All app stacks deleted");
-                    handleBaseProvisioningReadyToDelete(event, context);
                 }
             } else {
                 // Can't find an onboarding record for this id
@@ -1134,7 +1146,7 @@ public class OnboardingService {
                                     "Tenant Onboarding Status Changed",
                                     Map.of(
                                             "tenantId", tenantId,
-                                            "onboardingStatus", "succeeded"
+                                            "onboardingStatus", OnboardingStatus.deployed
                                     )
                             );
                         }
@@ -1243,6 +1255,25 @@ public class OnboardingService {
                         );
                         continue;
                     }
+
+                    String tier = onboardingRequest.getTier();
+                    boolean invaildTierConfig = false;
+                    for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
+                        Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+                        Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
+                        if (!tiers.containsKey(tier) || tiers.get(tier) == null || ((Map) tiers.get(tier)).isEmpty()) {
+                            LOGGER.warn("Missing tier configuration for service {} tier {}", serviceConfig.getKey(), tier);
+                            invaildTierConfig = true;
+                        }
+                    }
+                    if (invaildTierConfig) {
+                        retry.add(SQSBatchResponse.BatchItemFailure.builder()
+                                .withItemIdentifier(messageId)
+                                .build()
+                        );
+                        continue;
+                    }
+
                     // Do we have any CIDR blocks left for a new tenant VPC
                     if (!dal.availableCidrBlock()) {
                         LOGGER.error("No CIDR blocks available for new VPC");
@@ -1404,7 +1435,9 @@ public class OnboardingService {
                                 .key(key)
                         );
                         LOGGER.info("Renamed tenant config file to {}", destination);
-                        // TODO store the config file location in the tenant record?
+                        // Save the fact that we have a config file for this onboarding
+                        onboarding.setZipFile(destination);
+                        dal.updateOnboarding(onboarding);
                     } catch (S3Exception s3Error) {
                         LOGGER.error("Failed to move object {}/{} to {}", bucket, key, destination);
                         LOGGER.error(s3Error.awsErrorDetails().errorMessage());
@@ -1711,6 +1744,10 @@ public class OnboardingService {
         String detailType = (String) event.get("detail-type");
         if ("Tenant Deleted".equals(detailType)) {
             handleTenantDeleted(event, context);
+        } else if ("Tenant Disabled".equals(detailType)) {
+            handleTenantDisabled(event, context);
+        } else if ("Tenant Enabled".equals(detailType)) {
+            handleTenantEnabled(event, context);
         }
     }
 
@@ -1725,6 +1762,7 @@ public class OnboardingService {
                 if (!stack.isBaseStack() && !Arrays.asList("DELETE_COMPLETE", "DELETE_IN_PROGRESS")
                         .contains(stack.getStatus())) {
                     try {
+                        LOGGER.info("Deleting stack {}", stack.getName());
                         cfn.deleteStack(request -> request.stackName(stack.getArn()));
                     } catch (SdkServiceException cfnError) {
                         if (cfnError.getMessage().contains("does not exist")) {
@@ -1753,13 +1791,76 @@ public class OnboardingService {
         }
     }
 
+    protected void handleTenantDisabled(Map<String, Object> event, Context context) {
+        LOGGER.info("Handling Tenant Disabled Event");
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String tenantId = (String) detail.get("tenantId");
+        Map<String, Object> tenant = getTenant(tenantId, context);
+        // TODO tenant == null means tenant API call failed? retry?
+        if (tenant != null) {
+            Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
+            Map<String, Object> httpListener  = (Map<String, Object>) tenantResources.get("HTTP_LISTENER");
+            Map<String, Object> httpsListener  = (Map<String, Object>) tenantResources.get("HTTPS_LISTENER");
+            String listenerArn = null;
+            if (httpsListener != null) {
+                listenerArn = (String) httpsListener.get("arn");
+            } else if (httpListener != null) {
+                listenerArn = (String) httpListener.get("arn");
+            } else {
+                LOGGER.error("No ALB listeners defined for tenant {}", tenantId);
+            }
+            if (listenerArn != null) {
+                DescribeRulesResponse rulesResponse = elb.describeRules(DescribeRulesRequest.builder()
+                        .listenerArn(listenerArn)
+                        .build()
+                );
+                for (Rule rule : rulesResponse.rules()) {
+                    if (!rule.isDefault()) {
+                        LOGGER.info("Updating listener rule {}", rule.toString());
+                        elb.modifyRule(ModifyRuleRequest.builder()
+                                .ruleArn(rule.ruleArn())
+                                .conditions(RuleCondition.builder()
+                                        .field("path-pattern")
+                                        .values("*")
+                                        .build()
+                                )
+                                .actions(Action.builder()
+                                        .fixedResponseConfig(FixedResponseActionConfig.builder()
+                                                .messageBody("<html><body>Access to this application is disabled. "
+                                                        + "Contact support if you have questions.</body></html>")
+                                                .contentType("text/html")
+                                                .statusCode("200")
+                                                .build())
+                                        .type(ActionTypeEnum.FIXED_RESPONSE)
+                                        .build())
+                                .build()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    protected void handleTenantEnabled(Map<String, Object> event, Context context) {
+        LOGGER.info("Handling Tenant Enabled Event");
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String tenantId = (String) detail.get("tenantId");
+        Map<String, Object> tenant = getTenant(tenantId, context);
+        // TODO tenant == null means tenant API call failed? retry?
+        if (tenant != null) {
+            Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
+            Map<String, Object> alb = (Map<String, Object>) tenantResources.get("LOAD_BALANCER");
+            Map<String, Object> httpListener  = (Map<String, Object>) tenantResources.get("HTTP_LISTENER");
+            Map<String, Object> httpsListener  = (Map<String, Object>) tenantResources.get("HTTPS_LISTENER");
+        }
+    }
+
     protected void handleBaseProvisioningReadyToDelete(Map<String, Object> event, Context context) {
         LOGGER.info("Handling Tenant Deleted Event");
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String tenantId = (String) detail.get("tenantId");
         Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
         if (onboarding != null) {
-            LOGGER.info("Deleting application stacks for tenant {}", tenantId);
             if (onboarding.appStacksDeleted()) {
                 for (OnboardingStack stack : onboarding.getStacks()) {
                     if (stack.isBaseStack() && !Arrays.asList("DELETE_COMPLETE", "DELETE_IN_PROGRESS")
@@ -1899,7 +2000,7 @@ public class OnboardingService {
         if (Utils.isBlank(tenantId)) {
             throw new IllegalArgumentException("Can't fetch blank tenant id");
         }
-        // Fetch all of the services configured for this application
+        // Fetch the tenant for this onboarding
         LOGGER.info("Calling tenant service to fetch tenant {}", tenantId);
         String getTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                 ApiGatewayHelper.getApiRequest(
