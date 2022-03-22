@@ -43,7 +43,7 @@ public class Tenant {
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public boolean isProvisioned() {
-        return (onboardingStatus != null && !"created".equals(onboardingStatus) && !"failed".equals(onboardingStatus));
+        return onboardingStatus != null && !Arrays.asList("failed", "deleting", "deleted").contains(onboardingStatus);
     }
 
     public UUID getId() {
