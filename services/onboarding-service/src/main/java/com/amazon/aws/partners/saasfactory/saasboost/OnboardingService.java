@@ -646,8 +646,16 @@ public class OnboardingService {
                             stack.setStatus(stackStatus);
                         }
                         if (status != onboarding.getStatus()) {
-                            onboarding.setStatus(status);
-                            LOGGER.info("Onboarding status changing from {} to {}", onboarding.getStatus(), status);
+                            if (OnboardingStatus.deleted == status && !stack.isBaseStack()) {
+                                // If we're receiving a DELETE_COMPLETE status for one of the app stacks,
+                                // the onboarding record is still in a deleting state because we have to
+                                // delete the base stack after all the app stacks are complete
+                                LOGGER.info("Skipping onboarding status deleted for app stack {}", stack.getName());
+                                onboarding.setStatus(OnboardingStatus.deleting);
+                            } else {
+                                onboarding.setStatus(status);
+                                LOGGER.info("Onboarding status changing from {} to {}", onboarding.getStatus(), status);
+                            }
                         }
                         dal.updateOnboarding(onboarding);
                         if (stack.isComplete()) {
@@ -672,6 +680,17 @@ public class OnboardingService {
                         } else if (!stack.isBaseStack() && stack.isDeleted() && onboarding.appStacksDeleted()) {
                             LOGGER.info("All app stacks deleted");
                             handleBaseProvisioningReadyToDelete(event, context);
+                        } else if (stack.isBaseStack() && stack.isDeleted()) {
+                            onboarding.setStatus(OnboardingStatus.deleted);
+                            dal.updateOnboarding(onboarding);
+                            // Let the tenant service know the onboarding status
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                                    "Tenant Onboarding Status Changed",
+                                    Map.of(
+                                            "tenantId", tenantId,
+                                            "onboardingStatus",  onboarding.getStatus()
+                                    )
+                            );
                         }
                         break;
                     }
@@ -1770,6 +1789,7 @@ public class OnboardingService {
                     try {
                         LOGGER.info("Deleting stack {}", stack.getName());
                         cfn.deleteStack(request -> request.stackName(stack.getArn()));
+                        stack.setStatus("DELETE_IN_PROGRESS");
                     } catch (SdkServiceException cfnError) {
                         if (cfnError.getMessage().contains("does not exist")) {
                             LOGGER.warn("Stack {} does not exist!", stack.getArn());
@@ -1786,6 +1806,18 @@ public class OnboardingService {
                     }
                 }
             }
+            onboarding.setStatus(OnboardingStatus.deleting);
+            dal.updateOnboarding(onboarding);
+
+            // Let the tenant service know the onboarding status
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                    "Tenant Onboarding Status Changed",
+                    Map.of(
+                            "tenantId", tenantId,
+                            "onboardingStatus",  onboarding.getStatus()
+                    )
+            );
+
             // Just in case we're called with no app stacks
             if (onboarding.appStacksDeleted()) {
                 handleBaseProvisioningReadyToDelete(event, context);
@@ -1812,6 +1844,7 @@ public class OnboardingService {
         String tenantId = (String) detail.get("tenantId");
         Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
         if (onboarding != null) {
+            boolean update = false;
             for (OnboardingStack stack : onboarding.getStacks()) {
                 if (!stack.isBaseStack()) {
                     LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stack.getName());
@@ -1851,6 +1884,8 @@ public class OnboardingService {
                         if (!stack.getArn().equals(stackId)) {
                             LOGGER.info("Updating stack id does not equal existing stack arn");
                         }
+                        update = true;
+                        stack.setStatus("UPDATE_IN_PROGRESS");
                     } catch (SdkServiceException cfnError) {
                         // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
                         // need to be updated. Swallow this error.
@@ -1864,6 +1899,20 @@ public class OnboardingService {
                     }
                 }
             }
+
+            if (update) {
+                onboarding.setStatus(OnboardingStatus.updating);
+                dal.updateOnboarding(onboarding);
+
+                // Let the tenant service know the onboarding status
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        "Tenant Onboarding Status Changed",
+                        Map.of(
+                                "tenantId", tenantId,
+                                "onboardingStatus",  onboarding.getStatus()
+                        )
+                );
+            }
         } else {
             // Can't find an onboarding record for this id
             LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
@@ -1876,6 +1925,7 @@ public class OnboardingService {
         String tenantId = (String) detail.get("tenantId");
         Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
         if (onboarding != null) {
+            boolean update = false;
             if (onboarding.appStacksDeleted()) {
                 for (OnboardingStack stack : onboarding.getStacks()) {
                     if (stack.isBaseStack() && !Arrays.asList("DELETE_COMPLETE", "DELETE_IN_PROGRESS")
@@ -1883,6 +1933,8 @@ public class OnboardingService {
                         try {
                             LOGGER.info("Deleting base stacks for tenant {}", tenantId);
                             cfn.deleteStack(request -> request.stackName(stack.getArn()));
+                            update = true;
+                            stack.setStatus("DELETE_IN_PROGRESS");
                         } catch (SdkServiceException cfnError) {
                             if (cfnError.getMessage().contains("does not exist")) {
                                 LOGGER.warn("Stack {} does not exist!", stack.getArn());
@@ -1898,6 +1950,20 @@ public class OnboardingService {
                             }
                         }
                     }
+                }
+
+                if (update) {
+                    onboarding.setStatus(OnboardingStatus.deleting);
+                    dal.updateOnboarding(onboarding);
+
+                    // Let the tenant service know the onboarding status
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Tenant Onboarding Status Changed",
+                            Map.of(
+                                    "tenantId", tenantId,
+                                    "onboardingStatus",  onboarding.getStatus()
+                            )
+                    );
                 }
             } else {
                 LOGGER.error("App stacks still exist. Can't delete base stacks.");
