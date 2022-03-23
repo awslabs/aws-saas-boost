@@ -20,8 +20,16 @@ import { useDispatch } from 'react-redux'
 import { Formik, Form } from 'formik'
 import { PropTypes } from 'prop-types'
 import * as Yup from 'yup'
-import { Button, Row, Col, Card, CardBody, Alert, FormFeedback } from 'reactstrap'
-import LoadingOverlay from 'react-loading-overlay'
+import {
+  Button,
+  Row,
+  Col,
+  Card,
+  CardBody,
+  Alert,
+  FormFeedback,
+} from 'reactstrap'
+import LoadingOverlay from '@ronchalant/react-loading-overlay'
 
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
@@ -100,7 +108,9 @@ export function ApplicationComponent(props) {
   const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
     let thisService = appConfig.services[serviceName]
     const os = !!thisService?.operatingSystem
-      ? appConfig.services[serviceName].operatingSystem === LINUX ? LINUX : WINDOWS
+      ? appConfig.services[serviceName].operatingSystem === LINUX
+        ? LINUX
+        : WINDOWS
       : ''
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
@@ -115,32 +125,37 @@ export function ApplicationComponent(props) {
         ...thisTier.filesystem,
         mountPoint: thisTier.filesystem?.mountPoint || '',
         // Start off with FSX if Windows and EFS if Linux
-        fileSystemType: thisTier.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
+        fileSystemType:
+          thisTier.filesystem?.fileSystemType || (os !== LINUX ? FSX : EFS),
         efs: thisTier.filesystem?.efs || {
           lifecycle: '0',
           encryptAtRest: '',
         },
         fsx: getFsx(thisTier.filesystem?.fsx),
       }
-      const db = !!thisTier.database ? {
-        ...thisTier.database,
-        //This is frail, but try to see if the incoming password is base64d
-        //If so, assume it's encrypted
-        //Also store a copy in the encryptedPassword field
-        hasEncryptedPassword: !!thisTier.database.password.match(/^[A-Za-z0-9=+/\s ]+$/),
-        encryptedPassword: thisTier.database.password,
-      } : {
-        engine: '',
-        family: '',
-        version: '',
-        instance: '',
-        username: '',
-        password: '',
-        hasEncryptedPassword: false,
-        encryptedPassword: '',
-        database: '',
-        bootstrapFilename: '',
-      }
+      const db = !!thisTier.database
+        ? {
+            ...thisTier.database,
+            //This is frail, but try to see if the incoming password is base64d
+            //If so, assume it's encrypted
+            //Also store a copy in the encryptedPassword field
+            hasEncryptedPassword: !!thisTier.database.password.match(
+              /^[A-Za-z0-9=+/\s ]+$/
+            ),
+            encryptedPassword: thisTier.database.password,
+          }
+        : {
+            engine: '',
+            family: '',
+            version: '',
+            instance: '',
+            username: '',
+            password: '',
+            hasEncryptedPassword: false,
+            encryptedPassword: '',
+            database: '',
+            bootstrapFilename: '',
+          }
       initialTierValues[tierName] = {
         ...thisTier,
         filesystem: filesystem,
@@ -151,7 +166,7 @@ export function ApplicationComponent(props) {
     }
     return {
       ...thisService,
-      name: thisService?.name || '',
+      name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
       public: thisService?.public || false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
@@ -168,7 +183,9 @@ export function ApplicationComponent(props) {
     let initialServiceValues = []
     if (!!appConfig?.services) {
       for (const serviceName of Object.keys(appConfig?.services).sort()) {
-        initialServiceValues.push(generateAppConfigOrDefaultInitialValuesForService(serviceName))
+        initialServiceValues.push(
+          generateAppConfigOrDefaultInitialValuesForService(serviceName)
+        )
       }
     }
     return initialServiceValues
@@ -188,9 +205,13 @@ export function ApplicationComponent(props) {
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
   const singleTierValidationSpec = (tombstone) => {
     return Yup.object({
-      min: requiredIfNotTombstoned(tombstone, Yup.number()
-        .integer('Minimum count must be an integer value')
-        .min(1, 'Minimum count must be at least ${min}'), 'Minimum count is a required field.'),
+      min: requiredIfNotTombstoned(
+        tombstone,
+        Yup.number()
+          .integer('Minimum count must be an integer value')
+          .min(1, 'Minimum count must be at least ${min}'),
+        'Minimum count is a required field.'
+      ),
       max: Yup.number()
         .required('Maximum count is a required field.')
         .integer('Maximum count must be an integer value')
@@ -198,7 +219,11 @@ export function ApplicationComponent(props) {
         .test('match', 'Max cannot be smaller than min', function (max) {
           return max >= this.parent.min
         }),
-      computeSize: requiredIfNotTombstoned(tombstone, Yup.string(), 'Compute size is a required field.'),
+      computeSize: requiredIfNotTombstoned(
+        tombstone,
+        Yup.string(),
+        'Compute size is a required field.'
+      ),
       database: Yup.object().when('provisionDb', {
         is: true,
         then: Yup.object({
@@ -212,9 +237,9 @@ export function ApplicationComponent(props) {
             .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password is not valid')
             .required('Password is required'),
           database: Yup.string(),
-          }),
-        otherwise: Yup.object(),
         }),
+        otherwise: Yup.object(),
+      }),
       filesystem: Yup.object().when('provisionFS', {
         is: true,
         then: Yup.object({
@@ -226,16 +251,16 @@ export function ApplicationComponent(props) {
               .test(
                 'subdirectories',
                 'The path can only include up to four subdirectories',
-                (val) => (val?.match(/\//g) || []).length <= 4,
+                (val) => (val?.match(/\//g) || []).length <= 4
               )
               .required(),
             otherwise: Yup.string()
               .matches(
                 /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
-                'Invalid path. Ex: C:\\data',
+                'Invalid path. Ex: C:\\data'
               )
               .required(),
-            }),
+          }),
           fsx: Yup.object().when('fileSystemType', {
             is: FSX,
             then: Yup.object({
@@ -251,9 +276,15 @@ export function ApplicationComponent(props) {
                 .required()
                 .min(7, 'Minimum retention time is 7 days')
                 .max(35, 'Maximum retention time is 35 days'),
-              dailyBackupTime: Yup.string().required('Daily backup time is required'),
-              weeklyMaintenanceTime: Yup.string().required('Weekly maintenance time is required'),
-              windowsMountDrive: Yup.string().required('Windows mount drive is required'),
+              dailyBackupTime: Yup.string().required(
+                'Daily backup time is required'
+              ),
+              weeklyMaintenanceTime: Yup.string().required(
+                'Weekly maintenance time is required'
+              ),
+              windowsMountDrive: Yup.string().required(
+                'Windows mount drive is required'
+              ),
             }),
             otherwise: Yup.object().nullable(),
           }),
@@ -288,40 +319,61 @@ export function ApplicationComponent(props) {
   // TODO public service paths cannot match
   const validationSpecs = Yup.object({
     name: Yup.string().required('Name is a required field.'),
-    services: Yup.array(Yup.object({
-      public: Yup.boolean().required(),
-      name: Yup.string().when('tombstone', (tombstone, schema) => {
-        return requiredIfNotTombstoned(tombstone, schema, 'Service Name is a required field.')
-      }),
-      description: Yup.string(),
-      path: Yup.string().when(['public','tombstone'], (isPublic, tombstone, schema) => {
-          if (isPublic) {
-            return requiredIfNotTombstoned(tombstone, schema, 'Path is required for public services')
-          }
-          return schema
-        }).matches(/^\/.+$/, 'Path must start with / and be followed by at least one character.',),
-      containerPort: Yup.number()
-        .integer('Container port must be an integer value.')
-        .required('Container port is a required field.'),
-      containerTag: Yup.string().required('Container Tag is a required field.'),
-      healthCheckUrl: Yup.string()
-        .required('Health Check URL is a required field')
-        .matches(/^\//, 'Health Check must start with forward slash (/)'),
-      operatingSystem: Yup.string().when('tombstone', (tombstone, schema) => {
-        return requiredIfNotTombstoned(tombstone, schema, 'Container OS is a required field.')
-      }),
-      windowsVersion: Yup.string().when('operatingSystem', {
-        is: (containerOs) => containerOs && containerOs === WINDOWS,
-        then: Yup.string().required('Windows version is a required field'),
-        otherwise: Yup.string().nullable(),
-      }),
-      provisionDb: Yup.boolean(),
-      provisionFS: Yup.boolean(),
-      tiers: Yup.object().when('tombstone', (tombstone, schema) => {
-        return allTiersValidationSpec(tombstone)
-      }),
-      tombstone: Yup.boolean(),
-    })).min(1, 'Application must have at least ${min} service(s).'),
+    services: Yup.array(
+      Yup.object({
+        public: Yup.boolean().required(),
+        name: Yup.string().when('tombstone', (tombstone, schema) => {
+          return requiredIfNotTombstoned(
+            tombstone,
+            schema,
+            'Service Name is a required field.'
+          )
+        }),
+        description: Yup.string(),
+        path: Yup.string()
+          .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {
+            if (isPublic) {
+              return requiredIfNotTombstoned(
+                tombstone,
+                schema,
+                'Path is required for public services'
+              )
+            }
+            return schema
+          })
+          .matches(
+            /^\/.+$/,
+            'Path must start with / and be followed by at least one character.'
+          ),
+        containerPort: Yup.number()
+          .integer('Container port must be an integer value.')
+          .required('Container port is a required field.'),
+        containerTag: Yup.string().required(
+          'Container Tag is a required field.'
+        ),
+        healthCheckUrl: Yup.string()
+          .required('Health Check URL is a required field')
+          .matches(/^\//, 'Health Check must start with forward slash (/)'),
+        operatingSystem: Yup.string().when('tombstone', (tombstone, schema) => {
+          return requiredIfNotTombstoned(
+            tombstone,
+            schema,
+            'Container OS is a required field.'
+          )
+        }),
+        windowsVersion: Yup.string().when('operatingSystem', {
+          is: (containerOs) => containerOs && containerOs === WINDOWS,
+          then: Yup.string().required('Windows version is a required field'),
+          otherwise: Yup.string().nullable(),
+        }),
+        provisionDb: Yup.boolean(),
+        provisionFS: Yup.boolean(),
+        tiers: Yup.object().when('tombstone', (tombstone, schema) => {
+          return allTiersValidationSpec(tombstone)
+        }),
+        tombstone: Yup.boolean(),
+      })
+    ).min(1, 'Application must have at least ${min} service(s).'),
     provisionBilling: Yup.boolean(),
   })
 
@@ -343,13 +395,17 @@ export function ApplicationComponent(props) {
   }
 
   return (
-    <LoadingOverlay active={isSubmitting()} spinner text="Loading configuration...">
+    <LoadingOverlay
+      active={isSubmitting()}
+      spinner
+      text="Loading configuration..."
+    >
       <div className="animated fadeIn">
         {hasTenants && (
           <Alert color="primary">
             <span>
-              <i className="fa fa-info-circle" /> Note: some settings cannot be modified once you
-              have deployed tenants.
+              <i className="fa fa-info-circle" /> Note: some settings cannot be
+              modified once you have deployed tenants.
             </span>
           </Alert>
         )}
@@ -374,35 +430,43 @@ export function ApplicationComponent(props) {
           {(formik) => {
             return (
               <>
-              <Form>
-                <AppSettingsSubform isLocked={hasTenants}></AppSettingsSubform>
-                <ServicesComponent
-                  formik={formik}
-                  formikErrors={formik.errors}
-                  hasTenants={hasTenants}
-                  osOptions={osOptions}
-                  dbOptions={dbOptions}
-                  onFileSelected={onFileSelected}
-                  tiers={tiers}
-                  initService={generateAppConfigOrDefaultInitialValuesForService}
-                ></ServicesComponent>
-                <BillingSubform
-                  provisionBilling={formik.values.provisionBilling}
-                  values={formik.values?.billing}
-                ></BillingSubform>
-                <Row>
-                  <Col xs={12}>
-                    <Card>
-                      <CardBody>
-                        <Button type="Submit" color="primary" disabled={isSubmitting()}>
-                          {isSubmitting() ? 'Saving...' : 'Submit'}
-                        </Button>
-                      </CardBody>
-                    </Card>
-                  </Col>
-                </Row>
-              </Form>
-              <p>errors should be here: {JSON.stringify(formik.errors)}</p>
+                <Form>
+                  <AppSettingsSubform
+                    isLocked={hasTenants}
+                  ></AppSettingsSubform>
+                  <ServicesComponent
+                    formik={formik}
+                    formikErrors={formik.errors}
+                    hasTenants={hasTenants}
+                    osOptions={osOptions}
+                    dbOptions={dbOptions}
+                    onFileSelected={onFileSelected}
+                    tiers={tiers}
+                    initService={
+                      generateAppConfigOrDefaultInitialValuesForService
+                    }
+                  ></ServicesComponent>
+                  <BillingSubform
+                    provisionBilling={formik.values.provisionBilling}
+                    values={formik.values?.billing}
+                  ></BillingSubform>
+                  <Row>
+                    <Col xs={12}>
+                      <Card>
+                        <CardBody>
+                          <Button
+                            type="Submit"
+                            color="primary"
+                            disabled={isSubmitting()}
+                          >
+                            {isSubmitting() ? 'Saving...' : 'Submit'}
+                          </Button>
+                        </CardBody>
+                      </Card>
+                    </Col>
+                  </Row>
+                </Form>
+                <p>errors should be here: {JSON.stringify(formik.errors)}</p>
               </>
             )
           }}

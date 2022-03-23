@@ -15,9 +15,22 @@
  */
 
 import React, { useState } from 'react'
-import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
+import {
+  Row,
+  Col,
+  Card,
+  CardBody,
+  CardHeader,
+  FormGroup,
+  Label,
+  FormFeedback,
+} from 'reactstrap'
 import { Field } from 'formik'
-import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput } from '../components/FormComponents'
+import {
+  SaasBoostSelect,
+  SaasBoostCheckbox,
+  SaasBoostInput,
+} from '../components/FormComponents'
 import {
   CDropdown,
   CDropdownHeader,
@@ -30,7 +43,15 @@ import FileSystemSubform from './FileSystemSubform'
 import DatabaseSubform from './DatabaseSubform'
 
 const TierServiceSettingsSubform = (props) => {
-  const { isLocked, formikServicePrefix, serviceIndex, tiers, dbOptions, onFileSelected, serviceValues } = props
+  const {
+    isLocked,
+    formikServicePrefix,
+    serviceIndex,
+    tiers,
+    dbOptions,
+    onFileSelected,
+    serviceValues,
+  } = props
 
   const [selectedTier, setSelectedTier] = useState(tiers[0])
 
@@ -49,12 +70,12 @@ const TierServiceSettingsSubform = (props) => {
                 <CDropdownToggle>{selectedTier}</CDropdownToggle>
                 <CDropdownMenu>
                   {tiers.map((tierName) => (
-                  <CDropdownItem
-                    onClick={() => setSelectedTier(tierName)}
-                    key={formikServicePrefix + '-' + tierName}
-                  >
-                    {tierName}
-                  </CDropdownItem>
+                    <CDropdownItem
+                      onClick={() => setSelectedTier(tierName)}
+                      key={formikServicePrefix + '-' + tierName}
+                    >
+                      {tierName}
+                    </CDropdownItem>
                   ))}
                 </CDropdownMenu>
               </CDropdown>
@@ -64,8 +85,18 @@ const TierServiceSettingsSubform = (props) => {
                 <Col xs={6}>
                   <SaasBoostSelect
                     type="select"
-                    name={formikServicePrefix + ".tiers[" + selectedTier + "].computeSize"}
-                    id={formikServicePrefix + ".tiers[" + selectedTier + "].computeSize"}
+                    name={
+                      formikServicePrefix +
+                      '.tiers[' +
+                      selectedTier +
+                      '].computeSize'
+                    }
+                    id={
+                      formikServicePrefix +
+                      '.tiers[' +
+                      selectedTier +
+                      '].computeSize'
+                    }
                     label="Compute Size"
                   >
                     <option value="">Select One...</option>
@@ -77,17 +108,37 @@ const TierServiceSettingsSubform = (props) => {
                   <Row>
                     <Col>
                       <SaasBoostInput
-                        key={formikServicePrefix + ".tiers[" + selectedTier + "].min"}
+                        key={
+                          formikServicePrefix +
+                          '.tiers[' +
+                          selectedTier +
+                          '].min'
+                        }
                         label="Minimum Instance Count"
-                        name={formikServicePrefix + ".tiers[" + selectedTier + "].min"}
+                        name={
+                          formikServicePrefix +
+                          '.tiers[' +
+                          selectedTier +
+                          '].min'
+                        }
                         type="number"
                       />
                     </Col>
                     <Col>
                       <SaasBoostInput
-                        key={formikServicePrefix + ".tiers[" + selectedTier + "].max"}
+                        key={
+                          formikServicePrefix +
+                          '.tiers[' +
+                          selectedTier +
+                          '].max'
+                        }
                         label="Maximum Instance Count"
-                        name={formikServicePrefix + ".tiers[" + selectedTier + "].max"}
+                        name={
+                          formikServicePrefix +
+                          '.tiers[' +
+                          selectedTier +
+                          '].max'
+                        }
                         type="number"
                       />
                     </Col>
@@ -98,19 +149,32 @@ const TierServiceSettingsSubform = (props) => {
                 <Col>
                   <FileSystemSubform
                     isLocked={isLocked}
-                    formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
+                    formikTierPrefix={
+                      formikServicePrefix + '.tiers[' + selectedTier + ']'
+                    }
                     filesystem={serviceValues?.tiers[selectedTier]?.filesystem}
-                    provisionFs={serviceValues?.tiers[selectedTier]?.provisionFS}
+                    provisionFs={
+                      serviceValues?.tiers[selectedTier]?.provisionFS
+                    }
                     containerOs={serviceValues?.operatingSystem}
                     setFieldValue={props.setFieldValue}
                   ></FileSystemSubform>
                   <DatabaseSubform
                     isLocked={isLocked}
-                    formikTierPrefix={formikServicePrefix + ".tiers[" + selectedTier + "]"}
+                    formikTierPrefix={
+                      formikServicePrefix + '.tiers[' + selectedTier + ']'
+                    }
                     dbOptions={dbOptions}
-                    provisionDb={serviceValues?.tiers[selectedTier]?.provisionDb}
+                    provisionDb={
+                      serviceValues?.tiers[selectedTier]?.provisionDb
+                    }
                     values={serviceValues?.tiers[selectedTier]?.database}
-                    onFileSelected={(file) => onFileSelected(serviceValues?.tiers[selectedTier]?.database, file)}
+                    onFileSelected={(file) =>
+                      onFileSelected(
+                        serviceValues?.tiers[selectedTier]?.database,
+                        file
+                      )
+                    }
                   ></DatabaseSubform>
                 </Col>
               </Row>

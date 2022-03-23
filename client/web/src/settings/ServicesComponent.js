@@ -15,15 +15,11 @@
  */
 
 import React, { useState } from 'react'
-import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
-import { CAccordion, CAccordionHeader, CAccordionItem, CAccordionBody, CButton, CRow, CCol } from '@coreui/react'
-import CIcon from '@coreui/icons-react'
-import { cilX } from '@coreui/icons'
-import { Field } from 'formik'
-import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
-import { PropTypes } from 'prop-types'
+import { Accordion, Card, Row, Col, Container, Button } from 'react-bootstrap'
 import TierServiceSettingsSubform from './TierServiceSettingsSubform'
 import ServiceSettingsSubform from './ServiceSettingsSubform'
+import { ServiceNameComponent } from './ServiceNameComponent'
+import { PropTypes } from 'prop-types'
 
 const ServicesComponent = (props) => {
   const {
@@ -38,14 +34,17 @@ const ServicesComponent = (props) => {
   } = props
 
   const [services, setServices] = useState(formik.values.services)
+  const [showModal, setShowModal] = useState(false)
+
+  const toggleModal = () => {
+    setShowModal((state) => !state)
+  }
 
   const addService = (serviceName) => {
     console.log('addService ' + serviceName)
     let newService = initService(serviceName)
     formik.values.services.push(newService)
-    setServices([
-      ...formik.values.services
-    ])
+    setServices([...formik.values.services])
   }
 
   const deleteService = (index) => {
@@ -56,56 +55,70 @@ const ServicesComponent = (props) => {
     formik.validateForm()
   }
 
-  const nextServiceIndex = services.length
-
-  // TODO alwaysOpen=true in CAccordion has a bug when creating multiple services then opening
   return (
     <>
       <Card>
-        <CardHeader>
-          <CRow>
-            <CCol className="d-flex align-items-center">Services</CCol>
-            <CCol className="d-flex justify-content-end">
-              <CButton type="button" onClick={addService}>New Service</CButton>
-            </CCol>
-          </CRow>
-        </CardHeader>
-        <CardBody>
-          <CAccordion alwaysOpen={false}>
-            {services.map((service, index) => !service.tombstone && (
-              <CAccordionItem key={"service" + index} itemKey={"service" + index}>
-                <CAccordionHeader>{service.name}</CAccordionHeader>
-                <CAccordionBody>
-                  <ServiceSettingsSubform
-                    isLocked={hasTenants}
-                    formikService={services[index]}
-                    formikErrors={formikErrors}
-                    osOptions={osOptions}
-                    serviceIndex={index}
-                  ></ServiceSettingsSubform>
-                  <TierServiceSettingsSubform
-                    tiers={tiers}
-                    isLocked={hasTenants}
-                    formikService={services[index]}
-                    serviceValues={formik.values.services[index]}
-                    setFieldValue={formik.setFieldValue}
-                    dbOptions={dbOptions}
-                    onFileSelected={onFileSelected}
-                    formikServicePrefix={'services[' + index + ']'}
-                  ></TierServiceSettingsSubform>
-                  <CButton
-                      size="sm"
-                      color="danger"
-                      type="button"
-                      onClick={() => deleteService(index)}>
-                    <CIcon icon={cilX} />
-                  </CButton>
-                </CAccordionBody>
-              </CAccordionItem>
-            ))}
-          </CAccordion>
-        </CardBody>
+        <Card.Header>
+          <Row>
+            <Col className="d-flex align-items-center">Services</Col>
+            <Col className="d-flex justify-content-end">
+              <Button type="button" onClick={toggleModal}>
+                New Service
+              </Button>
+            </Col>
+          </Row>
+        </Card.Header>
+        <Card.Body>
+          <Accordion defaultActiveKey="0">
+            {services.map(
+              (service, index) =>
+                !service.tombstone && (
+                  <Accordion.Item key={service.name} eventKey={index}>
+                    <Accordion.Header>{service.name}</Accordion.Header>
+                    <Accordion.Body>
+                      <ServiceSettingsSubform
+                        isLocked={hasTenants}
+                        formikService={services[index]}
+                        formikErrors={formikErrors}
+                        osOptions={osOptions}
+                        serviceIndex={index}
+                      ></ServiceSettingsSubform>
+                      <TierServiceSettingsSubform
+                        tiers={tiers}
+                        isLocked={hasTenants}
+                        formikService={services[index]}
+                        serviceValues={formik.values.services[index]}
+                        setFieldValue={formik.setFieldValue}
+                        dbOptions={dbOptions}
+                        onFileSelected={onFileSelected}
+                        formikServicePrefix={'services[' + index + ']'}
+                      ></TierServiceSettingsSubform>
+                      <Container className="mt-3">
+                        <Row>
+                          <Col className="col-md-12 text-right">
+                            <Button
+                              size="sm"
+                              color="danger"
+                              type="button"
+                              onClick={() => deleteService(index)}
+                            >
+                              Delete
+                            </Button>
+                          </Col>
+                        </Row>
+                      </Container>
+                    </Accordion.Body>
+                  </Accordion.Item>
+                )
+            )}
+          </Accordion>
+        </Card.Body>
       </Card>
+      <ServiceNameComponent
+        showModal={showModal}
+        addService={addService}
+        toggleModal={toggleModal}
+      />
     </>
   )
 }
