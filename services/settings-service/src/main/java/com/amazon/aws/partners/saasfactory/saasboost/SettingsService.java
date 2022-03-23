@@ -279,7 +279,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         return response;
     }
 
-    public APIGatewayProxyResponseEvent configOptions(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent options(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
@@ -328,109 +328,12 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         return response;
     }
 
-    public APIGatewayProxyResponseEvent setAppConfig(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent updateAppConfig(Map<String, Object> event, Context context) {
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_EVENT_BUS");
         }
         if (Utils.isBlank(RESOURCES_BUCKET)) {
             throw new IllegalStateException("Missing environment variable RESOURCES_BUCKET");
-        }
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsService::setAppConfig");
-        Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-
-        try {
-            AppConfig appConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
-            if (appConfig == null) {
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody("{\"message\":\"Invalid request body.\"}");
-            } else if (appConfig.getName() == null || appConfig.getName().isEmpty()) {
-                LOGGER.error("Can't insert application configuration without an app name");
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody("{\"message\":\"Application name is required.\"}");
-            } else {
-                AppConfig currentAppConfig = dal.getAppConfig();
-                if (!currentAppConfig.isEmpty()) {
-                    // We should be calling update if we already have a (partially)filled out app config
-                    LOGGER.error("Can't insert an application configuration when one already exists");
-                    response = new APIGatewayProxyResponseEvent()
-                            .withHeaders(CORS)
-                            .withStatusCode(400)
-                            .withBody("{\"message\":\"Existing configuration.\"}");
-                } else {
-                    // Save all the settings for this app config
-                    appConfig = dal.setAppConfig(appConfig);
-
-                    // Create the pre-signed S3 URLs for the bootstrap SQL files. We won't save these to the
-                    // database record because the user might not upload any SQL files. If they do, we'll
-                    // process those uploads async and persist the relevant data to the database.
-                    for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
-                        String serviceName = serviceConfig.getKey();
-                        ServiceConfig service = serviceConfig.getValue();
-                        for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
-                            ServiceTierConfig tier = tierConfig.getValue();
-                            if (tier.hasDatabase()) {
-                                try {
-                                    // Create a presigned S3 URL to upload the database bootstrap file to
-                                    final String key = "services/" + serviceName + "/bootstrap.sql";
-                                    final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
-                                    PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
-                                            .signatureDuration(expires)
-                                            .putObjectRequest(PutObjectRequest.builder()
-                                                    .bucket(RESOURCES_BUCKET)
-                                                    .key(key)
-                                                    .build()
-                                            )
-                                            .build()
-                                    );
-                                    tier.getDatabase().setBootstrapFilename(presignedObject.url().toString());
-                                } catch (S3Exception s3Error) {
-                                    LOGGER.error("s3 presign url failed", s3Error);
-                                    LOGGER.error(Utils.getFullStackTrace(s3Error));
-                                    throw s3Error;
-                                }
-                            }
-                        }
-                    }
-
-                    // Let everyone else know app config has changed
-                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                            "Application Configuration Changed",
-                            Collections.EMPTY_MAP
-                    );
-
-                    response = new APIGatewayProxyResponseEvent()
-                            .withStatusCode(200)
-                            .withHeaders(CORS)
-                            .withBody(Utils.toJson(appConfig));
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Unexpected error", e);
-            LOGGER.error(Utils.getFullStackTrace(e));
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Unexpected error\"}");
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::setAppConfig exec " + totalTimeMillis);
-        return response;
-    }
-
-    public APIGatewayProxyResponseEvent updateAppConfig(Map<String, Object> event, Context context) {
-        if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
-            throw new IllegalStateException("Missing environment variable SAAS_BOOST_EVENT_BUS");
         }
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
@@ -465,20 +368,19 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     .withBody("{\"message\":\"Application name is required.\"}");
         } else {
             AppConfig currentAppConfig = dal.getAppConfig();
-            updatedAppConfig = dal.setAppConfig(updatedAppConfig);
+            if (currentAppConfig.isEmpty()) {
+                LOGGER.info("Processing first time app config save");
+                // First time setting the app config object don't bother going through all of the validation
+                updatedAppConfig = dal.setAppConfig(updatedAppConfig);
 
-            boolean fireAppConfigChangedEvent = false;
-            if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
-                LOGGER.info("AppConfig domain name has changed");
-                // TODO do we want to support this?
-                LOGGER.info("AppConfig application services changed");
-                fireAppConfigChangedEvent = true;
-            }
+                // If the app config has any databases, get the presigned S3 urls to upload bootstrap files
+                generateDatabaseBootstrapFileUrl(updatedAppConfig);
 
-            if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
-                String apiKey1 = currentAppConfig.getBilling() != null ? currentAppConfig.getBilling().getApiKey() : null;
-                String apiKey2 = updatedAppConfig.getBilling() != null ? updatedAppConfig.getBilling().getApiKey() : null;
-                LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                        AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
+                        Collections.EMPTY_MAP
+                );
+
                 if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
                     // 1. We didn't have a billing provider and now we do, trigger setup
                     // Existing provisioned tenants won't be subscribed to a billing plan
@@ -488,46 +390,95 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                             "Billing System Setup",
                             Map.of("message", "System Setup")
                     );
-                } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
-                    // 2. We had a billing provider and now we don't, disable integration
-                    LOGGER.info("AppConfig has removed the billing provider.");
-                    // TODO how do we cleanup the billing provider integration?
+                }
+
+                response = new APIGatewayProxyResponseEvent()
+                        .withStatusCode(200)
+                        .withHeaders(CORS)
+                        .withBody(Utils.toJson(updatedAppConfig));
+            } else {
+                LOGGER.info("Processing update to existing app config");
+                List<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
+                boolean provisioned = !provisionedTenants.isEmpty();
+                boolean okToUpdate = validateAppConfigUpdate(currentAppConfig, updatedAppConfig, provisioned);
+                boolean fireUpdateAppConfigEvent = false;
+
+                if (okToUpdate) {
+                    LOGGER.info("Ok to proceed with app config update");
+                    if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
+                        LOGGER.info("AppConfig domain name has changed");
+                        fireUpdateAppConfigEvent = true;
+                    }
+
+                    if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
+                        String apiKey1 = currentAppConfig.getBilling() != null ? currentAppConfig.getBilling().getApiKey() : null;
+                        String apiKey2 = updatedAppConfig.getBilling() != null ? updatedAppConfig.getBilling().getApiKey() : null;
+                        LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
+                        if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
+                            // 1. We didn't have a billing provider and now we do, trigger setup
+                            // Existing provisioned tenants won't be subscribed to a billing plan
+                            // so we don't need to update the tenant stacks.
+                            LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
+                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                    "Billing System Setup",
+                                    Map.of("message", "System Setup")
+                            );
+                        } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
+                            // 2. We had a billing provider and now we don't, disable integration
+                            LOGGER.info("AppConfig has removed the billing provider.");
+                            // TODO how do we cleanup the billing provider integration?
+                        } else {
+                            // 3. We had a billing provider and we're just changing the value of the key, that is
+                            // taken care of by dal.setAppConfig and we don't need to trigger a setup because
+                            // it's already been done.
+                            LOGGER.info("AppConfig billing provider API key in-place change.");
+                        }
+                    }
+
+                    if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
+                        LOGGER.info("AppConfig application services changed");
+                        //LOGGER.info(Utils.toJson(currentAppConfig));
+                        //LOGGER.info(Utils.toJson(updatedAppConfig));
+                        Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
+                        if (!removedServices.isEmpty()) {
+                            LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
+                            for (String serviceName : removedServices) {
+                                dal.deleteServiceConfig(currentAppConfig, serviceName);
+                            }
+                        }
+                        fireUpdateAppConfigEvent = true;
+                    }
+
+                    // TODO how do we want to deal with tier settings changes?
+
+                    // TODO do we want to allow adding new services to the config?
+                    LOGGER.info("Persisting updated app config");
+                    updatedAppConfig = dal.setAppConfig(updatedAppConfig);
+
+                    // If the app config has any databases, get the presigned S3 urls to upload bootstrap files
+                    if (!provisioned) {
+                        generateDatabaseBootstrapFileUrl(updatedAppConfig);
+                    }
+
+                    if (fireUpdateAppConfigEvent) {
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
+                                Collections.EMPTY_MAP
+                        );
+                    }
+
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(200)
+                            .withHeaders(CORS)
+                            .withBody(Utils.toJson(updatedAppConfig));
                 } else {
-                    // 3. We had a billing provider and we're just changing the value of the key, that is
-                    // taken care of by dal.setAppConfig and we don't need to trigger a setup because
-                    // it's already been done.
-                    LOGGER.info("AppConfig billing provider API key in-place change.");
+                    LOGGER.info("App config update validation failed");
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(400)
+                            .withHeaders(CORS)
+                            .withBody("{\"message\":\"Application config update validation failed.\"}");
                 }
             }
-
-            // TODO do we want to allow deleting services of the config?
-            if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
-//                Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
-//                if (!removedServices.isEmpty()) {
-//                    LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
-//                    for (String serviceName : removedServices) {
-//                        dal.deleteServiceConfig(currentAppConfig, serviceName);
-//                    }
-//                }
-                LOGGER.info("AppConfig application services changed");
-                fireAppConfigChangedEvent = true;
-            }
-
-            // TODO how do we want to deal with tier settings changes?
-
-            // TODO do we want to allow adding new services to the config?
-
-            if (fireAppConfigChangedEvent) {
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                        AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
-                        Collections.EMPTY_MAP
-                );
-            }
-
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(200)
-                    .withHeaders(CORS)
-                    .withBody(Utils.toJson(updatedAppConfig));
         }
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -667,4 +618,91 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         }
     }
 
+    protected List<Map<String, Object>> getProvisionedTenants(Context context) {
+        // Fetch all of the provisioned tenants
+        LOGGER.info("Calling tenant service to fetch all provisioned tenants");
+        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("tenants?status=provisioned")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+        if (tenants == null) {
+            tenants = new ArrayList<>();
+        }
+        return tenants;
+    }
+
+    protected static boolean validateAppConfigUpdate(AppConfig currentAppConfig, AppConfig updatedAppConfig,
+                                                     boolean provisionedTenants) {
+        boolean domainNameValid = true;
+        if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
+            if (provisionedTenants) {
+                LOGGER.error("Can't change domain name after onboarding tenants");
+                domainNameValid = false;
+            } else {
+                if (Utils.isNotBlank(currentAppConfig.getDomainName())) {
+                    LOGGER.error("Can only set a new domain name not change an existing domain name");
+                    domainNameValid = false;
+                } else {
+                    domainNameValid = true;
+                }
+            }
+        }
+
+        boolean serviceConfigValid = true;
+        if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
+            if (provisionedTenants) {
+                Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
+                if (!removedServices.isEmpty()) {
+                    LOGGER.error("Can't remove existing application services after onboarding tenants");
+                    serviceConfigValid = false;
+                }
+            }
+        }
+
+        return domainNameValid && serviceConfigValid;
+    }
+
+    protected void generateDatabaseBootstrapFileUrl(AppConfig appConfig) {
+        // Create the pre-signed S3 URLs for the bootstrap SQL files. We won't save these to the
+        // database record because the user might not upload any SQL files. If they do, we'll
+        // process those uploads async and persist the relevant data to the database.
+        for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
+            String serviceName = serviceConfig.getKey();
+            ServiceConfig service = serviceConfig.getValue();
+            for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
+                ServiceTierConfig tier = tierConfig.getValue();
+                if (tier.hasDatabase() && Utils.isBlank(tier.getDatabase().getBootstrapFilename())) {
+                    try {
+                        // Create a presigned S3 URL to upload the database bootstrap file to
+                        LOGGER.info("Generating S3 presigned URL for service {}", serviceName);
+                        final String key = "services/" + serviceName + "/bootstrap.sql";
+                        final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
+                        PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
+                                .signatureDuration(expires)
+                                .putObjectRequest(PutObjectRequest.builder()
+                                        .bucket(RESOURCES_BUCKET)
+                                        .key(key)
+                                        .build()
+                                )
+                                .build()
+                        );
+                        tier.getDatabase().setBootstrapFilename(presignedObject.url().toString());
+                    } catch (S3Exception s3Error) {
+                        LOGGER.error("s3 presign url failed", s3Error);
+                        LOGGER.error(Utils.getFullStackTrace(s3Error));
+                        throw s3Error;
+                    }
+                }
+            }
+        }
+    }
 }

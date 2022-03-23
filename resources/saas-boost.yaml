@@ -765,10 +765,8 @@ Resources:
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
         SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-        SettingsServiceSetAppConfig: !GetAtt settings.Outputs.SettingsServiceSetAppConfigArn
         SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
-        TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceUpdate: !GetAtt tenant.Outputs.TenantServiceUpdateArn
         TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
@@ -795,7 +793,6 @@ Resources:
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
-        TenantServiceGetProvisioned: !GetAtt tenant.Outputs.TenantServiceGetProvisionedArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
         SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn

@@ -308,6 +308,9 @@ Resources:
             Action:
               - lambda:AddPermission
               - lambda:RemovePermission
+              - lambda:InvokeFunction
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
@@ -659,8 +662,6 @@ Resources:
             Action:
               - lambda:InvokeFunction
               - lambda:DeleteFunction
-              #- lambda:GetFunction
-              #- lambda:GetFunctionConfiguration
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-rds-bootstrap-tenant-*
   OnboardingServiceStorageProvisionPolicy:

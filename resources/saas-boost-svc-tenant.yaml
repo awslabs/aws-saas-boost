@@ -159,37 +159,6 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
-  TenantServiceGetProvisionedLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenants-get-provisioned
-      RetentionInDays: 30
-  TenantServiceGetProvisioned:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-tenants-get-provisioned
-      Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::getProvisionedTenants
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/TenantService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          TENANTS_TABLE: !Ref TenantsTable
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tenant"
   TenantServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -406,9 +375,6 @@ Outputs:
   TenantServiceGetAllArn:
     Description: Tenant Service get all tenants Lambda ARN
     Value: !GetAtt TenantServiceGetAll.Arn
-  TenantServiceGetProvisionedArn:
-    Description: Tenant Service get provisioned tenants Lambda ARN
-    Value: !GetAtt TenantServiceGetProvisioned.Arn
   TenantServiceInsertArn:
     Description: Tenant Service insert new tenant Lambda ARN
     Value: !GetAtt TenantServiceInsert.Arn

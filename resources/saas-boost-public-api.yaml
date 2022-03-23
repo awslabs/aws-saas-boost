@@ -64,17 +64,11 @@ Parameters:
   SettingsServiceGetAppConfig:
     Description: Settings Service get application configuration Lambda ARN
     Type: String
-  SettingsServiceSetAppConfig:
-    Description: Settings Service set application configuration Lambda ARN
-    Type: String
   SettingsServiceUpdateAppConfig:
     Description: Settings Service update application configuration Lambda ARN
     Type: String
   TenantServiceGetAll:
     Description: Tenant Service get all tenants Lambda ARN
-    Type: String
-  TenantServiceGetProvisioned:
-    Description: Tenant Service get provisioned tenants Lambda ARN
     Type: String
   TenantServiceById:
     Description: Tenant Service get tenant by id Lambda ARN
@@ -818,33 +812,6 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAppConfig
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
-  SettingsServiceSetAppConfigMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref SettingsServiceConfigResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceSetAppConfig}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceSetAppConfigLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceSetAppConfig
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/settings/config
   SettingsServiceUpdateAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -973,12 +940,6 @@ Resources:
       RestApiId: !Ref PublicApi
       ParentId: !Ref TenantServiceResource
       PathPart: '{id}'
-  TenantServiceProvisionedResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PublicApi
-      ParentId: !Ref TenantServiceResource
-      PathPart: 'provisioned'
   TenantServiceEnableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1023,63 +984,6 @@ Resources:
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  TenantServiceProvisionedMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref TenantServiceProvisionedResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetProvisioned}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  TenantServiceGetProvisionedLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref TenantServiceGetProvisioned
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/provisioned
-  TenantServiceProvisionedResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref TenantServiceProvisionedResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1768,15 +1672,12 @@ Resources:
       - SettingsServiceOptionsMethod
       - SettingsServiceOptionsResourceCORS
       - SettingsServiceGetAppConfigMethod
-      - SettingsServiceSetAppConfigMethod
       - SettingsServiceUpdateAppConfigMethod
       - SettingsServiceConfigResourceCORS
       - SettingsServiceGetByIdMethod
       - SettingsServiceByIdResourceCORS
       - TenantServiceGetAllMethod
       - TenantServiceResourceCORS
-      - TenantServiceProvisionedMethod
-      - TenantServiceProvisionedResourceCORS
       - TenantServiceGetByIdMethod
       - TenantServiceUpdateMethod
       - TenantServiceDeleteMethod

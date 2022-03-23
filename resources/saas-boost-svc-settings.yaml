@@ -312,37 +312,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
-  SettingsServiceSetAppConfigLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-set-config
-      RetentionInDays: 30
-  SettingsServiceSetAppConfig:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-set-config
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::setAppConfig
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          RESOURCES_BUCKET: !Ref ResourcesBucket
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
   SettingsServiceUpdateAppConfigLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -479,7 +448,7 @@ Resources:
       Runtime: java11
       Timeout: 300
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::configOptions
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::options
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
@@ -575,9 +544,6 @@ Outputs:
   SettingsServiceGetAppConfigArn:
     Description: Settings Service get application configuration Lambda ARN
     Value: !GetAtt SettingsServiceGetAppConfig.Arn
-  SettingsServiceSetAppConfigArn:
-    Description: Settings Service set application configuration Lambda ARN
-    Value: !GetAtt SettingsServiceSetAppConfig.Arn
   SettingsServiceUpdateAppConfigArn:
     Description: Settings Service update application configuration Lambda ARN
     Value: !GetAtt SettingsServiceUpdateAppConfig.Arn

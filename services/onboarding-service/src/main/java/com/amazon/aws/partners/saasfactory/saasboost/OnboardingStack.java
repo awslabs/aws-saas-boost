@@ -79,6 +79,10 @@ public class OnboardingStack {
         return (isComplete() && isBaseStack()) || (isComplete() && "SUCCEEDED".equals(getPipelineStatus()));
     }
 
+    public boolean isDeleted() {
+        return "DELETE_COMPLETE".equals(getStatus());
+    }
+
     public String getCloudFormationUrl() {
         String url = null;
         if (arn != null) {
