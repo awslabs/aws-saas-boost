@@ -83,6 +83,14 @@ public class OnboardingStack {
         return "DELETE_COMPLETE".equals(getStatus());
     }
 
+    public boolean isCreated() {
+        return "CREATE_COMPLETE".equals(getStatus());
+    }
+
+    public boolean isUpdated() {
+        return "UPDATE_COMPLETE".equals(getStatus());
+    }
+
     public String getCloudFormationUrl() {
         String url = null;
         if (arn != null) {

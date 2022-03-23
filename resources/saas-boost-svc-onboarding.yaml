@@ -329,6 +329,7 @@ Resources:
               - cloudformation:UpdateStack
               - cloudformation:CreateChangeSet
               - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
             Resource:
               - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
               - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:transform/saas-boost-app-services-macro
@@ -499,6 +500,7 @@ Resources:
           - Effect: Allow
             Action:
               - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:ModifyRule
               - elasticloadbalancing:DeleteRule
               - elasticloadbalancing:DeleteListener
             Resource:
@@ -1032,11 +1034,14 @@ Resources:
           "source": [
             "saas-boost"
           ],
-          "detail-type": [{
+          "detail-type": [
+            {
               "prefix": "Onboarding "
             },
             "Application Configuration Changed",
-            "Tenant Deleted"
+            "Tenant Deleted",
+            "Tenant Enabled",
+            "Tenant Disabled"
           ]
         }
       State: ENABLED

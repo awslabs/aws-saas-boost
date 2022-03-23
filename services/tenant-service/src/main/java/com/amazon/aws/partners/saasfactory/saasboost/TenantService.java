@@ -198,7 +198,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         } else {
             Tenant tenant = dal.disableTenant(tenantId);
 
-            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Enabled",
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Disabled",
                     Map.of("tenantId", tenantId));
 
             response = new APIGatewayProxyResponseEvent()

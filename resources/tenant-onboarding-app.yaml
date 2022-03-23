@@ -199,6 +199,11 @@ Parameters:
     Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
     Default: 'G:'
     Type: String
+  Disable:
+    Description: Disable the tenant's access to the application
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
   # These params are here to read the image values from the public SSM. Leave the defaults.
   WIN2019FULL:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
@@ -219,6 +224,7 @@ Conditions:
   IsPublicHttps: !And
     - Condition: HasHttpsListener
     - Condition: IsPublic
+  DisableAccess: !Equals [!Ref Disable, 'true']
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
   WindowsOS: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
@@ -866,8 +872,15 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref ALBTargetGroup
-          Type: forward
+        - Type: !If [DisableAccess, fixed-response, forward]
+          TargetGroupArn: !If [DisableAccess, !Ref 'AWS::NoValue', !Ref ALBTargetGroup]
+          FixedResponseConfig:
+            !If
+              - DisableAccess
+              - ContentType: text/html
+                StatusCode: 200
+                MessageBody: <html><body>Access to this application is disabled. Contact support if you have questions.</body></html>
+              - !Ref 'AWS::NoValue'
       Conditions:
         - Field: path-pattern
           Values:
@@ -879,8 +892,15 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref ALBTargetGroup
-          Type: forward
+        - Type: !If [DisableAccess, fixed-response, forward]
+          TargetGroupArn: !If [DisableAccess, !Ref 'AWS::NoValue', !Ref ALBTargetGroup]
+          FixedResponseConfig:
+            !If
+              - DisableAccess
+              - ContentType: text/html
+                StatusCode: 200
+                MessageBody: <html><body>Access to this application is disabled. Contact support if you have questions.</body></html>
+              - !Ref 'AWS::NoValue'
       Conditions:
         - Field: path-pattern
           Values:

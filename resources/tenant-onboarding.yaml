@@ -218,13 +218,6 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
-#  CodePipelineUpdateEcsServicePermission:
-#    Type: AWS::Lambda::Permission
-#    Properties:
-#      FunctionName: !Ref CodePipelineUpdateEcsServiceLambda
-#      Principal: codepipeline.amazonaws.com
-#      Action: lambda:InvokeFunction
-#      SourceArn: !GetAtt EcrImageActionEvent.Arn
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:

@@ -29,6 +29,7 @@ import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
+import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
@@ -651,11 +652,16 @@ public class OnboardingService {
                         dal.updateOnboarding(onboarding);
                         if (stack.isComplete()) {
                             if (stack.isBaseStack() && onboarding.baseStacksComplete()) {
-                                LOGGER.info("Onboarding base stacks provisioned!");
-                                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                                        OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
-                                        Map.of("onboardingId", onboarding.getId())
-                                );
+                                if (stack.isCreated()) {
+                                    LOGGER.info("Onboarding base stacks provisioned!");
+                                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                            OnboardingEvent.ONBOARDING_BASE_PROVISIONED.detailType(),
+                                            Map.of("onboardingId", onboarding.getId())
+                                    );
+                                } else if (stack.isUpdated()) {
+                                    LOGGER.info("Onboarding base stacks updated");
+                                    // TODO handle updating tenant stacks
+                                }
                             } else if (!stack.isBaseStack() && onboarding.stacksComplete()) {
                                 LOGGER.info("All onboarding stacks provisioned!");
                                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
@@ -1793,65 +1799,74 @@ public class OnboardingService {
 
     protected void handleTenantDisabled(Map<String, Object> event, Context context) {
         LOGGER.info("Handling Tenant Disabled Event");
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        Map<String, Object> tenant = getTenant(tenantId, context);
-        // TODO tenant == null means tenant API call failed? retry?
-        if (tenant != null) {
-            Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
-            Map<String, Object> httpListener  = (Map<String, Object>) tenantResources.get("HTTP_LISTENER");
-            Map<String, Object> httpsListener  = (Map<String, Object>) tenantResources.get("HTTPS_LISTENER");
-            String listenerArn = null;
-            if (httpsListener != null) {
-                listenerArn = (String) httpsListener.get("arn");
-            } else if (httpListener != null) {
-                listenerArn = (String) httpListener.get("arn");
-            } else {
-                LOGGER.error("No ALB listeners defined for tenant {}", tenantId);
-            }
-            if (listenerArn != null) {
-                DescribeRulesResponse rulesResponse = elb.describeRules(DescribeRulesRequest.builder()
-                        .listenerArn(listenerArn)
-                        .build()
-                );
-                for (Rule rule : rulesResponse.rules()) {
-                    if (!rule.isDefault()) {
-                        LOGGER.info("Updating listener rule {}", rule.toString());
-                        elb.modifyRule(ModifyRuleRequest.builder()
-                                .ruleArn(rule.ruleArn())
-                                .conditions(RuleCondition.builder()
-                                        .field("path-pattern")
-                                        .values("*")
-                                        .build()
-                                )
-                                .actions(Action.builder()
-                                        .fixedResponseConfig(FixedResponseActionConfig.builder()
-                                                .messageBody("<html><body>Access to this application is disabled. "
-                                                        + "Contact support if you have questions.</body></html>")
-                                                .contentType("text/html")
-                                                .statusCode("200")
-                                                .build())
-                                        .type(ActionTypeEnum.FIXED_RESPONSE)
-                                        .build())
-                                .build()
-                        );
-                    }
-                }
-            }
-        }
+        enableDisableTenant(event, context, true);
     }
 
     protected void handleTenantEnabled(Map<String, Object> event, Context context) {
         LOGGER.info("Handling Tenant Enabled Event");
+        enableDisableTenant(event, context, false);
+    }
+
+    private void enableDisableTenant(Map<String, Object> event, Context context, boolean disable) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String tenantId = (String) detail.get("tenantId");
-        Map<String, Object> tenant = getTenant(tenantId, context);
-        // TODO tenant == null means tenant API call failed? retry?
-        if (tenant != null) {
-            Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
-            Map<String, Object> alb = (Map<String, Object>) tenantResources.get("LOAD_BALANCER");
-            Map<String, Object> httpListener  = (Map<String, Object>) tenantResources.get("HTTP_LISTENER");
-            Map<String, Object> httpsListener  = (Map<String, Object>) tenantResources.get("HTTPS_LISTENER");
+        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+        if (onboarding != null) {
+            for (OnboardingStack stack : onboarding.getStacks()) {
+                if (!stack.isBaseStack()) {
+                    LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stack.getName());
+                    try {
+                        DescribeStacksResponse describeStacksResponse = cfn.describeStacks(r -> r
+                                .stackName(stack.getArn())
+                        );
+                        List<Parameter> parameters = new ArrayList<>();
+                        Stack appStack = describeStacksResponse.stacks().get(0);
+                        for (Parameter parameter : appStack.parameters()) {
+                            if (!"Disable".equals(parameter.parameterKey())) {
+                                parameters.add(Parameter.builder()
+                                        .parameterKey(parameter.parameterKey())
+                                        .usePreviousValue(Boolean.TRUE)
+                                        .build()
+                                );
+                            }
+                        }
+                        // We disable tenant access to the application by swapping the load balancer listener rules
+                        // to a fixed response error string instead of a forward to the target group. We have to do
+                        // this on each application service stack because the default load balancer rule in the base
+                        // provisioning stack isn't used as long as there are any other listener rules on the ALB.
+                        parameters.add(Parameter.builder()
+                                .parameterKey("Disable")
+                                .parameterValue(String.valueOf(disable))
+                                .build()
+                        );
+
+                        UpdateStackResponse cfnResponse = cfn.updateStack(UpdateStackRequest.builder()
+                                .stackName(stack.getArn())
+                                .usePreviousTemplate(Boolean.TRUE)
+                                .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                                .parameters(parameters)
+                                .build()
+                        );
+                        String stackId = cfnResponse.stackId();
+                        if (!stack.getArn().equals(stackId)) {
+                            LOGGER.info("Updating stack id does not equal existing stack arn");
+                        }
+                    } catch (SdkServiceException cfnError) {
+                        // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
+                        // need to be updated. Swallow this error.
+                        if (cfnError.getMessage().contains("No updates are to be performed")) {
+                            LOGGER.warn("cloudformation::updateStack error {}", cfnError.getMessage());
+                        } else {
+                            LOGGER.error("cloudformation::updateStack failed {}", cfnError.getMessage());
+                            LOGGER.error(Utils.getFullStackTrace(cfnError));
+                            throw cfnError;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Can't find an onboarding record for this id
+            LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
         }
     }
 
