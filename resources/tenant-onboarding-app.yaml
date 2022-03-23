@@ -844,8 +844,8 @@ Resources:
     Properties:
       HealthCheckProtocol: HTTP
       HealthCheckPath: !Ref ContainerHealthCheckPath
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       Port: !Ref ContainerPort
@@ -859,6 +859,8 @@ Resources:
           Value: lb_cookie
         - Key: stickiness.lb_cookie.duration_seconds
           Value: '86400'
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -1035,6 +1037,7 @@ Resources:
     Properties:
       TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-efs.yaml'
       Parameters:
+        Environment: !Ref Environment
         TenantId: !Ref TenantId
         VPC: !Ref VPC
         PrivateSubnetA: !Ref SubnetPrivateA
