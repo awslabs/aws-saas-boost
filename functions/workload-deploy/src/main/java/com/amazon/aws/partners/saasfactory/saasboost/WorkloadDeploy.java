@@ -190,7 +190,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     protected List<Map<String, Object>> getTenants(String tenantId, Context context) {
         // Fetch one or all tenants
         LOGGER.info("Calling tenants service get tenants API");
-        String resource = Utils.isNotEmpty(tenantId) ? "tenants/" + tenantId : "tenants/provisioned";
+        String resource = Utils.isNotEmpty(tenantId) ? "tenants/" + tenantId : "tenants?status=provisioned";
         String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
                 ApiGatewayHelper.getApiRequest(
                         API_GATEWAY_HOST,
