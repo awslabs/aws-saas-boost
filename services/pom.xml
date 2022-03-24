@@ -18,6 +18,7 @@
         <module>quotas-service</module>
         <module>settings-service</module>
         <module>tenant-service</module>
+        <module>tier-service</module>
         <module>user-service</module>
     </modules>
     <licenses>

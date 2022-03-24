@@ -58,6 +58,9 @@ Parameters:
     Description: The existing Route53 hosted zone id for the domain name
     Type: String
     Default: ''
+  EventBus:
+    Description: SaaS Boost Eventbridge Bus
+    Type: String
 Conditions:
   CreateHostedZone: !And
     - !Not [!Equals [!Ref DomainName, '']]
@@ -165,7 +168,7 @@ Resources:
   WorkloadDeployEventRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+      EventBusName: !Ref EventBus
       Name: !Sub sb-${Environment}-workload-deploy-event
       Description: SaaS Boost tenant workload deploy events
       State: ENABLED
@@ -584,7 +587,7 @@ Resources:
   SaaSBoostEventRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+      EventBusName: !Ref EventBus
       Name: !Sub sb-${Environment}-system-api-call
       State: ENABLED
       EventPattern:

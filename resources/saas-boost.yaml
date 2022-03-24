@@ -634,6 +634,7 @@ Resources:
         ApplicationServices: !Ref ApplicationServices
         DomainName: !Ref DomainName
         HostedZone: !Ref HostedZone
+        EventBus: !Ref SaaSBoostEventBus
       NotificationARNs:
         - !Ref CoreStackListenerTopic
   billing:
@@ -732,6 +733,15 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         ResourcesBucket: !Ref Resources
+  tier:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tier.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
   user:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -772,6 +782,11 @@ Resources:
         TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
         TenantServiceEnable: !GetAtt tenant.Outputs.TenantServiceEnableArn
         TenantServiceDisable: !GetAtt tenant.Outputs.TenantServiceDisableArn
+        TierServiceGetAll: !GetAtt tier.Outputs.TierServiceGetAllArn
+        TierServiceGetById: !GetAtt tier.Outputs.TierServiceGetByIdArn
+        TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
+        TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
+        TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
         UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
         UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
         UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
