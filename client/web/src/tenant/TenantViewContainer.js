@@ -29,9 +29,8 @@ import {
   deleteTenant,
 } from './ducks'
 import TenantViewComponent from './TenantViewComponent'
-import { selectConfig, selectSettingsById, fetchConfig } from '../settings/ducks'
+import { selectConfig, fetchConfig } from '../settings/ducks'
 import { selectAllPlans, fetchPlans } from '../billing/ducks'
-import * as SETTINGS from '../settings/common'
 
 const mapDispatchToProps = {
   fetchTenantThunk,
@@ -49,18 +48,14 @@ const mapStateToProps = (state, props) => {
   const { params } = match
   const { tenantId } = params
   const { tenants } = state
-  const domainName = selectSettingsById(state, SETTINGS.DOMAIN_NAME)
   const tenant = !!tenantId ? tenants.entities[tenantId] : undefined
   const plans = selectAllPlans(state)
   const config = selectConfig(state)
-
   const detail = !!tenant
     ? {
         ...tenant,
         // What to do about http vs. https here?
-        fullCustomDomainName: !!domainName.value
-          ? `http://${tenant?.subdomain}.${domainName.value}`
-          : undefined,
+        fullCustomDomainName: `http://${tenant.hostname}`,
       }
     : undefined
 
@@ -158,6 +153,7 @@ class TenantContainer extends Component {
 
   render() {
     const { detail, error, dismissError, loading, config, plans } = this.props
+    console.log('CONFIG', config)
     const { tenantId, isEditing } = this.state
     return (
       <div>
@@ -210,7 +206,7 @@ TenantContainer.propTypes = {
 
 export const TenantContainerWithRouter = connect(
   mapStateToProps,
-  mapDispatchToProps,
+  mapDispatchToProps
 )(withRouter(TenantContainer))
 
 export default TenantContainerWithRouter

@@ -51,7 +51,6 @@ export const OnboardingDetailComponent = (props) => {
   const { onboarding, error, clearError, refresh, showTenant } = props
   const terminus = ['deployed', 'updated', 'failed']
 
-  const [actionsDropdownExpanded, setActionsDropdownExpanded] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(null)
   const [timeoutId, setTimeoutId] = useState(null)
 
@@ -74,6 +73,9 @@ export const OnboardingDetailComponent = (props) => {
       }
     }
   })
+
+  const rootStack = onboarding?.stacks?.find((s) => s.baseStack === true)
+  const rootStackUrl = rootStack?.cloudFormationUrl
 
   return (
     <div className="animated fadeIn">
@@ -98,7 +100,10 @@ export const OnboardingDetailComponent = (props) => {
             </CardHeader>
             <CardBody>
               <Row className="pt-3">
-                <Col sm={4} className="border border border-top-0 border-bottom-0 border-right-0">
+                <Col
+                  sm={4}
+                  className="border border border-top-0 border-bottom-0 border-right-0"
+                >
                   <dt>Id</dt>
                   <dd>
                     <Display>{onboarding && onboarding.id}</Display>
@@ -126,34 +131,42 @@ export const OnboardingDetailComponent = (props) => {
                       )}
                     </Display>
                   </dd>
-                  <dt>Stack Id</dt>
+                  <dt>Root stack</dt>
                   <dd>
                     <Display>
-                      {onboarding && onboarding.stackId && (
+                      {onboarding && rootStackUrl && (
                         <NavLink
                           active={true}
                           target="_blank"
-                          href={onboarding.cloudFormationUrl}
+                          href={rootStackUrl}
                           className="pl-0"
                         >
-                          {onboarding.stackId} <CIcon icon={cilExternalLink} />
+                          {rootStack?.name} <CIcon icon={cilExternalLink} />
                         </NavLink>
                       )}
                     </Display>
                   </dd>
                 </Col>
-                <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
+                <Col
+                  sm={4}
+                  className="border border border-top-0 border-bottom-0 border-left-0"
+                >
                   <dt>Created On</dt>
                   <dd>
                     <Display>
-                      {onboarding && <Moment format="LLLL" date={onboarding.created} />}
+                      {onboarding && (
+                        <Moment format="LLLL" date={onboarding.created} />
+                      )}
                     </Display>
                   </dd>
                   <dt>Modified On</dt>
                   <dd>
                     <Display>
                       {onboarding && (
-                        <Moment format="dddd, MMMM Do YYYY, h:mm:ss a" date={onboarding.modified} />
+                        <Moment
+                          format="dddd, MMMM Do YYYY, h:mm:ss a"
+                          date={onboarding.modified}
+                        />
                       )}
                     </Display>
                   </dd>

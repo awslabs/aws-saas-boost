@@ -68,7 +68,16 @@ function TenantViewComponent(props) {
   //  `
   const override = ''
 
-  const { tenant, loading, error, handleError, toggleEdit, enable, disable, deleteTenant } = props
+  const {
+    tenant,
+    loading,
+    error,
+    handleError,
+    toggleEdit,
+    enable,
+    disable,
+    deleteTenant,
+  } = props
 
   const [dropDownOpen, setDropDownOpen] = useState(false)
 
@@ -112,8 +121,8 @@ function TenantViewComponent(props) {
         <ModalHeader className="bg-primary">Confirm Delete</ModalHeader>
         <ModalBody>
           <p>
-            Delete tenant with ID <code>{tenant?.id}</code>? Please type the ID of the tenant to
-            confirm.
+            Delete tenant with ID <code>{tenant?.id}</code>? Please type the ID
+            of the tenant to confirm.
           </p>
           <Form>
             <FormGroup>
@@ -128,7 +137,11 @@ function TenantViewComponent(props) {
           </Form>
         </ModalBody>
         <ModalFooter>
-          <Button disabled={!matches} color="danger" onClick={deleteTenantDismissModal}>
+          <Button
+            disabled={!matches}
+            color="danger"
+            onClick={deleteTenantDismissModal}
+          >
             Yes, delete
           </Button>
           <Button color="primary" onClick={toggleModal}>
@@ -142,8 +155,16 @@ function TenantViewComponent(props) {
         </Row>
         <Row className="mb-3">
           <Col className="justify-content-end">
-            <Dropdown className="float-right" toggle={toggleActions} isOpen={dropDownOpen}>
-              <DropdownToggle caret color="primary" disabled={loading === 'pending'}>
+            <Dropdown
+              className="float-right"
+              toggle={toggleActions}
+              isOpen={dropDownOpen}
+            >
+              <DropdownToggle
+                caret
+                color="primary"
+                disabled={loading === 'pending'}
+              >
                 <MoonLoader
                   size={15}
                   className="d-inline-block"
@@ -161,7 +182,10 @@ function TenantViewComponent(props) {
                   <DropdownItem disabled={!tenant.active} onClick={disable}>
                     Disable
                   </DropdownItem>
-                  <DropdownItem disabled={!tenant.active} onClick={confirmDeleteTenant}>
+                  <DropdownItem
+                    disabled={!tenant.active}
+                    onClick={confirmDeleteTenant}
+                  >
                     Delete
                   </DropdownItem>
                 </DropdownMenu>
@@ -173,11 +197,15 @@ function TenantViewComponent(props) {
           <Col xs={12}>
             <Card>
               <CardHeader>
-                <strong>{tenant && tenant.name}</strong> (Id: {tenant && tenant.id})
+                <strong>{tenant && tenant.name}</strong> (Id:{' '}
+                {tenant && tenant.id})
               </CardHeader>
               <CardBody>
                 <Row className="pt-3">
-                  <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
+                  <Col
+                    sm={4}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
                     <dt>Name</dt>
                     <dd>
                       <Display>{!!tenant && tenant.name}</Display>
@@ -198,24 +226,36 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             {`http://${tenant.resources.LOAD_BALANCER.arn}`}
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
                     </dd>
                   </Col>
-                  <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
+                  <Col
+                    sm={4}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
                     <dt>Active</dt>
                     <dd>
                       <Display condition={!!tenant}>
-                        <Badge color={!!tenant && tenant.active ? 'success' : 'danger'}>
+                        <Badge
+                          color={
+                            !!tenant && tenant.active ? 'success' : 'danger'
+                          }
+                        >
                           {!!tenant && tenant.active ? 'Active' : 'Inactive'}
                         </Badge>
                       </Display>
                     </dd>
                     <dt>Onboarding Status</dt>
                     <dd>
-                      <Display condition={!!tenant}>{!!tenant && tenant.onboardingStatus}</Display>
+                      <Display condition={!!tenant}>
+                        {!!tenant && tenant.onboardingStatus}
+                      </Display>
                     </dd>
                     {tenant?.fullCustomDomainName && (
                       <>
@@ -231,7 +271,10 @@ function TenantViewComponent(props) {
                                 className="pl-0"
                               >
                                 {tenant?.fullCustomDomainName}
-                                <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                                <CIcon
+                                  icon={cilExternalLink}
+                                  customClassName="ml-2 icon"
+                                />
                               </NavLink>
                             )}
                           </Display>
@@ -243,13 +286,17 @@ function TenantViewComponent(props) {
                     <dt>Created</dt>
                     <dd>
                       <Display condition={!!tenant}>
-                        <Moment format="LLL">{!!tenant && new Date(tenant.created)}</Moment>
+                        <Moment format="LLL">
+                          {!!tenant && new Date(tenant.created)}
+                        </Moment>
                       </Display>
                     </dd>
                     <dt>Modified</dt>
                     <dd>
                       <Display condition={!!tenant}>
-                        <Moment format="LLL">{!!tenant && new Date(tenant.modified)}</Moment>
+                        <Moment format="LLL">
+                          {!!tenant && new Date(tenant.modified)}
+                        </Moment>
                       </Display>
                     </dd>
                   </Col>
@@ -269,7 +316,10 @@ function TenantViewComponent(props) {
               </CardHeader>
               <CardBody>
                 <Row className="pt-3">
-                  <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
+                  <Col
+                    sm={4}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
                     <dd>
                       <Display>
                         {!!tenant && !!tenant.resources && (
@@ -280,7 +330,10 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             Application Load Balancer Details
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
@@ -295,13 +348,19 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             VPC Details
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
                     </dd>
                   </Col>
-                  <Col sm={4} className="border border border-top-0 border-bottom-0 border-left-0">
+                  <Col
+                    sm={4}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
                     <dd>
                       <Display>
                         {!!tenant && !!tenant.resources && (
@@ -312,7 +371,10 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             CodePipeline Details (deprecated)
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
@@ -327,7 +389,10 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             CloudFormation Details
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
@@ -344,7 +409,10 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             ECS Cluster CloudWatch Log (deprecated)
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
@@ -359,7 +427,10 @@ function TenantViewComponent(props) {
                             className="pl-0"
                           >
                             ECS Cluster Details
-                            <CIcon icon={cilExternalLink} customClassName="ml-2 icon" />
+                            <CIcon
+                              icon={cilExternalLink}
+                              customClassName="ml-2 icon"
+                            />
                           </NavLink>
                         )}
                       </Display>
