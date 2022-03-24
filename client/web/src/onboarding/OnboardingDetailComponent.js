@@ -125,7 +125,7 @@ export const OnboardingDetailComponent = (props) => {
                       {onboarding && onboarding.tenantId && (
                         <OnboardingTenantLink
                           tenantId={onboarding.tenantId}
-                          tenantName={onboarding.tenantName}
+                          tenantName={onboarding.request?.name}
                           clickTenantDetails={showTenant}
                         />
                       )}
