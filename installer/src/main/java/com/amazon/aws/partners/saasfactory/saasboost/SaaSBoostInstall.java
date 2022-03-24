@@ -523,7 +523,7 @@ public class SaaSBoostInstall {
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error", ssmError);
             LOGGER.error(getFullStackTrace(ssmError));
-            throw ssmError;
+            // throw ssmError;
         }
 
         // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
@@ -1168,7 +1168,9 @@ public class SaaSBoostInstall {
                     .collect(Collectors.toSet());
             outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
-                LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
+                LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> "
+                        + cloudFormationTemplate.getFileName().toString());
+                // TODO validate template for syntax errors before continuing with installation
                 saasBoostArtifactsBucket.putFile(s3, cloudFormationTemplate, cloudFormationTemplate.getFileName());
             }
         } catch (IOException ioe) {
@@ -1249,7 +1251,8 @@ public class SaaSBoostInstall {
         try {
             ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
         } catch (ParameterNotFoundException ssmError) {
-            outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
+            outputMessage("Cannot find existing SaaS Boost environment " + environment
+                    + " in this AWS account and region.");
             System.exit(2);
         }
         return environment;
