@@ -96,7 +96,7 @@ public class ApplicationServicesEcrMacro implements RequestHandler<Map<String, O
         if (Utils.isBlank(serviceName)) {
             throw new IllegalArgumentException("service name cannot be blank");
         }
-        return cloudFormationResourceName(serviceName).toLowerCase();
+        return cloudFormationResourceName(serviceName);
     }
 
     protected static Map<String, Object> ecrResource(String serviceName) {

@@ -50,22 +50,22 @@ public class ApplicationServicesEcrMacroTest {
         assertEquals(expected, actual);
 
         serviceName = "Foo";
-        expected = "foo";
+        expected = "Foo";
         actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo Bar";
-        expected = "foobar";
+        expected = "FooBar";
         actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo_Bar";
-        expected = "foobar";
+        expected = "FooBar";
         actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo-Bar";
-        expected = "foobar";
+        expected = "FooBar";
         actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
     }
@@ -104,16 +104,16 @@ public class ApplicationServicesEcrMacroTest {
             assertTrue(resources.containsKey("foo"));
             assertTrue(resources.containsKey("ImageEventRulefoo"));
             assertTrue(resources.containsKey("ImageEventPermissionfoo"));
-            assertTrue(resources.containsKey("bar"));
+            assertTrue(resources.containsKey("Bar"));
             assertTrue(resources.containsKey("ImageEventRuleBar"));
             assertTrue(resources.containsKey("ImageEventPermissionBar"));
-            assertTrue(resources.containsKey("bazoole"));
+            assertTrue(resources.containsKey("bazOole"));
             assertTrue(resources.containsKey("ImageEventRulebazOole"));
             assertTrue(resources.containsKey("ImageEventPermissionbazOole"));
 
             // There should be a single tag for Name and it should have the non-modified application service name
             // for its Value
-            List<Map<String, Object>> tags = (List<Map<String, Object>>) ((LinkedHashMap<String, Object>) ((LinkedHashMap<String, Object>) resources.get("bazoole")).get("Properties")).get("Tags");
+            List<Map<String, Object>> tags = (List<Map<String, Object>>) ((LinkedHashMap<String, Object>) ((LinkedHashMap<String, Object>) resources.get("bazOole")).get("Properties")).get("Tags");
             assertEquals(1, tags.size());
             assertEquals("baz Oole", tags.get(0).get("Value"));
         }
