@@ -92,10 +92,10 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         try {
             List<QueryResult> result;
             if (query.isSingleTenant()) {
-                LOGGER.debug("queryMetrics: Execute Tenant metrics");
+                LOGGER.info("queryMetrics: Execute Tenant metrics");
                 result = dal.queryTenantMetrics(query);
             } else {
-                LOGGER.debug("queryMetrics: Execute across all tenants");
+                LOGGER.info("queryMetrics: Execute across all tenants");
                 result = dal.queryMetrics(query);
             }
             response = new APIGatewayProxyResponseEvent()
@@ -267,7 +267,7 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         if (tenants == null) {
             tenants = new ArrayList<>();
         }
-        LOGGER.debug("getTenants: Total time to get list of tenants: {}", (System.currentTimeMillis() - startMillis));
+        LOGGER.info("getTenants: Total time to get list of tenants: {}", (System.currentTimeMillis() - startMillis));
         LOGGER.info("Caching {} tenants", tenants.size());
         Map<String, Map<String, Object>> tenantMap = new HashMap<>();
         for (Map<String, Object> tenant : tenants) {

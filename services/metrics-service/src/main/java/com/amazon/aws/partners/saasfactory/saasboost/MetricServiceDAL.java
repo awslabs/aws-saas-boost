@@ -145,7 +145,10 @@ public class MetricServiceDAL {
                 //now process the metric entries
                 for (Map.Entry<Instant, PriorityQueue<MetricValue>> entry : metric.getTimeValMap().entrySet()) {
                     //add entry for the period key
-                    final String period = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(entry.getKey());
+                    final String period = DateTimeFormatter
+                            .ofPattern("MM-dd HH:mm")
+                            .withZone(ZoneId.systemDefault())
+                            .format(entry.getKey());
                     if (!periodList.contains(period)) {
                         periodList.add(period);
                     }
@@ -285,7 +288,11 @@ public class MetricServiceDAL {
                     List<String> periodsList = new ArrayList<>();
                     for (final Instant timeVal : metric.getMetricTimes()) {
                         //add entry  for the period key
-                        periodsList.add(DateTimeFormatter.ofPattern("MM-dd HH:mm").format(timeVal));
+                        periodsList.add(DateTimeFormatter
+                                .ofPattern("MM-dd HH:mm")
+                                .withZone(ZoneId.systemDefault())
+                                .format(timeVal)
+                        );
                     }
                     Collections.reverse(periodsList);
                     mrs.setPeriods(periodsList);

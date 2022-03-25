@@ -83,7 +83,7 @@ public class Metric {
     }
 
     public SortedMap<Instant, PriorityQueue<MetricValue>> getTimeValMap() {
-        return (SortedMap<Instant, PriorityQueue<MetricValue>>) Map.copyOf(timeValMap);
+        return new TreeMap<>(timeValMap);
     }
 
     @Override
