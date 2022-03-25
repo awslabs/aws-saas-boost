@@ -16,6 +16,8 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.Objects;
 
 public class MetricDimension {
@@ -23,6 +25,7 @@ public class MetricDimension {
     private String nameSpace;
     private String metricName;
     //note that tenantId is used during processing and not passed
+    @JsonIgnore
     private String tenantId;
 
     public MetricDimension(String nameSpace, String metricName) {

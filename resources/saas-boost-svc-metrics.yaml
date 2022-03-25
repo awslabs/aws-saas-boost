@@ -226,7 +226,7 @@ Resources:
   MetricServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-metric-svc-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-metrics-svc-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -238,7 +238,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-metric-svc-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-metrics-svc-policy-${AWS::Region}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -258,6 +258,7 @@ Resources:
                   - athena:ListDataCatalogs
                   - athena:ListWorkGroups
                   - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
                   - application-autoscaling:DescribeScalableTargets
                 Resource: '*'
               - Effect: Allow
