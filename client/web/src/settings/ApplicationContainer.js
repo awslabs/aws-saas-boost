@@ -214,7 +214,7 @@ export function ApplicationContainer(props) {
 //      }
       console.log('dispatching the following appConfig...')
       console.log(configToSend)
-      await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend))
+      await dispatch(updateConfig(configToSend))
     } catch (e) {
       console.error(e)
     }

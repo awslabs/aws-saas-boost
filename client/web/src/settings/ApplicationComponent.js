@@ -328,7 +328,7 @@ export function ApplicationComponent(props) {
             schema,
             'Service Name is a required field.'
           )
-        }),
+        }).matches(/^[\.-_\/a-zA-Z0-9]+$/, 'Name must only contain alphanumeric characters or .-_/'),
         description: Yup.string(),
         path: Yup.string()
           .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {
