@@ -16,7 +16,6 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.athena.AthenaClient;
 import software.amazon.awssdk.services.athena.model.QueryExecutionContext;
 import software.amazon.awssdk.services.athena.model.ResultConfiguration;

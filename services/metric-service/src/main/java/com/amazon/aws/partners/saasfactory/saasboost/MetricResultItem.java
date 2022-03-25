@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.util.ArrayList;
@@ -21,36 +22,45 @@ import java.util.List;
 import java.util.Map;
 
 public class MetricResultItem {
-    private List<MetricValue> topTenants = new ArrayList<>();
-    private Map<String, List<Double>> stats = new LinkedHashMap<>();
+
     private MetricDimension dimension;
+    private Map<String, List<Double>> stats = new LinkedHashMap<>();
+    private List<MetricValue> topTenants = new ArrayList<>();
 
     public MetricDimension getDimension() {
-        return dimension;
+        if (dimension == null) {
+            return null;
+        } else {
+            return new MetricDimension(dimension.getNameSpace(), dimension.getMetricName(), dimension.getTenantId());
+        }
     }
 
     public void setDimension(MetricDimension dimension) {
-        this.dimension = dimension;
-    }
-
-    public Map<String, List<Double>> getStats() {
-        return stats;
-    }
-
-    public List<MetricValue> getTopTenants() {
-        return topTenants;
-    }
-
-    public void setTopTenant(List<MetricValue> mvList) {
-        topTenants = mvList;
+        if (dimension == null) {
+            this.dimension = null;
+        } else {
+            this.dimension = new MetricDimension(dimension.getNameSpace(), dimension.getMetricName(), dimension.getTenantId());
+        }
     }
 
     public List<Double> getStat(String key) {
-        return stats.get(key);
+        return List.copyOf(stats.get(key));
+    }
+
+    public Map<String, List<Double>> getStats() {
+        return Map.copyOf(stats);
     }
 
     public void putStat(String key, List<Double> valueList) {
         stats.put(key, valueList);
+    }
+
+    public List<MetricValue> getTopTenants() {
+        return List.copyOf(topTenants);
+    }
+
+    public void setTopTenant(List<MetricValue> topTenants) {
+        this.topTenants = topTenants != null ? topTenants : new ArrayList<>();
     }
 
 }

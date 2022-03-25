@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,43 +13,86 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.time.Instant;
 import java.util.*;
 
-/*
-Use to setup the query to use for the CW metrics
-- tenants is the list of tenants
-- MetricType is the type of metric
-
- */
-
 public class MetricQuery {
     private String id;
-    private List<String> tenants = new ArrayList<>();
-    private Instant startDate, endDate;
     private String stat;
+    private List<Dimension> dimensions = new ArrayList<>();
     private Integer period;
+    private Instant startDate;
+    private Instant endDate;
+    private String timeRangeName;
+    private int tzOffset = 0;
+    private List<String> tenants = new ArrayList<>();
+    private boolean singleTenant = false;
     private boolean topTenants = false;
     private boolean statsMap = false;
     private boolean tenantTaskMaxCapacity = false;
-    private int tzOffset = 0;
 
-    public int getTzOffset() {
-        return tzOffset;
+    @Override
+    public String toString() {
+        return Utils.toJson(this);
     }
 
-    public void setTzOffset(int tzOffset) {
-        this.tzOffset = tzOffset;
+    public String getId() {
+        return id;
     }
 
-    public boolean isTenantTaskMaxCapacity() {
-        return tenantTaskMaxCapacity;
+    public void setId(String id) {
+        this.id = id;
     }
 
-    public void setTenantTaskMaxCapacity(boolean tenantTaskMaxCapacity) {
-        this.tenantTaskMaxCapacity = tenantTaskMaxCapacity;
+    public String getStat() {
+        return stat;
+    }
+
+    public void setStat(String stat) {
+        this.stat = stat;
+    }
+
+    public List<Dimension> getDimensions() {
+        return List.copyOf(dimensions);
+    }
+
+    public void setDimensions(List<Dimension> dimensions) {
+        this.dimensions = dimensions != null ? dimensions : new ArrayList<>();
+    }
+
+    public Integer getPeriod() {
+        return period;
+    }
+
+    public void setPeriod(Integer period) {
+        this.period = period;
+    }
+
+    public Instant getStartDate() {
+        if (startDate == null) {
+            return null;
+        } else {
+            return Instant.from(startDate);
+        }
+    }
+
+    public void setStartDate(Instant startDate) {
+        this.startDate = startDate != null ? Instant.from(startDate) : null;
+    }
+
+    public Instant getEndDate() {
+        if (endDate == null) {
+            return null;
+        } else {
+            return Instant.from(endDate);
+        }
+    }
+
+    public void setEndDate(Instant endDate) {
+        this.endDate = endDate != null ? Instant.from(endDate) : null;
     }
 
     public String getTimeRangeName() {
@@ -60,18 +103,58 @@ public class MetricQuery {
         this.timeRangeName = timeRangeName;
     }
 
-    private String timeRangeName;
+    public int getTzOffset() {
+        return tzOffset;
+    }
 
-    private List<Dimension> dimensions = new ArrayList<>();
+    public void setTzOffset(int tzOffset) {
+        this.tzOffset = tzOffset;
+    }
 
-    private boolean singleTenant = false;
+    public List<String> getTenants() {
+        return List.copyOf(tenants);
+    }
+
+    public void setTenants(List<String> tenants) {
+        this.tenants = tenants != null ? tenants : new ArrayList<>();
+    }
+
+    public void addTenant(String tenantId) {
+        if (!this.tenants.contains(tenantId)) {
+            this.tenants.add(tenantId);
+        }
+    }
 
     public boolean isSingleTenant() {
-        return this.singleTenant;
+        return singleTenant;
     }
 
     public void setSingleTenant(boolean singleTenant) {
         this.singleTenant = singleTenant;
+    }
+
+    public boolean isTopTenants() {
+        return topTenants;
+    }
+
+    public void setTopTenants(boolean topTenants) {
+        this.topTenants = topTenants;
+    }
+
+    public boolean isStatsMap() {
+        return statsMap;
+    }
+
+    public void setStatsMap(boolean statsMap) {
+        this.statsMap = statsMap;
+    }
+
+    public boolean isTenantTaskMaxCapacity() {
+        return tenantTaskMaxCapacity;
+    }
+
+    public void setTenantTaskMaxCapacity(boolean tenantTaskMaxCapacity) {
+        this.tenantTaskMaxCapacity = tenantTaskMaxCapacity;
     }
 
     public static class Dimension {
@@ -80,6 +163,11 @@ public class MetricQuery {
 
         //need this for JSON deserializer
         public Dimension() {
+        }
+
+        public Dimension(String metricName, String nameSpace) {
+            this.metricName = metricName;
+            this.nameSpace = nameSpace;
         }
 
         public String getMetricName() {
@@ -97,100 +185,5 @@ public class MetricQuery {
         public void setNameSpace(String nameSpace) {
             this.nameSpace = nameSpace;
         }
-
-        public Dimension(String metricName, String nameSpace) {
-            this.metricName = metricName;
-            this.nameSpace = nameSpace;
-        }
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public List<Dimension> getDimensions() {
-        return dimensions;
-    }
-
-    public void setDimensions(List<Dimension> dimensions) {
-        this.dimensions = dimensions;
-    }
-
-    public boolean isTopTenants() {
-        return topTenants;
-    }
-
-    public boolean isStatsMap() {
-        return statsMap;
-    }
-
-    public void setStatsMap(boolean statsMap) {
-        this.statsMap = statsMap;
-    }
-
-    public void setTopTenants(boolean topTenants) {
-        this.topTenants = topTenants;
-    }
-
-
-    @Override
-    public String toString() {
-        return "MetricQuery{" +
-                ", startDate=" + startDate +
-                ", endDate=" + endDate +
-                ", dimensions='" + dimensions.size() + '\'' +
-                ", stat='" + stat + '\'' +
-                ", period=" + period +
-                ", topList=" + topTenants +
-                ", statsMap=" + statsMap +
-                '}';
-    }
-
-    public void addTenant(String tenantId) {
-        this.tenants.add(tenantId);
-    }
-
-    public List<String> getTenants() {
-        return tenants;
-    }
-
-    public void setTenants(List<String> tenants) {
-        this.tenants = tenants;
-    }
-
-    public Instant getStartDate() {
-        return startDate;
-    }
-
-    public void setStartDate(Instant startDate) {
-        this.startDate = startDate;
-    }
-
-    public Instant getEndDate() {
-        return endDate;
-    }
-
-    public void setEndDate(Instant endDate) {
-        this.endDate = endDate;
-    }
-
-    public String getStat() {
-        return stat;
-    }
-
-    public void setStat(String stat) {
-        this.stat = stat;
-    }
-
-    public Integer getPeriod() {
-        return period;
-    }
-
-    public void setPeriod(Integer period) {
-        this.period = period;
     }
 }

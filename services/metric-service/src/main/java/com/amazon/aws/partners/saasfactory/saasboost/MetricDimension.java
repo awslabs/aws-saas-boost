@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,16 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.util.Objects;
 
 public class MetricDimension {
+
     private String nameSpace;
     private String metricName;
-
     //note that tenantId is used during processing and not passed
     private String tenantId;
+
+    public MetricDimension(String nameSpace, String metricName) {
+        this(nameSpace, metricName, null);
+    }
 
     public MetricDimension(String nameSpace, String metricName, String tenantId) {
         this.nameSpace = nameSpace;
@@ -56,12 +61,20 @@ public class MetricDimension {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MetricDimension that = (MetricDimension) o;
-        return nameSpace.equals(that.nameSpace) &&
-                metricName.equals(that.metricName);
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final MetricDimension other = (MetricDimension) obj;
+        return Utils.nullableEquals(nameSpace, other.nameSpace) && Utils.nullableEquals(metricName, other.metricName);
     }
 
     @Override
@@ -71,10 +84,6 @@ public class MetricDimension {
 
     @Override
     public String toString() {
-        return "MetricDimension{" +
-                "nameSpace='" + nameSpace + '\'' +
-                ", metricName='" + metricName + '\'' +
-                ", tenantId='" + tenantId + '\'' +
-                '}';
+        return Utils.toJson(this);
     }
 }

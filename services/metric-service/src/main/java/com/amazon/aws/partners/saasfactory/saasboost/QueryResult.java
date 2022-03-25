@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,15 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class QueryResult {
+
     private String id;
-    private List<MetricResultItem> metrics= new ArrayList<>();
+    private List<MetricResultItem> metrics = new ArrayList<>();
     private List<String> periods = new ArrayList<>();
+    private List<MetricValue> tenantTaskMaxCapacity = new ArrayList<>();
 
     public String getId() {
         return id;
@@ -32,28 +35,27 @@ public class QueryResult {
     }
 
     public List<String> getPeriods() {
-        return periods;
+        return List.copyOf(periods);
     }
 
-    public void setPeriods(List<String> periodList) {
-        this.periods = periodList;
+    public void setPeriods(List<String> periods) {
+        this.periods = periods != null ? periods : new ArrayList<>();
     }
 
     public List<MetricResultItem> getMetrics() {
-        return metrics;
+        return List.copyOf(metrics);
     }
 
-    public void setMetrics(List<MetricResultItem> metricResultItemList) {
-        this.metrics = metricResultItemList;
+    public void setMetrics(List<MetricResultItem> metrics) {
+        this.metrics = metrics != null ? metrics : new ArrayList<>();
     }
 
-    private List<MetricValue> tenantTaskMaxCapacity = new ArrayList<>();
     public List<MetricValue> getTenantTaskMaxCapacity() {
-        return tenantTaskMaxCapacity;
+        return List.copyOf(tenantTaskMaxCapacity);
     }
 
     public void setTenantTaskMaxCapacity(List<MetricValue> tenantTaskMaxCapacity) {
-        this.tenantTaskMaxCapacity = tenantTaskMaxCapacity;
+        this.tenantTaskMaxCapacity = tenantTaskMaxCapacity != null ? tenantTaskMaxCapacity : new ArrayList<>();
     }
 
 }
