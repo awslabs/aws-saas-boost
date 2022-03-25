@@ -141,7 +141,7 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         }
 
         try {
-            final TimeRange val = TimeRange.valueOf(timeRangeParam);
+            TimeRange.valueOf(timeRangeParam);
         } catch (IllegalArgumentException e) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)

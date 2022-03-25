@@ -105,7 +105,7 @@ public class MetricServiceDAL {
         try {
             List<String> tenants;
             if (!query.getTenants().isEmpty()) {
-                LOGGER.debug("queryMetrics: use tenants from query");
+                LOGGER.info("queryMetrics: use tenants from query");
                 tenants = new ArrayList<>(query.getTenants());
             } else {
                 tenants = new ArrayList<>(MetricService.tenantCache.keySet());
@@ -123,12 +123,12 @@ public class MetricServiceDAL {
             //now that query is built let's execute and get resultant data
             //the data will be stored in Metric object and placed in map by MetricDimension.
             Map<MetricDimension, Metric> metricMap = loadCloudWatchMetricsData(query, dq);
-            LOGGER.debug("queryMetrics: metricMap item count: " + metricMap.size());
+            LOGGER.info("queryMetrics: metricMap item count: " + metricMap.size());
 
             for (final Map.Entry<MetricDimension, Metric> metricEntry : metricMap.entrySet()) {
                 final Metric metric = metricEntry.getValue();
                 final MetricDimension metricDimension = metricEntry.getKey();
-                LOGGER.debug("queryMetrics: Dimension: {} {} Count: {}", metricDimension.getNameSpace(),
+                LOGGER.info("queryMetrics: Dimension: {} {} Count: {}", metricDimension.getNameSpace(),
                         metric.getMetricName(), metric.getMetricValues().size());
                 //construct a MetricDimension without a Tenant Id as the metrics are not by tenant
                 MetricDimension md = new MetricDimension(metricDimension.getNameSpace(), metricDimension.getMetricName());
@@ -249,41 +249,46 @@ public class MetricServiceDAL {
         return queryResultList;
     }
 
-    // Used to query metrics for one or more specified tenants
+    // Used to query metrics for a specified tenant
     public List<QueryResult> queryTenantMetrics(final MetricQuery query) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("queryTenantMetrics: start");
-        List<MetricResultItem> listResult = new ArrayList<>();
-        QueryResult mrs = new QueryResult();
-        mrs.setId(query.getId());
-        List<QueryResult> queryResultList = new ArrayList<>();
+        List<QueryResult> queryResults = new ArrayList<>();
+        List<MetricResultItem> metrics = new ArrayList<>();
+        
+        QueryResult queryResult = new QueryResult();
+        queryResult.setId(query.getId());
         try {
             if (query.getTenants().size() != 1) {
                 throw new RuntimeException(("queryTenantMetrics: query JSON must have single item in tenants!"));
             }
 
             //build query
-            final List<MetricDataQuery> dq = cloudWatchMetricsQueries(query, query.getTenants());
+            final List<MetricDataQuery> dataQueries = cloudWatchMetricsQueries(query, query.getTenants());
 
             //now that query is built let's execute and get resultant data
             //the data will be stored in Metric object and placed in map by MetricDimension.
-            Map<MetricDimension, Metric> metricMap = loadCloudWatchMetricsData(query, dq);
-            LOGGER.debug("queryTenantMetrics: metricMap Size: {}", metricMap.size());
+            Map<MetricDimension, Metric> metricMap = loadCloudWatchMetricsData(query, dataQueries);
+            LOGGER.info("queryTenantMetrics: metricMap Size: {}", metricMap.size());
 
             boolean firstTime = true;
-            for (final Map.Entry<MetricDimension, Metric> metricEntry : metricMap.entrySet()) {
-                final Metric metric = metricEntry.getValue();
-                final MetricDimension metricDimension = metricEntry.getKey();
-                LOGGER.debug("queryTenantMetrics: metricDimension: {}, metricValues: {}", metricDimension.toString(),
+            for (final Map.Entry<MetricDimension, Metric> entry : metricMap.entrySet()) {
+                final Metric metric = entry.getValue();
+                final MetricDimension dimension = entry.getKey();
+                LOGGER.info("queryTenantMetrics: dimension: {}, metricValues: {}", dimension.toString(),
                         metric.getMetricValues().size());
+                
                 //construct a MetricDimension without a Tenant Id as the metrics are not by tenant
-                MetricDimension md = new MetricDimension(metricDimension.getNameSpace(), metricDimension.getMetricName());
-                MetricResultItem mr = new MetricResultItem();
-                mr.setDimension(md);
-                //get the values list and return
+                MetricDimension metricDimension = new MetricDimension(dimension.getNameSpace(), dimension.getMetricName());
+                MetricResultItem metricResultItem = new MetricResultItem();
+                metricResultItem.setDimension(metricDimension);
+                
                 //reverse the values
-                Collections.reverse(metric.getMetricValues());
-                mr.putStat("Values", metric.getMetricValues());
+                List<Double> values = new ArrayList<>(metric.getMetricValues());
+                Collections.reverse(values);
+                metricResultItem.putStat("Values", values);
+                
+                // Need a single copy of the time periods for this query
                 if (firstTime) {
                     List<String> periodsList = new ArrayList<>();
                     for (final Instant timeVal : metric.getMetricTimes()) {
@@ -295,14 +300,15 @@ public class MetricServiceDAL {
                         );
                     }
                     Collections.reverse(periodsList);
-                    mrs.setPeriods(periodsList);
+                    queryResult.setPeriods(periodsList);
                     firstTime = false;
                 }
-                listResult.add(mr);
+                
+                metrics.add(metricResultItem);
             }
 
-            mrs.setMetrics(listResult);
-            queryResultList.add(mrs);
+            queryResult.setMetrics(metrics);
+            queryResults.add(queryResult);
 
         } catch (CloudWatchException e) {
             LOGGER.error("queryTenantMetrics: " + e.awsErrorDetails().errorMessage());
@@ -312,7 +318,7 @@ public class MetricServiceDAL {
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("queryTenantMetrics: exec " + totalTimeMillis);
-        return queryResultList;
+        return queryResults;
     }
 
     /*
@@ -358,7 +364,7 @@ public class MetricServiceDAL {
                     .append("LIMIT 10;")
                     .toString();
 
-            LOGGER.debug("queryAccessLogs: athena query \n" + query);
+            LOGGER.info("queryAccessLogs: athena query \n" + query);
 
             //now that query is built let's execute and get resultant data
             //the data will be stored in Metric object and placed in map by MetricDimension.
@@ -382,9 +388,10 @@ public class MetricServiceDAL {
         int period = getPeriod(query);
         //store the period into query
         query.setPeriod(period);
-        LOGGER.debug("buildDataQuery: period value: " + period + " for timeRangeName: " + query.getTimeRangeName());
+        LOGGER.info("buildDataQuery: period value: " + period + " for timeRangeName: " + query.getTimeRangeName());
+        
         for (String tenantId : tenants) {
-            List<Dimension> dimList = new ArrayList<>();
+            Set<Dimension> dimList = new HashSet<>();
             //build the dataquery with the dimensions
             for (final MetricQuery.Dimension queryDimension : query.getDimensions()) {
                 if ("AWS/ECS".equalsIgnoreCase(queryDimension.getNameSpace())) {
@@ -392,17 +399,19 @@ public class MetricServiceDAL {
                     if (Utils.isEmpty(cluster)) {
                         throw new RuntimeException("queryMetrics: No ECS cluster found for tenant: " + tenantId);
                     }
-                    Dimension dimension = Dimension.builder()
-                            .name("ClusterName")
-                            .value(cluster)
-                            .build();
-                    dimList.add(dimension);
-                    // TODO add all services in the cluster
-//                    dimension = Dimension.builder()
-//                            .name("ServiceName")
-//                            .value("tenant-" + clusterId)
-//                            .build();
-                    dimList.add(dimension);
+                    // We don't know how many ECS services there are, so ask CloudWatch for all of the
+                    // dimensions we can use for this metric in the tenant's cluster.
+                    ListMetricsResponse availableMetrics = cloudWatch.listMetrics(request -> request
+                            .namespace(queryDimension.getNameSpace())
+                            .metricName(queryDimension.getMetricName())
+                            .dimensions(DimensionFilter.builder().name("ClusterName").value(cluster).build())
+                    );
+                    if (availableMetrics.hasMetrics()) {
+                        for (software.amazon.awssdk.services.cloudwatch.model.Metric availableMetric : availableMetrics.metrics()) {
+                            dimList.addAll(availableMetric.dimensions());
+                        }
+                    }
+                //} else if ("ECS/ContainerInsights".equalsIgnoreCase(queryDimension.getNameSpace())) {
                 } else if ("AWS/ApplicationELB".equalsIgnoreCase(queryDimension.getNameSpace())) {
                     final String albId = getTenantLoadBalancerId(tenantId);
                     if (Utils.isEmpty(albId)) {
@@ -419,19 +428,15 @@ public class MetricServiceDAL {
                 }
 
                 software.amazon.awssdk.services.cloudwatch.model.Metric met = software.amazon.awssdk.services.cloudwatch.model.Metric.builder()
-                        //.namespace("ECS/ContainerInsights")
-                        //.metricName("TaskCount")
                         .namespace(queryDimension.getNameSpace())
                         .metricName(queryDimension.getMetricName())
                         .dimensions(dimList)
                         .build();
 
                 MetricStat stat = MetricStat.builder()
-                        //.stat("Average") //use this for CPU Utilization
-                        .stat(query.getStat()) //use SampleCount for TaskCount
+                        .stat(query.getStat())
                         .period(period)
                         .metric(met)
-                        //.unit("Count")
                         .build();
 
                 //store dim in map so we can match with result data later
@@ -451,7 +456,6 @@ public class MetricServiceDAL {
 
                 //Tell CW to fill with zeros for gaps
                 dataQuery = MetricDataQuery.builder()
-                      //  .metricStat(stat)
                         .id("query_" + dimIndex)
                         .expression("FILL(query0_" + dimIndex + ", 0)")
                         .returnData(true)
@@ -475,7 +479,7 @@ public class MetricServiceDAL {
         }
 
         if (Utils.isNotBlank(query.getTimeRangeName())) {
-            LOGGER.debug("getStartDateTime: Using provided query TimeRangeName: " + query.getTimeRangeName());
+            LOGGER.info("getStartDateTime: Using provided query TimeRangeName: " + query.getTimeRangeName());
             try {
                 TimeRange timeRange = TimeRange.valueOf(query.getTimeRangeName());
                 switch (timeRange) {
@@ -503,7 +507,7 @@ public class MetricServiceDAL {
 
     // Loads data from AWS Cloudwatch and builds a Priority queue of values in Metric object for each timestamp
     private Map<MetricDimension, Metric> loadCloudWatchMetricsData(MetricQuery query, List<MetricDataQuery> dq) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         String nextToken = null;
         Map<MetricDimension, Metric> metricMap = new LinkedHashMap<>();
         //get start date from Range if provided
@@ -513,7 +517,8 @@ public class MetricServiceDAL {
                 query.getStartDate(),
                 query.getEndDate()
         );
-        LOGGER.debug("loadCWMetricData: Start and Finish times for CW data query are {} and {}", times[0], times[1]);
+        LOGGER.info("loadCWMetricData: Start and Finish times for CW data query are {} and {}", times[0], times[1]);
+        //LOGGER.info(Utils.toJson(dq));
         do {
             GetMetricDataRequest getMetReq = GetMetricDataRequest.builder()
                     .maxDatapoints(10000)
@@ -521,7 +526,6 @@ public class MetricServiceDAL {
                     .endTime(times[1])
                     .metricDataQueries(dq)
                     .nextToken(nextToken)
-                    //.scanBy()  TimestampDescending  or TimestampAscending
                     .build();
 
             final GetMetricDataResponse response = cloudWatch.getMetricData(getMetReq);
@@ -529,12 +533,13 @@ public class MetricServiceDAL {
 
             final List<MetricDataResult> data = response.metricDataResults();
             LOGGER.info("loadCWMetricData: fetch time in ms: " + (System.currentTimeMillis() - startTimeMillis));
+            //LOGGER.info(Utils.toJson(data));
 
             //process metrics data from CloudWatch into our own POJOs for aggregation
             for (MetricDataResult item : data) {
-                LOGGER.debug("loadCWMetricData: " + String.format("Id: %s, label: %s", item.id(), item.label()));
-                LOGGER.debug("loadCWMetricData: The status code is " + item.statusCode().toString());
-                LOGGER.debug("loadCWMetricData: Returned items count " + item.values().size());
+                LOGGER.info("loadCWMetricData: " + String.format("Id: %s, label: %s", item.id(), item.label()));
+                LOGGER.info("loadCWMetricData: The status code is " + item.statusCode().toString());
+                LOGGER.info("loadCWMetricData: Returned items count " + item.values().size());
 
                 final MetricDimension metricDimension = dataQueryDimMap.get(item.id());
                 Metric metric = metricMap.get(metricDimension);
@@ -550,16 +555,16 @@ public class MetricServiceDAL {
                 for (int x = 0; x < item.values().size(); x++) {
                     BigDecimal bd = BigDecimal.valueOf(item.values().get(x)).setScale(3, RoundingMode.HALF_UP);
                     double value = bd.doubleValue();
-                    //LOGGER.debug("CloudWatch Metric Value " + item.values().get(x));
-                    //LOGGER.debug("CloudWatch Metric Timestamp " + item.timestamps().get(x));
-                    //construct mv with the Tenant Id
+                    //LOGGER.info("CloudWatch Metric Value " + item.values().get(x));
+                    //LOGGER.info("Metric Value as double {}", value);
+                    //LOGGER.info("CloudWatch Metric Timestamp " + item.timestamps().get(x));
                     if (query.isSingleTenant()) {
                         //store so it is not sorted by value
-                        //LOGGER.debug("loadCWMetricData:Add value {}", value);
                         metric.addMetricValue(value);
                         //store time into sorted map
                         metric.addSortTime(item.timestamps().get(x));
                     } else {
+                        // If we're querying for all tenants, save the metrics keyed by tenant id
                         final MetricValue mv = new MetricValue(value, dataQueryDimMap.get(item.id()).getTenantId());
                         metric.addQueueValue(item.timestamps().get(x), mv);
                     }
@@ -651,7 +656,7 @@ public class MetricServiceDAL {
         MetricHelper.waitForQueryToComplete(athenaClient, queryExecutionId);
         List<MetricValue> metricValueList = MetricHelper.processResultRows(athenaClient, queryExecutionId);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.debug("MetricsService::getAthenaData exec {}", totalTimeMillis);
+        LOGGER.info("MetricsService::getAthenaData exec {}", totalTimeMillis);
         return metricValueList;
     }
 
@@ -671,7 +676,7 @@ public class MetricServiceDAL {
                 .format(today); //"2019-08-01";
         String queryString = "ALTER TABLE " + ACCESS_LOGS_TABLE + " ADD IF NOT EXISTS PARTITION "
                 + "(time='" + dateTimeFormat + "') LOCATION '" + ACCESS_LOGS_PATH + "/" + formatPartitionDate + "/';";
-        LOGGER.debug("addAthenaPartition: Query for partition: {}", queryString);
+        LOGGER.info("addAthenaPartition: Query for partition: {}", queryString);
         String queryExecutionId = MetricHelper.submitAthenaQuery(
                 athenaClient,
                 queryString,
