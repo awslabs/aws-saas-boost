@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect } from 'react'
-import { Row, Col, Card, CardBody } from 'reactstrap'
+import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 import globalConfig from '../config/appConfig'
 import CIcon from '@coreui/icons-react'
 import { cilCheckCircle, cilXCircle, cilExternalLink } from '@coreui/icons'
@@ -82,7 +82,7 @@ export const DashboardComponent = (props) => {
 
   const fileAwsConsoleLink = `https://${awsRegion}.console.aws.amazon.com/efs/home?region=${awsRegion}#file-systems`
   const rdsAwsConsoleLink = `https://${awsRegion}.console.aws.amazon.com/rds/home?region=${awsRegion}#databases:`
-  const ecrAwsConsoleLink = `https://${awsRegion}.console.aws.amazon.com/ecr/repositories?region=${awsRegion}`
+  const ecrAwsConsoleLink = `https://${awsRegion}.console.aws.amazon.com/ecr/repositories`
   const s3BucketLink = `https://s3.console.aws.amazon.com/s3/buckets/${s3Bucket?.value}`
 
   useEffect(() => {
@@ -116,9 +116,9 @@ export const DashboardComponent = (props) => {
                   <Row>
                     <Col xs={6}>
                       <div className="callout callout-info">
-                        <small className="text-muted">Total Tenants</small>
+                        <small className="text-muted">AWS Saas Boost Environment</small>
                         <br />
-                        <strong className="h4">{countAllTenants}</strong>
+                        <strong className="h4">{saasBoostEnvironment}</strong>
                       </div>
                     </Col>
                     <Col xs={6}>
@@ -135,9 +135,9 @@ export const DashboardComponent = (props) => {
                   <Row>
                     <Col xs={6}>
                       <div className="callout callout-info">
-                        <small className="text-muted">AWS Saas Boost Environment</small>
+                        <small className="text-muted">Onboarded Tenants</small>
                         <br />
-                        <strong className="h4">{saasBoostEnvironment}</strong>
+                        <strong className="h4">{countAllTenants}</strong>
                       </div>
                     </Col>
                     <Col xs={6}>
@@ -153,93 +153,55 @@ export const DashboardComponent = (props) => {
               </Row>
 
               <Row>
-                <Col xs={12} md={6} lg={6}>
+                <Col xs={12} md={12} lg={12}>
                   <dl>
-                    <dt>Application Name</dt>
-                    <dd>{isEmpty(appConfig?.name) ? 'N/A' : appConfig.name}</dd>
-                    <dt>Operating System</dt>
-                    <dd>{osLabel}</dd>
-                    <dt>File System</dt>
-                    <dd>
-                      {isEmpty(appConfig?.filesystem) ? (
-                        'Not Configured'
-                      ) : (
-                        <div>
-                          NFS compatible{' - '}
-                          <a href={fileAwsConsoleLink} target="new" className="text-muted">
-                            AWS Console <CIcon icon={cilExternalLink} />
-                          </a>
-                        </div>
-                      )}
-                    </dd>
-                    <dt>Database</dt>
-                    <dd>
-                      {!!appConfig?.database?.engine ? (
-                        <div>
-                          {dbLabelValue}
-                          {' - '}
-                          <a href={rdsAwsConsoleLink} target="new" className="text-muted">
-                            AWS Console <CIcon icon={cilExternalLink} />
-                          </a>
-                        </div>
-                      ) : (
-                        'Not Configured'
-                      )}
-                    </dd>
-                    <dt>Billing</dt>
-                    <dd>{!!appConfig?.billing?.apiKey ? 'Configured' : 'Not Configured'}</dd>
-                    <dt>Version</dt>
-                    <dd>{version?.value && <div>{version.value}</div>}</dd>
+                    <dt className="mb-1">Application Name</dt>
+                    <dd className="mb-3">{isEmpty(appConfig?.name) ? 'N/A' : appConfig.name}</dd>
+                    <dt className="mb-1">Application Domain Name</dt>
+                    <dd className="mb-3">{isEmpty(appConfig?.domainName) ? 'Not Configured' : appConfig.domainName}</dd>
+                    <dt className="mb-1">Public API Endpoint</dt>
+                    <dd className="mb-3">{globalConfig.apiUri}</dd>
                   </dl>
                 </Col>
-                <Col xs={12} md={6} lg={6}>
-                  <dl>
-                    <dt className="mb-1">Modules</dt>
-                    <dd className="mb-3">
-                      <div>
-                        {metricsAnalyticsDeployed?.value === 'true' ? (
-                          <CIcon icon={cilCheckCircle} customClassName="icon text-success" />
-                        ) : (
-                          <CIcon icon={cilXCircle} customClassName="icon text-danger" />
-                        )}{' '}
-                        Metrics
-                      </div>
-                    </dd>
-                    <dt>ECR Repository</dt>
-                    <dd className="mb-3">
-                      {ecrRepo?.value}
-                      {' - '}
-                      <a href={ecrAwsConsoleLink} target="new" className="text-muted">
-                        AWS Console <CIcon icon={cilExternalLink} />
-                      </a>
-                    </dd>
-                    <dt>
-                      ECR Repository URL{' - '}
-                      <ECRInstructions
-                        awsAccount={awsAccount}
-                        awsRegion={awsRegion}
-                        ecrRepo={ecrRepo?.value}
-                      >
-                        <span className="text-muted">
-                          View details <CIcon icon={cilExternalLink} />
-                        </span>
-                      </ECRInstructions>
-                    </dt>
-                    <dd className="mb-3">
-                      {awsAccount}.dkr.ecr.{awsRegion}.amazonaws.com{' '}
-                    </dd>
-                    <dt>S3 Bucket</dt>
-                    <dd className="mb-3">
-                      {s3Bucket?.value}
-                      {' - '}
-                      <a href={s3BucketLink} target="new" className="text-muted">
-                        AWS Console <CIcon icon={cilExternalLink} />
-                      </a>
-                    </dd>
-                    <dt>Public API</dt>
-                    <dd>{globalConfig.apiUri}</dd>
-                  </dl>
-                </Col>
+              </Row>
+              <Row>
+                  <strong className="h4 mb-1">Services</strong>
+                  {isEmpty(appConfig?.services) ? 'No Services' : 
+                  Object.values(appConfig.services).map(service => (
+                    <Col xs={12} md={6} xl={4}>
+                      <Card className="mb-2">
+                        <CardHeader><strong>{service.name} - {service.path}</strong></CardHeader>
+                        <CardBody>
+                          <dl>
+                            <dt>ECR Repository</dt>
+                            <dd>
+                              {isEmpty(service.containerRepo) ? 'Creating...' : service.containerRepo} {' - '}
+                              <a href={ecrAwsConsoleLink + (service.containerRepo ? `/private/${awsAccount}/` + service.containerRepo : '')} target="new" className="text-muted">
+                                AWS Console Link <CIcon icon={cilExternalLink} />
+                              </a>
+                            </dd>
+                            <dt>
+                              ECR Repository URL{' - '}
+                              <ECRInstructions
+                                awsAccount={awsAccount}
+                                awsRegion={awsRegion}
+                                ecrRepo={service.containerRepo}
+                              >
+                                <span className="text-muted">
+                                  View details <CIcon icon={cilExternalLink} />
+                                </span>
+                              </ECRInstructions>
+                            </dt>
+                            <dd className="mb-3">
+                              {awsAccount}.dkr.ecr.{awsRegion}.amazonaws.com{service.containerRepo ? `/${service.containerRepo}` : ''}
+                            </dd>
+                            <dt>Description</dt>
+                            <dd>{service.description}</dd>
+                          </dl>
+                        </CardBody>
+                      </Card>
+                    </Col>
+                  ))}
               </Row>
             </CardBody>
           </Card>
