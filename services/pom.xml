@@ -13,7 +13,7 @@
     <packaging>pom</packaging>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
-        <module>metric-service</module>
+        <module>metrics-service</module>
         <module>onboarding-service</module>
         <module>quotas-service</module>
         <module>settings-service</module>

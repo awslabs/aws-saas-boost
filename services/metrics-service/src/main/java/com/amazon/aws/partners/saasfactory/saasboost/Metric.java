@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.time.Instant;
@@ -28,16 +29,16 @@ public class Metric {
     private List<Double> metricValues = new ArrayList<>();
     private List<Instant> metricTimes = new ArrayList<>();
 
-    public void addMetricValue (Double val) {
+    public void addMetricValue(Double val) {
         this.metricValues.add(val);
     }
 
-    public List<Double> getMetricValues () {
-        return this.metricValues;
+    public List<Double> getMetricValues() {
+        return List.copyOf(this.metricValues);
     }
 
     public List<Instant> getMetricTimes() {
-        return metricTimes;
+        return List.copyOf(metricTimes);
     }
 
     public void addSortTime(Instant sortTime) {
@@ -77,23 +78,17 @@ public class Metric {
     }
 
     public void addQueueValue(Instant time, MetricValue mv) {
-        PriorityQueue<MetricValue> pq = timeValMap.computeIfAbsent(time, k -> new PriorityQueue<MetricValue>());
+        PriorityQueue<MetricValue> pq = timeValMap.computeIfAbsent(time, k -> new PriorityQueue<>());
         pq.add(mv);
     }
 
     public SortedMap<Instant, PriorityQueue<MetricValue>> getTimeValMap() {
-        return timeValMap;
+        return new TreeMap<>(timeValMap);
     }
-
 
     @Override
     public String toString() {
-        return "Metric{" +
-                "stat='" + stat + '\'' +
-                ", nameSpace='" + nameSpace + '\'' +
-                ", metricName='" + metricName + '\'' +
-                ", period='" + period + '\'' +
-                '}';
+        return Utils.toJson(this);
     }
 
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
+
+import java.util.Objects;
 
 public class MetricValue implements Comparable<MetricValue> {
 
-    //private Instant metricTime;
     private double value;
     private String id;
+
     public MetricValue(double value, String id) {
-       // this.metricTime = time;
         this.value = value;
         this.id = id;
     }
@@ -42,12 +44,30 @@ public class MetricValue implements Comparable<MetricValue> {
         this.value = value;
     }
 
-
     @Override
     public String toString() {
-        return "MetricValue{" +
-                "value=" + value +
-                ", id='" + id + '\'' +
-                '}';
+        return Utils.toJson(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final MetricValue other = (MetricValue) obj;
+        return (Utils.nullableEquals(id, other.id) && (value == other.value));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, value);
     }
 }

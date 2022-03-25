@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -25,31 +26,32 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class MetricService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(MetricService.class);
-    private final static Map<String, String> CORS = Stream
-            .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    //for access log metrics
-    private final static String PATH_REQUEST_COUNT_1_HOUR_FILE = "datasets/pathRequestCount01Hour.js";
-    private final static String PATH_REQUEST_COUNT_24_HOUR_FILE = "datasets/pathRequestCount24Hour.js";
-    private final static String PATH_REQUEST_COUNT_7_DAY_FILE = "datasets/pathRequestCount07Day.js";
-    private final static String PATH_RESPONSE_TIME_1_HOUR_FILE = "datasets/pathResponseTime01Hour.js";
-    private final static String PATH_RESPONSE_TIME_24_HOUR_FILE = "datasets/pathResponseTime24Hour.js";
-    private final static String PATH_RESPONSE_TIME_7_DAY_FILE = "datasets/pathResponseTime07Day.js";
-    private final static String PATH_REQUEST_COUNT = "PATH_REQUEST_COUNT";
-    private final static String PATH_RESPONSE_TIME = "PATH_RESPONSE_TIME";
+    private static final Logger LOGGER = LoggerFactory.getLogger(MetricService.class);
+    private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
+    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
+    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
+    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String PATH_REQUEST_COUNT_1_HOUR_FILE = "datasets/pathRequestCount01Hour.js";
+    private static final String PATH_REQUEST_COUNT_24_HOUR_FILE = "datasets/pathRequestCount24Hour.js";
+    private static final String PATH_REQUEST_COUNT_7_DAY_FILE = "datasets/pathRequestCount07Day.js";
+    private static final String PATH_RESPONSE_TIME_1_HOUR_FILE = "datasets/pathResponseTime01Hour.js";
+    private static final String PATH_RESPONSE_TIME_24_HOUR_FILE = "datasets/pathResponseTime24Hour.js";
+    private static final String PATH_RESPONSE_TIME_7_DAY_FILE = "datasets/pathResponseTime07Day.js";
+    private static final String PATH_REQUEST_COUNT = "PATH_REQUEST_COUNT";
+    private static final String PATH_RESPONSE_TIME = "PATH_RESPONSE_TIME";
     private final MetricServiceDAL dal;
+    static Map<String, Map<String, Object>> tenantCache = new HashMap<>();
 
     public MetricService() {
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.dal = new MetricServiceDAL();
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
+    }
+
+    protected static void refreshTenantCache(Context context) {
+        tenantCache = getTenants(context);
     }
 
     @Override
@@ -59,43 +61,54 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
     }
 
     public APIGatewayProxyResponseEvent queryMetrics(Map<String, Object> event, Context context) {
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
-        long startTimeMillis = System.currentTimeMillis();
+
         Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
+
         MetricQuery query = Utils.fromJson((String) event.get("body"), MetricQuery.class);
         if (query == null) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+            return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withBody("{\"message\" : \"Invalid Metric Query object\"}");
-            return response;
+                    .withStatusCode(400)
+                    .withBody("{\"message\" : \"Invalid request body\"}");
         }
 
+        boolean refreshTenantCache = tenantCache.isEmpty();
+        for (String tenantId : query.getTenants()) {
+            if (!tenantCache.containsKey(tenantId)) {
+                refreshTenantCache = true;
+                break;
+            }
+        }
+        if (refreshTenantCache) {
+            refreshTenantCache(context);
+        }
+
+        APIGatewayProxyResponseEvent response;
         try {
-            List<QueryResult> result = null;
+            List<QueryResult> result;
             if (query.isSingleTenant()) {
-                LOGGER.debug("queryMetrics: Execute Tenant metrics");
+                LOGGER.info("queryMetrics: Execute Tenant metrics");
                 result = dal.queryTenantMetrics(query);
             } else {
-                LOGGER.debug("queryMetrics: Execute across all tenants");
+                LOGGER.info("queryMetrics: Execute across all tenants");
                 result = dal.queryMetrics(query);
             }
-            if (result != null) {
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withHeaders(CORS)
-                        .withBody(Utils.toJson(result));
-            } else {
-                response = new APIGatewayProxyResponseEvent().withStatusCode(404);
-            }
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(200)
+                    .withBody(Utils.toJson(result));
         } catch (Exception e) {
             LOGGER.error("queryMetrics: Error " + e.getMessage());
             LOGGER.error("queryMetrics: " + Utils.getFullStackTrace(e));
-            response = new APIGatewayProxyResponseEvent().withStatusCode(404).withBody("{\"message\" : \"" + e.getMessage() + "\"}");
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(404)
+                    .withBody("{\"message\" : \"" + e.getMessage() + "\"}");
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("queryMetrics: exec " + totalTimeMillis);
@@ -103,68 +116,65 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
     }
 
     public APIGatewayProxyResponseEvent queryAccessLogs(Map<String, Object> event, Context context) {
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
-        long startTimeMillis = System.currentTimeMillis();
+
         Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
+        if (tenantCache.isEmpty()) {
+            refreshTenantCache(context);
+        }
+
         Map<String, String> params = (Map) event.get("pathParameters");
-        MetricQuery query = null;
-        String timeRangeParam = null;
-        String metricParam = null;
-
         //get the Time Range
-        timeRangeParam = params.get("timerange");
-
+        String timeRangeParam = params.get("timerange");
         //get metric type of PATH_REQUEST_COUNT or PATH_RESPONSE_TIME
-        metricParam = params.get("metric");
+        String metricParam = params.get("metric");
 
         if (Utils.isBlank(timeRangeParam) || Utils.isBlank(metricParam)) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+            return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
+                    .withStatusCode(400)
                     .withBody("{\"message\" : \"Must specify timeRange and metric parameters!\"}");
-            return response;
         }
 
         try {
             final TimeRange val = TimeRange.valueOf(timeRangeParam);
         } catch (IllegalArgumentException e) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+            return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
+                    .withStatusCode(400)
                     .withBody("{\"message\" : \"Invalid value for timeRange!\"}");
-            return response;
         }
 
         if (!(metricParam.equals(PATH_REQUEST_COUNT) || metricParam.equals(PATH_RESPONSE_TIME))) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+            return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withBody("{\"message\" : \"Invalid value for metric. Expecting PATH_REQUEST_COUNT or PATH_RESPONSE_TIME!\"}");
-            return response;
+                    .withStatusCode(400)
+                    .withBody("{\"message\" : \"Invalid value for metric. Expecting PATH_REQUEST_COUNT or PATH_RESPONSE_TIME.\"}");
         }
 
+        APIGatewayProxyResponseEvent response;
         try {
             List<MetricValue> result = dal.queryAccessLogs(timeRangeParam, metricParam, params.get("id"));
             if (result != null) {
                 response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
                         .withHeaders(CORS)
+                        .withStatusCode(200)
                         .withBody(Utils.toJson(result));
             } else {
                 response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(404)
-                        .withHeaders(CORS);
+                        .withHeaders(CORS)
+                        .withStatusCode(404);
             }
         } catch (Exception e) {
             LOGGER.error("queryAccessLogs: Error " + e.getMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
                     .withHeaders(CORS)
+                    .withStatusCode(400)
                     .withBody("{\"message\" : \"" + e.getMessage() + "\"}");
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -172,25 +182,21 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
-/*
-    publish files to S3 web bucket with access log data for graphing to speed up UI
-    This is called from scheduled Cloudwatch event.
- */
+    // publish files to S3 web bucket with access log data for graphing to speed up UI
+    // This is called from scheduled Cloudwatch event.
     public void publishRequestCountMetrics(InputStream inputStream, OutputStream outputStream, Context context) {
-        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_1_HOUR_FILE, TimeRange.HOUR_1, PATH_REQUEST_COUNT );
-        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_24_HOUR_FILE, TimeRange.HOUR_24, PATH_REQUEST_COUNT );
-        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_7_DAY_FILE, TimeRange.DAY_7, PATH_REQUEST_COUNT );
+        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_1_HOUR_FILE, TimeRange.HOUR_1, PATH_REQUEST_COUNT);
+        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_24_HOUR_FILE, TimeRange.HOUR_24, PATH_REQUEST_COUNT);
+        dal.publishAccessLogMetrics(PATH_REQUEST_COUNT_7_DAY_FILE, TimeRange.DAY_7, PATH_REQUEST_COUNT);
     }
 
     public void publishResponseTimeMetrics(InputStream inputStream, OutputStream outputStream, Context context) {
-        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_1_HOUR_FILE, TimeRange.HOUR_1, PATH_RESPONSE_TIME );
-        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_24_HOUR_FILE, TimeRange.HOUR_24, PATH_RESPONSE_TIME );
-        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_7_DAY_FILE, TimeRange.DAY_7, PATH_RESPONSE_TIME );
+        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_1_HOUR_FILE, TimeRange.HOUR_1, PATH_RESPONSE_TIME);
+        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_24_HOUR_FILE, TimeRange.HOUR_24, PATH_RESPONSE_TIME);
+        dal.publishAccessLogMetrics(PATH_RESPONSE_TIME_7_DAY_FILE, TimeRange.DAY_7, PATH_RESPONSE_TIME);
     }
 
-    /*
-    Creates a new partition for the day
- */
+    // Creates a new partition for the day
     public void addAthenaPartition(InputStream inputStream, OutputStream outputStream, Context context) {
         try {
             dal.addAthenaPartition();
@@ -202,14 +208,14 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
     }
 
     public APIGatewayProxyResponseEvent getAccessMetricsSignedUrls(Map<String, Object> event, Context context) {
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
-        long startTimeMillis = System.currentTimeMillis();
+
         //Utils.logRequestEvent(event);
         LOGGER.info("getAccessLogSignedUrls: starting");
-        APIGatewayProxyResponseEvent response = null;
 
         Map<String, URL> signedUrls = new LinkedHashMap<>();
         signedUrls.put("PATH_REQUEST_COUNT_1_HOUR_FILE", dal.getPreSignedUrl(PATH_REQUEST_COUNT_1_HOUR_FILE));
@@ -222,7 +228,7 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         String responseBody = Utils.toJson(List.copyOf(signedUrls.entrySet()));
         LOGGER.info("Presigned URLS = {}", responseBody);
 
-        response = new APIGatewayProxyResponseEvent()
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
                 .withStatusCode(200)
                 .withBody(responseBody);
@@ -233,4 +239,40 @@ public class MetricService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
+    protected static Map<String, Map<String, Object>> getTenants(Context context) {
+        final long startMillis = System.currentTimeMillis();
+        if (Utils.isBlank(API_GATEWAY_HOST)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
+        }
+        if (Utils.isBlank(API_GATEWAY_STAGE)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
+        }
+        if (Utils.isBlank(API_TRUST_ROLE)) {
+            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
+        LOGGER.info("Calling tenant service to fetch tenants");
+        String getTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("tenants")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantResponseBody, ArrayList.class);
+        if (tenants == null) {
+            tenants = new ArrayList<>();
+        }
+        LOGGER.info("getTenants: Total time to get list of tenants: {}", (System.currentTimeMillis() - startMillis));
+        LOGGER.info("Caching {} tenants", tenants.size());
+        Map<String, Map<String, Object>> tenantMap = new HashMap<>();
+        for (Map<String, Object> tenant : tenants) {
+            tenantMap.put((String) tenant.get("id"), tenant);
+        }
+        return tenantMap;
+    }
 }
