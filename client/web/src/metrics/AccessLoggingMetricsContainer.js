@@ -17,15 +17,25 @@
 import React, { lazy, useState, useEffect } from 'react'
 import { Row, Col, Card, CardBody } from 'reactstrap'
 import { useDispatch, useSelector } from 'react-redux'
-import { accessLogMetricsUrls, selectAccessLogUrlById } from './ducks/accessLogMetrics'
-import { dismissError, fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
+import { accessLogMetricsUrls } from './ducks/accessLogMetrics'
+import {
+  dismissError,
+  fetchTenantsThunk,
+  selectAllTenants,
+} from '../tenant/ducks'
 import SelectTenantComponent from './SelectTenantComponent'
 
-const SelectTimePeriodComponent = lazy(() => import('./SelectTimePeriodComponent'))
+const SelectTimePeriodComponent = lazy(() =>
+  import('./SelectTimePeriodComponent')
+)
 
-const AccessLoggingGraphContainer = lazy(() => import('./AccessLoggingGraphContainer'))
+const AccessLoggingGraphContainer = lazy(() =>
+  import('./AccessLoggingGraphContainer')
+)
 
-const AccessLogsMetricsContainer = lazy(() => import('./AccessLogsMetricsContainer'))
+const AccessLogsMetricsContainer = lazy(() =>
+  import('./AccessLogsMetricsContainer')
+)
 
 export default function AccessLoggingMetricsContainer(props) {
   const dispatch = useDispatch()
@@ -49,6 +59,7 @@ export default function AccessLoggingMetricsContainer(props) {
   }, [dispatch])
 
   const tenants = useSelector(selectAllTenants)
+  const activeTenants = tenants.filter((t) => t.active)
   const [selectedTenant, setSelectedTenant] = useState(null)
   const selectTenant = (tenant) => {
     if (tenant === '') {
@@ -70,24 +81,28 @@ export default function AccessLoggingMetricsContainer(props) {
   return (
     <div className="animated fadeIn">
       <Row>
-        <Col xs={12} lg={12}>
+        <Col xs={12}>
           <Card>
             <CardBody>
               <Row>
-                <Col lg={6} sm={6}>
+                <Col sm={3}>
                   <SelectTenantComponent
-                    tenants={tenants}
+                    tenants={activeTenants}
                     selectTenant={selectTenant}
                     selectedTenant={selectedTenant}
                   />
                 </Col>
-                <Col lg={5} sm={5}>
+                <Col sm={8}>
                   <SelectTimePeriodComponent
                     selectTimePeriod={selectTimePeriod}
                     timePeriods={timePeriods}
                   />
                 </Col>
-                <Col lg={1} sm={1} className="d-inline-flex pt-2 justify-content-end">
+                <Col
+                  lg={1}
+                  sm={1}
+                  className="d-inline-flex pt-2 justify-content-end"
+                >
                   {/*<a onClick={refreshPage} href="#">*/}
                   {/*  <i className="fa fa-refresh text-muted" />*/}
                   {/*</a>*/}

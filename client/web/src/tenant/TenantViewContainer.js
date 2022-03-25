@@ -153,7 +153,6 @@ class TenantContainer extends Component {
 
   render() {
     const { detail, error, dismissError, loading, config, plans } = this.props
-    console.log('CONFIG', config)
     const { tenantId, isEditing } = this.state
     return (
       <div>
