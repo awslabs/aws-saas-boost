@@ -17,12 +17,20 @@
 import React, { lazy, useState, useEffect } from 'react'
 import { Row, Col, Card, CardBody } from 'reactstrap'
 import { useDispatch, useSelector } from 'react-redux'
-import { fetchTenantsThunk, selectAllTenants, dismissError } from '../tenant/ducks'
+import {
+  fetchTenantsThunk,
+  selectAllTenants,
+  dismissError,
+} from '../tenant/ducks'
 
 const SelectTenantComponent = lazy(() => import('./SelectTenantComponent'))
-const SelectTimePeriodComponent = lazy(() => import('./SelectTimePeriodComponent'))
+const SelectTimePeriodComponent = lazy(() =>
+  import('./SelectTimePeriodComponent')
+)
 
-const MetricTopTenantsContainer = lazy(() => import('./MetricTopTenantsContainer'))
+const MetricTopTenantsContainer = lazy(() =>
+  import('./MetricTopTenantsContainer')
+)
 
 const TenantGraphContainer = lazy(() => import('./TenantGraphContainer'))
 const StatsGraphContainer = lazy(() => import('./StatsGraphContainer'))
@@ -30,6 +38,7 @@ const StatsGraphContainer = lazy(() => import('./StatsGraphContainer'))
 export default function ECSMetricsConatiner(props) {
   const dispatch = useDispatch()
   const tenants = useSelector(selectAllTenants)
+  const activeTenants = tenants.filter((t) => t.active)
 
   const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
@@ -43,8 +52,6 @@ export default function ECSMetricsConatiner(props) {
       setSelectedTenant(tenant)
     }
   }
-
-  const refreshPage = () => {}
 
   useEffect(() => {
     const fetchTenants = dispatch(fetchTenantsThunk())
@@ -63,17 +70,23 @@ export default function ECSMetricsConatiner(props) {
           <Card>
             <CardBody>
               <Row>
-                <Col lg={6} sm={6}>
+                <Col sm={3}>
                   <SelectTenantComponent
-                    tenants={tenants}
+                    tenants={activeTenants}
                     selectTenant={selectTenant}
                     selectedTenant={selectedTenant}
                   />
                 </Col>
-                <Col lg={5} sm={5}>
-                  <SelectTimePeriodComponent selectTimePeriod={selectTimePeriod} />
+                <Col sm={8}>
+                  <SelectTimePeriodComponent
+                    selectTimePeriod={selectTimePeriod}
+                  />
                 </Col>
-                <Col lg={1} sm={1} className="d-inline-flex pt-2 justify-content-end">
+                <Col
+                  lg={1}
+                  sm={1}
+                  className="d-inline-flex pt-2 justify-content-end"
+                >
                   {/*<a href="#" onClick={refreshPage}>*/}
                   {/*  <i className="fa fa-refresh text-muted"></i>*/}
                   {/*</a>*/}
@@ -94,7 +107,7 @@ export default function ECSMetricsConatiner(props) {
               nameSpace="AWS/ECS"
               name="CPU Utilization"
               statsMap={true}
-              tenants={tenants}
+              tenants={activeTenants}
             />
             <MetricTopTenantsContainer
               id="ecsstats.TopTenantsCPUUtilization"
@@ -103,7 +116,7 @@ export default function ECSMetricsConatiner(props) {
               metric="CPUUtilization"
               nameSpace="AWS/ECS"
               name="CPU Utilization - Top Tenants"
-              tenants={tenants}
+              tenants={activeTenants}
             />
           </>
         )}
@@ -117,7 +130,7 @@ export default function ECSMetricsConatiner(props) {
             name="CPU Utilization"
             statsMap={false}
             tenant={selectedTenant}
-            tenants={tenants}
+            tenants={activeTenants}
           />
         )}
       </Row>
@@ -132,7 +145,7 @@ export default function ECSMetricsConatiner(props) {
               nameSpace="AWS/ECS"
               name="Memory Utilization"
               statsMap={true}
-              tenants={tenants}
+              tenants={activeTenants}
             />
             <MetricTopTenantsContainer
               id="ecsstats.TopTenantsMemoryUtilization"
@@ -141,7 +154,7 @@ export default function ECSMetricsConatiner(props) {
               metric="MemoryUtilization"
               nameSpace="AWS/ECS"
               name="Memory Utilization - Top Tenants"
-              tenants={tenants}
+              tenants={activeTenants}
             />
           </>
         )}
@@ -155,7 +168,7 @@ export default function ECSMetricsConatiner(props) {
             name="Memory Utilization"
             statsMap={false}
             tenant={selectedTenant}
-            tenants={tenants}
+            tenants={activeTenants}
           />
         )}
       </Row>

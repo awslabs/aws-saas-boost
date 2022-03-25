@@ -87,7 +87,6 @@ export function getApiServer(endpoint) {
   const source = CancelToken.source()
 
   apiServer.interceptors.request.use(async (r) => {
-    console.log(r)
     //Obtain and pass along Authorization token
     const authorizationToken = await fetchAccessToken()
     r.headers.Authorization = authorizationToken

@@ -18,7 +18,11 @@ import React, { useEffect } from 'react'
 import { Col, Card, CardBody, Row, CardTitle } from 'reactstrap'
 import { Bar } from 'react-chartjs-2'
 import { useDispatch, useSelector } from 'react-redux'
-import { selectMetricResultsById, selectQueryState, queryMetrics } from './ducks'
+import {
+  selectMetricResultsById,
+  selectQueryState,
+  queryMetrics,
+} from './ducks'
 import { _colors, _tenantLabels } from './common'
 import { CircleLoader } from 'react-spinners'
 
@@ -51,8 +55,10 @@ export default function MetricTopTenantsContainer(props) {
 
   let chartOpts = {
     maintainAspectRatio: false,
-    legend: {
-      display: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
     },
     scales: {
       xAxes: {
@@ -62,7 +68,9 @@ export default function MetricTopTenantsContainer(props) {
     },
   }
   const dispatch = useDispatch()
-  const albstats = useSelector((state) => selectMetricResultsById(state, QUERY_ID))
+  const albstats = useSelector((state) =>
+    selectMetricResultsById(state, QUERY_ID)
+  )
   const queryState = useSelector((state) => selectQueryState(state, QUERY_ID))
   if (albstats) {
     let tenantLabels = []
@@ -117,7 +125,10 @@ export default function MetricTopTenantsContainer(props) {
             </Col>
             <Col sm="2" className="d-flex justify-content-end">
               <div className="mr-3">
-                <CircleLoader size={20} loading={queryState.loading === 'pending'} />
+                <CircleLoader
+                  size={20}
+                  loading={queryState.loading === 'pending'}
+                />
                 {queryState.loading === 'idle' && (
                   <a href="#" onClick={refreshGraph}>
                     <i className="fa fa-refresh text-muted" />
