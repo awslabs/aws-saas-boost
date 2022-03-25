@@ -312,7 +312,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishRequestCountMetrics
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -344,7 +344,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishResponseTimeMetrics
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -376,7 +376,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::addAthenaPartition
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -409,7 +409,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryMetrics
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer
@@ -445,7 +445,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::getAccessMetricsSignedUrls
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -477,7 +477,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryAccessLogs
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref ApiGatewayHelperLayer
