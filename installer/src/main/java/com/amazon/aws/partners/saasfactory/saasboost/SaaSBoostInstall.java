@@ -873,7 +873,7 @@ public class SaaSBoostInstall {
         try {
             Map<String, Object> systemApiRequest = new HashMap<>();
             Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "tenants/provisioned");
+            detail.put("resource", "tenants");
             detail.put("method", "GET");
             systemApiRequest.put("detail", detail);
             final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
