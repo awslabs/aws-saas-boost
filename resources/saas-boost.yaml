@@ -534,6 +534,11 @@ Resources:
                   - events:PutEvents
                 Resource:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+              - Effect: Allow
+                Action:
+                  - ecr:ListTagsForResource
+                Resource:
+                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
   CoreStackListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:

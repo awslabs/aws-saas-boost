@@ -23,7 +23,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
-import software.amazon.awssdk.services.cloudformation.model.*;
+import software.amazon.awssdk.services.cloudformation.model.ListStackResourcesResponse;
+import software.amazon.awssdk.services.cloudformation.model.ResourceStatus;
+import software.amazon.awssdk.services.cloudformation.model.StackResourceSummary;
+import software.amazon.awssdk.services.ecr.EcrClient;
+import software.amazon.awssdk.services.ecr.model.ListTagsForResourceResponse;
+import software.amazon.awssdk.services.ecr.model.Tag;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 
 import java.util.*;
@@ -40,6 +45,7 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
             Arrays.asList("CREATE_COMPLETE", "UPDATE_COMPLETE"));
     private final CloudFormationClient cfn;
     private final EventBridgeClient eventBridge;
+    private final EcrClient ecr;
 
     public CoreStackListener() {
         final long startTimeMillis = System.currentTimeMillis();
@@ -51,12 +57,19 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
         }
         this.cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME);
         this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
+        this.ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME);
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
     public Object handleRequest(SNSEvent event, Context context) {
         LOGGER.info(Utils.toJson(event));
+
+        // ARN: arn:<partition>:<service>:<region>:<accountId>:<itemType>/<itemName>
+        final String[] thisLambdaArn = context.getInvokedFunctionArn().split(":");
+        final String partition = thisLambdaArn[1];
+        final String region = thisLambdaArn[3];
+        final String accountId = thisLambdaArn[4];
 
         List<SNSEvent.SNSRecord> records = event.getRecords();
         SNSEvent.SNS sns = records.get(0).getSNS();
@@ -81,18 +94,34 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 Map<String, Object> appConfig = new HashMap<>();
                 Map<String, Object> services = new HashMap<>();
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-//                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
-//                            resource.resourceStatusAsString(), resource.logicalResourceId(),
-//                            resource.physicalResourceId());
-                    if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())
-                            && "AWS::ECR::Repository".equals(resource.resourceType())) {
+                    // LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
+                    //         resource.resourceStatusAsString(), resource.logicalResourceId(),
+                    //         resource.physicalResourceId());
+                    // TODO or UPDATE_COMPLETE?
+                    if (ResourceStatus.CREATE_COMPLETE == resource.resourceStatus()
+                            && AwsResource.ECR_REPO.getResourceType().equals(resource.resourceType())) {
                         String ecrRepo = resource.physicalResourceId();
+                        String ecrResourceArn = AwsResource.ECR_REPO.formatArn(partition, region, accountId, ecrRepo);
+                        ListTagsForResourceResponse response = ecr.listTagsForResource(request -> request
+                                .resourceArn(ecrResourceArn));
                         String serviceName = resource.logicalResourceId();
-                        LOGGER.info("Publishing appConfig update event for ECR repository {} {}", serviceName,
+                        String serviceNameContext = "Read from Template";
+                        if (response.hasTags()) {
+                            for (Tag tag : response.tags()) {
+                                if (tag.key().equalsIgnoreCase("Name")) {
+                                    serviceName = tag.value();
+                                    serviceNameContext = "Read from Tag";
+                                }
+                            }
+                        }
+
+                        LOGGER.info("Publishing appConfig update event for ECR repository {}({}) {}",
+                                serviceName,
+                                serviceNameContext,
                                 ecrRepo);
                         services.put(serviceName, Map.of("containerRepo", ecrRepo));
-                    } else if ("CREATE_COMPLETE".equals(resource.resourceStatusAsString())
-                            || "UPDATE_COMPLETE".equals(resource.resourceStatusAsString())) {
+                    } else if (ResourceStatus.CREATE_COMPLETE.equals(resource.resourceStatus())
+                            || ResourceStatus.UPDATE_COMPLETE.equals(resource.resourceStatus())) {
                         if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
                             // When CloudFormation stack first completes, the Settings Service won't even exist yet.
                             String hostedZoneId = resource.physicalResourceId();
