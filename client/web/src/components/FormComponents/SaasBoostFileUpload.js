@@ -17,6 +17,8 @@ import { PropTypes } from 'prop-types'
 import React, { useMemo, useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Button, FormGroup } from 'reactstrap'
+import { cilCloudUpload, cilX } from '@coreui/icons'
+import CIcon from '@coreui/icons-react'
 
 const baseStyle = {
   flex: 1,
@@ -83,7 +85,7 @@ export const SaasBoostFileUpload = (props) => {
               {filename}
             </span>
             <Button onClick={clearFilename}>
-              <i className="fa fa-times"></i>
+            <CIcon icon={cilX} aria-hidden="true"></CIcon>
             </Button>
           </FormGroup>
         </div>
@@ -97,7 +99,7 @@ export const SaasBoostFileUpload = (props) => {
         <div className="container">
           <div {...getRootProps({ style })}>
             <input {...getInputProps()} />
-            <i className="fa fa-download" aria-hidden="true"></i>
+            <CIcon icon={cilCloudUpload} aria-hidden="true"></CIcon>
             <div id="notimage" className="hidden mb-3">
               {label}
             </div>
