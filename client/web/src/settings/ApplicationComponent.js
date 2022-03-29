@@ -232,7 +232,7 @@ export function ApplicationComponent(props) {
             .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
             .required('Username is required'),
           password: Yup.string()
-            .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password is not valid')
+            .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces')
             .required('Password is required'),
           database: Yup.string(),
         }),
@@ -326,7 +326,7 @@ export function ApplicationComponent(props) {
             schema,
             'Service Name is a required field.'
           )
-        }).matches(/^[\.-_\/a-zA-Z0-9]+$/, 'Name must only contain alphanumeric characters or .-_/'),
+        }).matches(/^[\.\-_a-zA-Z0-9]+$/, 'Name must only contain alphanumeric characters or .-_'),
         description: Yup.string(),
         path: Yup.string()
           .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {

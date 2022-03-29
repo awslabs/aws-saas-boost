@@ -25,7 +25,9 @@ export const ServiceNameComponent = (props) => {
     <Formik
       initialValues={{ serviceName: '' }}
       validationSchema={Yup.object({
-        serviceName: Yup.string().required('Service name is required'),
+        serviceName: Yup.string()
+                        .matches(/^[\.\-_a-zA-Z0-9]+$/, 'Name must only contain alphanumeric characters or .-_')
+                        .required('Service name is required'),
       })}
       onSubmit={async (values) => {
         const { serviceName } = values
