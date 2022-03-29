@@ -78,7 +78,7 @@ const ServicesComponent = (props) => {
                     <Accordion.Body>
                       <ServiceSettingsSubform
                         isLocked={hasTenants}
-                        formikService={services[index]}
+                        formikService={formik.values.services[index]}
                         formikErrors={formikErrors}
                         osOptions={osOptions}
                         serviceIndex={index}
@@ -86,7 +86,6 @@ const ServicesComponent = (props) => {
                       <TierServiceSettingsSubform
                         tiers={tiers}
                         isLocked={hasTenants}
-                        formikService={services[index]}
                         serviceValues={formik.values.services[index]}
                         setFieldValue={formik.setFieldValue}
                         dbOptions={dbOptions}

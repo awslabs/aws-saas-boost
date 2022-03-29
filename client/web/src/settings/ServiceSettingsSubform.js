@@ -22,10 +22,12 @@ import { PropTypes } from 'prop-types'
 
 const ServiceSettingsSubform = (props) => {
   const { formikErrors, formikService, osOptions, isLocked, serviceIndex } = props
-  const getWinServerOptions = () => {
+  const getWinServerOptions = (serviceIndex) => {
+    console.log('getWinServerOptions')
     if (!osOptions) {
       return null
     }
+    console.log(osOptions)
     const winKeys = Object.keys(osOptions).filter((key) => key.startsWith('WIN'))
     const options = winKeys.map((key) => {
       var desc = osOptions[key]
@@ -35,11 +37,14 @@ const ServiceSettingsSubform = (props) => {
         </option>
       )
     })
+    console.log(options)
+    console.log(formikService)
+    console.log(formikService.operatingSystem)
     return formikService.operatingSystem === 'WINDOWS' && osOptions ? (
       <FormGroup>
         <SaasBoostSelect
           type="select"
-          name="windowsVersion"
+          name={"services[" + serviceIndex + "].windowsVersion"}
           id="windowsVersion"
           label="Windows Server Version"
         >
@@ -148,7 +153,7 @@ const ServiceSettingsSubform = (props) => {
                       {formikErrors.operatingSystem}
                     </FormFeedback>
                   </FormGroup>
-                  {getWinServerOptions()}
+                  {getWinServerOptions(serviceIndex)}
                 </Col>
                 <Col xs={6}>
                   <SaasBoostInput
