@@ -93,7 +93,15 @@ public enum AwsResource {
     }
 
     public String formatArn(String partition, String region, String accountId, String resourceId) {
-        return String.format(this.arnFormat, partition, region, accountId, resourceId);
+        String arn;
+        try {
+            arn = String.format(this.arnFormat, partition, region, accountId, resourceId);
+        } catch (IllegalFormatException e) {
+            LOGGER.error("Error formatting ARN for {}", this.name(), e);
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+        return arn;
     }
 
 }
