@@ -118,7 +118,7 @@ export const DashboardComponent = (props) => {
                   <Row>
                     <Col xs={6}>
                       <div className="callout callout-info">
-                        <small className="text-muted">AWS Saas Boost Environment</small>
+                        <small className="text-muted">Boost Environment</small>
                         <br />
                         <strong className="h4">{saasBoostEnvironment}</strong>
                       </div>
@@ -181,7 +181,7 @@ export const DashboardComponent = (props) => {
               <Row>
                 <strong className="h4 mb-1">Services</strong>
                 <Row>
-                  {isEmpty(appConfig?.services) ? 'No Services' : 
+                  {isEmpty(appConfig?.services) ? (<Col xs={12} md={6} xl={4}>No Services</Col>) : 
                   Object.values(appConfig.services).map(service => (
                     <Col xs={12} md={6} xl={4}>
                       <Card className="mb-2">
