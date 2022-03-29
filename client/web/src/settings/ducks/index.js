@@ -172,12 +172,8 @@ const settingSlice = createSlice({
         const { settings } = action.payload
         if (!!settings) {
           settingAdapter.setAll(state, settings)
-          if (settings?.APP_NAME && settings.APP_NAME !== '') {
-            state.setup = false
-          }
         } else {
           settingAdapter.removeAll()
-          state.setup = true
         }
       }
 
