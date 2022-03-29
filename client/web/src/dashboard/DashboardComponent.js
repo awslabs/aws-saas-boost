@@ -31,6 +31,7 @@ import * as SETTINGS from '../settings/common'
 import { isEmpty } from 'lodash'
 import { selectOSLabel, selectDbLabel } from '../options/ducks'
 import ECRInstructions from '../components/ECRInstructions'
+import { selectAllTiers } from '../tier/ducks'
 
 const ActiveTenantsComponent = React.lazy(() => import('./ActiveTenantsComponent'))
 
@@ -45,6 +46,7 @@ const InstalledExtensionsComponent = React.lazy(() => import('./InstalledExtensi
 export const DashboardComponent = (props) => {
   const dispatch = useDispatch()
   const appConfig = useSelector(selectConfig)
+  const tiers = useSelector(selectAllTiers)
   const clusterOS = useSelector((state) => selectSettingsById(state, SETTINGS.CLUSTER_OS))
   const dbEngine = useSelector((state) => selectSettingsById(state, SETTINGS.DB_ENGINE))
   const version = useSelector((state) => selectSettingsById(state, SETTINGS.VERSION))
@@ -153,7 +155,8 @@ export const DashboardComponent = (props) => {
               </Row>
 
               <Row>
-                <Col xs={12} md={12} lg={12}>
+                <Col xs={12} md={6} lg={6}>
+                  <strong className="h4 mb-1">Application</strong>
                   <dl>
                     <dt className="mb-1">Application Name</dt>
                     <dd className="mb-3">{isEmpty(appConfig?.name) ? 'N/A' : appConfig.name}</dd>
@@ -163,9 +166,21 @@ export const DashboardComponent = (props) => {
                     <dd className="mb-3">{globalConfig.apiUri}</dd>
                   </dl>
                 </Col>
+                <Col xs={12} md={6} lg={6}>
+                  <strong className="h4 mb-1">Tiers</strong>
+                  <dl>
+                    {tiers.map(tier => (
+                      <>
+                      <dt className="mb-1">{tier.name}</dt>
+                      <dd className="mb-3">{isEmpty(tier.description) ? 'No Description' : tier.description}</dd>
+                      </>
+                    ))}
+                  </dl>
+                </Col>
               </Row>
               <Row>
-                  <strong className="h4 mb-1">Services</strong>
+                <strong className="h4 mb-1">Services</strong>
+                <Row>
                   {isEmpty(appConfig?.services) ? 'No Services' : 
                   Object.values(appConfig.services).map(service => (
                     <Col xs={12} md={6} xl={4}>
@@ -202,6 +217,7 @@ export const DashboardComponent = (props) => {
                       </Card>
                     </Col>
                   ))}
+                </Row>
               </Row>
             </CardBody>
           </Card>

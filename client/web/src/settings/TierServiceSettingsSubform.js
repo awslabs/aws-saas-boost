@@ -53,7 +53,7 @@ const TierServiceSettingsSubform = (props) => {
     serviceValues,
   } = props
 
-  const [selectedTier, setSelectedTier] = useState(tiers[0])
+  const [selectedTier, setSelectedTier] = useState(tiers[0].name)
 
   // TODO we have a tierNames list we get from the tier service?
   // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
@@ -69,12 +69,12 @@ const TierServiceSettingsSubform = (props) => {
               <CDropdown>
                 <CDropdownToggle>{selectedTier}</CDropdownToggle>
                 <CDropdownMenu>
-                  {tiers.map((tierName) => (
+                  {tiers.map(tier => (
                     <CDropdownItem
-                      onClick={() => setSelectedTier(tierName)}
-                      key={formikServicePrefix + '-' + tierName}
+                      onClick={() => setSelectedTier(tier.name)}
+                      key={formikServicePrefix + '-' + tier.name}
                     >
-                      {tierName}
+                      {tier.name}
                     </CDropdownItem>
                   ))}
                 </CDropdownMenu>

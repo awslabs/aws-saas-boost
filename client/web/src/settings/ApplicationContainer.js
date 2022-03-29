@@ -37,6 +37,7 @@ import { ApplicationComponent } from './ApplicationComponent'
 import { ConfirmModal } from './ConfirmModal'
 import { selectDbOptions, selectOsOptions, selectDbUploadUrl } from '../options/ducks'
 import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
+import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
 
 export function ApplicationContainer(props) {
   const EFS = 'EFS'
@@ -56,6 +57,7 @@ export function ApplicationContainer(props) {
   const hasTenants = useSelector((state) => {
     return selectAllTenants(state)?.length > 0
   })
+  const tiers = useSelector(selectAllTiers)
 
   const [modal, setModal] = useState(false)
   const [file, setFile] = useState({})
@@ -97,6 +99,16 @@ export function ApplicationContainer(props) {
     return () => {
       if (fetchTenantsResponse.PromiseStatus === 'pending') {
         fetchTenantsResponse.abort()
+      }
+      dismissError(dismissError())
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    const fetchTiersResponse = dispatch(fetchTiersThunk())
+    return () => {
+      if (fetchTiersResponse.PromiseStatus === 'pending') {
+        fetchTiersResponse.abort()
       }
       dismissError(dismissError())
     }
@@ -146,6 +158,7 @@ export function ApplicationContainer(props) {
         let thisService = services[serviceIndex]
         if (thisService.tombstone) continue
         // update the tier config
+        // TODO: validate tiers against Tier Service
         let cleanedTiersMap = {}
         for (var tierName in thisService.tiers) {
           const {
@@ -251,6 +264,7 @@ export function ApplicationContainer(props) {
               message={configMessage}
               loading={loading === 'idle' && configLoading === 'idle' ? 'idle' : 'pending'}
               updateConfiguration={presubmitCheck}
+              tiers={tiers}
               {...props}
             />
           </>

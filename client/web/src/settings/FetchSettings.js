@@ -27,6 +27,7 @@ import {
 import { fetchOptions, selectOptions } from '../options/ducks'
 import { isEmpty, size } from 'lodash'
 import SBLoading from '../components/SBLoading'
+import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
 
 FetchSettings.propTypes = {
   children: PropTypes.object,
@@ -38,7 +39,9 @@ function FetchSettings(props) {
   const loading = useSelector(selectLoading)
   const appConfig = useSelector(selectConfig)
   const options = useSelector(selectOptions)
+  const tiers = useSelector(selectAllTiers)
   const [isAppConfigLoaded, setAppConfigLoaded] = useState(false)
+  const [isTiersLoaded, setTiersLoaded] = useState(false)
   const [isSettingsLoaded, setSettingsLoaded] = useState(false)
   const [isOptionsLoaded, setOptionsLoaded] = useState(false)
 
@@ -51,6 +54,10 @@ function FetchSettings(props) {
     setAppConfigLoaded(true)
   }
 
+  if (!isEmpty(tiers) && !isTiersLoaded) {
+    setTiersLoaded(true)
+  }
+
   /**
    * If the configuration isn't loaded, fetch it now
    */
@@ -58,6 +65,13 @@ function FetchSettings(props) {
     let fetchConfigResponse
     if (!isAppConfigLoaded) {
       fetchConfigResponse = dispatch(fetchConfig())
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    let fetchTiersResponse
+    if (!isTiersLoaded) {
+      fetchTiersResponse = dispatch(fetchTiersThunk())
     }
   }, [dispatch])
 
@@ -102,7 +116,7 @@ function FetchSettings(props) {
     }
   }, [dispatch])
 
-  return isSettingsLoaded && isOptionsLoaded ? props.children : <SBLoading />
+  return isSettingsLoaded && isOptionsLoaded && isTiersLoaded && isAppConfigLoaded ? props.children : <SBLoading />
 }
 
 export default FetchSettings

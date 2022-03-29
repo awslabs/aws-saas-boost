@@ -47,6 +47,7 @@ ApplicationComponent.propTypes = {
   osOptions: PropTypes.object,
   updateConfiguration: PropTypes.func,
   onFileSelected: PropTypes.func,
+  tiers: PropTypes.array,
 }
 
 export function ApplicationComponent(props) {
@@ -60,6 +61,7 @@ export function ApplicationComponent(props) {
     message,
     osOptions,
     updateConfiguration,
+    tiers,
   } = props
 
   console.log('App Config:', appConfig)
@@ -67,10 +69,6 @@ export function ApplicationComponent(props) {
   const WINDOWS = 'WINDOWS'
   const FSX = 'FSX'
   const EFS = 'EFS'
-
-  // TODO we should be using state for this so we can add tiers?
-  // TODO better solution is to grab this from a Tiers API
-  const tiers = ['default']
 
   const getParts = (dateTime) => {
     const parts = dateTime.split(':')
@@ -114,7 +112,7 @@ export function ApplicationComponent(props) {
       : ''
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
-      var tierName = tiers[i]
+      var tierName = tiers[i].name
       // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
       let thisTier = thisService?.tiers[tierName] || {
         min: 1,
@@ -306,7 +304,7 @@ export function ApplicationComponent(props) {
   const allTiersValidationSpec = (tombstone) => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
-      var tierName = tiers[i]
+      var tierName = tiers[i].name
       allTiers[tierName] = singleTierValidationSpec(tombstone)
     }
     return Yup.object(allTiers)
