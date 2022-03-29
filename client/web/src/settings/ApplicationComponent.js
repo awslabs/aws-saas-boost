@@ -233,9 +233,10 @@ export function ApplicationComponent(props) {
           username: Yup.string()
             .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
             .required('Username is required'),
-          password: Yup.string()
-            .matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces')
-            .required('Password is required'),
+          password: Yup.string().when('hasEncryptedPassword', {
+            is: false,
+            then: Yup.string().matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces')
+          }).required('Password is required'),
           database: Yup.string(),
         }),
         otherwise: Yup.object(),
