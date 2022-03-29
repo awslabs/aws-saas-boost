@@ -76,7 +76,6 @@ export default class DatabaseSubform extends React.Component {
 
   versionChanged = (event) => {
     const v = event.target.value
-    console.log('Version Changed', v)
     const engineVal = this.props.values?.engine
     const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
     const instanceVal = this.props.values?.instance

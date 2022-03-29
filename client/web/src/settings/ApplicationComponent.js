@@ -110,6 +110,7 @@ export function ApplicationComponent(props) {
         ? LINUX
         : WINDOWS
       : ''
+    const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
@@ -158,8 +159,8 @@ export function ApplicationComponent(props) {
         ...thisTier,
         filesystem: filesystem,
         database: db,
-        provisionDb: !!thisService?.database || false,
-        provisionFS: !!thisService?.filesystem || false,
+        provisionDb: !!thisTier?.database || false,
+        provisionFS: !!thisTier?.filesystem || false,
       }
     }
     return {
@@ -172,6 +173,7 @@ export function ApplicationComponent(props) {
       containerTag: thisService?.containerTag || 'latest',
       description: thisService?.description || '',
       operatingSystem: os,
+      windowsVersion: windowsVersion,
       tiers: initialTierValues,
       tombstone: false,
     }
