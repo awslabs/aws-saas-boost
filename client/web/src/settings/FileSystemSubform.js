@@ -172,7 +172,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="storageVal">Storage</Label>
                 <Input
-                  id="storageVal"
+                  id={"storageVal" + props.formikTierPrefix}
                   className="mb-4"
                   type="number"
                   value={props.values?.fsx.storageGb}
@@ -184,7 +184,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="storage">In GB</Label>
                 <Slider
-                  id="storage"
+                  id={"storage" + props.formikTierPrefix}
                   defaultValue={props.values?.fsx.storageGb}
                   onChange={onStorageChange}
                   className="mb-4"
@@ -202,7 +202,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="throughputVal">Throughput</Label>
                 <Input
-                  id="throughputVal"
+                  id={"throughputVal" + props.formikTierPrefix}
                   className="mb-4"
                   type="number"
                   value={props.values?.fsx.throughputMbs}
@@ -214,7 +214,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="throughput">In MB/s</Label>
                 <Slider
-                  id="throughput"
+                  id={"throughput" + props.formikTierPrefix}
                   defaultValue={props.values?.fsx.throughputMbs}
                   onChange={onThroughputChange}
                   marks={tpMarks}
