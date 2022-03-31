@@ -388,6 +388,18 @@ export function ApplicationComponent(props) {
     return loading !== 'idle'
   }
 
+  const findServicesWithErrors = (formik) => {
+    let servicesWithErrors = []
+    if (!!formik.errors.services) {
+      formik.errors.services.forEach((service, index) => {
+        if (!!service) {
+          servicesWithErrors.push(formik.values.services[index].name)
+        }
+      })
+    }
+    return servicesWithErrors.join(', ')
+  }
+
   return (
     <LoadingOverlay
       active={isSubmitting()}
@@ -424,6 +436,9 @@ export function ApplicationComponent(props) {
           {(formik) => {
             return (
               <>
+                {!!formik.errors && Object.keys(formik.errors).length > 0 ?
+                  (<Alert color="danger">Errors in {findServicesWithErrors(formik)}</Alert>) : null
+                }
                 <Form>
                   <AppSettingsSubform
                     isLocked={hasTenants}
@@ -460,7 +475,6 @@ export function ApplicationComponent(props) {
                     </Col>
                   </Row>
                 </Form>
-                <p>errors should be here: {JSON.stringify(formik.errors)}</p>
               </>
             )
           }}
