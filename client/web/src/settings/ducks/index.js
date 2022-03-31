@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { createAsyncThunk, createSlice, createEntityAdapter } from '@reduxjs/toolkit'
+import {
+  createAsyncThunk,
+  createSlice,
+  createEntityAdapter,
+} from '@reduxjs/toolkit'
 
 import { normalize, schema } from 'normalizr'
 import settingsAPI from '../api'
@@ -23,114 +27,137 @@ import settingsAPI from '../api'
 const settingSchema = new schema.Entity('settings', {}, { idAttribute: 'name' })
 const settingsListSchema = [settingSchema]
 
-const settingAdapter = createEntityAdapter({ selectId: (entity) => entity.name })
-
-export const fetchSettings = createAsyncThunk('settings/fetchAll', async (...[, thunkAPI]) => {
-  const { signal } = thunkAPI
-  try {
-    const response = await settingsAPI.fetchAll({ signal })
-    const normalized = normalize(response, settingsListSchema)
-    return normalized.entities
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
-      return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
-    }
-  }
+const settingAdapter = createEntityAdapter({
+  selectId: (entity) => entity.name,
 })
 
-export const updateSettings = createAsyncThunk('settings/update', async (settings, thunkAPI) => {
-  const { signal } = thunkAPI
-  try {
-    await settingsAPI.updateSettings(settings, { signal })
-    return
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
-      return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
+export const fetchSettings = createAsyncThunk(
+  'settings/fetchAll',
+  async (...[, thunkAPI]) => {
+    const { signal } = thunkAPI
+    try {
+      const response = await settingsAPI.fetchAll({ signal })
+      const normalized = normalize(response, settingsListSchema)
+      return normalized.entities
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
     }
   }
-})
+)
 
-export const fetchConfig = createAsyncThunk('settings/fetchConfig', async (config, thunkAPI) => {
-  const { signal } = thunkAPI
-  try {
-    const response = await settingsAPI.fetchConfig({ signal })
-    return response
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
+export const updateSettings = createAsyncThunk(
+  'settings/update',
+  async (settings, thunkAPI) => {
+    const { signal } = thunkAPI
+    try {
+      await settingsAPI.updateSettings(settings, { signal })
       return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
     }
   }
-})
+)
 
-export const updateConfig = createAsyncThunk('settings/updateConfig', async (config, thunkAPI) => {
-  const { signal } = thunkAPI
-  try {
-    const updateConfigResponse = await settingsAPI.updateConfig(config, {
-      signal,
-    })
-    return updateConfigResponse
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
-      return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
+export const fetchConfig = createAsyncThunk(
+  'settings/fetchConfig',
+  async (config, thunkAPI) => {
+    const { signal } = thunkAPI
+    try {
+      const response = await settingsAPI.fetchConfig({ signal })
+      return response
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
     }
   }
-})
+)
 
-export const createConfig = createAsyncThunk('settings/createConfig', async (config, thunkAPI) => {
-  const { signal } = thunkAPI
-  try {
-    const createConfigResponse = await settingsAPI.createConfig(config, {
-      signal,
-    })
-    return createConfigResponse
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
-      return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
+export const updateConfig = createAsyncThunk(
+  'settings/updateConfig',
+  async (config, thunkAPI) => {
+    const { signal } = thunkAPI
+    try {
+      const updateConfigResponse = await settingsAPI.updateConfig(config, {
+        signal,
+      })
+      return updateConfigResponse
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
     }
   }
-})
+)
 
-export const fetchDbOptions = createAsyncThunk('settings/options', async (...[, thunkAPI]) => {
-  const { signal } = thunkAPI
-  try {
-    const dbOptions = await settingsAPI.fetchDbOptions({ signal })
-    return dbOptions
-  } catch (err) {
-    if (settingsAPI.isCancel(err)) {
-      return
-    } else {
-      console.error(err)
-      return thunkAPI.rejectWithValue(err.message)
+export const createConfig = createAsyncThunk(
+  'settings/createConfig',
+  async (config, thunkAPI) => {
+    const { signal } = thunkAPI
+    try {
+      const createConfigResponse = await settingsAPI.createConfig(config, {
+        signal,
+      })
+      return createConfigResponse
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
     }
   }
-})
+)
+
+export const fetchDbOptions = createAsyncThunk(
+  'settings/options',
+  async (...[, thunkAPI]) => {
+    const { signal } = thunkAPI
+    try {
+      const dbOptions = await settingsAPI.fetchDbOptions({ signal })
+      return dbOptions
+    } catch (err) {
+      if (settingsAPI.isCancel(err)) {
+        return
+      } else {
+        console.error(err)
+        return thunkAPI.rejectWithValue(err.message)
+      }
+    }
+  }
+)
 
 export const saveToPresignedBucket = createAsyncThunk(
   'settings/dbFile',
   async ({ dbFile, url }, thunkAPI) => {
     try {
-      const putBucketResponse = await settingsAPI.putToPresignedBucket(url, dbFile)
+      const putBucketResponse = await settingsAPI.putToPresignedBucket(
+        url,
+        dbFile
+      )
       return putBucketResponse
     } catch (err) {
       console.error(err)
       return thunkAPI.rejectWithValue(err.message)
     }
-  },
+  }
 )
 
 const initialState = settingAdapter.getInitialState({
@@ -268,15 +295,33 @@ const settingSlice = createSlice({
 
 export const selectLoading = (state) => state.settings.loading
 export const selectError = (state) => state.settings.error
-
 export const selectConfigLoading = (state) => state.settings.config.loading
 export const selectConfigError = (state) => state.settings.config.error
 export const selectConfigMessage = (state) => state.settings.config.message
 export const selectConfig = (state) => state.settings.config.data
 
+export const selectServiceToS3BucketMap = (state) => {
+  const appConfig = state.settings.config.data
+  const keys = Object.keys(appConfig?.services)
+  return keys.reduce((prev, curr) => {
+    const map = {
+      ...prev,
+      [curr]:
+        appConfig?.services[curr].tiers?.default?.database?.bootstrapFilename,
+    }
+    return map
+  }, {})
+}
+
 export const { actions, reducer } = settingSlice
-export const { dismissError, dismissConfigError, dismissConfigMessage } = actions
-export const { selectAll: selectAllSettings, selectById: selectSettingsById } =
-  settingAdapter.getSelectors((state) => state.settings)
+export const {
+  dismissError,
+  dismissConfigError,
+  dismissConfigMessage,
+} = actions
+export const {
+  selectAll: selectAllSettings,
+  selectById: selectSettingsById,
+} = settingAdapter.getSelectors((state) => state.settings)
 
 export default reducer

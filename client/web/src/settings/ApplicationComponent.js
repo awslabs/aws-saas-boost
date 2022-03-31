@@ -20,15 +20,7 @@ import { useDispatch } from 'react-redux'
 import { Formik, Form } from 'formik'
 import { PropTypes } from 'prop-types'
 import * as Yup from 'yup'
-import {
-  Button,
-  Row,
-  Col,
-  Card,
-  CardBody,
-  Alert,
-  FormFeedback,
-} from 'reactstrap'
+import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap'
 import LoadingOverlay from '@ronchalant/react-loading-overlay'
 
 import AppSettingsSubform from './AppSettingsSubform'
@@ -64,7 +56,6 @@ export function ApplicationComponent(props) {
     tiers,
   } = props
 
-  console.log('App Config:', appConfig)
   const LINUX = 'LINUX'
   const WINDOWS = 'WINDOWS'
   const FSX = 'FSX'
@@ -233,10 +224,15 @@ export function ApplicationComponent(props) {
           username: Yup.string()
             .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
             .required('Username is required'),
-          password: Yup.string().when('hasEncryptedPassword', {
-            is: false,
-            then: Yup.string().matches('^[a-zA-Z0-9/@"\' ]{8,}$', 'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces')
-          }).required('Password is required'),
+          password: Yup.string()
+            .when('hasEncryptedPassword', {
+              is: false,
+              then: Yup.string().matches(
+                '^[a-zA-Z0-9/@"\' ]{8,}$',
+                'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces'
+              ),
+            })
+            .required('Password is required'),
           database: Yup.string(),
         }),
         otherwise: Yup.object(),
@@ -323,13 +319,18 @@ export function ApplicationComponent(props) {
     services: Yup.array(
       Yup.object({
         public: Yup.boolean().required(),
-        name: Yup.string().when('tombstone', (tombstone, schema) => {
-          return requiredIfNotTombstoned(
-            tombstone,
-            schema,
-            'Service Name is a required field.'
-          )
-        }).matches(/^[\.\-_a-zA-Z0-9]+$/, 'Name must only contain alphanumeric characters or .-_'),
+        name: Yup.string()
+          .when('tombstone', (tombstone, schema) => {
+            return requiredIfNotTombstoned(
+              tombstone,
+              schema,
+              'Service Name is a required field.'
+            )
+          })
+          .matches(
+            /^[\.\-_a-zA-Z0-9]+$/,
+            'Name must only contain alphanumeric characters or .-_'
+          ),
         description: Yup.string(),
         path: Yup.string()
           .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {
@@ -378,9 +379,8 @@ export function ApplicationComponent(props) {
     provisionBilling: Yup.boolean(),
   })
 
-  const onFileSelected = (databaseObject, file) => {
-    databaseObject.bootstrapFilename = file.name
-    props.onFileSelected(file)
+  const onFileSelected = (serviceName, file) => {
+    props.onFileSelected({ serviceName, file })
   }
 
   const dismissError = () => {

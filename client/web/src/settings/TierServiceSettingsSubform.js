@@ -15,25 +15,10 @@
  */
 
 import React, { useState } from 'react'
-import {
-  Row,
-  Col,
-  Card,
-  CardBody,
-  CardHeader,
-  FormGroup,
-  Label,
-  FormFeedback,
-} from 'reactstrap'
-import { Field } from 'formik'
-import {
-  SaasBoostSelect,
-  SaasBoostCheckbox,
-  SaasBoostInput,
-} from '../components/FormComponents'
+import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
+import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import {
   CDropdown,
-  CDropdownHeader,
   CDropdownItem,
   CDropdownMenu,
   CDropdownToggle,
@@ -44,13 +29,13 @@ import DatabaseSubform from './DatabaseSubform'
 
 const TierServiceSettingsSubform = (props) => {
   const {
-    isLocked,
-    formikServicePrefix,
-    serviceIndex,
     tiers,
+    isLocked,
+    serviceName,
+    serviceValues,
     dbOptions,
     onFileSelected,
-    serviceValues,
+    formikServicePrefix,
   } = props
 
   const [selectedTier, setSelectedTier] = useState(tiers[0].name)
@@ -59,7 +44,6 @@ const TierServiceSettingsSubform = (props) => {
   // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
   // TODO I think we can override initialValues as we go along
   // TODO the only important thing is that it's set going back
-
   return (
     <>
       <Row>
@@ -69,7 +53,7 @@ const TierServiceSettingsSubform = (props) => {
               <CDropdown>
                 <CDropdownToggle>{selectedTier}</CDropdownToggle>
                 <CDropdownMenu>
-                  {tiers.map(tier => (
+                  {tiers.map((tier) => (
                     <CDropdownItem
                       onClick={() => setSelectedTier(tier.name)}
                       key={formikServicePrefix + '-' + tier.name}
@@ -169,12 +153,7 @@ const TierServiceSettingsSubform = (props) => {
                       serviceValues?.tiers[selectedTier]?.provisionDb
                     }
                     values={serviceValues?.tiers[selectedTier]?.database}
-                    onFileSelected={(file) =>
-                      onFileSelected(
-                        serviceValues?.tiers[selectedTier]?.database,
-                        file
-                      )
-                    }
+                    onFileSelected={(file) => onFileSelected(serviceName, file)}
                   ></DatabaseSubform>
                 </Col>
               </Row>

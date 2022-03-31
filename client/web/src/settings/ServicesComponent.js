@@ -41,7 +41,6 @@ const ServicesComponent = (props) => {
   }
 
   const addService = (serviceName) => {
-    console.log('addService ' + serviceName)
     let newService = initService(serviceName)
     formik.values.services.push(newService)
     setServices([...formik.values.services])
@@ -86,8 +85,8 @@ const ServicesComponent = (props) => {
                       <TierServiceSettingsSubform
                         tiers={tiers}
                         isLocked={hasTenants}
+                        serviceName={service.name}
                         serviceValues={formik.values.services[index]}
-                        setFieldValue={formik.setFieldValue}
                         dbOptions={dbOptions}
                         onFileSelected={onFileSelected}
                         formikServicePrefix={'services[' + index + ']'}

@@ -17,12 +17,14 @@
 import React, { useEffect, useState } from 'react'
 import { Switch, Route } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-
+import {
+  saveToPresignedBucket,
+  selectServiceToS3BucketMap,
+} from '../settings/ducks'
 import {
   fetchSettings,
   fetchConfig,
   updateConfig,
-  saveToPresignedBucket,
   selectAllSettings,
   dismissError,
   selectLoading,
@@ -30,12 +32,11 @@ import {
   selectConfigLoading,
   selectConfigError,
   selectConfigMessage,
-  createConfig,
 } from './ducks'
 
 import { ApplicationComponent } from './ApplicationComponent'
 import { ConfirmModal } from './ConfirmModal'
-import { selectDbOptions, selectOsOptions, selectDbUploadUrl } from '../options/ducks'
+import { selectDbOptions, selectOsOptions } from '../options/ducks'
 import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
 import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
 
@@ -53,7 +54,8 @@ export function ApplicationContainer(props) {
   const configLoading = useSelector(selectConfigLoading)
   const configMessage = useSelector(selectConfigMessage)
   const configError = useSelector(selectConfigError)
-  const dbUploadUrl = useSelector(selectDbUploadUrl)
+  const serviceToS3BucketMap = useSelector(selectServiceToS3BucketMap)
+
   const hasTenants = useSelector((state) => {
     return selectAllTenants(state)?.length > 0
   })
@@ -114,6 +116,21 @@ export function ApplicationContainer(props) {
     }
   }, [dispatch])
 
+  useEffect(() => {
+    Object.keys(file).forEach((fn) => {
+      const dbFile = file[fn]
+      const url = serviceToS3BucketMap[fn]
+      if (dbFile && url) {
+        dispatch(
+          saveToPresignedBucket({
+            dbFile,
+            url,
+          })
+        )
+      }
+    })
+  }, [serviceToS3BucketMap, appConfig, dispatch, file])
+
   const presubmitCheck = (values) => {
     setFormValues(values)
     if (hasTenants) {
@@ -143,16 +160,8 @@ export function ApplicationContainer(props) {
       return encryptedPw.substring(0, 8) === pw
     }
 
-    console.log("updateConfiguration!")
-    console.log(values)
-
     try {
-      const {
-        services,
-        billing,
-        provisionBilling,
-        ...rest
-      } = values
+      const { services, billing, provisionBilling, ...rest } = values
       let cleanedServicesMap = {}
       for (var serviceIndex in services) {
         let thisService = services[serviceIndex]
@@ -169,7 +178,11 @@ export function ApplicationContainer(props) {
             ...rest
           } = thisService.tiers[tierName]
           let { filesystemLifecycle, ...cleanedFs } = filesystem
-          let { weeklyMaintenanceDay, weeklyMaintenanceTime: time, ...cleanedFsx } = cleanedFs.fsx
+          let {
+            weeklyMaintenanceDay,
+            weeklyMaintenanceTime: time,
+            ...cleanedFsx
+          } = cleanedFs.fsx
           const weeklyTime = getFormattedTime(time)
           const fsx = {
             ...cleanedFsx,
@@ -180,13 +193,20 @@ export function ApplicationContainer(props) {
             efs: cleanedFs.fileSystemType === EFS ? cleanedFs.efs : null,
             fsx: cleanedFs.fileSystemType === FSX ? fsx : null,
           }
-          const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database
+          const {
+            port,
+            hasEncryptedPassword,
+            encryptedPassword,
+            bootstrapFilename,
+            ...restDb
+          } = database
           // If we detected an encrypted password coming in, and it looks like they haven't changed it
           // then send the encrypted password back to the server. Otherwise send what they changed.
           const cleanedDb = {
             ...restDb,
             password:
-              hasEncryptedPassword && isMatch(restDb.password, encryptedPassword)
+              hasEncryptedPassword &&
+              isMatch(restDb.password, encryptedPassword)
                 ? encryptedPassword
                 : restDb.password,
           }
@@ -219,21 +239,14 @@ export function ApplicationContainer(props) {
         billing: provisionBilling ? billing : null,
         services: cleanedServicesMap,
       }
-
-// TODO this file is controlled as a single state and setter passed to all DB forms
-// TODO also, the settings API implementation of the DB init file will need to change for multiple services as well
-//      if (!!file && file.name && provisionDb) {
-//        await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }))
-//      }
-      console.log('dispatching the following appConfig...')
-      console.log(configToSend)
-      await dispatch(updateConfig(configToSend))
+      dispatch(updateConfig(configToSend))
     } catch (e) {
       console.error(e)
     }
   }
 
-  const handleFileSelected = (file) => {
+  const handleFileSelected = (newFile) => {
+    file[newFile.serviceName] = newFile.file
     setFile(file)
   }
 
@@ -262,7 +275,11 @@ export function ApplicationContainer(props) {
               settingsObj={settingsObj}
               error={configError}
               message={configMessage}
-              loading={loading === 'idle' && configLoading === 'idle' ? 'idle' : 'pending'}
+              loading={
+                loading === 'idle' && configLoading === 'idle'
+                  ? 'idle'
+                  : 'pending'
+              }
               updateConfiguration={presubmitCheck}
               tiers={tiers}
               {...props}
