@@ -39,7 +39,6 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String SYSTEM_API_CALL = "System API Call";
     private static final String EVENT_SOURCE = "saas-boost";
     private static final Collection<String> EVENTS_OF_INTEREST = Collections.unmodifiableCollection(
             Arrays.asList("CREATE_COMPLETE", "UPDATE_COMPLETE"));
@@ -94,27 +93,27 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 Map<String, Object> appConfig = new HashMap<>();
                 Map<String, Object> services = new HashMap<>();
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-                    // LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
-                    //         resource.resourceStatusAsString(), resource.logicalResourceId(),
-                    //         resource.physicalResourceId());
+//                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
+//                            resource.resourceStatusAsString(), resource.logicalResourceId(),
+//                            resource.physicalResourceId());
                     // TODO or UPDATE_COMPLETE?
                     if (ResourceStatus.CREATE_COMPLETE == resource.resourceStatus()
                             && AwsResource.ECR_REPO.getResourceType().equals(resource.resourceType())) {
                         String ecrRepo = resource.physicalResourceId();
                         String ecrResourceArn = AwsResource.ECR_REPO.formatArn(partition, region, accountId, ecrRepo);
+                        LOGGER.info("Listing tags for ECR repo {}", ecrRepo);
                         ListTagsForResourceResponse response = ecr.listTagsForResource(request -> request
                                 .resourceArn(ecrResourceArn));
                         String serviceName = resource.logicalResourceId();
                         String serviceNameContext = "Read from Template";
                         if (response.hasTags()) {
                             for (Tag tag : response.tags()) {
-                                if (tag.key().equalsIgnoreCase("Name")) {
+                                if ("Name".equalsIgnoreCase(tag.key())) {
                                     serviceName = tag.value();
                                     serviceNameContext = "Read from Tag";
                                 }
                             }
                         }
-
                         LOGGER.info("Publishing appConfig update event for ECR repository {}({}) {}",
                                 serviceName,
                                 serviceNameContext,

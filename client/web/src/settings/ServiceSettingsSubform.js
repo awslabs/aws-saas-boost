@@ -19,6 +19,8 @@ import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } 
 import { Field } from 'formik'
 import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
 import { PropTypes } from 'prop-types'
+import { cibWindows, cibLinux } from '@coreui/icons'
+import CIcon from '@coreui/icons-react'
 
 const ServiceSettingsSubform = (props) => {
   const { formikErrors, formikService, osOptions, isLocked, serviceIndex } = props
@@ -40,7 +42,7 @@ const ServiceSettingsSubform = (props) => {
         <SaasBoostSelect
           type="select"
           name={"services[" + serviceIndex + "].windowsVersion"}
-          id="windowsVersion"
+          id={"windowsVersion-" + serviceIndex}
           label="Windows Server Version"
         >
           <option value="">Select One...</option>
@@ -50,21 +52,20 @@ const ServiceSettingsSubform = (props) => {
     ) : null
   }
 
-  // Normally we'd let formik handle this, but we also need to change the fylesystem type
+  // Normally we'd let formik handle this, but we also need to change the filesystem type
   // based on the container OS
-//  const onOperatingSystemChange = (val, serviceName) => {
-//    const os = val?.target?.value
-//    props.formik.setFieldValue(serviceName + '.operatingSystem', os)
-//    if (os === 'WINDOWS') {
-//      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'FSX')
-//    }
-//    if (os === 'LINUX') {
-//      props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', 'EFS')
-//    }
-//  }
-
-// onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
-// onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
+ const onOperatingSystemChange = (val, serviceName) => {
+   const os = val?.target?.value
+   props.formik.setFieldValue(serviceName + '.operatingSystem', os)
+   let fileSystemType = ''
+   if (os === 'WINDOWS') {
+     fileSystemType = 'FSX'
+   }
+   if (os === 'LINUX') {
+     fileSystemType = 'EFS'
+   }
+   props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', fileSystemType)
+ }
 
   return (
     <>
@@ -114,28 +115,28 @@ const ServiceSettingsSubform = (props) => {
                       <Field
                         className="form-check-input"
                         type="radio"
-                        id="inline-radio1"
-
+                        id={"os-linux-" + serviceIndex}
+                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="LINUX"
                         disabled={isLocked}
                       />
-                      <Label className="form-check-label" check htmlFor="inline-radio1">
-                        <i className="fa fa-linux"></i> Linux
+                      <Label className="form-check-label" check htmlFor={"os-linux-" + serviceIndex}>
+                        <CIcon icon={cibLinux} /> Linux
                       </Label>
                     </FormGroup>
                     <FormGroup check inline>
                       <Field
                         className="form-check-input"
                         type="radio"
-                        id="inline-radio2"
-
+                        id={"os-windows-" + serviceIndex}
+                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="WINDOWS"
                         disabled={isLocked}
                       />
-                      <Label className="form-check-label" check htmlFor="inline-radio2">
-                        <i className="fa fa-windows"></i> Windows
+                      <Label className="form-check-label" check htmlFor={"os-windows-" + serviceIndex}>
+                      <CIcon icon={cibWindows} /> Windows
                       </Label>
                     </FormGroup>
                     <FormFeedback

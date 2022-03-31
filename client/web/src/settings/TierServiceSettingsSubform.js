@@ -38,7 +38,7 @@ const TierServiceSettingsSubform = (props) => {
     formikServicePrefix,
   } = props
 
-  const [selectedTier, setSelectedTier] = useState(tiers[0].name)
+  const [selectedTier, setSelectedTier] = useState(!!tiers && !!tiers[0] ? tiers[0].name : '')
 
   // TODO we have a tierNames list we get from the tier service?
   // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
