@@ -26,13 +26,12 @@ const apiServer = axios.create({
       'Content-Type': 'application/json',
     },
   },
-  mode: 'cors'
+  mode: 'cors',
 })
 const CancelToken = axios.CancelToken
 const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
-  console.log(r)
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
   r.headers.Authorization = authorizationToken
@@ -89,7 +88,9 @@ const tierAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.put(`/${tierData.id}`, tierData, { signal })
+      const response = await apiServer.put(`/${tierData.id}`, tierData, {
+        signal,
+      })
       const responseJSON = await handleErrorResponse(response)
       return responseJSON
     } catch (err) {

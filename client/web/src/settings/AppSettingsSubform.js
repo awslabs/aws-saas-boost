@@ -23,14 +23,19 @@ export default class AppSettingsSubform extends React.Component {
   render() {
     return (
       <Fragment>
-        <Row>
+        <Row className="mb-3">
           <Col lg={12} sm={12}>
             <Card>
               <CardHeader>Application</CardHeader>
               <CardBody>
                 <Row>
                   <Col xs={6}>
-                    <SaasBoostInput key="name" label="Name" name="name" type="text" />
+                    <SaasBoostInput
+                      key="name"
+                      label="Name"
+                      name="name"
+                      type="text"
+                    />
                   </Col>
                   <Col xs={6}>
                     <SaasBoostInput

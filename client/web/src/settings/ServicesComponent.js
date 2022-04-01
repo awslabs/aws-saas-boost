@@ -53,10 +53,9 @@ const ServicesComponent = (props) => {
     // kick off validation so the schema recognizes the tombstone and clears any pending errors
     formik.validateForm()
   }
-
   return (
     <>
-      <Card>
+      <Card className="mb-3">
         <Card.Header>
           <Row>
             <Col className="d-flex align-items-center">Services</Col>
@@ -68,7 +67,7 @@ const ServicesComponent = (props) => {
           </Row>
         </Card.Header>
         <Card.Body>
-          <Accordion defaultActiveKey="0">
+          <Accordion>
             {services.map(
               (service, index) =>
                 !service.tombstone && (

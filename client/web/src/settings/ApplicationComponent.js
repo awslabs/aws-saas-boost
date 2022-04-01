@@ -195,54 +195,59 @@ export function ApplicationComponent(props) {
 
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
   const singleTierValidationSpec = (tombstone, operatingSystem) => {
-    let filesystemSpec = (operatingSystem === LINUX) ? Yup.object({ // LINUX, so EFS
-      mountPoint: Yup.string()
-        .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
-        .max(100, "The full path can't exceed 100 characters in length")
-        .test(
-          'subdirectories',
-          'The path can only include up to four subdirectories',
-          (val) => (val?.match(/\//g) || []).length <= 4
-        )
-        .required(),
-      fsx: Yup.object().nullable(),
-      efs: Yup.object({
-        encryptAtRest: Yup.bool(),
-        lifecycle: Yup.number().required('Lifecycle is required'),
-        filesystemLifecycle: Yup.string(),
-      })
-    }) : Yup.object({ // not LINUX, so FSX
-      mountPoint: Yup.string()
-        .matches(
-          /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
-          'Invalid path. Ex: C:\\data'
-        )
-        .required(),
-      fsx: Yup.object({
-        storageGb: Yup.number()
-          .required()
-          .min(32, 'Storage minimum is 32 GB')
-          .max(1048, 'Storage maximum is 1048 GB'),
-        throughputMbs: Yup.number()
-          .required()
-          .min(8, 'Throughput minimum is 8 MB/s')
-          .max(2048, 'Throughput maximum is 2048 MB/s'),
-        backupRetentionDays: Yup.number()
-          .required()
-          .min(7, 'Minimum retention time is 7 days')
-          .max(35, 'Maximum retention time is 35 days'),
-        dailyBackupTime: Yup.string().required(
-          'Daily backup time is required'
-        ),
-        weeklyMaintenanceTime: Yup.string().required(
-          'Weekly maintenance time is required'
-        ),
-        windowsMountDrive: Yup.string().required(
-          'Windows mount drive is required'
-        ),
-      }),
-      efs: Yup.object().nullable()
-    })
+    let filesystemSpec =
+      operatingSystem === LINUX
+        ? Yup.object({
+            // LINUX, so EFS
+            mountPoint: Yup.string()
+              .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
+              .max(100, "The full path can't exceed 100 characters in length")
+              .test(
+                'subdirectories',
+                'The path can only include up to four subdirectories',
+                (val) => (val?.match(/\//g) || []).length <= 4
+              )
+              .required(),
+            fsx: Yup.object().nullable(),
+            efs: Yup.object({
+              encryptAtRest: Yup.bool(),
+              lifecycle: Yup.number().required('Lifecycle is required'),
+              filesystemLifecycle: Yup.string(),
+            }),
+          })
+        : Yup.object({
+            // not LINUX, so FSX
+            mountPoint: Yup.string()
+              .matches(
+                /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
+                'Invalid path. Ex: C:\\data'
+              )
+              .required(),
+            fsx: Yup.object({
+              storageGb: Yup.number()
+                .required()
+                .min(32, 'Storage minimum is 32 GB')
+                .max(1048, 'Storage maximum is 1048 GB'),
+              throughputMbs: Yup.number()
+                .required()
+                .min(8, 'Throughput minimum is 8 MB/s')
+                .max(2048, 'Throughput maximum is 2048 MB/s'),
+              backupRetentionDays: Yup.number()
+                .required()
+                .min(7, 'Minimum retention time is 7 days')
+                .max(35, 'Maximum retention time is 35 days'),
+              dailyBackupTime: Yup.string().required(
+                'Daily backup time is required'
+              ),
+              weeklyMaintenanceTime: Yup.string().required(
+                'Weekly maintenance time is required'
+              ),
+              windowsMountDrive: Yup.string().required(
+                'Windows mount drive is required'
+              ),
+            }),
+            efs: Yup.object().nullable(),
+          })
     return Yup.object({
       min: requiredIfNotTombstoned(
         tombstone,
@@ -363,9 +368,12 @@ export function ApplicationComponent(props) {
         }),
         provisionDb: Yup.boolean(),
         provisionFS: Yup.boolean(),
-        tiers: Yup.object().when(['tombstone', 'operatingSystem'], (tombstone, operatingSystem, schema) => {
-          return allTiersValidationSpec(tombstone, operatingSystem)
-        }),
+        tiers: Yup.object().when(
+          ['tombstone', 'operatingSystem'],
+          (tombstone, operatingSystem, schema) => {
+            return allTiersValidationSpec(tombstone, operatingSystem)
+          }
+        ),
         tombstone: Yup.boolean(),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
@@ -436,9 +444,11 @@ export function ApplicationComponent(props) {
           {(formik) => {
             return (
               <>
-                {!!formik.errors && Object.keys(formik.errors).length > 0 ?
-                  (<Alert color="danger">Errors in {findServicesWithErrors(formik)}</Alert>) : null
-                }
+                {!!formik.errors && Object.keys(formik.errors).length > 0 ? (
+                  <Alert color="danger">
+                    Errors in {findServicesWithErrors(formik)}
+                  </Alert>
+                ) : null}
                 <Form>
                   <AppSettingsSubform
                     isLocked={hasTenants}

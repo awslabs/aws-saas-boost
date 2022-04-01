@@ -26,7 +26,7 @@ export default function BillingSubform(props) {
   const { provisionBilling = false } = props
   return (
     <>
-      <Row>
+      <Row className="mb-3">
         <Col xs={12}>
           <Card>
             <CardHeader>Billing</CardHeader>
