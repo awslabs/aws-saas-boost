@@ -40,16 +40,14 @@ export default function SelectTenantComponent(props) {
   })
   return (
     <FormGroup className="form-inline mb-0">
-      <Label htmlFor="stpcTimePeriod" className="mr-2">
-        Tenant:
-      </Label>
+      <Label htmlFor="stpcTenant" className="mr-2">Tenant: </Label>
       <div>
         <Input
           type="select"
-          name="stpcTimePeriod"
-          id="stpcTimePeriod"
+          name="stpcTenant"
+          id="stpcTenant"
           onChange={_selectTenant}
-          defaultValue="DAY_7"
+          defaultValue=""
         >
           <option value="">-- All Tenants --</option>
           {tenantOptions}
