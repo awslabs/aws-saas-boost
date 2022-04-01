@@ -881,7 +881,7 @@ public class OnboardingService {
                         Map<String, Object> database = (Map<String, Object>) tierConfig.get("database");
                         if (database != null && !database.isEmpty()) {
                             enableDatabase = Boolean.TRUE;
-                            dbEngine = (String) database.get("engine");
+                            dbEngine = (String) database.get("engineName");
                             dbVersion = (String) database.get("version");
                             dbFamily = (String) database.get("family");
                             dbInstanceClass = (String) database.get("instanceClass");

@@ -257,6 +257,7 @@ Resources:
       IpProtocol: '-1'
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: AttachGateway
     Properties:
       Name:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]

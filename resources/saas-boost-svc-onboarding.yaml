@@ -205,6 +205,9 @@ Resources:
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CidrDynamoDB-lambda.zip
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
   InvokePopulateDynamoDB:
     Type: Custom::CustomResource
     Properties:
@@ -525,6 +528,11 @@ Resources:
               - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
           - Effect: Allow
             Action:
+              - iam:GetRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-fsx-dns-tenant*
+          - Effect: Allow
+            Action:
               - iam:CreateInstanceProfile
               - iam:DeleteInstanceProfile
               - iam:AddRoleToInstanceProfile
@@ -658,10 +666,10 @@ Resources:
               - iam:DeleteRolePolicy
               - iam:PassRole
             Resource:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-*tenant*
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-tenant*
           - Effect: Allow
             Action:
+              - lambda:GetFunction
               - lambda:InvokeFunction
               - lambda:DeleteFunction
             Resource:
@@ -755,6 +763,7 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -784,6 +793,7 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -817,6 +827,7 @@ Resources:
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           RESOURCES_BUCKET: !Ref ResourcesBucket
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -849,6 +860,7 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -880,6 +892,7 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
