@@ -16,10 +16,13 @@
 // Based on CoreUI Template https://github.com/coreui/coreui-free-react-admin-template
 // SPDX-LicenseIdentifier: MIT
 import React, { useState } from 'react'
-import { useSelector, useDispatch } from 'react-redux'
 import PropTypes from 'prop-types'
-import { CSidebar, CSidebarBrand, CSidebarNav, CSidebarToggler } from '@coreui/react'
-import CIcon from '@coreui/icons-react'
+import {
+  CSidebar,
+  CSidebarBrand,
+  CSidebarNav,
+  CSidebarToggler,
+} from '@coreui/react'
 
 import { AppSidebarNav } from './AppSidebarNav'
 
@@ -27,19 +30,26 @@ import SimpleBar from 'simplebar-react'
 import 'simplebar/dist/simplebar.min.css'
 
 const AppSidebar = (props) => {
-  const dispatch = useDispatch()
   const [sidebarNarrow, setSidebarNarrow] = useState(false)
   const { navigation } = props
-
+  const getText = (isNarrow) => {
+    return (
+      !isNarrow && (
+        <>
+          <span style={{ color: '#FF9900' }}>
+            <strong>AWS</strong>
+          </span>
+          &nbsp;
+          <span style={{ color: '#232F3E' }}>SaaS Boost</span>
+        </>
+      )
+    )
+  }
   return (
     <CSidebar position="fixed" narrow={sidebarNarrow}>
       <CSidebarBrand className="d-none d-md-flex bg-body" to="/">
-        <img src="/saas-boost-logo.png" alt="logo" height="40" className="sidebar-brand-full" />
-        <span style={{ color: '#FF9900' }}>
-          <strong>AWS</strong>
-        </span>
-        &nbsp;
-        <span style={{ color: '#232F3E' }}>SaaS Boost</span>
+        <img src="/saas-boost-logo.png" alt="logo" height="40" />
+        {getText(sidebarNarrow)}
       </CSidebarBrand>
       <CSidebarNav>
         <SimpleBar>
