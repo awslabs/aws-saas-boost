@@ -228,7 +228,7 @@ Conditions:
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
   WindowsOS: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
-  ProvisionFsx: !And
+  ProvisionFSx: !And
     - !Equals [!Ref UseFSx, 'true']
     - Condition: WindowsOS
   IsWin2019Full: !Equals [WIN2019FULL, !Ref ContainerOS]
@@ -469,7 +469,7 @@ Resources:
               - - ContainerPath: !Ref MountPoint
                   SourceVolume: !GetAtt efs.Outputs.FileSystemId
               - !If
-                - ProvisionFsx
+                - ProvisionFSx
                 - - ContainerPath: !Ref MountPoint
                     SourceVolume: !GetAtt fsx.Outputs.FileSystemId
                 - !Ref 'AWS::NoValue'
@@ -491,7 +491,7 @@ Resources:
               EfsVolumeConfiguration:
                 FileSystemId: !GetAtt efs.Outputs.FileSystemId
           - !If
-            - ProvisionFsx
+            - ProvisionFSx
             - - Name: !GetAtt fsx.Outputs.FileSystemId
                 Host:
                   SourcePath: !Sub ${FSxWindowsMountDrive}\
@@ -553,7 +553,7 @@ Resources:
         - Key: Stack
           Value: !Ref AWS::StackName
   FsxWaitHandle:
-    Condition: ProvisionFsx
+    Condition: ProvisionFSx
     DependsOn: fsx
     Type: AWS::CloudFormation::WaitConditionHandle
   WaitHandle:
@@ -561,7 +561,7 @@ Resources:
   FsxWaitCondition:
     Type: AWS::CloudFormation::WaitCondition
     Properties:
-      Handle: !If [ProvisionFsx, !Ref FsxWaitHandle, !Ref WaitHandle]
+      Handle: !If [ProvisionFSx, !Ref FsxWaitHandle, !Ref WaitHandle]
       Timeout: 1
       Count: 0
   # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
@@ -1013,24 +1013,23 @@ Resources:
         TargetValue: 85
   fsx:
     Type: AWS::CloudFormation::Stack
-    Condition: ProvisionFsx
+    Condition: ProvisionFSx
     Properties:
       TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
         ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID}}'
-        PrivateSubnet1ID: !Ref SubnetPrivateA
-        PrivateSubnet2ID: !Ref SubnetPrivateB
-        VPCID: !Ref VPC
+        PrivateSubnetA: !Ref SubnetPrivateA
+        PrivateSubnetB: !Ref SubnetPrivateB
+        VPC: !Ref VPC
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
-        #LambdaSourceFolder: !Ref LambdaSourceFolder
         BackupRetention: !Ref FSxBackupRetention
         DailyBackupTime: !Ref FSxDailyBackupTime
         WeeklyMaintenanceTime: !Ref FSxWeeklyMaintenanceTime
         StorageCapacity: !Ref FSxStorageCapacity
         ThroughputCapacity: !Ref FSxThroughputCapacity
-        #FSxAllowedCIDR: !Sub ${CidrPrefix}.0.0/16
+        ECSSecurityGroup: !Ref ECSSecurityGroup
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS

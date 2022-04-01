@@ -154,6 +154,9 @@ Resources:
                 kms:CallerAccount: !Ref 'AWS::AccountId'
                 kms:ViaService: !Sub rds.${AWS::Region}.amazonaws.com
       Tags:
+        - Key: Name
+          Value:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
         - Key: Tenant
           Value: !Ref TenantId
   EncryptionKeyAlias:
@@ -357,6 +360,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
