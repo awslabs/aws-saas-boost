@@ -74,18 +74,18 @@ export default function SelectTimePeriodComponent(props) {
 
   return (
     <FormGroup className="form-inline mb-0">
-      <Label htmlFor="stpcTimePeriod" className="mr-2">
-        Time Period:
-      </Label>
-      <Input
-        type="select"
-        name="stpcTimePeriod"
-        id="stpcTimePeriod"
-        onChange={selectTimePeriod}
-        defaultValue="DAY_7"
-      >
-        {periodsToDisplay}
-      </Input>
+      <Label htmlFor="stpcTimePeriod" className="mr-2">Time Period: </Label>
+      <div>
+        <Input
+          type="select"
+          name="stpcTimePeriod"
+          id="stpcTimePeriod"
+          onChange={selectTimePeriod}
+          defaultValue="DAY_7"
+        >
+          {periodsToDisplay}
+        </Input>
+      </div>
     </FormGroup>
   )
 }
