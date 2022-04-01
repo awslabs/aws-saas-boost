@@ -91,14 +91,14 @@ export default class DatabaseSubform extends React.Component {
   render() {
     return (
       <Fragment>
-        <Row>
+        <Row className="mt-3">
           <Col xs={12}>
             <Card>
               <CardHeader>Database</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  name={this.props.formikTierPrefix + ".provisionDb"}
-                  id={this.props.formikTierPrefix + ".provisionDb"}
+                  name={this.props.formikTierPrefix + '.provisionDb'}
+                  id={this.props.formikTierPrefix + '.provisionDb'}
                   label="Provision a database for the application"
                 />
                 {this.props.provisionDb && (
@@ -106,8 +106,8 @@ export default class DatabaseSubform extends React.Component {
                     <Col xl={6}>
                       <SaasBoostSelect
                         label="Engine"
-                        name={this.props.formikTierPrefix + ".database.engine"}
-                        id={this.props.formikTierPrefix + ".database.engine"}
+                        name={this.props.formikTierPrefix + '.database.engine'}
+                        id={this.props.formikTierPrefix + '.database.engine'}
                         value={this.props.values?.engine}
                         disabled={this.props.isLocked}
                       >
@@ -115,55 +115,75 @@ export default class DatabaseSubform extends React.Component {
                         {this.getEngineOptions()}
                       </SaasBoostSelect>
                       <SaasBoostSelect
-                        disabled={!!!this.props.values?.engine || this.props.isLocked}
+                        disabled={
+                          !!!this.props.values?.engine || this.props.isLocked
+                        }
                         label="Instance"
-                        name={this.props.formikTierPrefix + ".database.instance"}
-                        id={this.props.formikTierPrefix + ".database.instance"}
+                        name={
+                          this.props.formikTierPrefix + '.database.instance'
+                        }
+                        id={this.props.formikTierPrefix + '.database.instance'}
                         value={this.props.values?.instance}
                       >
                         <option value="">Please select</option>
                         {this.getInstanceOptions()}
                       </SaasBoostSelect>
                       <SaasBoostSelect
-                        disabled={!!!this.props.values?.instance || this.props.isLocked}
+                        disabled={
+                          !!!this.props.values?.instance || this.props.isLocked
+                        }
                         onChange={this.versionChanged}
                         label="Version"
-                        name={this.props.formikTierPrefix + ".database.version"}
-                        id={this.props.formikTierPrefix + ".database.version"}
+                        name={this.props.formikTierPrefix + '.database.version'}
+                        id={this.props.formikTierPrefix + '.database.version'}
                         value={this.props.values?.version}
                       >
                         <option value="">Please select</option>
                         {this.getVersionOptions()}
                       </SaasBoostSelect>
                       <SaasBoostInput
-                        key={this.props.formikTierPrefix + ".database.username"}
+                        key={this.props.formikTierPrefix + '.database.username'}
                         label="Username"
-                        name={this.props.formikTierPrefix + ".database.username"}
+                        name={
+                          this.props.formikTierPrefix + '.database.username'
+                        }
                         type="text"
                         disabled={this.props.isLocked}
                       />
                       <SaasBoostInput
-                        key={this.props.formikTierPrefix + ".database.password"}
+                        key={this.props.formikTierPrefix + '.database.password'}
                         label="Password"
-                        name={this.props.formikTierPrefix + ".database.password"}
+                        name={
+                          this.props.formikTierPrefix + '.database.password'
+                        }
                         type="password"
                         disabled={this.props.isLocked}
                       />
                     </Col>
                     <Col xl={6}>
                       <Card>
-                        <CardHeader> Database Initialization (Optional) </CardHeader>
+                        <CardHeader>
+                          {' '}
+                          Database Initialization (Optional){' '}
+                        </CardHeader>
                         <CardBody>
                           <SaasBoostInput
-                            key={this.props.formikTierPrefix + ".database.database"}
+                            key={
+                              this.props.formikTierPrefix + '.database.database'
+                            }
                             label="Database Name"
-                            name={this.props.formikTierPrefix + ".database.database"}
+                            name={
+                              this.props.formikTierPrefix + '.database.database'
+                            }
                             type="text"
                             disabled={this.props.isLocked}
                           />
                           <SaasBoostFileUpload
                             fileMask=".sql"
-                            disabled={!this.props.values?.database || this.props.isLocked}
+                            disabled={
+                              !this.props.values?.database ||
+                              this.props.isLocked
+                            }
                             label="Please select or drop a .sql file that will be used to initialize your database"
                             onFileSelected={this.props.onFileSelected}
                             fname={this.props.values?.bootstrapFilename}
@@ -173,7 +193,9 @@ export default class DatabaseSubform extends React.Component {
                     </Col>
                   </Row>
                 )}
-                {this.props.provisionDb && this.props.dbOptions?.loading && <div>Loading ....</div>}
+                {this.props.provisionDb && this.props.dbOptions?.loading && (
+                  <div>Loading ....</div>
+                )}
               </CardBody>
             </Card>
           </Col>

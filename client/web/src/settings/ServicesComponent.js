@@ -96,7 +96,7 @@ const ServicesComponent = (props) => {
                           <Col className="col-md-12 text-right">
                             <Button
                               size="sm"
-                              color="danger"
+                              variant="outline-danger"
                               type="button"
                               onClick={() => deleteService(index)}
                             >

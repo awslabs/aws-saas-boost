@@ -15,14 +15,8 @@
  */
 
 import React, { useState } from 'react'
-import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
-import {
-  CDropdown,
-  CDropdownItem,
-  CDropdownMenu,
-  CDropdownToggle,
-} from '@coreui/react'
+import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
 import FileSystemSubform from './FileSystemSubform'
 import DatabaseSubform from './DatabaseSubform'
@@ -38,7 +32,9 @@ const TierServiceSettingsSubform = (props) => {
     formikServicePrefix,
   } = props
 
-  const [selectedTier, setSelectedTier] = useState(!!tiers && !!tiers[0] ? tiers[0].name : '')
+  const [selectedTier, setSelectedTier] = useState(
+    !!tiers && !!tiers[0] ? tiers[0].name : ''
+  )
 
   // TODO we have a tierNames list we get from the tier service?
   // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
@@ -47,24 +43,34 @@ const TierServiceSettingsSubform = (props) => {
   return (
     <>
       <Row>
-        <Col xs={12}>
-          <Card>
-            <CardHeader>
-              <CDropdown>
-                <CDropdownToggle>{selectedTier}</CDropdownToggle>
-                <CDropdownMenu>
-                  {tiers.map((tier) => (
-                    <CDropdownItem
-                      onClick={() => setSelectedTier(tier.name)}
-                      key={formikServicePrefix + '-' + tier.name}
+        <Col>
+          <Card className="mt-3">
+            <Card.Header>
+              <div className="d-flex align-items-center">
+                <span className="mr-3">Tier settings:</span>
+                <span>
+                  <Dropdown>
+                    <Dropdown.Toggle
+                      variant="secondary"
+                      style={{ color: 'white' }}
                     >
-                      {tier.name}
-                    </CDropdownItem>
-                  ))}
-                </CDropdownMenu>
-              </CDropdown>
-            </CardHeader>
-            <CardBody>
+                      {selectedTier}
+                    </Dropdown.Toggle>
+                    <Dropdown.Menu>
+                      {tiers.map((tier) => (
+                        <Dropdown.Item
+                          onClick={() => setSelectedTier(tier.name)}
+                          key={formikServicePrefix + '-' + tier.name}
+                        >
+                          {tier.name}
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown.Menu>
+                  </Dropdown>
+                </span>
+              </div>
+            </Card.Header>
+            <Card.Body>
               <Row>
                 <Col xs={6}>
                   <SaasBoostSelect
@@ -157,7 +163,7 @@ const TierServiceSettingsSubform = (props) => {
                   ></DatabaseSubform>
                 </Col>
               </Row>
-            </CardBody>
+            </Card.Body>
           </Card>
         </Col>
       </Row>

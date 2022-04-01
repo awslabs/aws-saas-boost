@@ -26,7 +26,11 @@ import {
   FormGroup,
   Label,
 } from 'reactstrap'
-import { SaasBoostSelect, SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents'
+import {
+  SaasBoostSelect,
+  SaasBoostInput,
+  SaasBoostCheckbox,
+} from '../components/FormComponents'
 import Slider from 'rc-slider'
 import 'rc-slider/assets/index.css'
 
@@ -37,14 +41,14 @@ export default class FileSystemSubform extends React.Component {
   render() {
     return (
       <Fragment>
-        <Row>
+        <Row className="mt-3">
           <Col xs={12}>
             <Card>
               <CardHeader>File System</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  id={this.props.formikTierPrefix + ".provisionFS"}
-                  name={this.props.formikTierPrefix + ".provisionFS"}
+                  id={this.props.formikTierPrefix + '.provisionFS'}
+                  name={this.props.formikTierPrefix + '.provisionFS'}
                   label="Provision a File System for the application."
                 />
                 <EfsFilesystemOptions
@@ -82,22 +86,21 @@ FileSystemSubform.propTypes = {
 
 const EfsFilesystemOptions = (props) => {
   return (
-    props.provisionFs &&
-    props.containerOs === 'LINUX' && (
+    (props.provisionFs && props.containerOs === 'LINUX' && (
       <Row>
         <Col xl={6} className="mt-2">
           <SaasBoostInput
-            key={props.formikTierPrefix + ".filesystem.mountPoint"}
+            key={props.formikTierPrefix + '.filesystem.mountPoint'}
             label="Mount point"
-            name={props.formikTierPrefix + ".filesystem.mountPoint"}
+            name={props.formikTierPrefix + '.filesystem.mountPoint'}
             type="text"
             disabled={props.isLocked}
             value={props.values?.mountPoint}
           />
           <SaasBoostSelect
-            id={props.formikTierPrefix + ".filesystem.efs.lifecycle"}
+            id={props.formikTierPrefix + '.filesystem.efs.lifecycle'}
             label="Lifecycle"
-            name={props.formikTierPrefix + ".filesystem.efs.lifecycle"}
+            name={props.formikTierPrefix + '.filesystem.efs.lifecycle'}
             value={props.values?.efs?.lifecycle}
           >
             <option value="0">Never</option>
@@ -108,17 +111,18 @@ const EfsFilesystemOptions = (props) => {
             <option value="90">90 Days</option>
           </SaasBoostSelect>
           <SaasBoostCheckbox
-            id={props.formikTierPrefix + ".filesystem.efs.encryptAtRest"}
-            name={props.formikTierPrefix + ".filesystem.efs.encryptAtRest"}
-            key={props.formikTierPrefix + ".filesystem.efs.encryptAtRest"}
+            id={props.formikTierPrefix + '.filesystem.efs.encryptAtRest'}
+            name={props.formikTierPrefix + '.filesystem.efs.encryptAtRest'}
+            key={props.formikTierPrefix + '.filesystem.efs.encryptAtRest'}
             label="Encrypt at rest"
             value={props.values?.efs.encryptAtRest === 'true'}
           />
         </Col>
         <Col xl={6}></Col>
       </Row>
-    )
-  ) || null
+    )) ||
+    null
+  )
 }
 
 EfsFilesystemOptions.propTypes = {
@@ -140,30 +144,41 @@ const FsxFilesystemOptions = (props) => {
   }
 
   const onStorageChange = (val) => {
-    props.setFieldValue(props.formikTierPrefix + '.filesystem.fsx.storageGb', val)
+    props.setFieldValue(
+      props.formikTierPrefix + '.filesystem.fsx.storageGb',
+      val
+    )
   }
 
   const onThroughputChange = (val) => {
-    props.setFieldValue(props.formikTierPrefix + '.filesystem.fsx.throughputMbs', val)
+    props.setFieldValue(
+      props.formikTierPrefix + '.filesystem.fsx.throughputMbs',
+      val
+    )
   }
 
   const onWeeklyMaintTimeChange = (val) => {
-    props.setFieldValue(props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceTime', val.target.value)
+    props.setFieldValue(
+      props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceTime',
+      val.target.value
+    )
   }
 
   const onWeeklyDayChange = (val) => {
-    props.setFieldValue(props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceDay', val.target.value)
+    props.setFieldValue(
+      props.formikTierPrefix + '.filesystem.fsx.weeklyMaintenanceDay',
+      val.target.value
+    )
   }
 
   return (
-    props.provisionFs &&
-    props.containerOs === 'WINDOWS' && (
+    (props.provisionFs && props.containerOs === 'WINDOWS' && (
       <Row>
         <Col sm={6} className="mt-2">
           <SaasBoostInput
-            key={props.formikTierPrefix + ".filesystem.mountPoint"}
+            key={props.formikTierPrefix + '.filesystem.mountPoint'}
             label="Mount point"
-            name={props.formikTierPrefix + ".filesystem.mountPoint"}
+            name={props.formikTierPrefix + '.filesystem.mountPoint'}
             type="text"
             disabled={props.isLocked}
           />
@@ -172,7 +187,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="storageVal">Storage</Label>
                 <Input
-                  id={"storageVal" + props.formikTierPrefix}
+                  id={'storageVal' + props.formikTierPrefix}
                   className="mb-4"
                   type="number"
                   value={props.values?.fsx.storageGb}
@@ -184,7 +199,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="storage">In GB</Label>
                 <Slider
-                  id={"storage" + props.formikTierPrefix}
+                  id={'storage' + props.formikTierPrefix}
                   defaultValue={props.values?.fsx.storageGb}
                   onChange={onStorageChange}
                   className="mb-4"
@@ -202,7 +217,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="throughputVal">Throughput</Label>
                 <Input
-                  id={"throughputVal" + props.formikTierPrefix}
+                  id={'throughputVal' + props.formikTierPrefix}
                   className="mb-4"
                   type="number"
                   value={props.values?.fsx.throughputMbs}
@@ -214,7 +229,7 @@ const FsxFilesystemOptions = (props) => {
               <FormGroup>
                 <Label htmlFor="throughput">In MB/s</Label>
                 <Slider
-                  id={"throughput" + props.formikTierPrefix}
+                  id={'throughput' + props.formikTierPrefix}
                   defaultValue={props.values?.fsx.throughputMbs}
                   onChange={onThroughputChange}
                   marks={tpMarks}
@@ -232,9 +247,11 @@ const FsxFilesystemOptions = (props) => {
           <Row>
             <Col xs={6}>
               <SaasBoostInput
-                key={props.formikTierPrefix + ".filesystem.fsx.dailyBackupTime"}
+                key={props.formikTierPrefix + '.filesystem.fsx.dailyBackupTime'}
                 label="Daily Backup Time (UTC)"
-                name={props.formikTierPrefix + ".filesystem.fsx.dailyBackupTime"}
+                name={
+                  props.formikTierPrefix + '.filesystem.fsx.dailyBackupTime'
+                }
                 type="time"
                 disabled={props.isLocked}
               />
@@ -256,10 +273,16 @@ const FsxFilesystemOptions = (props) => {
                   <option value="7">Sat</option>
                 </Input>
                 <Input
-                  key={props.formikTierPrefix + ".filesystem.fsx.weeklyMaintenanceTime"}
+                  key={
+                    props.formikTierPrefix +
+                    '.filesystem.fsx.weeklyMaintenanceTime'
+                  }
                   onChange={onWeeklyMaintTimeChange}
                   value={props.values?.fsx.weeklyMaintenanceTime}
-                  name={props.formikTierPrefix + ".filesystem.fsx.weeklyMaintenanceTime"}
+                  name={
+                    props.formikTierPrefix +
+                    '.filesystem.fsx.weeklyMaintenanceTime'
+                  }
                   type="time"
                   disabled={props.isLocked}
                 />
@@ -269,9 +292,13 @@ const FsxFilesystemOptions = (props) => {
           <Row>
             <Col xs={6}>
               <SaasBoostSelect
-                id={props.formikTierPrefix + ".filesystem.fsx.windowsMountDrive"}
+                id={
+                  props.formikTierPrefix + '.filesystem.fsx.windowsMountDrive'
+                }
                 label="Drive Letter Assignment"
-                name={props.formikTierPrefix + ".filesystem.fsx.windowsMountDrive"}
+                name={
+                  props.formikTierPrefix + '.filesystem.fsx.windowsMountDrive'
+                }
                 value={props.values?.fsx.windowsMountDrive}
               >
                 <option value="G:">G:</option>
@@ -297,9 +324,13 @@ const FsxFilesystemOptions = (props) => {
             </Col>
             <Col xs={6}>
               <SaasBoostInput
-                key={props.formikTierPrefix + ".filesystem.fsx.backupRetentionDays"}
+                key={
+                  props.formikTierPrefix + '.filesystem.fsx.backupRetentionDays'
+                }
                 label="Backup Retention (Days)"
-                name={props.formikTierPrefix + ".filesystem.fsx.backupRetentionDays"}
+                name={
+                  props.formikTierPrefix + '.filesystem.fsx.backupRetentionDays'
+                }
                 type="number"
                 disabled={props.isLocked}
               />
@@ -307,8 +338,9 @@ const FsxFilesystemOptions = (props) => {
           </Row>
         </Col>
       </Row>
-    )
-  ) || null
+    )) ||
+    null
+  )
 }
 
 FsxFilesystemOptions.propTypes = {
