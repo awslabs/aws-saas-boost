@@ -79,7 +79,7 @@ const tenantAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.get('/', { signal })
+      const response = await apiServer.get('?status=onboarded', { signal })
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -136,7 +136,11 @@ const tenantAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.patch(`/${tenantId}/enable`, { id: tenantId }, { signal })
+      const response = await apiServer.patch(
+        `/${tenantId}/enable`,
+        { id: tenantId },
+        { signal }
+      )
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -151,7 +155,11 @@ const tenantAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.patch(`/${tenantId}/disable`, { id: tenantId }, { signal })
+      const response = await apiServer.patch(
+        `/${tenantId}/disable`,
+        { id: tenantId },
+        { signal }
+      )
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -171,7 +179,7 @@ const tenantAPI = {
         {
           data: { id: tenantId },
         },
-        { signal },
+        { signal }
       )
       return response.data
     } catch (err) {

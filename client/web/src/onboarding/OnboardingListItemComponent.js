@@ -33,13 +33,17 @@ export default function OnboardingListItemComponent(props) {
   return (
     <tr>
       <th scope="row">
-        <Button className="pl-0" color="link" onClick={() => clickOnboardingRequest(onboarding.id)}>
+        <Button
+          className="pl-0"
+          color="link"
+          onClick={() => clickOnboardingRequest(onboarding.id)}
+        >
           {onboarding.id}
         </Button>
       </th>
       <td>
         <OnboardingTenantLink
-          tenantName={onboarding.tenantName}
+          tenantName={onboarding.request?.name}
           tenantId={onboarding.tenantId}
           clickTenantDetails={clickTenantDetails}
         />

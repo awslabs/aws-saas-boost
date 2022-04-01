@@ -20,7 +20,7 @@ import { useDispatch } from 'react-redux'
 import { Formik, Form } from 'formik'
 import { PropTypes } from 'prop-types'
 import * as Yup from 'yup'
-import { Button, Row, Col, Card, CardBody, Alert } from 'reactstrap'
+import { Button, Row, Col, Card, Alert } from 'react-bootstrap'
 import LoadingOverlay from '@ronchalant/react-loading-overlay'
 
 import AppSettingsSubform from './AppSettingsSubform'
@@ -472,15 +472,15 @@ export function ApplicationComponent(props) {
                   <Row>
                     <Col xs={12}>
                       <Card>
-                        <CardBody>
+                        <Card.Body>
                           <Button
                             type="Submit"
-                            color="primary"
+                            variant="info"
                             disabled={isSubmitting()}
                           >
                             {isSubmitting() ? 'Saving...' : 'Submit'}
                           </Button>
-                        </CardBody>
+                        </Card.Body>
                       </Card>
                     </Col>
                   </Row>

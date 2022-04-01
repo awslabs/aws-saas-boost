@@ -49,7 +49,7 @@ const showError = (error, clearError) => {
 
 export const OnboardingDetailComponent = (props) => {
   const { onboarding, error, clearError, refresh, showTenant } = props
-  const terminus = ['deployed', 'updated', 'failed']
+  const terminus = ['deployed', 'deleted', 'updated', 'failed']
 
   const [isRefreshing, setIsRefreshing] = useState(null)
   const [timeoutId, setTimeoutId] = useState(null)

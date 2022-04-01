@@ -60,7 +60,7 @@ const ServicesComponent = (props) => {
           <Row>
             <Col className="d-flex align-items-center">Services</Col>
             <Col className="d-flex justify-content-end">
-              <Button type="button" onClick={toggleModal}>
+              <Button variant="info" type="button" onClick={toggleModal}>
                 New Service
               </Button>
             </Col>

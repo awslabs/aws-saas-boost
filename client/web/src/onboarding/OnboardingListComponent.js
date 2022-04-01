@@ -15,17 +15,7 @@
  */
 import { PropTypes } from 'prop-types'
 import React, { useEffect, useState } from 'react'
-import {
-  Row,
-  Col,
-  Card,
-  CardHeader,
-  CardBody,
-  Button,
-  Table,
-  Spinner,
-  Alert,
-} from 'reactstrap'
+import { Row, Col, Card, Button, Table, Spinner, Alert } from 'react-bootstrap'
 import CIcon from '@coreui/icons-react'
 import { cilReload, cilListRich } from '@coreui/icons'
 import OnboardingListItemComponent from './OnboardingListItemComponent'
@@ -60,7 +50,10 @@ export const OnboardingListComponent = (props) => {
   const terminus = ['deployed', 'updated', 'failed']
 
   const checkRefresh = (refreshFn) => {
-    if (!isRefreshing && onboardingRequests.some((ob) => !terminus.includes(ob?.status))) {
+    if (
+      !isRefreshing &&
+      onboardingRequests.some((ob) => !terminus.includes(ob?.status))
+    ) {
       setIsRefreshing(true)
       const id = setTimeout(() => {
         refreshFn()
@@ -85,23 +78,27 @@ export const OnboardingListComponent = (props) => {
         <Col>{!!error && showError(error, dismissError)}</Col>
       </Row>
       <Row className="mb-3">
-        <Col sm={{ size: 12 }} md={{ size: 8 }} lg={{ size: 9 }}>
+        <Col sm={12} md={8} lg={9}>
           <Alert color="light">
-            Onboarding tenants requires an application image to be uploaded. For more detail, click{' '}
-            <ECRInstructions awsAccount={awsAccount} awsRegion={awsRegion} ecrRepo={ecrRepository}>
+            Onboarding tenants requires an application image to be uploaded. For
+            more detail, click
+            <ECRInstructions
+              awsAccount={awsAccount}
+              awsRegion={awsRegion}
+              ecrRepo={ecrRepository}
+            >
               <span>here.</span>
             </ECRInstructions>
           </Alert>
         </Col>
-        <Col sm={{ size: 12 }} md={{ size: 4 }} lg={{ size: 3 }}>
+        <Col sm={12} md={4} lg={3}>
           <div className="float-right">
-            <Button color="secondary" className="mr-2" onClick={doRefresh}>
+            <Button variant="secondary" className="mr-2" onClick={doRefresh}>
               <span>
-                {' '}
                 <CIcon icon={cilReload} />
               </span>
             </Button>
-            <Button color="primary" onClick={showOnboardRequestForm}>
+            <Button variant="info" onClick={showOnboardRequestForm}>
               Provision Tenant
             </Button>
           </div>
@@ -110,10 +107,10 @@ export const OnboardingListComponent = (props) => {
       <Row>
         <Col lg={12}>
           <Card>
-            <CardHeader>
+            <Card.Header>
               <CIcon icon={cilListRich} /> Onboarding Requests
-            </CardHeader>
-            <CardBody>
+            </Card.Header>
+            <Card.Body>
               <Table>
                 <thead>
                   <tr>
@@ -147,15 +144,13 @@ export const OnboardingListComponent = (props) => {
                   {loading === 'pending' && (
                     <tr>
                       <td colSpan="5">
-                        <Spinner animation="border" role="status">
-                          Loading...
-                        </Spinner>
+                        <Spinner animation="border" role="status"></Spinner>
                       </td>
                     </tr>
                   )}
                 </tbody>
               </Table>
-            </CardBody>
+            </Card.Body>
           </Card>
         </Col>
       </Row>
