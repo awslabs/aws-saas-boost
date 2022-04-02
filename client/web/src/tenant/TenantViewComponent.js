@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { PropTypes } from 'prop-types'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import CIcon from '@coreui/icons-react'
 import { cilExternalLink } from '@coreui/icons'
 import {
@@ -22,23 +22,14 @@ import {
   Badge,
   Button,
   Card,
-  CardBody,
-  CardHeader,
   Col,
   Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
   Form,
   FormGroup,
-  Input,
   Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
   NavLink,
   Row,
-} from 'reactstrap'
+} from 'react-bootstrap'
 import Moment from 'react-moment'
 import Display from '../components/Display'
 import { MoonLoader } from 'react-spinners'
@@ -79,11 +70,11 @@ function TenantViewComponent(props) {
     deleteTenant,
   } = props
 
-  const [dropDownOpen, setDropDownOpen] = useState(false)
+  // const [dropDownOpen, setDropDownOpen] = useState(false)
 
-  const toggleActions = () => {
-    setDropDownOpen(!dropDownOpen)
-  }
+  // const toggleActions = () => {
+  //   setDropDownOpen(!dropDownOpen)
+  // }
 
   const confirmDeleteTenant = () => {
     toggleShowModal(true)
@@ -104,7 +95,22 @@ function TenantViewComponent(props) {
   }
   const [showModal, toggleShowModal] = useState(false)
   const [matches, setMatches] = useState(false)
+  const [services, setServices] = useState([{}])
 
+  useEffect(() => {
+    if (!tenant) return
+    const s = Object.keys(tenant?.resources)
+      .filter((key) => key.startsWith('SERVICE_'))
+      .map((serviceName) => {
+        const service = tenant.resources[serviceName]
+        return {
+          name: service.name,
+          url: service.consoleUrl,
+          key: service.name,
+        }
+      })
+    setServices(s)
+  }, [tenant])
   const toggleModal = () => {
     toggleShowModal((s) => !s)
   }
@@ -118,15 +124,15 @@ function TenantViewComponent(props) {
   return (
     <>
       <Modal size="lg" fade={true} isOpen={showModal}>
-        <ModalHeader className="bg-primary">Confirm Delete</ModalHeader>
-        <ModalBody>
+        <Modal.Header className="bg-primary">Confirm Delete</Modal.Header>
+        <Modal.Body>
           <p>
             Delete tenant with ID <code>{tenant?.id}</code>? Please type the ID
             of the tenant to confirm.
           </p>
           <Form>
             <FormGroup>
-              <Input
+              <Form.Control
                 onChange={checkMatches}
                 type="text"
                 name="tenantId"
@@ -135,8 +141,8 @@ function TenantViewComponent(props) {
               />
             </FormGroup>
           </Form>
-        </ModalBody>
-        <ModalFooter>
+        </Modal.Body>
+        <Modal.Footer>
           <Button
             disabled={!matches}
             color="danger"
@@ -147,7 +153,7 @@ function TenantViewComponent(props) {
           <Button color="primary" onClick={toggleModal}>
             Cancel
           </Button>
-        </ModalFooter>
+        </Modal.Footer>
       </Modal>
       <div className="animated fadeIn">
         <Row>
@@ -157,14 +163,10 @@ function TenantViewComponent(props) {
           <Col className="justify-content-end">
             <Dropdown
               className="float-right"
-              toggle={toggleActions}
-              isOpen={dropDownOpen}
+              // toggle={toggleActions}
+              // isOpen={dropDownOpen}
             >
-              <DropdownToggle
-                caret
-                color="primary"
-                disabled={loading === 'pending'}
-              >
+              <Dropdown.Toggle color="primary" disabled={loading === 'pending'}>
                 <MoonLoader
                   size={15}
                   className="d-inline-block"
@@ -172,23 +174,25 @@ function TenantViewComponent(props) {
                   loading={loading === 'pending'}
                 />{' '}
                 <span>Actions</span>
-              </DropdownToggle>
+              </Dropdown.Toggle>
               {loading === 'idle' && !!tenant && (
-                <DropdownMenu end="true">
-                  <DropdownItem onClick={() => toggleEdit()}>Edit</DropdownItem>
-                  <DropdownItem disabled={tenant.active} onClick={enable}>
+                <Dropdown.Menu end="true">
+                  <Dropdown.Item onClick={() => toggleEdit()}>
+                    Edit
+                  </Dropdown.Item>
+                  <Dropdown.Item disabled={tenant.active} onClick={enable}>
                     Enable
-                  </DropdownItem>
-                  <DropdownItem disabled={!tenant.active} onClick={disable}>
+                  </Dropdown.Item>
+                  <Dropdown.Item disabled={!tenant.active} onClick={disable}>
                     Disable
-                  </DropdownItem>
-                  <DropdownItem
+                  </Dropdown.Item>
+                  <Dropdown.Item
                     disabled={!tenant.active}
                     onClick={confirmDeleteTenant}
                   >
                     Delete
-                  </DropdownItem>
-                </DropdownMenu>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
               )}
             </Dropdown>
           </Col>
@@ -196,11 +200,11 @@ function TenantViewComponent(props) {
         <Row>
           <Col xs={12}>
             <Card>
-              <CardHeader>
+              <Card.Header>
                 <strong>{tenant && tenant.name}</strong> (Id:{' '}
                 {tenant && tenant.id})
-              </CardHeader>
-              <CardBody>
+              </Card.Header>
+              <Card.Body>
                 <Row className="pt-3">
                   <Col
                     sm={4}
@@ -214,7 +218,7 @@ function TenantViewComponent(props) {
                     <dd>
                       <Display>{tenant?.subdomain ?? 'Not Configured'}</Display>
                     </dd>
-                    <dt>Load Balancer DNS</dt>
+                    <dt>Address</dt>
                     <dd>
                       <Display>
                         {!!tenant && !!tenant.resources && (
@@ -222,10 +226,10 @@ function TenantViewComponent(props) {
                             style={{ paddingTop: 0 }}
                             active={true}
                             target="_blank"
-                            href={`http://${tenant.resources.LOAD_BALANCER.consoleUrl}`}
+                            href={`http://${tenant.hostname}`}
                             className="pl-0"
                           >
-                            {`http://${tenant.resources.LOAD_BALANCER.arn}`}
+                            {`http://${tenant.hostname}`}
                             <CIcon
                               icon={cilExternalLink}
                               customClassName="ml-2 icon"
@@ -259,24 +263,10 @@ function TenantViewComponent(props) {
                     </dd>
                     {tenant?.fullCustomDomainName && (
                       <>
-                        <dt>Custom domain URL</dt>
+                        <dt>Tier</dt>
                         <dd>
-                          <Display>
-                            {!!tenant && !!tenant.fullCustomDomainName && (
-                              <NavLink
-                                style={{ paddingTop: 0 }}
-                                active={true}
-                                target="_blank"
-                                href={tenant?.fullCustomDomainName}
-                                className="pl-0"
-                              >
-                                {tenant?.fullCustomDomainName}
-                                <CIcon
-                                  icon={cilExternalLink}
-                                  customClassName="ml-2 icon"
-                                />
-                              </NavLink>
-                            )}
+                          <Display condition={!!tenant}>
+                            {!!tenant && tenant.tier}
                           </Display>
                         </dd>
                       </>
@@ -301,20 +291,20 @@ function TenantViewComponent(props) {
                     </dd>
                   </Col>
                 </Row>
-              </CardBody>
+              </Card.Body>
             </Card>
           </Col>
         </Row>
         <Row>
           <Col xs={12}>
             <Card>
-              <CardHeader style={banner}>
+              <Card.Header style={banner}>
                 <div>
                   <img src="/aws.png" style={{ width: '38px' }}></img>
                   <span style={{ marginLeft: '18px' }}>AWS Console Links</span>
                 </div>
-              </CardHeader>
-              <CardBody>
+              </Card.Header>
+              <Card.Body>
                 <Row className="pt-3">
                   <Col
                     sm={4}
@@ -364,18 +354,37 @@ function TenantViewComponent(props) {
                     <dd>
                       <Display>
                         {!!tenant && !!tenant.resources && (
-                          <NavLink
-                            active={true}
-                            target="_blank"
-                            href={tenant.resources.CODE_PIPELINE}
-                            className="pl-0"
-                          >
-                            CodePipeline Details (deprecated)
-                            <CIcon
-                              icon={cilExternalLink}
-                              customClassName="ml-2 icon"
-                            />
-                          </NavLink>
+                          <>
+                            <div className="d-flex flex-row align-items-center">
+                              <span>CodePipeline Details</span>
+
+                              <Dropdown className="ml-2">
+                                <Dropdown.Toggle
+                                  variant="light"
+                                  id="service-dropdown"
+                                >
+                                  Choose...
+                                </Dropdown.Toggle>
+
+                                <Dropdown.Menu>
+                                  {services.map((service) => (
+                                    <Dropdown.Item
+                                      className="link-primary"
+                                      href={service.url}
+                                      target="_blank"
+                                      key={tenant.name + '-' + service.name}
+                                    >
+                                      {service.name}
+                                    </Dropdown.Item>
+                                  ))}
+                                </Dropdown.Menu>
+                              </Dropdown>
+                              <CIcon
+                                icon={cilExternalLink}
+                                customClassName="icon ml-2"
+                              />
+                            </div>
+                          </>
                         )}
                       </Display>
                     </dd>
@@ -405,24 +414,6 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.ECS_CLUSTER_LOG_GROUP}
-                            className="pl-0"
-                          >
-                            ECS Cluster CloudWatch Log (deprecated)
-                            <CIcon
-                              icon={cilExternalLink}
-                              customClassName="ml-2 icon"
-                            />
-                          </NavLink>
-                        )}
-                      </Display>
-                    </dd>
-                    <dd>
-                      <Display>
-                        {!!tenant && !!tenant.resources && (
-                          <NavLink
-                            active={true}
-                            target="_blank"
                             href={tenant.resources.ECS_CLUSTER.consoleUrl}
                             className="pl-0"
                           >
@@ -437,7 +428,7 @@ function TenantViewComponent(props) {
                     </dd>
                   </Col>
                 </Row>
-              </CardBody>
+              </Card.Body>
             </Card>
           </Col>
         </Row>
