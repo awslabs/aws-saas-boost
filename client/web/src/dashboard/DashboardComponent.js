@@ -26,46 +26,68 @@ import {
   countTenantsByActiveFlag,
 } from '../tenant/ducks'
 import { useDispatch, useSelector } from 'react-redux'
-import { fetchConfig, selectSettingsById, selectConfig } from '../settings/ducks'
+import {
+  fetchConfig,
+  selectSettingsById,
+  selectConfig,
+} from '../settings/ducks'
 import * as SETTINGS from '../settings/common'
 import { isEmpty } from 'lodash'
 import { selectOSLabel, selectDbLabel } from '../options/ducks'
 import ECRInstructions from '../components/ECRInstructions'
 import { selectAllTiers } from '../tier/ducks'
 
-const ActiveTenantsComponent = React.lazy(() => import('./ActiveTenantsComponent'))
-
-const CurrentApplicationVersionComponent = React.lazy(() =>
-  import('./CurrentApplicationVersionComponent'),
+const ActiveTenantsComponent = React.lazy(() =>
+  import('./ActiveTenantsComponent')
 )
 
-const SaasBoostEnvNameComponent = React.lazy(() => import('./SaasBoostEnvNameComponent'))
+const CurrentApplicationVersionComponent = React.lazy(() =>
+  import('./CurrentApplicationVersionComponent')
+)
 
-const InstalledExtensionsComponent = React.lazy(() => import('./InstalledExtensionsComponent'))
+const SaasBoostEnvNameComponent = React.lazy(() =>
+  import('./SaasBoostEnvNameComponent')
+)
+
+const InstalledExtensionsComponent = React.lazy(() =>
+  import('./InstalledExtensionsComponent')
+)
 
 export const DashboardComponent = (props) => {
   const dispatch = useDispatch()
   const appConfig = useSelector(selectConfig)
   const tiers = useSelector(selectAllTiers)
-  const clusterOS = useSelector((state) => selectSettingsById(state, SETTINGS.CLUSTER_OS))
-  const dbEngine = useSelector((state) => selectSettingsById(state, SETTINGS.DB_ENGINE))
-  const version = useSelector((state) => selectSettingsById(state, SETTINGS.VERSION))
+  const clusterOS = useSelector((state) =>
+    selectSettingsById(state, SETTINGS.CLUSTER_OS)
+  )
+  const dbEngine = useSelector((state) =>
+    selectSettingsById(state, SETTINGS.DB_ENGINE)
+  )
+  const version = useSelector((state) =>
+    selectSettingsById(state, SETTINGS.VERSION)
+  )
   let osLabel = 'N/A'
 
-  const osLabelValue = useSelector((state) => selectOSLabel(state, clusterOS?.value))
-  const dbLabelValue = useSelector((state) => selectDbLabel(state, dbEngine?.value))
+  const osLabelValue = useSelector((state) =>
+    selectOSLabel(state, clusterOS?.value)
+  )
+  const dbLabelValue = useSelector((state) =>
+    selectDbLabel(state, dbEngine?.value)
+  )
   if (!isEmpty(osLabelValue)) {
     osLabel = osLabelValue
   }
 
   const metricsAnalyticsDeployed = useSelector((state) =>
-    selectSettingsById(state, 'METRICS_ANALYTICS_DEPLOYED'),
+    selectSettingsById(state, 'METRICS_ANALYTICS_DEPLOYED')
   )
 
-  const billingApiKey = useSelector((state) => selectSettingsById(state, 'BILLING_API_KEY'))
+  const billingApiKey = useSelector((state) =>
+    selectSettingsById(state, 'BILLING_API_KEY')
+  )
 
   const saasBoostEnvironment = useSelector(
-    (state) => selectSettingsById(state, 'SAAS_BOOST_ENVIRONMENT')?.value,
+    (state) => selectSettingsById(state, 'SAAS_BOOST_ENVIRONMENT')?.value
   )
 
   const countActiveTenants = useSelector((state) => {
@@ -77,7 +99,9 @@ export const DashboardComponent = (props) => {
   })
 
   const ecrRepo = useSelector((state) => selectSettingsById(state, 'ECR_REPO'))
-  const s3Bucket = useSelector((state) => selectSettingsById(state, 'SAAS_BOOST_BUCKET'))
+  const s3Bucket = useSelector((state) =>
+    selectSettingsById(state, 'SAAS_BOOST_BUCKET')
+  )
 
   const awsAccount = globalConfig.awsAccount
   const awsRegion = globalConfig.region
@@ -159,64 +183,99 @@ export const DashboardComponent = (props) => {
                   <strong className="h4 mb-1">Application</strong>
                   <dl>
                     <dt className="mb-1">Application Name</dt>
-                    <dd className="mb-3">{isEmpty(appConfig?.name) ? 'N/A' : appConfig.name}</dd>
+                    <dd className="mb-3">
+                      {isEmpty(appConfig?.name) ? 'N/A' : appConfig.name}
+                    </dd>
                     <dt className="mb-1">Application Domain Name</dt>
-                    <dd className="mb-3">{isEmpty(appConfig?.domainName) ? 'Not Configured' : appConfig.domainName}</dd>
+                    <dd className="mb-3">
+                      {isEmpty(appConfig?.domainName)
+                        ? 'Not Configured'
+                        : appConfig.domainName}
+                    </dd>
                     <dt className="mb-1">Public API Endpoint</dt>
                     <dd className="mb-3">{globalConfig.apiUri}</dd>
                   </dl>
                 </Col>
                 <Col xs={12} md={6} lg={6}>
                   <strong className="h4 mb-1">Tiers</strong>
-                  <dl>
-                    {tiers.map(tier => (
-                      <>
+                  {tiers.map((tier) => (
+                    <dl key={tier}>
                       <dt className="mb-1">{tier.name}</dt>
-                      <dd className="mb-3">{isEmpty(tier.description) ? 'No Description' : tier.description}</dd>
-                      </>
-                    ))}
-                  </dl>
+                      <dd className="mb-3">
+                        {isEmpty(tier.description)
+                          ? 'No Description'
+                          : tier.description}
+                      </dd>
+                    </dl>
+                  ))}
                 </Col>
               </Row>
               <Row>
                 <strong className="h4 mb-1">Services</strong>
                 <Row>
-                  {isEmpty(appConfig?.services) ? (<Col xs={12} md={6} xl={4}>No Services</Col>) : 
-                  Object.values(appConfig.services).map(service => (
+                  {isEmpty(appConfig?.services) ? (
                     <Col xs={12} md={6} xl={4}>
-                      <Card className="mb-2">
-                        <CardHeader><strong>{service.name} - {service.path}</strong></CardHeader>
-                        <CardBody>
-                          <dl>
-                            <dt>ECR Repository</dt>
-                            <dd>
-                              {isEmpty(service.containerRepo) ? 'Creating...' : service.containerRepo} {' - '}
-                              <a href={ecrAwsConsoleLink + (service.containerRepo ? `/private/${awsAccount}/` + service.containerRepo : '')} target="new" className="text-muted">
-                                AWS Console Link <CIcon icon={cilExternalLink} />
-                              </a>
-                            </dd>
-                            <dt>
-                              ECR Repository URL{' - '}
-                              <ECRInstructions
-                                awsAccount={awsAccount}
-                                awsRegion={awsRegion}
-                                ecrRepo={service.containerRepo}
-                              >
-                                <span className="text-muted">
-                                  View details <CIcon icon={cilExternalLink} />
-                                </span>
-                              </ECRInstructions>
-                            </dt>
-                            <dd className="mb-3">
-                              {awsAccount}.dkr.ecr.{awsRegion}.amazonaws.com{service.containerRepo ? `/${service.containerRepo}` : ''}
-                            </dd>
-                            <dt>Description</dt>
-                            <dd>{service.description}</dd>
-                          </dl>
-                        </CardBody>
-                      </Card>
+                      No Services
                     </Col>
-                  ))}
+                  ) : (
+                    Object.values(appConfig.services).map((service) => (
+                      <Col xs={12} md={6} xl={4} key={service.name}>
+                        <Card className="mb-2">
+                          <CardHeader>
+                            <strong>
+                              {service.name} - {service.path}
+                            </strong>
+                          </CardHeader>
+                          <CardBody>
+                            <dl>
+                              <dt>ECR Repository</dt>
+                              <dd>
+                                {isEmpty(service.containerRepo)
+                                  ? 'Creating...'
+                                  : service.containerRepo}{' '}
+                                {' - '}
+                                <a
+                                  href={
+                                    ecrAwsConsoleLink +
+                                    (service.containerRepo
+                                      ? `/private/${awsAccount}/` +
+                                        service.containerRepo
+                                      : '')
+                                  }
+                                  target="new"
+                                  className="text-muted"
+                                >
+                                  AWS Console Link{' '}
+                                  <CIcon icon={cilExternalLink} />
+                                </a>
+                              </dd>
+                              <dt>
+                                ECR Repository URL{' - '}
+                                <ECRInstructions
+                                  awsAccount={awsAccount}
+                                  awsRegion={awsRegion}
+                                  ecrRepo={service.containerRepo}
+                                >
+                                  <span className="text-muted">
+                                    View details{' '}
+                                    <CIcon icon={cilExternalLink} />
+                                  </span>
+                                </ECRInstructions>
+                              </dt>
+                              <dd className="mb-3">
+                                {awsAccount}.dkr.ecr.{awsRegion}.amazonaws.com
+                                {service.containerRepo
+                                  ? `/${service.containerRepo}`
+                                  : ''}
+                              </dd>
+                              <dt>Description</dt>
+                              <dd>{service.description}</dd>
+                            </dl>
+                          </CardBody>
+                        </Card>
+                      </Col>
+                    ))
+                  )}
                 </Row>
               </Row>
             </CardBody>
