@@ -398,12 +398,16 @@ export function ApplicationComponent(props) {
 
   const findServicesWithErrors = (formik) => {
     let servicesWithErrors = []
-    if (!!formik.errors.services) {
-      formik.errors.services.forEach((service, index) => {
-        if (!!service) {
-          servicesWithErrors.push(formik.values.services[index].name)
-        }
-      })
+    if (!!formik?.errors?.services) {
+      if (typeof formik.errors.services === 'string') {
+        servicesWithErrors.push(formik.errors.services)
+      } else {
+        formik.errors.services?.forEach((service, index) => {
+          if (!!service) {
+            servicesWithErrors.push(formik.values?.services[index].name)
+          }
+        })
+      }
     }
     return servicesWithErrors.join(', ')
   }
