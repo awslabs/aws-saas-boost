@@ -296,7 +296,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
   MetricsServicePublishRequestCountLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -420,7 +420,7 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
       Tags:
@@ -488,7 +488,7 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
       Tags:

@@ -34,9 +34,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SettingsService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 

@@ -320,19 +320,10 @@ Resources:
     Properties:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref WindowsFSx
-  SSMParamFilesystem:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
-      Type: String
-      Value: !GetAtt InvokeGetFsxDnsName.DnsName
 Outputs:
   FileSystemId:
     Description: File System ID for FSx for Windows File Server
     Value: !Ref WindowsFSx
-  WindowsFSxSGID:
-    Value: !Ref FSxSecurityGroup
-    Description: FSx for Windows File Server Security Group ID
   WindowsFSxDnsName:
     Value: !GetAtt InvokeGetFsxDnsName.DnsName
     Description: FSx for Windows File Server DNS Name

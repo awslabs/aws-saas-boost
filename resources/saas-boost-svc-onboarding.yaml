@@ -216,7 +216,6 @@ Resources:
   OnboardingServiceBasePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      #ManagedPolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
       Description: Onboarding Service base policy for CRUD operations
       Path: '/'
       PolicyDocument:
@@ -294,7 +293,7 @@ Resources:
             Action:
               - sts:AssumeRole
             Resource:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           - Effect: Allow
             Action:
               - ecr:ListImages
@@ -320,7 +319,6 @@ Resources:
   OnboardingServiceTenantProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      #ManagedPolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
       Description: Onboarding Service policy for base tenant environment provisioning
       Path: '/'
       PolicyDocument:
@@ -343,11 +341,21 @@ Resources:
               - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
           - Effect: Allow
             Action:
-              - ssm:Get*
+              - ssm:GetParameter*
               - ssm:PutParameter
+              - ssm:DeleteParameter
             Resource:
               - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
+          - Effect: Allow
+            Action:
+              - ssm:GetParameters
+            Resource:
               - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
+              - arn:aws:ssm:*:*:parameter/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/*
+          - Effect: Allow
+            Action:
+              - ssm:AddTagsToResource
+            Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
           - Effect: Allow
             Action:
               - ecs:DescribeClusters
@@ -424,7 +432,6 @@ Resources:
   OnboardingServiceComputeProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      #ManagedPolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
       Description: Onboarding Service policy for tenant environment compute provisioning
       Path: '/'
       PolicyDocument:
@@ -442,6 +449,7 @@ Resources:
               - ec2:CreateTags
               - ec2:DeleteTags
             Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
               - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
               - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
               - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
@@ -450,8 +458,9 @@ Resources:
               - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
           - Effect: Allow
             Action:
-              - ssm:AddTagsToResource
-            Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+              - ec2:CreateLaunchTemplate
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:launch-template/*
           - Effect: Allow
             Action:
               - ec2:AuthorizeSecurityGroupIngress
@@ -529,10 +538,17 @@ Resources:
           - Effect: Allow
             Action:
               - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:PassRole
             Resource:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-fsx-dns-tenant*
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-*tenant*
           - Effect: Allow
             Action:
+              - iam:GetInstanceProfile
               - iam:CreateInstanceProfile
               - iam:DeleteInstanceProfile
               - iam:AddRoleToInstanceProfile
@@ -546,6 +562,7 @@ Resources:
               - ecs:DeleteCapacityProvider
             Resource:
               - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/sb-${Environment}-tenant*
+              - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
           - Effect: Allow
             Action:
               - ecs:CreateService
@@ -568,12 +585,6 @@ Resources:
               - !Sub arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:service/*
           - Effect: Allow
             Action:
-              - autoscaling:CreateLaunchConfiguration
-              - autoscaling:DeleteLaunchConfiguration
-            Resource:
-              - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:launchConfiguration:*:launchConfigurationName/sb-${Environment}-tenant*
-          - Effect: Allow
-            Action:
               - autoscaling:CreateAutoScalingGroup
               - autoscaling:DeleteAutoScalingGroup
               - autoscaling:UpdateAutoScalingGroup
@@ -583,6 +594,11 @@ Resources:
               - autoscaling:DeleteTags
             Resource:
               - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
           - Effect: Allow
             Action:
               - servicediscovery:CreatePrivateDnsNamespace
@@ -600,12 +616,12 @@ Resources:
               - ecs:DeregisterTaskDefinition
               - ecs:TagResource
               - ecs:UntagResource
+              - ec2:RunInstances
             Resource:
               - '*'
   OnboardingServiceDatabaseProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      #ManagedPolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
       Description: Onboarding Service policy for tenant environment database provisioning
       Path: '/'
       PolicyDocument:
@@ -616,8 +632,6 @@ Resources:
               - logs:CreateLogGroup
               - logs:PutRetentionPolicy
               - logs:DeleteLogGroup
-              #- logs:DescribeLogGroups
-              #- logs:DescribeLogStreams
             Resource:
               - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
           - Effect: Allow
@@ -666,18 +680,24 @@ Resources:
               - iam:DeleteRolePolicy
               - iam:PassRole
             Resource:
-              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-tenant*
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-tenant*
           - Effect: Allow
             Action:
               - lambda:GetFunction
+              - lambda:CreateFunction
               - lambda:InvokeFunction
               - lambda:DeleteFunction
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-rds-bootstrap-tenant-*
+          - Effect: Allow
+            Action:
+              - lambda:GetLayerVersion
+            Resource:
+              - !Ref SaaSBoostUtilsLayer
+              - !Ref CloudFormationUtilsLayer
   OnboardingServiceStorageProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      #ManagedPolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
       Description: Onboarding Service policy for tenant environment storage provisioning
       Path: '/'
       PolicyDocument:
@@ -709,6 +729,31 @@ Resources:
               - fsx:DescribeFileSystems
             Resource:
               - '*'
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:PassRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-fsx-dns-tenant*
+          - Effect: Allow
+            Action:
+              - lambda:GetFunction
+              - lambda:CreateFunction
+              - lambda:InvokeFunction
+              - lambda:DeleteFunction
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-fsx-dns-tenant-*
+          - Effect: Allow
+            Action:
+              - lambda:GetLayerVersion
+            Resource:
+              - !Ref SaaSBoostUtilsLayer
+              - !Ref CloudFormationUtilsLayer
           - Effect: Allow
             Action:
               # This is for the AD stack -- need to figure out why update DNS wants to delete its SSM params
@@ -924,7 +969,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
@@ -966,7 +1011,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
@@ -1013,7 +1058,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket

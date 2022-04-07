@@ -102,6 +102,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TiersTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -131,6 +132,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TiersTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -160,6 +162,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TiersTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -189,6 +192,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TiersTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -218,6 +222,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TiersTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

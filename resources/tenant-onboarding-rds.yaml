@@ -259,7 +259,7 @@ Resources:
           - ''
           - - 'sb-'
             - !Ref Environment
-            - '-rds-bstrp-role-tenant-'
+            - '-rds-bootstrap-tenant-'
             - !Select [0, !Split ['-', !Ref TenantId]]
             - '-'
             - !Ref AWS::Region
@@ -279,7 +279,7 @@ Resources:
               - ''
               - - 'sb-'
                 - !Ref Environment
-                - '-rds-bstrp-policy-tenant-'
+                - '-rds-bootstrap-tenant-'
                 - !Select [0, !Split ['-', !Ref TenantId]]
                 - '-'
                 - !Ref AWS::Region

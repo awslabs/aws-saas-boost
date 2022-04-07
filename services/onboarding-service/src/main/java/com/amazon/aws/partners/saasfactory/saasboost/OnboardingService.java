@@ -750,7 +750,6 @@ public class OnboardingService {
                     String httpListenerArn;
                     String httpsListenerArn = ""; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
-                    String fsxDns;
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
                         vpc = tenantResources.get("VPC").get("name");
@@ -828,6 +827,8 @@ public class OnboardingService {
 
                         Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
                         String clusterInstanceType = (String) tierConfig.get("instanceType");
+                        // TODO Update App Config to capture what launch type to use
+                        String launchType = "LINUX".equals(clusterOS) ? "FARGATE" : "EC2";
                         Integer taskMemory = (Integer) tierConfig.get("memory");
                         Integer taskCpu = (Integer) tierConfig.get("cpu");
                         Integer minCount = (Integer) tierConfig.get("min");
@@ -912,6 +913,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerOS").parameterValue(clusterOS).build());
                         templateParameters.add(Parameter.builder().parameterKey("ClusterInstanceType").parameterValue(clusterInstanceType).build());
+                        templateParameters.add(Parameter.builder().parameterKey("TaskLaunchType").parameterValue(launchType).build());
                         templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("MinTaskCount").parameterValue(minCount.toString()).build());
@@ -966,8 +968,7 @@ public class OnboardingService {
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                                     .stackName(stackName)
-                                    .disableRollback(true)
-                                    //.onFailure("DO_NOTHING") // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
+                                    .disableRollback(true) // For ease in debugging of failed stacks. Maybe not appropriate for "production".
                                     //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
                                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                                     .notificationARNs(ONBOARDING_APP_STACK_SNS)
@@ -994,28 +995,26 @@ public class OnboardingService {
                         }
                     }
 
-                    if (!serviceDiscovery.isEmpty()) {
-                        String environmentFile = "tenants/" + tenantId + "/ServiceDiscovery.env";
-                        ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
-                        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
-                                environmentFileContents, StandardCharsets.UTF_8)
-                        )) {
-                            serviceDiscovery.store(writer, null);
-                            s3.putObject(request -> request
-                                            .bucket(RESOURCES_BUCKET)
-                                            .key(environmentFile)
-                                            .build(),
-                                    RequestBody.fromBytes(environmentFileContents.toByteArray())
-                            );
-                        } catch (S3Exception s3Error) {
-                            LOGGER.error("Error putting service discovery file to S3");
-                            LOGGER.error(Utils.getFullStackTrace(s3Error));
-                            failOnboarding(onboarding.getId(), s3Error.awsErrorDetails().errorMessage());
-                        } catch (IOException ioe) {
-                            LOGGER.error("Error writing service discovery data to output stream");
-                            LOGGER.error(Utils.getFullStackTrace(ioe));
-                            failOnboarding(onboarding.getId(), "Error writing service discovery data to output stream");
-                        }
+                    String environmentFile = "tenants/" + tenantId + "/ServiceDiscovery.env";
+                    ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
+                    try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                            environmentFileContents, StandardCharsets.UTF_8)
+                    )) {
+                        serviceDiscovery.store(writer, null);
+                        s3.putObject(request -> request
+                                        .bucket(RESOURCES_BUCKET)
+                                        .key(environmentFile)
+                                        .build(),
+                                RequestBody.fromBytes(environmentFileContents.toByteArray())
+                        );
+                    } catch (S3Exception s3Error) {
+                        LOGGER.error("Error putting service discovery file to S3");
+                        LOGGER.error(Utils.getFullStackTrace(s3Error));
+                        failOnboarding(onboarding.getId(), s3Error.awsErrorDetails().errorMessage());
+                    } catch (IOException ioe) {
+                        LOGGER.error("Error writing service discovery data to output stream");
+                        LOGGER.error(Utils.getFullStackTrace(ioe));
+                        failOnboarding(onboarding.getId(), "Error writing service discovery data to output stream");
                     }
                 } else {
                     LOGGER.error("Can't parse get tenant api response");
@@ -1287,7 +1286,7 @@ public class OnboardingService {
                         Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
                         Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
                         if (!tiers.containsKey(tier) || tiers.get(tier) == null || ((Map) tiers.get(tier)).isEmpty()) {
-                            LOGGER.warn("Missing tier configuration for service {} tier {}", serviceConfig.getKey(), tier);
+                            LOGGER.warn("Missing tier configuration for service '{}' tier '{}'", serviceConfig.getKey(), tier);
                             invaildTierConfig = true;
                         }
                     }

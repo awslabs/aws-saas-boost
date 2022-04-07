@@ -134,7 +134,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !GetAtt SaaSBoostSystemRole.Arn
   WorkloadDeployLambda:
     Type: AWS::Lambda::Function
     DependsOn: WorkloadDeployLogs
@@ -154,10 +154,11 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           CODE_PIPELINE_BUCKET: !Ref CodePipelineBucket
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -257,6 +258,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -314,6 +316,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -469,6 +472,9 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/EcsServiceUpdate-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -496,7 +502,7 @@ Resources:
       - SaaSBoostPublicApi
       - SaaSBoostPrivateApi
     Properties:
-      RoleName: !Sub sb-private-api-trust-role-${Environment}-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-private-api-trust-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -507,7 +513,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-private-api-trust-policy-${Environment}-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-private-api-trust-policy-${AWS::Region}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -517,10 +523,16 @@ Resources:
                 Resource:
                   - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPrivateApi}/*/*/*
                   - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPublicApi}/*/*/*
+  SSMParamPrivateApiRole:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE
+      Type: String
+      Value: !GetAtt SaaSBoostSystemRole.Arn
   SystemRestClientExecRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-private-api-client-role-${Environment}-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-private-api-client-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -532,7 +544,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-private-api-client-policy-${Environment}-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-private-api-client-policy-${AWS::Region}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -550,7 +562,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !GetAtt SaaSBoostSystemRole.Arn
   SystemRestApiClientLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -574,9 +586,10 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -644,7 +657,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !GetAtt SaaSBoostSystemRole.Arn
   EcsShutdownServicesLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -669,9 +682,10 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -720,7 +734,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !GetAtt SaaSBoostSystemRole.Arn
   EcsStartupServicesLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -745,9 +759,10 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -794,7 +809,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - autoscaling:SetInstanceProtection
-                Resource: !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
+                Resource: !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/sb-${Environment}-tenant-*
   SetInstanceProtectionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -816,6 +831,10 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SetInstanceProtection-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -826,9 +845,6 @@ Resources:
   # Macro transform will add as many AWS::ECR::Repository resources as necessary
   # based on the length of the list of ApplicationServices passed as a parameter
 Outputs:
-  CodePipelineIamRole:
-    Description: SaaS Boost tenant deploy CodePipeline IAM role
-    Value: !GetAtt TenantCodePipelineRole.Arn
   SaaSBoostPublicApi:
     Description: SaaS Boost Public API
     Value: !Ref SaaSBoostPublicApi

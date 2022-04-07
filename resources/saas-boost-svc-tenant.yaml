@@ -121,6 +121,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -159,6 +160,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
   TenantServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -183,6 +185,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -214,6 +217,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -245,6 +249,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -276,6 +281,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -307,6 +313,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANTS_TABLE: !Ref TenantsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -339,6 +346,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           TENANTS_TABLE: !Ref TenantsTable
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

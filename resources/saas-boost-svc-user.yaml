@@ -96,6 +96,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -126,6 +127,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -156,6 +158,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -186,6 +189,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -216,6 +220,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -246,6 +251,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -276,6 +282,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -306,6 +313,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

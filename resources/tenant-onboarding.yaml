@@ -62,7 +62,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-vpc-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -83,7 +83,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-pub-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-public-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   RoutePublic:
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
@@ -102,7 +102,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-pub-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-public-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   SubnetPublicARouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -119,7 +119,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-pub-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-public-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   SubnetPublicBRouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -136,7 +136,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-priv-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-private-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   SubnetPrivateB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -148,7 +148,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-priv-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-private-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   RouteTablePrivate:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -158,7 +158,7 @@ Resources:
           Value: !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-priv-rt-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-private-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   Subnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -182,7 +182,7 @@ Resources:
             !Ref TenantId
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-tgwattach-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       TransitGatewayId:
         Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/TRANSIT_GATEWAY}}']]
       VpcId: !Ref VPC
