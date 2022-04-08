@@ -606,6 +606,7 @@ Resources:
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
+    DependsOn: network
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-managed-ad.yaml
       Parameters:
@@ -619,7 +620,9 @@ Resources:
         ADPasswordParam: !Ref ADPasswordParam
   web:
     Type: AWS::CloudFormation::Stack
-    DependsOn: network
+    DependsOn:
+      - network
+      - InvokeClearLoggingBucket
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-web.yaml
       Parameters:
@@ -631,6 +634,7 @@ Resources:
     DependsOn:
       - network
       - InvokeClearLoggingBucket
+      - ApplicationServicesMacro
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
       Parameters:
