@@ -638,25 +638,28 @@ Resources:
             Action:
               - rds:AddTagsToResource
               - rds:RemoveTagsFromResource
-              - rds:CreateDBInstance
               - rds:CreateDBCluster
-              - rds:DeleteDBCluster
+              - rds:CreateDBInstance
             Resource:
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
           - Effect: Allow
             Action:
+              - rds:CreateDBSnapshot
               - rds:CreateDBClusterSnapshot
               - rds:DescribeDBClusterSnapshots
             Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
           - Effect: Allow
             Action:
               - rds:DescribeDBClusters
+              - rds:DeleteDBCluster
             Resource:
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
           - Effect: Allow
             Action:
               - rds:DescribeDBSubnetGroups
@@ -669,7 +672,7 @@ Resources:
               - rds:DescribeDBInstances
               - rds:DeleteDBInstance
             Resource:
-              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
           - Effect: Allow
             Action:
               - iam:GetRole
