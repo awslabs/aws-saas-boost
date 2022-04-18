@@ -60,18 +60,41 @@ OnboardingFormComponent.propTypes = {
 }
 
 export default function OnboardingFormComponent(props) {
-  const { error, errorName, submit, cancel, config, billingPlans } = props
+  const {
+    error,
+    errorName,
+    submit,
+    cancel,
+    config,
+    billingPlans,
+    tiers,
+  } = props
   const { domainName, tier, billing } = config
   const hasBilling = !!billing
   const hasDomain = !!domainName
 
   const initialValues = {
     name: '',
-    tier: tier || 'default ',
+    tier: tier || 'default',
     subdomain: '',
     billingPlan: '',
     hasBilling: hasBilling,
     hasDomain: hasDomain,
+  }
+
+  const getTiers = (tiers) => {
+    const options = tiers.map((tier) => {
+      return (
+        <option value={tier.name} key={tier.id}>
+          {tier.description}
+        </option>
+      )
+    })
+    return (
+      <SaasBoostSelect type="select" name="tier" label="Select Tier">
+        {options}
+      </SaasBoostSelect>
+    )
   }
 
   const getBillingUi = (plans, hasBilling) => {
@@ -173,17 +196,7 @@ export default function OnboardingFormComponent(props) {
                       type="text"
                       maxLength={100}
                     />
-                    <SaasBoostSelect
-                      type="select"
-                      name="tier"
-                      label="Select Tier"
-                    >
-                      <option value="default">Default</option>
-                      <option value="S">Silver</option>
-                      <option value="G">Gold</option>
-                      <option value="P">Platinum</option>
-                      <option value="UB">Onobtainium</option>
-                    </SaasBoostSelect>
+                    {getTiers(tiers)}
                     {getDomainUi(domainName, hasDomain)}
                     {getBillingUi(billingPlans, hasBilling)}
                     <SaasBoostFileUpload

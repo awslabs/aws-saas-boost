@@ -33,6 +33,7 @@ import {
   selectPlanError,
 } from '../billing/ducks'
 import { saveToPresignedBucket } from '../settings/ducks'
+import { selectAllTiers } from '../tier/ducks'
 export default function OnboardingCreateContainer(props) {
   const dispatch = useDispatch()
   const history = useHistory()
@@ -45,6 +46,7 @@ export default function OnboardingCreateContainer(props) {
 
   const loadingPlans = useSelector(selectPlanLoading)
   const errorPlans = useSelector(selectPlanError)
+  const tiers = useSelector(selectAllTiers)
   const plans = useSelector(selectAllPlans)
 
   const [file, setFile] = useState({})
@@ -106,14 +108,15 @@ export default function OnboardingCreateContainer(props) {
 
   return (
     <OnboardingFormComponent
-      loading={loading}
+      billingPlans={plans}
+      cancel={cancel}
+      config={config}
       error={error}
       errorName={errorName}
-      cancel={cancel}
-      submit={submitOnboardingRequestForm}
-      config={config}
-      billingPlans={plans}
+      loading={loading}
       onFileSelected={handleFileSelected}
+      submit={submitOnboardingRequestForm}
+      tiers={tiers}
     />
   )
 }
