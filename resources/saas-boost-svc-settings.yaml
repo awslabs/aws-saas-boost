@@ -120,6 +120,9 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsOptions
       Layers:
         - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/RdsOptions-lambda.zip
@@ -195,7 +198,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
   SettingsServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -218,6 +221,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -247,6 +251,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -276,6 +281,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -305,6 +311,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -336,10 +343,11 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           RESOURCES_BUCKET: !Ref ResourcesBucket
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -369,6 +377,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -398,6 +407,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -428,6 +438,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -458,6 +469,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           OPTIONS_TABLE: !Ref RdsOptionsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

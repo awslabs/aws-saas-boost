@@ -18,17 +18,11 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.autoscaling.AutoScalingClient;
 import software.amazon.awssdk.services.autoscaling.model.*;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -38,10 +32,8 @@ public class SetInstanceProtection implements RequestHandler<Map<String, Object>
     private final AutoScalingClient autoScaling;
 
     public SetInstanceProtection() {
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         autoScaling = Utils.sdkClient(AutoScalingClient.builder(), AutoScalingClient.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
@@ -53,8 +45,9 @@ public class SetInstanceProtection implements RequestHandler<Map<String, Object>
         final String autoScalingGroup = (String) resourceProperties.get("AutoScalingGroup");
         final Boolean enableInstanceProtection = Boolean.valueOf((String) resourceProperties.get("Enable"));
         ExecutorService service = Executors.newSingleThreadExecutor();
-        ObjectNode responseData = JsonNodeFactory.instance.objectNode();
-        LOGGER.info("Setting instance protection to {} for Autoscaling group {}", enableInstanceProtection, autoScalingGroup);
+        Map<String, Object> responseData = new HashMap<>();
+        LOGGER.info("Setting instance protection to {} for Autoscaling group {}", enableInstanceProtection,
+                autoScalingGroup);
         try {
             Runnable r = () -> {
                 if ("Delete".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
@@ -64,7 +57,8 @@ public class SetInstanceProtection implements RequestHandler<Map<String, Object>
                                 request.autoScalingGroupNames(autoScalingGroup)
                         );
                         if (response.hasAutoScalingGroups()) {
-                            LOGGER.info("Auto scaling found {} groups for {}", response.autoScalingGroups().size(), autoScalingGroup);
+                            LOGGER.info("AutoScaling found {} groups for {}", response.autoScalingGroups().size(),
+                                    autoScalingGroup);
                             if (!response.autoScalingGroups().isEmpty()) {
                                 AutoScalingGroup asgGroup = response.autoScalingGroups().get(0);
                                 List<String> instancesToUpdate = new ArrayList<>();
@@ -75,32 +69,34 @@ public class SetInstanceProtection implements RequestHandler<Map<String, Object>
                                             .protectedFromScaleIn(enableInstanceProtection)
                                             .autoScalingGroupName(autoScalingGroup)
                                     );
-                                    LOGGER.info("Disabled instance protection on {} instances.", instancesToUpdate.size());
+                                    LOGGER.info("{} instance protection on {} instances.",
+                                            ((enableInstanceProtection) ? "Enabled" : "Disabled"),
+                                            instancesToUpdate.size()
+                                    );
+                                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                                 } catch (AutoScalingException e) {
                                     LOGGER.error("autoscaling:SetInstanceProtection error", e);
                                     LOGGER.error(Utils.getFullStackTrace(e));
-                                    responseData.put("Reason", "Error " + e.getMessage());
-                                    sendResponse(event, context, "FAILED", responseData);
+                                    responseData.put("Reason", e.getMessage());
+                                    CloudFormationResponse.send(event, context, "FAILED", responseData);
                                 }
                             } else {
                                 LOGGER.info("No auto scaling groups matched.");
                             }
                         }
                     } catch (AutoScalingException e) {
-                        LOGGER.error("DisableInstanceProtection::Error " + e.getMessage());
+                        LOGGER.error("autoscaling:describeAutoScalingGroups error", e);
                         LOGGER.error(Utils.getFullStackTrace(e));
-                        responseData.put("Reason", "Error " + e.getMessage());
-                        sendResponse(event, context, "FAILED", responseData);
+                        responseData.put("Reason", e.getMessage());
+                        CloudFormationResponse.send(event, context, "FAILED", responseData);
                     }
-                    LOGGER.info("responseDate: " + Utils.toJson(responseData));
-                    sendResponse(event, context, "SUCCESS", responseData);
                 } else if ("Create".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else {
-                    LOGGER.error("FAILED unknown requestType " + requestType);
+                    LOGGER.error("FAILED unknown requestType {}", requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
-                    sendResponse(event, context, "FAILED", responseData);
+                    CloudFormationResponse.send(event, context, "FAILED", responseData);
                 }
             };
             Future<?> f = service.submit(r);
@@ -111,51 +107,10 @@ public class SetInstanceProtection implements RequestHandler<Map<String, Object>
             String stackTrace = Utils.getFullStackTrace(e);
             LOGGER.error(stackTrace);
             responseData.put("Reason", stackTrace);
-            sendResponse(event, context, "FAILED", responseData);
+            CloudFormationResponse.send(event, context, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
-        return null;
-    }
-
-    public final Object sendResponse(final Map<String, Object> event, final Context context, final String responseStatus, ObjectNode responseData) {
-        String responseUrl = (String) event.get("ResponseURL");
-        LOGGER.info("ResponseURL: {}", responseUrl);
-
-        try {
-            URL url = new URL(responseUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "");
-            connection.setRequestMethod("PUT");
-
-            ObjectNode responseBody = JsonNodeFactory.instance.objectNode();
-            responseBody.put("Status", responseStatus);
-            responseBody.put("RequestId", (String) event.get("RequestId"));
-            responseBody.put("LogicalResourceId", (String) event.get("LogicalResourceId"));
-            responseBody.put("StackId", (String) event.get("StackId"));
-            responseBody.put("PhysicalResourceId", (String) event.get("LogicalResourceId"));
-            if (!"FAILED".equals(responseStatus)) {
-                responseBody.set("Data", responseData);
-            } else {
-                responseBody.put("Reason", responseData.get("Reason").asText());
-            }
-            LOGGER.info("Response Body: " + responseBody.toString());
-
-            try (OutputStreamWriter response = new OutputStreamWriter(connection.getOutputStream())) {
-                response.write(responseBody.toString());
-            } catch (IOException ioe) {
-                LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(Utils.getFullStackTrace(ioe));
-            }
-
-            LOGGER.info("Response Code: {}", connection.getResponseCode());
-            connection.disconnect();
-        } catch (IOException e) {
-            LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(Utils.getFullStackTrace(e));
-        }
-
         return null;
     }
 

@@ -80,6 +80,11 @@ Parameters:
     Description: EC2 instance type to use for non Fargate Docker hosts
     Type: String
     Default: t2.xlarge
+  TaskLaunchType:
+    Description: ECS launch type. Defaults to Fargate.
+    Type: String
+    AllowedValues: [FARGATE, EC2]
+    Default: FARGATE
   TaskMemory:
     Description: Fargate memory setting
     Type: Number
@@ -206,17 +211,20 @@ Parameters:
     Default: false
   # These params are here to read the image values from the public SSM. Leave the defaults.
   WIN2019FULL:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-ECS_Optimized/image_id'
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2019-English-Full-ECS_Optimized/image_id
   WIN2019CORE:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id'
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id
   WIN1909CORE:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-1909-English-Core-ECS_Optimized/image_id'
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-1909-English-Core-ECS_Optimized/image_id
   WIN2016FULL:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id'
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id
+  AMZNLINUX2:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 Conditions:
   IsPublic: !Equals [!Ref PubliclyAddressable, 'true']
   IsPrivate: !Not [Condition: IsPublic]
@@ -227,7 +235,16 @@ Conditions:
   DisableAccess: !Equals [!Ref Disable, 'true']
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
+  Ec2LaunchType: !Equals [!Ref TaskLaunchType, 'EC2']
+  FargateLaunchType: !Equals [!Ref TaskLaunchType, 'FARGATE']
   WindowsOS: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
+  LinuxOS: !Equals [!Ref ContainerOS, 'LINUX']
+  Ec2Windows: !And
+    - Condition: Ec2LaunchType
+    - Condition: WindowsOS
+  Ec2Linux: !And
+    - Condition: Ec2LaunchType
+    - Condition: LinuxOS
   ProvisionFSx: !And
     - !Equals [!Ref UseFSx, 'true']
     - Condition: WindowsOS
@@ -237,24 +254,24 @@ Conditions:
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     Properties:
       Name: 
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-cp']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       AutoScalingGroupProvider:
           AutoScalingGroupArn: !Ref ECSAutoScalingGroup
           ManagedScaling:
             TargetCapacity: 100
             Status: ENABLED
-          ManagedTerminationProtection: ENABLED          
+          ManagedTerminationProtection: ENABLED
       Tags:
         - Key: Tenant
-          Value: !Ref TenantId                 
+          Value: !Ref TenantId
   ClusterCapacityProviderAssociations:
     Type: AWS::ECS::ClusterCapacityProviderAssociations
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     Properties:
-      Cluster: !Ref ECSCluster    
+      Cluster: !Ref ECSCluster
       CapacityProviders:
         - !Ref CapacityProvider
       DefaultCapacityProviderStrategy:
@@ -263,22 +280,23 @@ Resources:
           Weight: 1
   CapacityProviderWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     DependsOn: ClusterCapacityProviderAssociations
   ClusterCapacityAssociationWaitCondition:
     Type: AWS::CloudFormation::WaitCondition
     Properties:
-      Handle: !If [WindowsOS, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
+      Handle: !If [Ec2LaunchType, !Ref CapacityProviderWaitHandle, !Ref WaitHandle]
       Timeout: '1'
       Count: 0
   InvokeDisableInstanceProtection:
     Type: Custom::CustomResource
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection     
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
       AutoScalingGroup: !Ref ECSAutoScalingGroup
+      Enable: 'false'
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -402,12 +420,16 @@ Resources:
       TaskRoleArn: !GetAtt ECSTaskRole.Arn
       RequiresCompatibilities:
         Fn::If:
-          - WindowsOS
+          - Ec2LaunchType
           - - EC2
           - - FARGATE
-      Memory: !If [WindowsOS, !Ref 'AWS::NoValue', !Ref TaskMemory]
-      Cpu: !If [WindowsOS, !Ref 'AWS::NoValue', !Ref TaskCPU]
-      NetworkMode: !If [WindowsOS, !Ref 'AWS::NoValue', awsvpc]
+      Memory: !If [FargateLaunchType, !Ref TaskMemory, !Ref 'AWS::NoValue']
+      Cpu: !If [FargateLaunchType, !Ref TaskCPU, !Ref 'AWS::NoValue']
+      NetworkMode:
+        Fn::If:
+          - Ec2LaunchType
+          - !If [WindowsOS, !Ref 'AWS::NoValue', awsvpc]
+          - awsvpc
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -415,8 +437,8 @@ Resources:
         - Name:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:${ContainerRepositoryTag}
-          Cpu: !If [WindowsOS, !Ref TaskCPU, !Ref 'AWS::NoValue']
-          Memory: !If [WindowsOS, !Ref TaskMemory, !Ref 'AWS::NoValue']
+          Cpu: !If [Ec2LaunchType, !Ref TaskCPU, !Ref 'AWS::NoValue']
+          Memory: !If [Ec2LaunchType, !Ref TaskMemory, !Ref 'AWS::NoValue']
           PortMappings:
             - ContainerPort: !Ref ContainerPort
           LogConfiguration:
@@ -550,8 +572,6 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
-        - Key: Stack
-          Value: !Ref AWS::StackName
   FsxWaitHandle:
     Condition: ProvisionFSx
     DependsOn: fsx
@@ -564,26 +584,27 @@ Resources:
       Handle: !If [ProvisionFSx, !Ref FsxWaitHandle, !Ref WaitHandle]
       Timeout: 1
       Count: 0
-  # We either need an Auto Scaling Group, Instance Profile, and Launch Configuration (Windows/EC2)
+  # We either need an Auto Scaling Group, Instance Profile, and Launch Template (Windows/EC2)
   # Or we need an Target Group (Linux/Fargate)
   # per https://aws.amazon.com/blogs/containers/managing-compute-for-amazon-ecs-clusters-with-capacity-providers/
   ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
-    Condition:
-      WindowsOS
+    Condition: Ec2LaunchType
     Properties:
       AutoScalingGroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-asg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       VPCZoneIdentifier:
         - !Ref SubnetPrivateA
         - !Ref SubnetPrivateB
-      LaunchConfigurationName: !Ref ECSLaunchConfiguration 
-      NewInstancesProtectedFromScaleIn: true      
-      MinSize: '0'
-      MaxSize: '20'
-      DesiredCapacity: '0'
+      LaunchTemplate:
+        LaunchTemplateId: !If [Ec2Windows, !Ref WindowsLaunchTemplate, !Ref LinuxLaunchTemplate]
+        Version: !If [Ec2Windows, !GetAtt WindowsLaunchTemplate.LatestVersionNumber, !GetAtt LinuxLaunchTemplate.LatestVersionNumber]
+      NewInstancesProtectedFromScaleIn: true
+      MinSize: 0
+      MaxSize: 20
+      DesiredCapacity: 0
       #Cooldown:
-      #HealthCheckGracePeriod: 60
+      HealthCheckGracePeriod: 30
       #HealthCheckType:
       #MetricsCollection:
       #NotificationConfigurations:
@@ -602,10 +623,10 @@ Resources:
           - ScheduledActions
   ECSInstanceRole:
     Type: AWS::IAM::Role
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     Properties:
       RoleName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-instance-role']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -618,7 +639,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-ecs-instance-policy']]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -681,7 +702,6 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
               - Effect: Allow
                 Action:
                   - ds:CreateComputer
@@ -693,85 +713,59 @@ Resources:
                 Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
-    Condition: WindowsOS
+    Condition: Ec2LaunchType
     Properties:
       Path: '/'
       Roles:
         - !Ref ECSInstanceRole
-  ECSLaunchConfiguration:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Condition: WindowsOS
-    # Wait for FSx filesystem to be deployed before creating the launch configuration
-    # because we have to mount the file system prior to placing ECS Tasks on the host
+  WindowsLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: Ec2Windows
     DependsOn: FsxWaitCondition
     Metadata:
-      Comment: 'packages -> groups -> users-> sources -> files -> commands -> services'
       AWS::CloudFormation::Init:
         config:
           files:
             c:\cfn\cfn-hup.conf:
-              content:
-                Fn::Join:
-                  - ""
-                  - - "[main]"
-                    - "\n"
-                    - "stack="
-                    - !Ref "AWS::StackId"
-                    - "\n"
-                    - "region="
-                    - !Ref "AWS::Region"
-                    - "\n"
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
             c:\cfn\hooks.d\cfn-auto-reloader.conf:
-              content:
-                Fn::Join:
-                  - ""
-                  - - "[cfn-auto-reloader-hook]"
-                    - "\n"
-                    - "triggers=post.update"
-                    - "\n"
-                    - "path=Resources.ECSLaunchConfiguration.Metadata.AWS::CloudFormation::Init"
-                    - "\n"
-                    - "action=cfn-init.exe -v -s "
-                    - !Ref "AWS::StackId"
-                    - " -r ECSLaunchConfiguration --region "
-                    - !Ref "AWS::Region"
-                    - "\n"
-          #commands:
-          #  01_import_powershell_module:
-          #    command: powershell.exe -Command Import-Module ECSTools
-          #  02_add_instance_to_cluster:
-          #    command: !Sub powershell.exe -Command Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole
-          #  03_set_awslogs_env_override:
-          #    command: powershell.exe -Command [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WindowsLaunchTemplate.Metadata.AWS::CloudFormation::Init
+                action=cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
           services:
             windows:
               cfn-hup:
                 enabled: true
                 ensureRunning: true
                 files:
-                  - c:\cfn\cfn-hup.conf
-                  - c:\etc\cfn\hooks.d\cfn-auto-reloader.conf
+                  - c:\\cfn\\cfn-hup.conf
+                  - c:\\etc\\cfn\\hooks.d\\cfn-auto-reloader.conf
     Properties:
-      ImageId:
-        Fn::If:
-          - IsWin2019Full
-          - !Ref WIN2019FULL
-          - !If
-            - IsWin2019Core
-            - !Ref WIN2019CORE
+      LaunchTemplateData:
+        ImageId:
+          Fn::If:
+            - IsWin2019Full
+            - !Ref WIN2019FULL
             - !If
-              - IsWin1909Core
-              - !Ref WIN1909CORE
-              - !Ref WIN2016FULL
-      InstanceType: !Ref ClusterInstanceType
-      IamInstanceProfile: !Ref ECSInstanceProfile
-      #KeyName: !Ref 'AWS::NoValue'
-      AssociatePublicIpAddress: false
-      SecurityGroups:
-        - !Ref ECSSecurityGroup
-      UserData:
-        Fn::Base64:
-          !Sub |
+              - IsWin2019Core
+              - !Ref WIN2019CORE
+              - !If
+                - IsWin1909Core
+                - !Ref WIN1909CORE
+                - !Ref WIN2016FULL
+        InstanceType: !Ref ClusterInstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt ECSInstanceProfile.Arn
+        KeyName: !Ref 'AWS::NoValue'
+        SecurityGroupIds:
+          - !Ref ECSSecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
             <powershell>
             Start-Transcript -Path "C:\UserData.log" -Append
             Write-Output ("Download and install the CloudWatch agent")
@@ -819,25 +813,90 @@ Resources:
                 Write-Output ("Joining domain $directoryName")
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                Write-Output ("Getting FSx File Server domain name")
-                $fileserverDnsName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME).Parameters[0].Value
-                $fileserverpath = "\\{0}\share" -f "$fileserverDnsName"
+                Write-Output ("Setting FSx File Server remote path")
+                $fileserverpath = "\\{0}\share" -f "${fsx.Outputs.WindowsFSxDnsName}"
 
                 # Map the share to local drive letter
                 Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
                 New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
             }  # end if for UseFsx
 
-            Write-Output ("Cfn-init and signal completion")
-            # Now run the CloudFormation init config set
-            cfn-init.exe -v -s ${AWS::StackId} -r ECSLaunchConfiguration --region ${AWS::Region}
-
-            # And, finally signal CloudFormation that we're done setting up
-            cfn-signal.exe -e 0 --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+            Write-Output ("CloudFormation signal completion")
+            # Signal CloudFormation that we're done setting up
+            cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+            cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
 
             Stop-Transcript
             </powershell>
             <persist>true</persist>
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value:
+                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+              - Key: Tenant
+                Value:
+                  !Ref TenantId
+  LinuxLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: Ec2Linux
+    DependsOn: FsxWaitCondition
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.LinuxLaunchTemplate.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v -s ${AWS::StackName} -r LinuxLaunchTemplate --region ${AWS::Region}
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AMZNLINUX2
+        InstanceType: !Ref ClusterInstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt ECSInstanceProfile.Arn
+        KeyName: !Ref 'AWS::NoValue'
+        SecurityGroupIds:
+          - !Ref ECSSecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            yum install -y aws-cfn-bootstrap amazon-cloudwatch-agent
+
+            # Setup the CloudWatch logs agent
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a fetch-config -s
+
+            # Setup the ECS agent to point to our cluster
+            echo ECS_CLUSTER="${ECSCluster}" >> /etc/ecs/ecs.config
+
+            # Signal CloudFormation that we're done setting up
+            /opt/aws/bin/cfn-init -v -s ${AWS::StackName} -r LinuxLaunchTemplate --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value:
+                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+              - Key: Tenant
+                Value:
+                  !Ref TenantId
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: IsPublic
@@ -939,7 +998,7 @@ Resources:
       ServiceName: !Ref ServiceResourceName
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition
-      LaunchType: !If [WindowsOS, !Ref 'AWS::NoValue', FARGATE]
+      LaunchType: !If [FargateLaunchType, !Ref TaskLaunchType, !Ref 'AWS::NoValue']
       # Initially set DesiredCount to zero so the resource stabilizes on create stack. CodePipeline will update it when deploying the task.
       DesiredCount: 0
       NetworkConfiguration:
@@ -963,10 +1022,10 @@ Resources:
           - !Ref 'AWS::NoValue'
       CapacityProviderStrategy:
         !If
-          - WindowsOS      
+          - Ec2LaunchType
           - - CapacityProvider: !Ref CapacityProvider
               Base: 1
-              Weight: 1          
+              Weight: 1
           - !Ref 'AWS::NoValue'
       ServiceRegistries:
         !If
@@ -989,7 +1048,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
@@ -1002,7 +1061,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
