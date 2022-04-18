@@ -86,7 +86,7 @@ export default function OnboardingFormComponent(props) {
     const options = tiers.map((tier) => {
       return (
         <option value={tier.name} key={tier.id}>
-          {tier.description}
+          {tier.name}
         </option>
       )
     })
