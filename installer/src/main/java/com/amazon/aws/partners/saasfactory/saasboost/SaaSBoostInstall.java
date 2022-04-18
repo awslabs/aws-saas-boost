@@ -1795,9 +1795,7 @@ public class SaaSBoostInstall {
         outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
         // First, clear out any files that are currently in the web bucket
         cleanUpS3(webBucket, "");
-        Map<String, String> metadata = Stream
-                .of(new AbstractMap.SimpleEntry<>("Cache-Control", "no-store"))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        String cacheControl = null;
         Path yarnBuildDir = webDir.resolve(Path.of("build"));
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(yarnBuildDir)) {
@@ -1806,6 +1804,9 @@ public class SaaSBoostInstall {
             for (Path fileToUpload : filesToUpload) {
                 // Remove the parent client/web/build path from the S3 key
                 String key = fileToUpload.subpath(yarnBuildDir.getNameCount(), fileToUpload.getNameCount()).toString();
+                if (key.endsWith("index.html") || key.endsWith("asset-manifest.json") || key.startsWith("static/")) {
+                    cacheControl = "no-store";
+                }
                 try {
                     // Now copy all of the files from the Node build up to the web bucket
                     LOGGER.info("Uploading to S3 " + fileToUpload.toString() + " -> " + key);
@@ -1815,7 +1816,7 @@ public class SaaSBoostInstall {
                             // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
                             // definitions of the Lambda functions will always use forward slashes for the S3Key property.
                             .key(key.replace('\\', '/'))
-                            .metadata(metadata)
+                            .cacheControl(cacheControl)
                             .build(), RequestBody.fromFile(fileToUpload)
                     );
                 } catch (SdkServiceException s3Error) {
