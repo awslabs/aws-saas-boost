@@ -17,6 +17,7 @@
 import React, { useEffect, useState } from 'react'
 import { useHistory } from 'react-router-dom'
 
+import LoadingOverlay from '@ronchalant/react-loading-overlay'
 import OnboardingFormComponent from './OnboardingFormComponent'
 import {
   createOnboarding,
@@ -25,39 +26,22 @@ import {
   selectErrorName,
 } from './ducks'
 import { useDispatch, useSelector } from 'react-redux'
-import { selectConfig, fetchConfig } from '../settings/ducks'
-import {
-  fetchPlans,
-  selectAllPlans,
-  selectPlanLoading,
-  selectPlanError,
-} from '../billing/ducks'
+import { selectConfig } from '../settings/ducks'
+import { selectAllPlans } from '../billing/ducks'
 import { saveToPresignedBucket } from '../settings/ducks'
 import { selectAllTiers } from '../tier/ducks'
-export default function OnboardingCreateContainer(props) {
+
+export default function OnboardingCreateContainer() {
   const dispatch = useDispatch()
   const history = useHistory()
-
-  const loading = useSelector(selectLoading)
+  const config = useSelector(selectConfig)
   const error = useSelector(selectError)
   const errorName = useSelector(selectErrorName)
-
-  const config = useSelector(selectConfig)
-
-  const loadingPlans = useSelector(selectPlanLoading)
-  const errorPlans = useSelector(selectPlanError)
-  const tiers = useSelector(selectAllTiers)
+  const loading = useSelector(selectLoading)
   const plans = useSelector(selectAllPlans)
+  const tiers = useSelector(selectAllTiers)
 
   const [file, setFile] = useState({})
-
-  useEffect(() => {
-    const billingPlansResponse = dispatch(fetchPlans())
-  }, [dispatch])
-
-  useEffect(() => {
-    const fetchConfigResponse = dispatch(fetchConfig())
-  }, [dispatch])
 
   const nullBlankProps = (obj) => {
     const ret = { ...obj }
@@ -107,16 +91,18 @@ export default function OnboardingCreateContainer(props) {
   }
 
   return (
-    <OnboardingFormComponent
-      billingPlans={plans}
-      cancel={cancel}
-      config={config}
-      error={error}
-      errorName={errorName}
-      loading={loading}
-      onFileSelected={handleFileSelected}
-      submit={submitOnboardingRequestForm}
-      tiers={tiers}
-    />
+    <LoadingOverlay active={!loading} spinner text="Loading...">
+      <OnboardingFormComponent
+        billingPlans={plans}
+        cancel={cancel}
+        config={config}
+        error={error}
+        errorName={errorName}
+        loading={loading}
+        onFileSelected={handleFileSelected}
+        submit={submitOnboardingRequestForm}
+        tiers={tiers}
+      />
+    </LoadingOverlay>
   )
 }

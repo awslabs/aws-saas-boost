@@ -46,15 +46,15 @@ export function ApplicationContainer(props) {
   const LINUX = 'LINUX'
 
   const dispatch = useDispatch()
-  const settings = useSelector(selectAllSettings)
-  const loading = useSelector(selectLoading)
   const appConfig = useSelector(selectConfig)
-  const dbOptions = useSelector(selectDbOptions)
-  const osOptions = useSelector(selectOsOptions)
+  const configError = useSelector(selectConfigError)
   const configLoading = useSelector(selectConfigLoading)
   const configMessage = useSelector(selectConfigMessage)
-  const configError = useSelector(selectConfigError)
+  const dbOptions = useSelector(selectDbOptions)
+  const loading = useSelector(selectLoading)
+  const osOptions = useSelector(selectOsOptions)
   const serviceToS3BucketMap = useSelector(selectServiceToS3BucketMap)
+  const settings = useSelector(selectAllSettings)
 
   const hasTenants = useSelector((state) => {
     return selectAllTenants(state)?.length > 0
