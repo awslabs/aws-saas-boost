@@ -652,6 +652,7 @@ Resources:
               - rds:DescribeDBClusterSnapshots
             Resource:
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
               - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
           - Effect: Allow
             Action:

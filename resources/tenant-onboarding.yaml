@@ -46,6 +46,7 @@ Conditions:
   HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
   HasSubDomainName: !Not [!Equals [!Ref TenantSubDomain, '']]
   HasCertificate: !Not [!Equals [!Ref SSLCertificateArn, '']]
+  NoCertificate: !Equals [!Ref SSLCertificateArn, '']
   CreateSubDomainAlias: !And 
     - !Condition HasDomainName
     - !Condition HasHostedZone
@@ -300,6 +301,7 @@ Resources:
       Protocol: HTTP
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: NoCertificate
     Properties:
       LoadBalancerArn: !Ref ApplicationLoadBalancer
       Port: 80
