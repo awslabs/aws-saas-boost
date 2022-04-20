@@ -748,7 +748,7 @@ public class OnboardingService {
                     String ecsSecurityGroup;
                     String loadBalancerArn;
                     String httpListenerArn;
-                    String httpsListenerArn = ""; // might not have an HTTPS listener if they don't have an SSL certificate
+                    String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
@@ -758,13 +758,13 @@ public class OnboardingService {
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
-                        httpListenerArn = tenantResources.get("HTTP_LISTENER").get("arn");
-                        if (tenantResources.containsKey("HTTPS_LISTENER")) {
-                            httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
-                        }
+                        // Depending on the SSL certificate configuration, one of these 2 listeners must exist
+                        httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
+                        httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
                         if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
-                                || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup) || Utils.isBlank(loadBalancerArn)
-                                || Utils.isBlank(httpListenerArn)) { // OK if HTTPS listener is blank
+                                || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup)
+                                || Utils.isBlank(loadBalancerArn)
+                                || (Utils.isBlank(httpListenerArn) && Utils.isBlank(httpsListenerArn))) {
                             LOGGER.error("Missing required tenant environment resources");
                             failOnboarding(onboarding.getId(), "Missing required tenant environment resources");
                             return;
@@ -1214,8 +1214,7 @@ public class OnboardingService {
                 fatal.add(message);
                 failOnboarding(onboardingId, "Onboarding record has no request content");
             } else if (OnboardingStatus.validating != onboarding.getStatus()) {
-                LOGGER.warn("Onboarding in unexpected state for validation {} {}", onboardingId
-                        , onboarding.getStatus());
+                LOGGER.warn("Onboarding in unexpected state for validation {} {}", onboardingId, onboarding.getStatus());
                 fatal.add(message);
                 failOnboarding(onboardingId, "Onboarding can't be validated when in state "
                         + onboarding.getStatus());
@@ -1267,8 +1266,8 @@ public class OnboardingService {
                             }
                         } else {
                             // TODO no repo defined for this service yet...
-                            LOGGER.warn("Application Service {} does not have a container image repository defined"
-                                    , serviceName);
+                            LOGGER.warn("Application Service {} does not have a container image repository defined",
+                                    serviceName);
                             missingImages++;
                         }
                     }
@@ -1672,7 +1671,7 @@ public class OnboardingService {
     protected void handleAppConfigEvent(Map<String, Object> event, Context context) {
         String detailType = (String) event.get("detail-type");
         if ("Application Configuration Changed".equals(detailType)) {
-           handleUpdateInfrastructure(event, context);
+            handleUpdateInfrastructure(event, context);
         }
     }
 
