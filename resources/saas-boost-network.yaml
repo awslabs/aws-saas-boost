@@ -110,13 +110,13 @@ Resources:
         - Key: Name
           Value: !Sub sb-${Environment}-egress-nat-ip1
   IPAddress2:
-   Type: AWS::EC2::EIP
-   DependsOn: AttachIGW
-   Properties:
-     Domain: vpc
-     Tags:
-      - Key: Name
-        Value: !Sub sb-${Environment}-egress-nat-ip2
+    Type: AWS::EC2::EIP
+    DependsOn: AttachIGW
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub sb-${Environment}-egress-nat-ip2
   NATGateway1:
     Type: AWS::EC2::NatGateway
     Properties:
@@ -152,14 +152,14 @@ Resources:
         - Key: Name
           Value: !Sub sb-${Environment}-egress-private-rt-az1
   PrivateEgressRouteTable2:
-   Type: AWS::EC2::RouteTable
-   Properties:
-     VpcId: !Ref EgressVPC
-     Tags:
-       - Key: Application
-         Value: !Ref AWS::StackId
-       - Key: Name
-         Value: !Sub sb-${Environment}-egress-private-rt-az2
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref EgressVPC
+      Tags:
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Name
+          Value: !Sub sb-${Environment}-egress-private-rt-az2
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: AttachIGW
@@ -185,12 +185,12 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NATGateway1
   PrivateEgressRoute2:
-   Type: AWS::EC2::Route
-   DependsOn: AttachIGW
-   Properties:
-     RouteTableId: !Ref PrivateEgressRouteTable2
-     DestinationCidrBlock: 0.0.0.0/0
-     NatGatewayId: !Ref NATGateway2
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PrivateEgressRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway2
 #These routes to 10.0.0.0/8 are necessary for AD traffic across TGW.
   RouteToTenants1:
     Type: AWS::EC2::Route
@@ -200,12 +200,12 @@ Resources:
       DestinationCidrBlock: 10.0.0.0/8
       TransitGatewayId: !Ref TransitGateway
   RouteToTenants2:
-   Type: AWS::EC2::Route
-   DependsOn: EgressVpcAttachment
-   Properties:
-     RouteTableId: !Ref PrivateEgressRouteTable2
-     DestinationCidrBlock: 10.0.0.0/8
-     TransitGatewayId: !Ref TransitGateway
+    Type: AWS::EC2::Route
+    DependsOn: EgressVpcAttachment
+    Properties:
+      RouteTableId: !Ref PrivateEgressRouteTable2
+      DestinationCidrBlock: 10.0.0.0/8
+      TransitGatewayId: !Ref TransitGateway
   PrivateEgressRouteTable1Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:

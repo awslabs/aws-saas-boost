@@ -324,12 +324,12 @@ Resources:
   TenantServiceEventHandlerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenant-events
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tenants-events
       RetentionInDays: 30
   TenantServiceEventHandler:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-tenant-events
+      FunctionName: !Sub sb-${Environment}-tenants-events
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 45
