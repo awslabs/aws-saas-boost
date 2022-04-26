@@ -622,7 +622,6 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
-      - InvokeClearLoggingBucket
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-web.yaml
       Parameters:
