@@ -3,7 +3,7 @@
 This is a sample monolithic .Net Framework web application (ASP.NET MVC) to exercise the various features of AWS SaaS Boost. The included build shell script may also give you some ideas on how to integrate your existing build/deploy process with SaaS Boost. This sample was created specifically to mimic the [Java sample application](../java/README.md).
 
 ## Getting Started
-First, you must answer **yes** when the SaaS Boost installer asks if you want to provision an AWS Directory Service instance to support FSx for Windows File Server.
+First, you must answer **yes** when the SaaS Boost installer asks if you want to provision an AWS Directory Service instance to support FSx for Netapp ONTAP or FSx for Windows File Server.
 
 Next, you must configure the **Application Settings** in your SaaS Boost environment to support this workload.
 - **1** for minimum instance count
@@ -14,6 +14,7 @@ Next, you must configure the **Application Settings** in your SaaS Boost environ
 - Set the Container Port to **80**
 - Set the Health Check URL to **/**
 - **Enable** the Provision a File System for the application checkbox
+- Select either **FSx ONTAP** or **FSx Windows** for File System Type
 - Set the Mount point to **C:\Images**
 - **Enable** the Provision a database for the application checkbox
 - Select **SQL Server Express Edition**

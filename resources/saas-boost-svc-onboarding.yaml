@@ -392,6 +392,7 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/Tenant*
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
               - Effect: Allow
                 Action:
@@ -457,6 +458,8 @@ Resources:
                   - elasticfilesystem:CreateFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - application-autoscaling:Describe*
                   - application-autoscaling:RegisterScalableTarget
                   - application-autoscaling:PutScalingPolicy
@@ -496,10 +499,14 @@ Resources:
                   - elasticfilesystem:PutFileSystemPolicy
                   - elasticfilesystem:PutLifecycleConfiguration
                   - fsx:CreateFileSystem
+                  - fsx:CreateStorageVirtualMachine
+                  - fsx:CreateVolume
                   - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:volume/*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBClusters
@@ -560,8 +567,10 @@ Resources:
                   - lambda:CreateFunction
                   - lambda:InvokeFunction
                   - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:Tenant* 
               - Effect: Allow
                 Action:
                   - ec2:RevokeSecurityGroupEgress
@@ -720,6 +729,7 @@ Resources:
                   - iam:DeleteRolePolicy
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/Tenant*
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
               - Effect: Allow
                 Action:
@@ -786,6 +796,8 @@ Resources:
                   - elasticfilesystem:DeleteFileSystem
                   - ds:DescribeDirectories
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - application-autoscaling:Describe*
                   - application-autoscaling:DeleteScalingPolicy
                   - autoscaling:Describe*
@@ -811,10 +823,17 @@ Resources:
                   - elasticfilesystem:DescribeTags
                   - elasticfilesystem:DeleteFileSystemPolicy
                   - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                  - fsx:DescribeVolumes
                   - fsx:DeleteFileSystem
+                  - fsx:DeleteStorageVirtualMachine
+                  - fsx:DeleteVolume
+                  - fsx:TagResource
                 Resource:
                   - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
                   - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:storage-virtual-machine/*
+                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:volume/*
               - Effect: Allow
                 Action:
                   - rds:DescribeDBClusters                  
@@ -874,8 +893,10 @@ Resources:
                   - lambda:GetFunctionConfiguration
                   - lambda:InvokeFunction
                   - lambda:DeleteFunction
+                  - lambda:CreateFunction
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:Tenant* 
               - Effect: Allow
                 Action:
                   - ssm:Get*

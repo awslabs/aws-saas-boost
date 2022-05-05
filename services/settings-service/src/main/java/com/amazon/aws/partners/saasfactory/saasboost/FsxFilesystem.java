@@ -28,7 +28,11 @@ import java.util.Objects;
 //        "backupRetentionDays",
 //        "dailyBackupTime",
 //        "weeklyMaintenanceTime",
-//        "windowsMountDrive"
+//        "windowsMountDrive",
+//        "useOntap",
+//        "ontapVolumeSize",
+//        "storageGbOntap",
+//        "throughputMbsOntap",
 //})
 @JsonDeserialize(builder = FsxFilesystem.Builder.class)
 public class FsxFilesystem {
@@ -39,6 +43,10 @@ public class FsxFilesystem {
     private String dailyBackupTime;
     private String weeklyMaintenanceTime;
     private String windowsMountDrive;
+    private String useOntap;
+    private Integer ontapVolumeSize;
+    private Integer storageGbOntap;
+    private Integer throughputMbsOntap;
 
     private FsxFilesystem(Builder builder) {
         this.storageGb = builder.storageGb;
@@ -47,6 +55,10 @@ public class FsxFilesystem {
         this.dailyBackupTime = builder.dailyBackupTime;
         this.weeklyMaintenanceTime = builder.weeklyMaintenanceTime;
         this.windowsMountDrive = builder.windowsMountDrive;
+        this.useOntap = builder.useOntap;
+        this.ontapVolumeSize = builder.ontapVolumeSize;
+        this.storageGbOntap = builder.storageGbOntap;
+        this.throughputMbsOntap = builder.throughputMbsOntap;
     }
 
     public static FsxFilesystem.Builder builder() {
@@ -59,6 +71,14 @@ public class FsxFilesystem {
 
     public Integer getThroughputMbs() {
         return throughputMbs;
+    }
+
+    public Integer getStorageGbOntap() {
+        return storageGbOntap;
+    }
+
+    public Integer getThroughputMbsOntap() {
+        return throughputMbsOntap;
     }
 
     public Integer getBackupRetentionDays() {
@@ -75,6 +95,15 @@ public class FsxFilesystem {
 
     public String getWindowsMountDrive() {
         return windowsMountDrive;
+    }
+
+    public String getUseOntap() {
+        return useOntap;
+    }
+
+    public Integer getOntapVolumeSize() {
+        ontapVolumeSize = ontapVolumeSize * 1024; //Converting to MB
+        return ontapVolumeSize;
     }
 
     @Override
@@ -98,12 +127,16 @@ public class FsxFilesystem {
                 && ((dailyBackupTime == null && other.dailyBackupTime == null) || (dailyBackupTime != null && dailyBackupTime.equals(other.dailyBackupTime)))
                 && ((weeklyMaintenanceTime == null && other.weeklyMaintenanceTime == null) || (weeklyMaintenanceTime != null && weeklyMaintenanceTime.equals(other.weeklyMaintenanceTime)))
                 && ((windowsMountDrive == null && other.windowsMountDrive == null) || (windowsMountDrive != null && windowsMountDrive.equals(other.windowsMountDrive)))
+                && ((useOntap == null && other.useOntap == null) || (useOntap != null && useOntap.equals(other.useOntap)))
+                && ((ontapVolumeSize == null && other.ontapVolumeSize == null) || (ontapVolumeSize != null && ontapVolumeSize.equals(other.ontapVolumeSize)))
+                && ((storageGbOntap == null && other.storageGbOntap == null) || (storageGbOntap != null && storageGbOntap.equals(other.storageGbOntap)))
+                && ((throughputMbsOntap == null && other.throughputMbsOntap == null) || (throughputMbsOntap != null && throughputMbsOntap.equals(other.throughputMbsOntap)))
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storageGb, throughputMbs, backupRetentionDays, dailyBackupTime, weeklyMaintenanceTime, windowsMountDrive);
+        return Objects.hash(storageGb, throughputMbs, backupRetentionDays, dailyBackupTime, weeklyMaintenanceTime, windowsMountDrive, useOntap, ontapVolumeSize, storageGbOntap, throughputMbsOntap);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -114,6 +147,10 @@ public class FsxFilesystem {
         private String dailyBackupTime;
         private String weeklyMaintenanceTime;
         private String windowsMountDrive;
+        private String useOntap;
+        private Integer ontapVolumeSize;
+        private Integer storageGbOntap;
+        private Integer throughputMbsOntap;
 
         private Builder() {
         }
@@ -125,6 +162,16 @@ public class FsxFilesystem {
 
         public Builder throughputMbs(Integer throughputMbs) {
             this.throughputMbs = throughputMbs;
+            return this;
+        }
+
+        public Builder storageGbOntap(Integer storageGbOntap) {
+            this.storageGbOntap = storageGbOntap;
+            return this;
+        }
+
+        public Builder throughputMbsOntap(Integer throughputMbsOntap) {
+            this.throughputMbsOntap = throughputMbsOntap;
             return this;
         }
 
@@ -145,6 +192,16 @@ public class FsxFilesystem {
 
         public Builder weeklyMaintenanceTime(String weeklyMaintenanceTime) {
             this.weeklyMaintenanceTime = weeklyMaintenanceTime;
+            return this;
+        }
+
+        public Builder useOntap(String useOntap) {
+            this.useOntap = useOntap;
+            return this;
+        }
+
+        public Builder ontapVolumeSize(Integer ontapVolumeSize) {
+            this.ontapVolumeSize = ontapVolumeSize;
             return this;
         }
 
