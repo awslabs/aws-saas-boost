@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { PropTypes } from 'prop-types'
+import React, { useState, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   dismissError,
   fetchConfig,
@@ -23,39 +23,57 @@ import {
   selectAllSettings,
   selectConfig,
   selectLoading,
-} from "./ducks";
-import { fetchOptions, selectOptions } from "../options/ducks";
-import { isEmpty, size } from "lodash";
-import { SBLoading } from "../components";
+} from './ducks'
+import { fetchOptions, selectOptions } from '../options/ducks'
+import { isEmpty, size } from 'lodash'
+import SBLoading from '../components/SBLoading'
+import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
+
+FetchSettings.propTypes = {
+  children: PropTypes.object,
+}
 
 function FetchSettings(props) {
-  const dispatch = useDispatch();
-  const settings = useSelector(selectAllSettings);
-  const loading = useSelector(selectLoading);
-  // appConfig = useSelector(selectConfig);
-  const options = useSelector(selectOptions);
-  //const [isAppConfigLoaded, setAppConfigLoaded] = useState(false);
-  const [isSettingsLoaded, setSettingsLoaded] = useState(false);
-  const [isOptionsLoaded, setOptionsLoaded] = useState(false);
+  const dispatch = useDispatch()
+  const settings = useSelector(selectAllSettings)
+  const loading = useSelector(selectLoading)
+  const appConfig = useSelector(selectConfig)
+  const options = useSelector(selectOptions)
+  const tiers = useSelector(selectAllTiers)
+  const [isAppConfigLoaded, setAppConfigLoaded] = useState(false)
+  const [isTiersLoaded, setTiersLoaded] = useState(false)
+  const [isSettingsLoaded, setSettingsLoaded] = useState(false)
+  const [isOptionsLoaded, setOptionsLoaded] = useState(false)
 
   /**
    * If appConfig object is not empty
    *  AND the state value isn't true already. This is to avoid
    *  re-rendering the component if the redux state is updated.
    */
-  // if (!isEmpty(appConfig) && !isAppConfigLoaded) {
-  //   setAppConfigLoaded(true);
-  // }
+  if (!isEmpty(appConfig) && !isAppConfigLoaded) {
+    setAppConfigLoaded(true)
+  }
+
+  if (!isEmpty(tiers) && !isTiersLoaded) {
+    setTiersLoaded(true)
+  }
 
   /**
    * If the configuration isn't loaded, fetch it now
    */
-  // useEffect(() => {
-  //   let fetchConfigResponse;
-  //   if (!isAppConfigLoaded) {
-  //     fetchConfigResponse = dispatch(fetchConfig());
-  //   }
-  // }, [dispatch]);
+  useEffect(() => {
+    let fetchConfigResponse
+    if (!isAppConfigLoaded) {
+      fetchConfigResponse = dispatch(fetchConfig())
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    let fetchTiersResponse
+    if (!isTiersLoaded) {
+      fetchTiersResponse = dispatch(fetchTiersThunk())
+    }
+  }, [dispatch])
 
   /**
    * If settings object is not empty
@@ -63,43 +81,42 @@ function FetchSettings(props) {
    *  re-rendering the component if the redux state is updated.
    */
   if (size(settings) !== 0 && !isSettingsLoaded) {
-    setSettingsLoaded(true);
+    setSettingsLoaded(true)
   }
   /**
    * If the settings aren't loaded, fetch them now
    */
   useEffect(() => {
-    let settingsResponse;
+    let settingsResponse
     if (!isSettingsLoaded) {
-      settingsResponse = dispatch(fetchSettings());
+      settingsResponse = dispatch(fetchSettings())
     }
     return () => {
-      if (settingsResponse?.PromiseStatus === "pending") {
-        settingsResponse.abort();
+      if (settingsResponse?.PromiseStatus === 'pending') {
+        settingsResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   if (!isEmpty(options) && !isOptionsLoaded) {
-    setOptionsLoaded(true);
+    setOptionsLoaded(true)
   }
 
   useEffect(() => {
-    let optionsResponse;
+    let optionsResponse
     if (!isOptionsLoaded) {
-      optionsResponse = dispatch(fetchOptions());
+      optionsResponse = dispatch(fetchOptions())
     }
     return () => {
-      if (optionsResponse?.PromiseStatus === "pending") {
-        optionsResponse.abort();
+      if (optionsResponse?.PromiseStatus === 'pending') {
+        optionsResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
-  //return isAppConfigLoaded && isSettingsLoaded && isOptionsLoaded ? (
-  return isSettingsLoaded && isOptionsLoaded ? props.children : <SBLoading />;
+  return isSettingsLoaded && isOptionsLoaded && isTiersLoaded && isAppConfigLoaded ? props.children : <SBLoading />
 }
 
-export default FetchSettings;
+export default FetchSettings

@@ -13,28 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { configureStore, combineReducers } from '@reduxjs/toolkit'
+import thunk from 'redux-thunk'
+import persistState from 'redux-sessionstorage'
 
-import { configureStore, combineReducers } from "@reduxjs/toolkit";
-import thunk from "redux-thunk";
-import persistState from "redux-sessionstorage";
-
-import reducers from "./reducers";
+import reducers from './reducers'
 
 const sessionStorageConfig = {
-  key: "saas-boost-session",
-};
-
-const appReducers = combineReducers(reducers);
-
-const rootReducer = (state, action) => {
-  return appReducers(state, action);
-};
-
-export default function configureAppStore() {
-  const store = configureStore({
-    reducer: rootReducer,
-    middleware: [thunk],
-    enhancers: [persistState("session", sessionStorageConfig)],
-  });
-  return store;
+  key: 'saas-boost-session',
 }
+
+const store = configureStore({
+  reducer: reducers,
+  middleware: [thunk],
+  enhancers: [persistState('session', sessionStorageConfig)],
+})
+
+export default store

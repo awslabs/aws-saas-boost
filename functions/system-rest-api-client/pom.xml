@@ -21,7 +21,6 @@ limitations under the License.
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
         <artifactId>saasboost-functions</artifactId>
         <version>1.0.0</version>
-        <relativePath>../</relativePath>
     </parent>
     <artifactId>SystemRestApiClient</artifactId>
     <version>1.0.0</version>
@@ -34,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>9</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -84,10 +83,6 @@ limitations under the License.
 
     <dependencies>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>Utils</artifactId>
             <version>1.0.0</version>
@@ -100,20 +95,6 @@ limitations under the License.
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-core</artifactId>
-            <version>1.2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-events</artifactId>
-            <version>3.1.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-log4j2</artifactId>
         </dependency>
     </dependencies>
 </project>

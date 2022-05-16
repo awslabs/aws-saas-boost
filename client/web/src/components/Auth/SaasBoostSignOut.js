@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import React from "react";
+import React from 'react'
 
-import { Auth } from "aws-amplify";
-import { Button } from "reactstrap";
+import { Auth } from 'aws-amplify'
+import { Button } from 'reactstrap'
 
 const SaasBoostSignOut = () => {
   const handleSignOut = async (e) => {
-    await Auth.signOut();
-  };
+    await Auth.signOut()
+  }
 
-  return <Button onClick={handleSignOut}>Sign Out</Button>;
-};
+  return <Button onClick={handleSignOut}>Sign Out</Button>
+}
 
-export default SaasBoostSignOut;
+export default SaasBoostSignOut

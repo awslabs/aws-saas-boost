@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,9 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.UUID;
 
 import static org.junit.Assert.*;
 
@@ -26,19 +31,39 @@ public class TenantTest {
         Tenant tenant = new Tenant();
         assertFalse("Null onboarding status tenants are not provisioned", tenant.isProvisioned());
 
-        tenant.setOnboardingStatus("created");
-        assertFalse("Created tenants are not provisioned", tenant.isProvisioned());
+        Collection<String> provisionedStates = Arrays.asList("created", "validating", "validated", "provisioning",
+                "provisioned", "updating", "updated", "deploying", "deployed");
+        Collection<String> unProvisionedStates = Arrays.asList("failed", "deleting", "deleted");
 
-        tenant.setOnboardingStatus("failed");
-        assertFalse("Failed tenants are not provisioned", tenant.isProvisioned());
+        for (String onboardingStatus : provisionedStates) {
+            tenant.setOnboardingStatus(onboardingStatus);
+            assertTrue(onboardingStatus + " tenants are provisioned", tenant.isProvisioned());
+            assertTrue("Serialized tenant has provisioned property",
+                    Utils.toJson(tenant).contains("\"provisioned\":true"));
+        }
+        for (String onboardingStatus : unProvisionedStates) {
+            tenant.setOnboardingStatus(onboardingStatus);
+            assertFalse(onboardingStatus + " tenants are not provisioned", tenant.isProvisioned());
+            assertTrue("Serialized tenant has provisioned property",
+                    Utils.toJson(tenant).contains("\"provisioned\":false"));
+        }
 
-        tenant.setOnboardingStatus("succeeded");
-        assertTrue("Succeeded tenants are provisioned", tenant.isProvisioned());
+        String json = "{\"id\":\"" + UUID.randomUUID() + "\""
+                + ", \"active\":true"
+                + ", \"name\":\"Unit Test\""
+                + ", \"provisioned\":true"
+                + "}";
+        assertFalse("Deserialized tenant doesn't write provisioned",
+                Utils.fromJson(json, Tenant.class).isProvisioned());
 
-        String json = Utils.toJson(tenant);
-        assertTrue("Serialized tenant has provisioned property", json.indexOf("\"provisioned\":true") != -1);
-
-        Tenant deserialized = Utils.fromJson(json, Tenant.class);
-        assertTrue("Deserialized tenant is provisioned", deserialized.isProvisioned());
+        json = "{\"id\":\"" + UUID.randomUUID() + "\""
+                + ", \"active\":true"
+                + ", \"name\":\"Unit Test\""
+                + ", \"provisioned\":false"
+                + ", \"onboardingStatus\": \"deployed\""
+                + "}";
+        assertTrue("Deserialized tenant doesn't write provisioned",
+                Utils.fromJson(json, Tenant.class).isProvisioned());
     }
+
 }

@@ -13,74 +13,70 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { useEffect } from 'react'
+import styles from './Progress.module.css'
+import { Col, Card, CardBody, Row, CardTitle, Progress } from 'reactstrap'
+import { Line } from 'react-chartjs-2'
+import { useDispatch, useSelector } from 'react-redux'
+import { selectMetricResultsById, selectQueryState, queryMetrics } from './ducks'
+import { _colors } from './common'
+import { CircleLoader } from 'react-spinners'
 
-import React, { useEffect } from "react";
-import styles from "./Progress.module.css";
-import { Col, Card, CardBody, Row, CardTitle, Progress } from "reactstrap";
-import { Line } from "react-chartjs-2";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  selectMetricResultsById,
-  selectQueryState,
-  queryMetrics,
-} from "./ducks";
-import { _colors } from "./common";
-import { CircleLoader } from "react-spinners";
-
-const QUERY_ID = "albstats.requestCountFailures4XX";
+const QUERY_ID = 'albstats.requestCountFailures4XX'
 const queryRequest = {
   id: QUERY_ID,
-  timeRangeName: "DAY_7",
-  stat: "Sum",
+  timeRangeName: 'DAY_7',
+  stat: 'Sum',
   dimensions: [
     {
-      metricName: "HTTPCode_Target_4XX_Count",
-      nameSpace: "AWS/ApplicationELB",
+      metricName: 'HTTPCode_Target_4XX_Count',
+      nameSpace: 'AWS/ApplicationELB',
     },
   ],
   topTenants: false,
   statsMap: true,
-};
+}
+
+RequestCountFailuresContainer.propTypes = {
+  selectedTimePeriod: PropTypes.string,
+}
 
 export default function RequestCountFailuresContainer(props) {
-  const { selectedTimePeriod } = props;
-  queryRequest.timeRangeName = selectedTimePeriod;
+  const { selectedTimePeriod } = props
+  queryRequest.timeRangeName = selectedTimePeriod
 
   let data = {
     datasets: [],
     labels: [],
-  };
-  let legends = [];
+  }
+  let legends = []
 
   let chartOpts = {
     tooltips: {
       enabled: true,
       intersect: true,
-      mode: "index",
-      position: "nearest",
+      mode: 'index',
+      position: 'nearest',
     },
     maintainAspectRatio: false,
     legend: {
       display: true,
     },
     scales: {
-      xAxes: [
-        {
-          gridLines: {
-            drawOnChartArea: false,
-          },
+      xAxes: {
+        gridLines: {
+          drawOnChartArea: false,
         },
-      ],
-      yAxes: [
-        {
-          ticks: {
-            beginAtZero: true,
-            //maxTicksLimit: 5,
-            //stepSize: Math.ceil(250 / 5),
-            //max: 250,
-          },
+      },
+      yAxes: {
+        ticks: {
+          beginAtZero: true,
+          //maxTicksLimit: 5,
+          //stepSize: Math.ceil(250 / 5),
+          //max: 250,
         },
-      ],
+      },
     },
     elements: {
       point: {
@@ -90,72 +86,66 @@ export default function RequestCountFailuresContainer(props) {
         hoverBorderWidth: 3,
       },
     },
-  };
-  const dispatch = useDispatch();
-  const albstats = useSelector((state) =>
-    selectMetricResultsById(state, QUERY_ID)
-  );
-  const queryState = useSelector((state) => selectQueryState(state, QUERY_ID));
+  }
+  const dispatch = useDispatch()
+  const albstats = useSelector((state) => selectMetricResultsById(state, QUERY_ID))
+  const queryState = useSelector((state) => selectQueryState(state, QUERY_ID))
   if (albstats) {
-    const metric = albstats.metrics[0];
+    const metric = albstats.metrics[0]
 
     data.datasets.push({
-      label: "P90",
+      label: 'P90',
       data: metric.stats.P90,
       borderWidth: 1,
       backgroundColor: _colors[0],
       borderColor: _colors[0],
       fill: false,
       order: 2,
-    });
+    })
 
     data.datasets.push({
-      label: "P70",
+      label: 'P70',
       data: metric.stats.P70,
       borderWidth: 1,
       backgroundColor: _colors[1],
       borderColor: _colors[1],
       fill: false,
       order: 3,
-    });
+    })
 
     data.datasets.push({
-      label: "P50",
+      label: 'P50',
       data: metric.stats.P50,
       borderWidth: 1,
       backgroundColor: _colors[2],
       borderColor: _colors[2],
       fill: false,
       order: 4,
-    });
-    ["P90", "P70", "P50"].forEach((value, i) => {
+    })
+    ;['P90', 'P70', 'P50'].forEach((value, i) => {
       legends.push(
         <Col sm={4} md className="mb-sm-2 mb-0" key={i}>
           <div className="text-muted">{value}</div>
           <strong>&nbsp;</strong>
-          <Progress
-            className="progress-xs mt-2"
-            barClassName={styles["index" + i]}
-            value="100"
-          />
-        </Col>
-      );
-    });
-    data.labels = [...new Set(albstats.periods)];
+          <Progress className="progress-xs mt-2" barClassName={styles['index' + i]} value="100" />
+        </Col>,
+      )
+    })
+    data.labels = [...new Set(albstats.periods)]
   }
 
   const refreshGraph = () => {
-    return dispatch(queryMetrics(queryRequest));
-  };
+    return dispatch(queryMetrics(queryRequest))
+  }
 
   useEffect(() => {
-    const queryResponse = refreshGraph();
+    const queryResponse = refreshGraph()
     return () => {
-      if (queryResponse.loading === "pending") {
-        queryResponse.abort();
+      if (queryResponse.loading === 'pending') {
+        queryResponse.abort()
       }
-    };
-  }, [selectedTimePeriod, dispatch]);
+    }
+  }, [selectedTimePeriod, dispatch])
 
   return (
     <Col sm="12" md="6" lg="6">
@@ -168,11 +158,8 @@ export default function RequestCountFailuresContainer(props) {
             </Col>
             <Col sm="2" className="d-flex justify-content-end">
               <div className="mr-3">
-                <CircleLoader
-                  size={20}
-                  loading={queryState.loading === "pending"}
-                />
-                {queryState.loading === "idle" && (
+                <CircleLoader size={20} loading={queryState.loading === 'pending'} />
+                {queryState.loading === 'idle' && (
                   <a href="#" onClick={refreshGraph}>
                     <i className="fa fa-refresh text-muted" />
                   </a>
@@ -180,11 +167,11 @@ export default function RequestCountFailuresContainer(props) {
               </div>
             </Col>
           </Row>
-          <div className="chart-wrapper" style={{ height: 300 + "px" }}>
+          <div className="chart-wrapper" style={{ height: 300 + 'px' }}>
             <Line data={data} options={chartOpts} height={300} redraw={true} />
           </div>
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

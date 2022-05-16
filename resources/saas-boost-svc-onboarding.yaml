@@ -30,6 +30,9 @@ Parameters:
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
@@ -39,93 +42,10 @@ Parameters:
   PrivateApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
-  TenantServiceInsert:
-    Description: Tenant Service Insert Lambda
-    Type: String
-  ECSRepository:
-    Description: SaaS Boost ECR image repository
+  ResourcesBucket:
+    Description: S3 bucket containing tenant custom config files (zip archive)
     Type: String
 Resources:
-  SSMParamOnboardingTemplate:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/ONBOARDING_TEMPLATE
-      Type: String
-      Value: tenant-onboarding.yaml
-  OnboardingWorkflowExecRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub sb-${Environment}-workflow-onboarding-role-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - states.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub sb-${Environment}-workflow-onboarding-policy-${AWS::Region}
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !Ref TenantServiceInsert
-                  - !GetAtt OnboardingServiceProvisionTenant.Arn
-              - Effect: Allow
-                Action:
-                  - xray:PutTraceSegments
-                  - xray:PutTelemetryRecords
-                  - xray:GetSamplingRules
-                  - xray:GetSamplingTargets
-                Resource: '*'
-  OnboardingWorkflow:
-    Type: AWS::StepFunctions::StateMachine
-    Properties:
-      StateMachineName: !Sub sb-${Environment}-onboarding
-      StateMachineType: STANDARD
-      RoleArn: !GetAtt OnboardingWorkflowExecRole.Arn
-      DefinitionString: !Sub |
-        {
-          "Comment": "SaaS Boost Tenant Onboarding Flow",
-          "StartAt": "InsertTenant",
-          "States": {
-            "InsertTenant": {
-              "Type": "Task",
-              "Resource": "${TenantServiceInsert}",
-              "InputPath": "$",
-              "ResultPath": "$.taskresult",
-              "TimeoutSeconds": 300,
-              "Next": "ProvisionTenant"
-            },
-            "ProvisionTenant": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:${AWS::Region}:${AWS::AccountId}:lambda:invoke",
-              "Parameters": {
-                "FunctionName": "${OnboardingServiceProvisionTenant.Arn}",
-                "Payload": {
-                  "body": {
-                    "onboardingId.$": "$.onboardingId",
-                    "tenant.$": "$.taskresult.body"
-                  }
-                }
-              },
-              "TimeoutSeconds": 300,
-              "End": true
-            }
-          }
-        }
-  SSMParamOnboardingWorkflow:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/ONBOARDING_WORKFLOW
-      Type: String
-      Value: !Ref OnboardingWorkflow
   OnboardingTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -158,6 +78,77 @@ Resources:
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
+  OnboardingValidationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-validation
+      VisibilityTimeout: 60 # Must be greater than the Timeout setting on the Lambda
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OnboardingValidationDLQ.Arn
+        maxReceiveCount: 10
+  OnboardingValidationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-validation-dlq
+  OnboardingTenantConfigQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-tenant-config
+      VisibilityTimeout: 90
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OnboardingTenantConfigDLQ.Arn
+        maxReceiveCount: 10
+  OnboardingTenantConfigDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-onboarding-tenant-config-dlq
+  OnboardingTenantConfigQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref OnboardingTenantConfigQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Resource: !GetAtt OnboardingTenantConfigQueue.Arn
+            Action:
+              - SQS:SendMessage
+  OnboardingTenantConfigEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-onboarding-tenant-config
+      Description: SaaS Boost onboarding tenant config resources bucket events
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created"
+          ],
+          "detail": {
+            "reason": [
+              "PutObject"
+            ],
+            "bucket": {
+              "name": [
+                "${ResourcesBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "00temp"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt OnboardingTenantConfigQueue.Arn
+          Id: !Sub sb-${Environment}-onboarding-tenant-config
   PopulateDynamoDBExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -205,19 +196,580 @@ Resources:
       FunctionName: !Sub sb-${Environment}-populate-ddb
       Role: !GetAtt PopulateDynamoDBExecRole.Arn
       Runtime: java11
-      Timeout: 300
+      Timeout: 60
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.CidrDynamoDB
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CidrDynamoDB-lambda.zip
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
   InvokePopulateDynamoDB:
     Type: Custom::CustomResource
     Properties:
       ServiceToken: !GetAtt PopulateDynamoDB.Arn
       Table: !Ref CidrBlockTable
+  OnboardingServiceBasePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service base policy for CRUD operations
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:PutLogEvents
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+          - Effect: Allow
+            Action:
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+              - logs:CreateLogStream
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+              - dynamodb:DescribeTable
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:DeleteItem
+              - dynamodb:Scan
+              - dynamodb:Query
+              - dynamodb:UpdateItem
+            Resource:
+              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OnboardingTable}
+              - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CidrBlockTable}
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${SaaSBoostBucket}
+              - !Sub arn:aws:s3:::${ResourcesBucket}
+          - Effect: Allow
+            Action:
+              - s3:Get*
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              - !Sub arn:aws:s3:::${SaaSBoostBucket}/*
+              - !Sub arn:aws:s3:::${ResourcesBucket}/*
+          - Effect: Allow
+            Action:
+              - events:PutEvents
+            Resource:
+              - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+          - Effect: Allow
+            Action:
+              - events:DescribeRule
+              - events:DeleteRule
+              - events:PutRule
+              - events:PutTargets
+              - events:RemoveTargets
+            Resource:
+              - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+            Resource:
+              - !GetAtt OnboardingValidationQueue.Arn
+              - !GetAtt OnboardingTenantConfigQueue.Arn
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+            Resource:
+              - !GetAtt OnboardingValidationDLQ.Arn
+              - !GetAtt OnboardingTenantConfigDLQ.Arn
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource:
+              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+          - Effect: Allow
+            Action:
+              - ecr:ListImages
+              - ecr:CreateRepository
+              - ecr:DeleteRepository
+            Resource:
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              - arn:aws:apigateway:*::/restapis/*/resources
+          - Effect: Allow
+            Action:
+              - lambda:AddPermission
+              - lambda:RemovePermission
+              - lambda:InvokeFunction
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+  OnboardingServiceTenantProvisionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service policy for base tenant environment provisioning
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:UpdateStack
+              - cloudformation:CreateChangeSet
+              - cloudformation:DeleteStack
+              - cloudformation:DescribeStacks
+            Resource:
+              - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
+              - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:transform/saas-boost-app-services-macro
+          - Effect: Allow
+            Action:
+              - sns:Publish
+            Resource:
+              - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter*
+              - ssm:PutParameter
+              - ssm:DeleteParameter
+            Resource:
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
+          - Effect: Allow
+            Action:
+              - ssm:GetParameters
+            Resource:
+              - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
+              - arn:aws:ssm:*:*:parameter/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/*
+          - Effect: Allow
+            Action:
+              - ssm:AddTagsToResource
+            Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+          - Effect: Allow
+            Action:
+              - ecs:DescribeClusters
+              - ecs:DeleteCluster
+            Resource:
+              - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - codepipeline:CreatePipeline
+              - codepipeline:DeletePipeline
+              - codepipeline:GetPipeline
+              - codepipeline:GetPipelineState
+              - codepipeline:UpdatePipeline
+            Resource:
+              - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - kms:TagResource
+              - kms:PutKeyPolicy
+              - kms:CreateAlias
+              - kms:UpdateAlias
+              - kms:DeleteAlias
+              - kms:UntagResource
+              - kms:DescribeKey
+              - kms:ScheduleKeyDeletion
+              - kms:Get*
+            Resource:
+              - !Sub arn:aws:kms:*:${AWS::AccountId}:alias/*
+              - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*
+          - Effect: Allow
+            Action:
+              - route53:GetHostedZone
+              - route53:ChangeResourceRecordSets
+              - route53:ListResourceRecordSets
+              - route53:ChangeTagsForResource
+              - route53:ListQueryLoggingConfigs
+              - route53:DeleteHostedZone
+            Resource:
+              - arn:aws:route53:::hostedzone/*
+          - Effect: Allow
+            Action:
+              - route53:GetChange
+            Resource:
+              - arn:aws:route53:::change/*
+          - Effect: Allow
+            Action:
+              - route53:ListHostedZonesByName
+              - route53:CreateHostedZone
+              - ec2:CreateInternetGateway
+              - ec2:DeleteInternetGateway
+              - ec2:CreateVpc
+              - ec2:DeleteVpc
+              - ec2:ModifyVpcAttribute
+              - ec2:AttachInternetGateway
+              - ec2:DetachInternetGateway
+              - ec2:CreateSubnet
+              - ec2:DeleteSubnet
+              - ec2:CreateSecurityGroup
+              - ec2:DeleteSecurityGroup
+              - ec2:CreateRouteTable
+              - ec2:DeleteRouteTable
+              - ec2:AssociateRouteTable
+              - ec2:DisassociateRouteTable
+              - ec2:Describe*
+              - ec2:CreateNetworkInterface
+              - ec2:DeleteNetworkInterface
+              - elasticloadbalancing:Describe*
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+              - kms:List*
+              - kms:CreateKey
+            Resource:
+              - '*'
+  OnboardingServiceComputeProvisionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service policy for tenant environment compute provisioning
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:PutRetentionPolicy
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/sb-${Environment}-tenant*
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - ec2:CreateTags
+              - ec2:DeleteTags
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
+          - Effect: Allow
+            Action:
+              - ec2:CreateLaunchTemplate
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:launch-template/*
+          - Effect: Allow
+            Action:
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupIngress
+              - ec2:AuthorizeSecurityGroupEgress
+              - ec2:RevokeSecurityGroupEgress
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+          - Effect: Allow
+            Action:
+              - ec2:CreateRoute
+              - ec2:DeleteRoute
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
+          - Effect: Allow
+            Action:
+              - ec2:CreateTransitGatewayVpcAttachment
+              - ec2:DeleteTransitGatewayVpcAttachment
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
+          - Effect: Allow
+            Action:
+              - ec2:CreateTransitGatewayRoute
+              - ec2:DeleteTransitGatewayRoute
+              - ec2:AssociateTransitGatewayRouteTable
+              - ec2:DisassociateTransitGatewayRouteTable
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateTargetGroup
+              - elasticloadbalancing:ModifyTargetGroupAttributes
+              - elasticloadbalancing:DeleteTargetGroup
+            Resource:
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/*/*
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateLoadBalancer
+              - elasticloadbalancing:DeleteLoadBalancer
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
+              - elasticloadbalancing:CreateListener
+            Resource:
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/app/*/*
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/net/*/*
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:ModifyRule
+              - elasticloadbalancing:DeleteRule
+              - elasticloadbalancing:DeleteListener
+            Resource:
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/app/*
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
+              - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/net/*
+          - Effect: Allow
+            Action:
+              - iam:CreateServiceLinkedRole
+              - iam:DeleteServiceLinkedRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+            Condition:
+              StringLike:
+                iam:AWSServiceName:
+                  - ecs.application-autoscaling.amazonaws.com
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:PassRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-*tenant*
+          - Effect: Allow
+            Action:
+              - iam:GetInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:DeleteInstanceProfile
+              - iam:AddRoleToInstanceProfile
+              - iam:RemoveRoleFromInstanceProfile
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - ecs:PutClusterCapacityProviders
+              - ecs:DescribeCapacityProviders
+              - ecs:DeleteCapacityProvider
+            Resource:
+              - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/sb-${Environment}-tenant*
+              - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - ecs:CreateService
+              - ecs:DescribeServices
+              - ecs:UpdateService
+              - ecs:DeleteService
+            Resource:
+              - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - servicediscovery:CreateService
+              - servicediscovery:DeleteNamespace
+            Resource:
+              - !Sub arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:namespace/*
+          - Effect: Allow
+            Action:
+              - servicediscovery:GetService
+              - servicediscovery:DeleteService
+            Resource:
+              - !Sub arn:aws:servicediscovery:${AWS::Region}:${AWS::AccountId}:service/*
+          - Effect: Allow
+            Action:
+              - autoscaling:CreateAutoScalingGroup
+              - autoscaling:DeleteAutoScalingGroup
+              - autoscaling:UpdateAutoScalingGroup
+              - autoscaling:SuspendProcesses
+              - autoscaling:ResumeProcesses
+              - autoscaling:CreateOrUpdateTags
+              - autoscaling:DeleteTags
+            Resource:
+              - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/sb-${Environment}-tenant*
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
+          - Effect: Allow
+            Action:
+              - servicediscovery:CreatePrivateDnsNamespace
+              - servicediscovery:GetOperation
+              - application-autoscaling:Describe*
+              - application-autoscaling:RegisterScalableTarget
+              - application-autoscaling:DeregisterScalableTarget
+              - application-autoscaling:DeleteScalingPolicy
+              - application-autoscaling:PutScalingPolicy
+              - autoscaling:Describe*
+              - ecs:CreateCluster
+              - ecs:CreateCapacityProvider
+              - ecs:DescribeTaskDefinition
+              - ecs:RegisterTaskDefinition
+              - ecs:DeregisterTaskDefinition
+              - ecs:TagResource
+              - ecs:UntagResource
+              - ec2:RunInstances
+            Resource:
+              - '*'
+  OnboardingServiceDatabaseProvisionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service policy for tenant environment database provisioning
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:PutRetentionPolicy
+              - logs:DeleteLogGroup
+            Resource:
+              - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+              - rds:AddTagsToResource
+              - rds:RemoveTagsFromResource
+              - rds:CreateDBCluster
+              - rds:CreateDBInstance
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
+          - Effect: Allow
+            Action:
+              - rds:CreateDBSnapshot
+              - rds:CreateDBClusterSnapshot
+              - rds:DescribeDBClusterSnapshots
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
+          - Effect: Allow
+            Action:
+              - rds:DescribeDBClusters
+              - rds:DeleteDBCluster
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:sb-${Environment}-*tenant*
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
+          - Effect: Allow
+            Action:
+              - rds:DescribeDBSubnetGroups
+              - rds:CreateDBSubnetGroup
+              - rds:DeleteDBSubnetGroup
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
+          - Effect: Allow
+            Action:
+              - rds:DescribeDBInstances
+              - rds:DeleteDBInstance
+            Resource:
+              - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:PassRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-tenant*
+          - Effect: Allow
+            Action:
+              - lambda:GetFunction
+              - lambda:CreateFunction
+              - lambda:InvokeFunction
+              - lambda:DeleteFunction
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-rds-bootstrap-tenant-*
+          - Effect: Allow
+            Action:
+              - lambda:GetLayerVersion
+            Resource:
+              - !Ref SaaSBoostUtilsLayer
+              - !Ref CloudFormationUtilsLayer
+  OnboardingServiceStorageProvisionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service policy for tenant environment storage provisioning
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:Describe*
+              - elasticfilesystem:CreateMountTarget
+              - elasticfilesystem:DeleteMountTarget
+              - elasticfilesystem:CreateTags
+              - elasticfilesystem:PutFileSystemPolicy
+              - elasticfilesystem:DeleteFileSystemPolicy
+              - elasticfilesystem:PutLifecycleConfiguration
+            Resource:
+              - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
+          - Effect: Allow
+            Action:
+              - fsx:CreateFileSystem
+              - fsx:DeleteFileSystem
+              - fsx:TagResource
+            Resource:
+              - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+          - Effect: Allow
+            Action:
+              - elasticfilesystem:CreateFileSystem
+              - elasticfilesystem:DeleteFileSystem
+              - ds:DescribeDirectories
+              - fsx:DescribeFileSystems
+            Resource:
+              - '*'
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:PassRole
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-fsx-dns-tenant*
+          - Effect: Allow
+            Action:
+              - lambda:GetFunction
+              - lambda:CreateFunction
+              - lambda:InvokeFunction
+              - lambda:DeleteFunction
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-fsx-dns-tenant-*
+          - Effect: Allow
+            Action:
+              - lambda:GetLayerVersion
+            Resource:
+              - !Ref SaaSBoostUtilsLayer
+              - !Ref CloudFormationUtilsLayer
+          - Effect: Allow
+            Action:
+              # This is for the AD stack -- need to figure out why update DNS wants to delete its SSM params
+              - ssm:DeleteParameter
+            Resource:
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
+          # This is for the AD stack -- need to figure out why update DNS wants to delete the directory
+          - Effect: Allow
+            Action:
+              - ds:DeleteDirectory
+            Resource:
+              - !Sub arn:aws:ds:${AWS::Region}:${AWS::AccountId}:directory/*
   OnboardingServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -232,661 +784,12 @@ Resources:
                 - lambda.amazonaws.com
             Action:
               - sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub sb-${Environment}-onboarding-svc-policy-${AWS::Region}
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
-              - Effect: Allow
-                Action:
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                  - logs:CreateLogStream
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:PutRetentionPolicy
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/tenant*
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/tenant*
-              - Effect: Allow
-                Action:
-                  - dynamodb:DescribeTable
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                  - dynamodb:UpdateItem
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OnboardingTable}
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CidrBlockTable}
-              - Effect: Allow
-                Action:
-                  - states:StartExecution
-                Resource:
-                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:sb-${Environment}-onboarding
-              - Effect: Allow
-                Action:
-                  - cloudformation:CreateStack
-                Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Tenant-*
-              - Effect: Allow
-                Action:
-                  - cloudformation:UpdateStack
-                Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Tenant-*
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}
-              - Effect: Allow
-                Action:
-                  - s3:Get*
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}/*
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource:
-                  - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
-              - Effect: Allow
-                Action:
-                  - ssm:Get*
-                  - ssm:PutParameter
-                  # This is for the AD stack -- need to figure out why update DNS wants to delete its SSM params
-                  - ssm:DeleteParameter
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
-                  - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateInternetGateway
-                  - ec2:CreateVpc
-                  - ec2:ModifyVpcAttribute
-                  - ec2:AttachInternetGateway
-                  - ec2:CreateSubnet
-                  - ec2:CreateSecurityGroup
-                  - ec2:CreateRouteTable
-                  - ec2:AssociateRouteTable
-                  - ec2:Describe*
-                  - ec2:CreateNetworkInterface
-                  - ecs:CreateCapacityProvider
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTags
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - ssm:AddTagsToResource
-                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
-              - Effect: Allow
-                Action:
-                  - ec2:AuthorizeSecurityGroupIngress
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateRoute
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTransitGatewayVpcAttachment
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateTransitGatewayRoute
-                  - ec2:AssociateTransitGatewayRouteTable
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateTargetGroup
-                  - elasticloadbalancing:ModifyTargetGroupAttributes
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateLoadBalancer
-                  - elasticloadbalancing:ModifyLoadBalancerAttributes
-                  - elasticloadbalancing:CreateListener
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/app/*/*
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/net/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:CreateRule
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
-              - Effect: Allow
-                Action:
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:GetRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:PassRole
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
-              - Effect: Allow
-                Action:
-                  - iam:CreateInstanceProfile
-                  - iam:AddRoleToInstanceProfile
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/Tenant-*
-              - Effect: Allow
-                Action:
-                  - iam:CreateServiceLinkedRole
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
-                Condition:
-                  StringLike:
-                    iam:AWSServiceName:
-                      - ecs.application-autoscaling.amazonaws.com
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
-              - Effect: Allow
-                Action:
-                  - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeClusters
-                  - ecs:PutClusterCapacityProviders                  
-                Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
-              - Effect: Allow
-                Action:
-                  - ecs:CreateService
-                  - ecs:DescribeServices
-                  - ecs:UpdateService
-                  - ecs:DescribeCapacityProviders
-                Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/*
-              - Effect: Allow
-                Action:
-                  - codepipeline:CreatePipeline
-                  - codepipeline:GetPipeline
-                  - codepipeline:GetPipelineState
-                  - codepipeline:UpdatePipeline
-                Resource:
-                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
-              - Effect: Allow
-                Action:
-                  - route53:GetHostedZone
-                  - route53:ChangeResourceRecordSets
-                  - route53:ListResourceRecordSets
-                  - route53:ChangeTagsForResource
-                  - route53:ListQueryLoggingConfigs
-                  - route53:DeleteHostedZone
-                Resource:
-                  - arn:aws:route53:::hostedzone/*
-              - Effect: Allow
-                Action:
-                  - route53:CreateHostedZone
-                  - elasticfilesystem:CreateFileSystem
-                  - ds:DescribeDirectories
-                  - fsx:DescribeFileSystems
-                  - application-autoscaling:Describe*
-                  - application-autoscaling:RegisterScalableTarget
-                  - application-autoscaling:PutScalingPolicy
-                  - autoscaling:Describe*
-                  - ecs:CreateCluster
-                  - ecs:RegisterTaskDefinition
-                  - ecs:DeregisterTaskDefinition
-                  - ecs:TagResource
-                  - ecs:UntagResource
-                  - elasticloadbalancing:Describe*
-                  - elasticloadbalancing:AddTags
-                  - elasticloadbalancing:RemoveTags
-                  - kms:List*
-                  - kms:CreateKey
-                  - kms:Describe*
-                  - kms:Get*
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                - kms:TagResource
-                - kms:PutKeyPolicy
-                - kms:CreateAlias
-                - kms:UpdateAlias
-                Resource:
-                - !Sub arn:aws:kms:*:${AWS::AccountId}:alias/*
-                - !Sub arn:aws:kms:*:${AWS::AccountId}:key/*
-              - Effect: Allow
-                Action:
-                  - route53:GetChange
-                Resource:
-                  - arn:aws:route53:::change/*
-              - Effect: Allow
-                Action:
-                  - elasticfilesystem:Describe*
-                  - elasticfilesystem:CreateMountTarget
-                  - elasticfilesystem:CreateTags
-                  - elasticfilesystem:PutFileSystemPolicy
-                  - elasticfilesystem:PutLifecycleConfiguration
-                  - fsx:CreateFileSystem
-                  - fsx:TagResource
-                Resource:
-                  - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
-                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBClusters
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-              - Effect: Allow
-                Action:
-                  - rds:CreateDBCluster
-                  - rds:AddTagsToResource
-                  - rds:RemoveTagsFromResource
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBSubnetGroups
-                  - rds:CreateDBSubnetGroup
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBInstances
-                  - rds:CreateDBInstance
-                  - rds:AddTagsToResource
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:secgrp:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-              - Effect: Allow
-                Action:
-                  - events:PutEvents
-                Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
-              - Effect: Allow
-                Action:
-                  - autoscaling:CreateLaunchConfiguration
-                Resource:
-                  - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:launchConfiguration:*:launchConfigurationName/Tenant-*
-              - Effect: Allow
-                Action:
-                  - autoscaling:CreateAutoScalingGroup
-                  - autoscaling:UpdateAutoScalingGroup
-                  - autoscaling:SuspendProcesses
-                  - autoscaling:ResumeProcesses
-                  - autoscaling:CreateOrUpdateTags
-                Resource:
-                  - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
-              - Effect: Allow
-                Action:
-                  - ecr:ListImages
-                Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
-              - Effect: Allow
-                Action:
-                  - lambda:Get*
-                  - lambda:CreateFunction
-                  - lambda:InvokeFunction
-                  - lambda:UpdateFunctionCode
-                Resource:
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
-              - Effect: Allow
-                Action:
-                  - ec2:RevokeSecurityGroupEgress
-                  - ec2:AuthorizeSecurityGroupEgress
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
-              # This is for the AD stack -- need to figure out why update DNS wants to delete the directory
-              - Effect: Allow
-                Action:
-                  - ds:DeleteDirectory
-                Resource:
-                  - !Sub arn:aws:ds:${AWS::Region}:${AWS::AccountId}:directory/*
-  OnboardingServiceDeleteTenantExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub sb-${Environment}-onboarding-delete-tenant-role-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub sb-${Environment}-onboarding-delete-tenant-policy-${AWS::Region}
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
-              - Effect: Allow
-                Action:
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                  - logs:CreateLogStream
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:PutRetentionPolicy
-                  - logs:DeleteLogGroup
-                Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/tenant*
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/tenant*
-              - Effect: Allow
-                Action:
-                  - dynamodb:DescribeTable
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:DeleteItem
-                  - dynamodb:Scan
-                  - dynamodb:Query
-                  - dynamodb:UpdateItem
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OnboardingTable}
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CidrBlockTable}
-              - Effect: Allow
-                Action:
-                  - cloudformation:DeleteStack
-                Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/Tenant-*
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource:
-                  - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sb-*
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                  - ssm:PutParameter
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
-                  - arn:aws:ssm:*:*:parameter/aws/service/ami-windows-latest/*
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteInternetGateway
-                  - ec2:Describe*
-                  - ec2:DeleteVpc
-                  - ec2:DetachInternetGateway
-                  - ec2:DeleteSubnet
-                  - ec2:DeleteSecurityGroup
-                  - ec2:DeleteRouteTable
-                  - ec2:DisassociateRouteTable
-                  - ec2:DeleteNetworkInterface
-                  - kms:DeleteAlias
-                  - kms:GetKeyPolicy
-                  - kms:DescribeKey
-                  - kms:UntagResource
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteTags
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:internet-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - ec2:RevokeSecurityGroupIngress
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteRoute
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:route-table/*
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteTransitGatewayVpcAttachment
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteTransitGatewayRoute
-                  - ec2:DisassociateTransitGatewayRouteTable
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:DeleteTargetGroup
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:DeleteLoadBalancer
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/app/*/*
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:loadbalancer/net/*/*
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:DeleteRule
-                  - elasticloadbalancing:DeleteListener
-                Resource:
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/app/*/*
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener/net/*/*
-                  - !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:listener-rule/app/*
-              - Effect: Allow
-                Action:
-                  - iam:GetRolePolicy
-                  - iam:DeleteRole
-                  - iam:DeleteRolePolicy
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*tenant*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/sb-${Environment}-rds-bootstrap-role-${AWS::Region}
-              - Effect: Allow
-                Action:
-                  - iam:DeleteInstanceProfile
-                  - iam:RemoveRoleFromInstanceProfile
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/Tenant-*
-              - Effect: Allow
-                Action:
-                  - iam:DeleteServiceLinkedRole
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
-                Condition:
-                  StringLike:
-                    iam:AWSServiceName:
-                      - ecs.application-autoscaling.amazonaws.com
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
-              - Effect: Allow
-                Action:
-                  - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeClusters
-                Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeClusters
-                  - ecs:PutClusterCapacityProviders                  
-                Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*                  
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeServices
-                  - ecs:DeleteService
-                  - ecs:DeleteCapacityProvider
-                  - ecs:DescribeCapacityProviders
-                Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/tenant*                  
-              - Effect: Allow
-                Action:
-                  - codepipeline:GetPipeline
-                  - codepipeline:GetPipelineState
-                  - codepipeline:DeletePipeline
-                Resource:
-                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:tenant*
-              - Effect: Allow
-                Action:
-                  - route53:GetHostedZone
-                  - route53:ListResourceRecordSets
-                  - route53:ListQueryLoggingConfigs
-                  - route53:DeleteHostedZone
-                  - route53:ChangeResourceRecordSets
-                Resource:
-                  - arn:aws:route53:::hostedzone/*
-              - Effect: Allow
-                Action:
-                  - elasticfilesystem:DeleteFileSystem
-                  - ds:DescribeDirectories
-                  - fsx:DescribeFileSystems
-                  - application-autoscaling:Describe*
-                  - application-autoscaling:DeleteScalingPolicy
-                  - autoscaling:Describe*
-                  - autoscaling:DeleteTags
-                  - application-autoscaling:DeregisterScalableTarget
-                  - ecs:DeleteCluster
-                  - ecs:DescribeTaskDefinition
-                  - ecs:DeregisterTaskDefinition
-                  - ecs:UntagResource
-                  - elasticloadbalancing:Describe*
-                  - elasticloadbalancing:RemoveTags
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - route53:GetChange
-                Resource:
-                  - arn:aws:route53:::change/*
-              - Effect: Allow
-                Action:
-                  - elasticfilesystem:DescribeFileSystems
-                  - elasticfilesystem:DeleteMountTarget
-                  - elasticfilesystem:DescribeMountTargets
-                  - elasticfilesystem:DescribeTags
-                  - elasticfilesystem:DeleteFileSystemPolicy
-                  - fsx:DescribeFileSystems
-                  - fsx:DeleteFileSystem
-                Resource:
-                  - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/*
-                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBClusters                  
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-              - Effect: Allow
-                Action:
-                  - rds:DeleteDBCluster
-                  - rds:CreateDBClusterSnapshot
-                  - rds:DescribeDBClusterSnapshots
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBSubnetGroups
-                  - rds:DeleteDBSubnetGroup
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-              - Effect: Allow
-                Action:
-                  - rds:DescribeDBInstances
-                  - rds:DeleteDBInstance
-                  - rds:RemoveTagsFromResource
-                Resource:
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:tenant*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:secgrp:*
-                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:tenant*
-              - Effect: Allow
-                Action:
-                  - events:PutEvents
-                Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
-              - Effect: Allow
-                Action:
-                  - autoscaling:DeleteLaunchConfiguration
-                Resource:
-                  - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:launchConfiguration:*:launchConfigurationName/Tenant-*
-              - Effect: Allow
-                Action:
-                  - autoscaling:DeleteAutoScalingGroup
-                  - autoscaling:UpdateAutoScalingGroup
-                  - autoscaling:SuspendProcesses
-                Resource:
-                  - !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/tenant-*
-              - Effect: Allow
-                Action:
-                  - ecr:ListImages
-                Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECSRepository}
-              - Effect: Allow
-                Action:
-                  - lambda:GetFunction
-                  - lambda:GetFunctionConfiguration
-                  - lambda:InvokeFunction
-                  - lambda:DeleteFunction
-                Resource:
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tenant*
-              - Effect: Allow
-                Action:
-                  - ssm:Get*
-                  - ssm:DeleteParameter
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*                
-              - Effect: Allow
-                Action:
-                  - ec2:RevokeSecurityGroupEgress
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
+      ManagedPolicyArns:
+        - !Ref OnboardingServiceBasePolicy
+        - !Ref OnboardingServiceTenantProvisionPolicy
+        - !Ref OnboardingServiceComputeProvisionPolicy
+        - !Ref OnboardingServiceDatabaseProvisionPolicy
+        - !Ref OnboardingServiceStorageProvisionPolicy
   OnboardingServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -909,6 +812,7 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -938,6 +842,7 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -958,7 +863,7 @@ Resources:
       Runtime: java11
       Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::startOnboarding
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::insertOnboarding
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -968,12 +873,10 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          ONBOARDING_WORKFLOW: !Ref OnboardingWorkflow
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-          ECR_REPO: !Ref ECSRepository
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -981,20 +884,20 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-  OnboardingServiceUpdateStatusLogs:
+  OnboardingServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-status
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update
       RetentionInDays: 30
-  OnboardingServiceUpdateStatus:
+  OnboardingServiceUpdate:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-status
+      FunctionName: !Sub sb-${Environment}-onboarding-update
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateStatus
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateOnboarding
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -1004,63 +907,61 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingServiceProvisionTenantLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-provision
-      RetentionInDays: 30
-  OnboardingServiceProvisionTenant:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-provision
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::provisionTenant
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-
-  OnboardingServiceDeleteTenantLogs:
+  OnboardingServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-delete
       RetentionInDays: 30
-  OnboardingServiceDeleteTenant:
+  OnboardingServiceDelete:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-delete
-      Role: !GetAtt OnboardingServiceDeleteTenantExecutionRole.Arn
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
-      Timeout: 600
+      Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::deleteTenant
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::deleteOnboarding
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+  OnboardingServiceEventHandlerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-events
+      RetentionInDays: 30
+  OnboardingServiceEventHandler:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-events
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 45
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::handleOnboardingEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
@@ -1072,156 +973,179 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          ONBOARDING_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_STACK_SNS}}'
+          ONBOARDING_APP_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_APP_STACK_SNS}}'
+          ONBOARDING_VALIDATION_QUEUE: !Ref OnboardingValidationQueue
+          ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
         - Key: "Environment"
           Value: !Ref Environment
         - Key: "BoostService"
-          Value: "Onboarding"
-
-  OnboardingServiceDeleteTenantEventRule:
+  OnboardingServiceValidationLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-validation
+      RetentionInDays: 30
+  OnboardingServiceValidation:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-validation
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 59 # Must be less than the VisibilityTimeout setting on the queue
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::processValidateOnboardingQueue
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+  ValidationEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      Enabled: true
+      EventSourceArn: !GetAtt OnboardingValidationQueue.Arn
+      FunctionName: !GetAtt OnboardingServiceValidation.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+  OnboardingTenantConfigLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-tenant-config-event
+      RetentionInDays: 30
+  OnboardingTenantConfig:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-onboarding-tenant-config-event
+      Role: !GetAtt OnboardingServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 89 # Must be less than the VisibilityTimeout setting on the queue
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::processTenantConfigQueue
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          ONBOARDING_TABLE: !Ref OnboardingTable
+          CIDR_BLOCK_TABLE: !Ref CidrBlockTable
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+  OnboardingTenantConfigEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 0
+      Enabled: true
+      EventSourceArn: !GetAtt OnboardingTenantConfigQueue.Arn
+      FunctionName: !GetAtt OnboardingTenantConfig.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+  OnboardingServiceEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-onboarding-delete-rule
-      Description: Delete provisioned tenant
+      Name: !Sub sb-${Environment}-onboarding-events
+      Description: SaaS Boost onboarding events
       EventBusName: !Ref SaaSBoostEventBus
       EventPattern:
-        detail-type:
-          - Delete Tenant
-        source:
-          - saas-boost
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [
+            {
+              "prefix": "Onboarding "
+            },
+            "Application Configuration Changed",
+            "Tenant Deleted",
+            "Tenant Enabled",
+            "Tenant Disabled"
+          ]
+        }
       State: ENABLED
       Targets:
-        - Arn: !GetAtt OnboardingServiceDeleteTenant.Arn
-          Id: OnboardingServiceDeleteTenant
-
-  OnboardingServiceDeleteTenantFunctionPermission:
+        - Arn: !GetAtt OnboardingServiceEventHandler.Arn
+          Id: !Sub sb-${Environment}-onboarding-events
+  OnboardingServiceEventsPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt OnboardingServiceDeleteTenant.Arn
+      FunctionName: !Ref OnboardingServiceEventHandler
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt OnboardingServiceDeleteTenantEventRule.Arn
-
-  OnboardingStatusListenerLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-listener
-      RetentionInDays: 30
-  OnboardingStatusListener:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-listener
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::statusEventListener
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-  CodePipelineExecutionStateChangeEvent:
+      SourceArn: !GetAtt OnboardingServiceEventRule.Arn
+  # CodePipeline sends its events to the default EventBridge bus, so we need a 2nd rule to match it
+  OnboardingDeploymentPipelineEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${Environment}-tenant-pipeline
-      EventPattern:
-        source: ['aws.codepipeline']
-        detail-type: ['CodePipeline Pipeline Execution State Change']
+      Name: !Sub sb-${Environment}-codepipeline-state
+      Description: CodePipeline state changes for SaaS Boost onboarding deployment events
+      EventPattern: # Skip STOPPING events
+        {
+          "source": [
+            "aws.codepipeline"
+          ],
+          "detail-type": [
+            "CodePipeline Pipeline Execution State Change"
+          ],
+          "detail": {
+            "state": ["STARTED", "SUCCEEDED", "FAILED"]
+          }
+        }
       State: ENABLED
       Targets:
-        - Arn: !GetAtt OnboardingStatusListener.Arn
-          Id: sb-onboarding-status-listener-lambda
-  CodePipelineExecutionStateChangeEventPermission:
+        - Arn: !GetAtt OnboardingServiceEventHandler.Arn
+          Id: !Sub sb-${Environment}-codepipeline-state
+  OnboardingDeploymentPipelineEventPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref OnboardingStatusListener
-      Principal: events.amazonaws.com
       Action: lambda:InvokeFunction
-      SourceArn: !GetAtt CodePipelineExecutionStateChangeEvent.Arn
-  OnboardingUpdateDomainLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-dns
-      RetentionInDays: 30
-  OnboardingUpdateDomain:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-dns
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::resetDomainName
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
-  OnboardingUpdateTenantLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-update-tenant
-      RetentionInDays: 30
-  OnboardingUpdateTenant:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-update-tenant
-      Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateProvisionedTenant
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OnboardingService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-          ONBOARDING_TABLE: !Ref OnboardingTable
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Onboarding"
+      FunctionName: !Ref OnboardingServiceEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt OnboardingDeploymentPipelineEventRule.Arn
 Outputs:
   OnboardingServiceGetAllArn:
     Description: Onboarding Service get all onboarding requests Lambda ARN
@@ -1232,16 +1156,4 @@ Outputs:
   OnboardingServiceByIdArn:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Value: !GetAtt OnboardingServiceGetById.Arn
-  OnboardingServiceUpdateStatusArn:
-    Description: Onboarding Service update status Lambda ARN
-    Value: !GetAtt OnboardingServiceUpdateStatus.Arn
-  OnboardingStatusListenerArn:
-    Description: Onboarding Service status uplodate listener Lambda ARN
-    Value: !GetAtt OnboardingStatusListener.Arn
-  OnboardingUpdateDomainArn:
-    Description: Onboarding Service update SaaS Boost domain Lambda ARN
-    Value: !GetAtt OnboardingUpdateDomain.Arn
-  OnboardingUpdateTenantArn:
-    Description: Onboarding Service update provisioned tenant Lambda ARN
-    Value: !GetAtt OnboardingUpdateTenant.Arn
 ...

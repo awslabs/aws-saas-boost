@@ -13,17 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import 'react-app-polyfill/stable'
+import 'core-js'
+import React from 'react'
+import ReactDOM from 'react-dom'
+import AppWithAuth from './AppWithAuth'
+import * as serviceWorker from './serviceWorker'
 
-import React from "react";
-import ReactDOM from "react-dom";
-import "./index.css";
-import AppWithAuth from "./AppWithAuth";
-import * as serviceWorker from "./serviceWorker";
-import "moment-timezone";
-
-ReactDOM.render(<AppWithAuth />, document.getElementById("root"));
+ReactDOM.render(<AppWithAuth />, document.getElementById('root'))
 
 // If you want your app to work offline and load faster, you can change
 // unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: https://bit.ly/CRA-PWA
-serviceWorker.unregister();
+// Learn more about service workers: http://bit.ly/CRA-PWA
+serviceWorker.unregister()

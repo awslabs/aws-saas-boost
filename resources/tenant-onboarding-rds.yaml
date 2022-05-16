@@ -21,10 +21,6 @@ Parameters:
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-  LambdaSourceFolder:
-    Description: Folder for lambda source code to change on each deployment
-    Type: String
-    Default: lambdas
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -38,7 +34,7 @@ Parameters:
     Description: Private subnet for EFS mount target
     Type: AWS::EC2::Subnet::Id
   ECSSecurityGroup:
-    Description: Source security group for ECS to access EFS
+    Description: Source security group of ECS instances
     Type: AWS::EC2::SecurityGroup::Id
   RDSInstanceClass:
     Description: The compute and memory capacity of the DB instance
@@ -52,11 +48,11 @@ Parameters:
   RDSParameterGroupFamily:
     Description: The database parameter group family supporting the engine and engine version. Only used for Aurora clusters.
     Type: String
-  RDSMasterUsername:
-    Description: The master username for the database
+  RDSUsername:
+    Description: The username for the database
     Type: String
-  RDSMasterPasswordParam:
-    Description: The Parameter Store secure string parameter and version containing the master database password
+  RDSPasswordParam:
+    Description: The Parameter Store secure string parameter and version containing the database password
     Type: String
   RDSPort:
     Description: The TCP port to connect to the database on
@@ -95,9 +91,9 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-subnets']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       DBSubnetGroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-subnets']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       SubnetIds:
         - !Ref PrivateSubnetA
         - !Ref PrivateSubnetB
@@ -105,7 +101,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       GroupDescription: RDS Security Group
       VpcId: !Ref VPC
   RDSSecurityGroupIngressECS:
@@ -121,7 +117,7 @@ Resources:
     Condition: BootstrapDatabase
     Properties:
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-bstrp-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       GroupDescription: RDS Security Group
       VpcId: !Ref VPC
       SecurityGroupEgress:
@@ -129,99 +125,45 @@ Resources:
           IpProtocol: '-1'
   EncryptionKey:
     Condition: SupportsEncryption
-    DeletionPolicy: Retain
     Type: AWS::KMS::Key
     Properties:
       KeyPolicy:
         Version: 2012-10-17
-        Id: !Sub sb-${Environment}-key-${TenantId}
+        Id: !Sub sb-${Environment}-rds-key-${TenantId}
         Statement:
           - Effect: Allow
             Principal:
               AWS:
-                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: 'kms:*'
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
             Resource: '*'
           - Effect: Allow
             Principal:
               AWS: '*'
             Action:
-              - 'kms:Encrypt'
-              - 'kms:Decrypt'
-              - 'kms:ReEncrypt*'
-              - 'kms:GenerateDataKey*'
-              - 'kms:CreateGrant'
-              - 'kms:ListGrants'
-              - 'kms:DescribeKey'
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:DescribeKey
             Resource: '*'
             Condition:
               StringEquals:
-                'kms:CallerAccount': !Ref 'AWS::AccountId'
-                'kms:ViaService': !Sub 'rds.${AWS::Region}.amazonaws.com'
-          # - Sid: Allow access for Key Administrators
-          #   Effect: Allow
-          #   Principal:
-          #     AWS:
-          #       - !Join
-          #         - ''
-          #         - - 'arn:aws:iam::'
-          #           - !Ref 'AWS::AccountId'
-          #           - :root
-          #   Action:
-          #     - kms:Create*
-          #     - kms:Describe*
-          #     - kms:Enable*
-          #     - kms:List*
-          #     - kms:Put*
-          #     - kms:Update*
-          #     - kms:Revoke*
-          #     - kms:Disable*
-          #     - kms:Get*
-          #     - kms:Delete*
-          #     - kms:ScheduleKeyDeletion
-          #     - kms:CancelKeyDeletion
-          #   Resource: '*'
-          # - Sid: Allow use of the key
-          #   Effect: Allow
-          #   Principal:
-          #     AWS:
-          #       - !Join
-          #         - ''
-          #         - - 'arn:aws:iam::'
-          #           - !Ref 'AWS::AccountId'
-          #           - :root
-          #   Action:
-          #     - kms:Encrypt
-          #     - kms:Decrypt
-          #     - kms:ReEncrypt*
-          #     - kms:GenerateDataKey*
-          #     - kms:DescribeKey
-          #   Resource: '*'
-          # - Sid: Allow attachment of persistent resources
-          #   Effect: Allow
-          #   Principal:
-          #     AWS:
-          #       - !Join
-          #         - ''
-          #         - - 'arn:aws:iam::'
-          #           - !Ref 'AWS::AccountId'
-          #           - :root
-          #   Action:
-          #     - kms:CreateGrant
-          #     - kms:ListGrants
-          #     - kms:RevokeGrant
-          #   Resource: '*'
-          #   Condition:
-          #     Bool:
-          #       kms:GrantIsForAWSResource: true
+                kms:CallerAccount: !Ref 'AWS::AccountId'
+                kms:ViaService: !Sub rds.${AWS::Region}.amazonaws.com
       Tags:
+        - Key: Name
+          Value:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
         - Key: Tenant
           Value: !Ref TenantId
   EncryptionKeyAlias:
     Condition: SupportsEncryption
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/sb-${Environment}-${TenantId}
+      AliasName: !Sub alias/sb-${Environment}-rds-${TenantId}
       TargetKeyId: !Ref EncryptionKey
   RDSSecurityGroupIngressBootstrap:
     Type: AWS::EC2::SecurityGroupIngress
@@ -238,7 +180,7 @@ Resources:
     DependsOn: RDSSecurityGroup
     Properties:
       DBClusterIdentifier:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref RDSSubnetGroup
@@ -250,17 +192,11 @@ Resources:
       BackupRetentionPeriod: 14
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
       # PreferredBackupWindow: sat:22:30-sun:02:00
-      ##
       KmsKeyId: !If [SupportsEncryption, !GetAtt EncryptionKey.Arn, !Ref 'AWS::NoValue']
       StorageEncrypted: !If [SupportsEncryption, True, False]
       Port: !Ref RDSPort
-      MasterUsername: !Ref RDSMasterUsername
-      MasterUserPassword:
-        Fn::Join:
-          - ''
-          - - '{{resolve:ssm-secure:'
-            - !Ref RDSMasterPasswordParam
-            - '}}'
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Sub '{{resolve:ssm-secure:${RDSPasswordParam}}}'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -282,7 +218,7 @@ Resources:
     DependsOn: RDSSecurityGroup
     Properties:
       DBInstanceIdentifier:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       DBInstanceClass: !Ref RDSInstanceClass
       VPCSecurityGroups:
         - !Ref RDSSecurityGroup
@@ -307,13 +243,8 @@ Resources:
           - SqlServer
           - !Ref 'AWS::NoValue'
           - !If [DatabaseName, !Ref RDSDatabase, !Ref 'AWS::NoValue']
-      MasterUsername: !Ref RDSMasterUsername
-      MasterUserPassword:
-        Fn::Join:
-          - ''
-          - - '{{resolve:ssm-secure:'
-            - !Ref RDSMasterPasswordParam
-            - '}}'
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Sub '{{resolve:ssm-secure:${RDSPasswordParam}}}'
       AllocatedStorage: '100'
       StorageType: gp2
       Tags:
@@ -328,7 +259,7 @@ Resources:
           - ''
           - - 'sb-'
             - !Ref Environment
-            - '-rds-bstrp-role-tenant-'
+            - '-rds-bootstrap-tenant-'
             - !Select [0, !Split ['-', !Ref TenantId]]
             - '-'
             - !Ref AWS::Region
@@ -348,7 +279,7 @@ Resources:
               - ''
               - - 'sb-'
                 - !Ref Environment
-                - '-rds-bstrp-policy-tenant-'
+                - '-rds-bootstrap-tenant-'
                 - !Select [0, !Split ['-', !Ref TenantId]]
                 - '-'
                 - !Ref AWS::Region
@@ -377,12 +308,12 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}/bootstrap.sql
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/services/*'
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - Effect: Allow
                 Action:
                   - kms:Decrypt
@@ -396,7 +327,7 @@ Resources:
     Condition: BootstrapDatabase
     Properties:
       LogGroupName:
-        Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-bootstrap']]
+        Fn::Join: ['', ['/aws/lambda/sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       RetentionInDays: 30
   RDSBootstrapDatabase:
     Type: AWS::Lambda::Function
@@ -405,12 +336,14 @@ Resources:
       - RDSBootstrapDatabaseLogs
     Properties:
       FunctionName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-rds-bootstrap']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Role: !GetAtt RDSBootstrapDatabaseRole.Arn
       Runtime: java11
       Timeout: 870
       MemorySize: 640
       # Has to be a VPC Lambda because we're talking to RDS
+      # Have to make sure the entire network is still up when you delete
+      # or we won't be able to call back to the CFN response URL
       VpcConfig:
         SecurityGroupIds:
           - !Ref RDSBootstrapSecurityGroup
@@ -420,7 +353,14 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsBootstrap
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/RdsBootstrap-lambda.zip
+        S3Key: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_LAMBDAS_FOLDER}}/RdsBootstrap-lambda.zip'
+      Layers:
+         - !Sub '{{resolve:ssm:/saas-boost/${Environment}/UTILS_LAYER}}'
+         - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CFN_UTILS_LAYER}}'
+      Environment:
+        Variables:
+          SAAS_BOOST_EVENT_BUS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -441,22 +381,21 @@ Resources:
   InvokeRDSBootstrapDatabase:
     Type: Custom::CustomResource
     Condition: BootstrapDatabase
-    # Have to make sure the entire network is still up when you delete
-    # or we won't be able to call back to the CFN response URL
     DependsOn:
-      - RDSBootstrapDatabase
+      - RDSBootstrapDatabaseLogs
       - BootstrapWaitCondition
     Properties:
       ServiceToken: !GetAtt RDSBootstrapDatabase.Arn
       Host: !If [Aurora, !GetAtt RDSCluster.Endpoint.Address, !GetAtt RDSInstance.Endpoint.Address]
       Port: !Ref RDSPort
       Database: !Ref RDSDatabase
-      User: !Ref RDSMasterUsername
-      Password: !Ref RDSMasterPasswordParam # CloudFormation doesn't allow auto decrypting of secure params here...
-      BootstrapFileBucket: !Ref SaaSBoostBucket
-      BootstrapFileKey: !If [BootstrapFile, 'bootstrap.sql', '']
+      User: !Ref RDSUsername
+      Password: !Ref RDSPasswordParam # CloudFormation doesn't allow auto decrypting of secure params here...
+      BootstrapFileBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
+      BootstrapFileKey: !Ref RDSBootstrap
 Outputs:
   RdsEndpoint:
     Description: RDS endpoint
     Value:
       !If [Aurora, !GetAtt RDSCluster.Endpoint.Address, !GetAtt RDSInstance.Endpoint.Address]
+...

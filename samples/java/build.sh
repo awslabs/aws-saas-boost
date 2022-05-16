@@ -25,11 +25,27 @@ if [ -z "$SAAS_BOOST_ENV" ]; then
 fi
 
 AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
-echo $AWS_REGION
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --output text --query ["Account"])
-ECR_REPO=$(aws ssm get-parameter --name /saas-boost/$SAAS_BOOST_ENV/ECR_REPO --output text --query ["Parameter.Value"])
+echo "Using region: ${AWS_REGION} account: ${AWS_ACCOUNT_ID}"
+
+read -a SERVICE_NAMES << EOF
+$(aws ssm get-parameters-by-path --path /saas-boost/${SAAS_BOOST_ENV}/app/ --recursive --query "Parameters[?contains(Name, 'SERVICE_JSON')].Name" | grep SERVICE_JSON | cut -d\" -f2 | rev | cut -d/ -f2 | rev | tr '\n' ' ')
+EOF
+i=0
+echo "${SAAS_BOOST_ENV} contains ${#SERVICE_NAMES[@]} services:"
+for SERVICE in "${SERVICE_NAMES[@]}"; do
+    echo "| ${i}: ${SERVICE}"
+    i=$((i++))
+done
+read -p "Please enter the number of the service to upload to: " CHOSEN_SERVICE_INDEX
+CHOSEN_SERVICE="${SERVICE_NAMES[CHOSEN_SERVICE_INDEX]}"
+echo "Uploading to $CHOSEN_SERVICE"
+
+SERVICE_JSON=$(aws ssm get-parameter --name /saas-boost/$SAAS_BOOST_ENV/app/$CHOSEN_SERVICE/SERVICE_JSON --output text --query "Parameter.Value")
+ECR_REPO=$(echo $SERVICE_JSON | jq .containerRepo - | cut -d\" -f2)
+echo "Uploading to ${CHOSEN_SERVICE} repository: ${ECR_REPO}"
 if [ -z "$ECR_REPO" ]; then
-    echo "Can't get ECR repo from Parameter Store. Exiting."
+    echo "Something went wrong: can't get ECR repo from Parameter Store. Exiting."
     exit 1
 fi
 DOCKER_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"

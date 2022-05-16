@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import React, { Fragment } from "react";
-import { Auth } from "aws-amplify";
-
-import { Formik, Form as FormikForm, useField } from "formik";
+import React, { Fragment } from 'react'
+import { Auth } from 'aws-amplify'
+import { cilUser, cilLockLocked } from '@coreui/icons'
+import CIcon from '@coreui/icons-react'
+import { Formik, Form as FormikForm, useField } from 'formik'
 import {
   Button,
   Card,
@@ -27,29 +28,27 @@ import {
   Container,
   Input,
   InputGroup,
-  InputGroupAddon,
   InputGroupText,
   Row,
   Label,
+  FormFeedback,
   FormGroup,
   Alert,
-} from "reactstrap";
-import FormFeedback from "reactstrap/lib/FormFeedback";
-import * as Yup from "yup";
-import SaasBoostAuthComponent from "./SaasBoostAuthComponent";
+} from 'reactstrap'
+import * as Yup from 'yup'
+import SaasBoostAuthComponent from './SaasBoostAuthComponent'
+import { PropTypes } from 'prop-types'
 
 const SBInput = ({ icon, label, ...props }) => {
-  const [field, meta] = useField(props);
+  const [field, meta] = useField(props)
   return (
     <FormGroup>
       {label && <Label htmlFor={field.name}>{label}</Label>}
       <InputGroup className="mb-3">
         {icon && (
-          <InputGroupAddon addonType="prepend">
-            <InputGroupText>
-              <i className={icon}></i>
-            </InputGroupText>
-          </InputGroupAddon>
+          <InputGroupText>
+            <CIcon icon={icon}></CIcon>
+          </InputGroupText>
         )}
         <Input
           {...field}
@@ -57,83 +56,82 @@ const SBInput = ({ icon, label, ...props }) => {
           invalid={meta.touched && !!meta.error}
           valid={meta.touched && !meta.error}
         />
-        <FormFeedback
-          invalid={meta.touched && meta.error ? meta.error : undefined}
-        >
+        <FormFeedback invalid={meta.touched && meta.error ? meta.error : undefined}>
           {meta.error}
         </FormFeedback>
       </InputGroup>
     </FormGroup>
-  );
-};
+  )
+}
+
+SBInput.propTypes = {
+  icon: PropTypes.array,
+  label: PropTypes.string,
+}
 
 export default class SaasBoostSignIn extends SaasBoostAuthComponent {
   constructor(props) {
-    super(props);
-    this._validAuthStates = ["signIn", "signedOut"];
+    super(props)
+    this._validAuthStates = ['signIn', 'signedOut']
 
-    this.credentials = { username: "", password: "" };
+    this.credentials = { username: '', password: '' }
 
-    this.signIn = this.signIn.bind(this);
-    this.showMessage = this.showMessage.bind(this);
-    this.showSignOutReason = this.showSignOutReason.bind(this);
+    this.signIn = this.signIn.bind(this)
+    this.showMessage = this.showMessage.bind(this)
+    this.showSignOutReason = this.showSignOutReason.bind(this)
   }
 
   async signIn(values, { resetForm }) {
-    const { dismissSignOutReason } = this.props;
-    this.dismiss(); //clear any existing errors
+    const { dismissSignOutReason } = this.props
+    this.dismiss() //clear any existing errors
 
-    const { username, password } = values;
+    const { username, password } = values
 
-    if (!Auth || typeof Auth.signIn !== "function") {
-      throw new Error(
-        "No Auth module found, please ensure @aws-amplify/auth is imported"
-      );
+    if (!Auth || typeof Auth.signIn !== 'function') {
+      throw new Error('No Auth module found, please ensure @aws-amplify/auth is imported')
     }
 
-    this.setState({ loading: true });
-    dismissSignOutReason();
-    resetForm({ values }); // clear form validation, but leave values.
+    this.setState({ loading: true })
+    dismissSignOutReason()
+    resetForm({ values }) // clear form validation, but leave values.
     try {
-      const user = await Auth.signIn(username.trim(), password.trim());
-      if (user.challengeName === "NEW_PASSWORD_REQUIRED") {
-        this.changeState("requireNewPassword", user);
+      const user = await Auth.signIn(username.trim(), password.trim())
+      if (user.challengeName === 'NEW_PASSWORD_REQUIRED') {
+        this.changeState('requireNewPassword', user)
       } else {
-        this.checkContact(user);
+        this.checkContact(user)
       }
     } catch (err) {
-      if (err.code === "UserNotConfirmedException") {
-        //logger.debug('the user is not confirmed');
-        this.changeState("confirmSignUp", { username });
-      } else if (err.code === "PasswordResetRequiredException") {
-        //logger.debug('the user requires a new password');
-        this.changeState("resetPassword", { username });
-      } else if (err.code === "UserNotFoundException") {
+      if (err.code === 'UserNotConfirmedException') {
+        this.changeState('confirmSignUp', { username })
+      } else if (err.code === 'PasswordResetRequiredException') {
+        this.changeState('resetPassword', { username })
+      } else if (err.code === 'UserNotFoundException') {
         this.error({
           ...err,
-          message: "Could not login, check username and password",
-        });
+          message: 'Could not login, check username and password',
+        })
       } else {
-        this.error(err);
+        this.error(err)
       }
     } finally {
-      this.setState({ loading: false });
+      this.setState({ loading: false })
     }
   }
 
   errorMessage(err) {
-    if (typeof err === "string") {
-      return err;
+    if (typeof err === 'string') {
+      return err
     }
-    return err.message ? err.message : JSON.stringify(err);
+    return err.message ? err.message : JSON.stringify(err)
   }
 
   error(err) {
-    this.setState({ error: err });
+    this.setState({ error: err })
     this.triggerAuthEvent({
-      type: "error",
+      type: 'error',
       data: this.errorMessage(err),
-    });
+    })
   }
 
   /**
@@ -142,14 +140,14 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
    * @param event
    */
   triggerAuthEvent(event) {
-    const { authState } = this.props;
+    const { authState } = this.props
     if (this.props.onAuthEvent) {
-      this.props.onAuthEvent(authState, event, false);
+      this.props.onAuthEvent(authState, event, false)
     }
   }
 
   showMessage() {
-    const { authData } = this.props;
+    const { authData } = this.props
 
     return (
       !!authData && (
@@ -157,11 +155,11 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
           {authData.message}
         </Alert>
       )
-    );
+    )
   }
 
   showSignOutReason() {
-    const { signOutReason } = this.props;
+    const { signOutReason } = this.props
 
     return (
       !!signOutReason && (
@@ -169,17 +167,17 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
           {signOutReason}
         </Alert>
       )
-    );
+    )
   }
 
   render() {
-    const { authData, authState } = this.props;
+    const { authData, authState } = this.props
     if (!this._validAuthStates.includes(authState)) {
-      return null;
+      return null
     }
     return (
       <Fragment>
-        <div className="app flex-row align-items-center">
+        <div className="app d-flex min-vh-100 align-items-center bg-light">
           <Container>
             <Row className="justify-content-center">
               <Col md="8">
@@ -189,17 +187,15 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
                       <Formik
                         initialValues={this.credentials}
                         validationSchema={Yup.object({
-                          username: Yup.string().required("Required"),
-                          password: Yup.string().required("Required"),
+                          username: Yup.string().required('Required'),
+                          password: Yup.string().required('Required'),
                         })}
                         onSubmit={this.signIn}
                       >
                         {(props) => (
                           <FormikForm>
                             <h1>Login</h1>
-                            <p className="text-muted">
-                              Sign In to your account
-                            </p>
+                            <p className="text-muted">Sign In to your account</p>
                             {this.showError()}
                             {this.showMessage()}
                             {this.showSignOutReason()}
@@ -207,10 +203,10 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
                               name="username"
                               type="text"
                               placeholder="Username"
-                              icon="icon-user"
+                              icon={cilUser}
                             />
                             <SBInput
-                              icon="icon-lock"
+                              icon={cilLockLocked}
                               name="password"
                               placeholder="Password"
                               type="password"
@@ -232,11 +228,8 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
                                   className="px-0"
                                   type="button"
                                   onClick={(e) => {
-                                    e.preventDefault();
-                                    this.changeState(
-                                      "forgotPassword",
-                                      authData
-                                    );
+                                    e.preventDefault()
+                                    this.changeState('forgotPassword', authData)
                                   }}
                                 >
                                   Forgot password?
@@ -249,18 +242,14 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
                     </CardBody>
                   </Card>
                   <Card
-                    className="text-white bg-primary py-5 d-md-down-none"
-                    style={{ width: "44%" }}
+                    className="text-white bg-primary py-5 d-none d-lg-block"
+                    style={{ width: '44%' }}
                   >
                     <CardBody className="text-center">
                       <div>
                         <h2>AWS SaaS Boost</h2>
                         <div>
-                          <img
-                            src="/saas-boost-login.png"
-                            alt="SaasFactory"
-                            width="80%"
-                          />
+                          <img src="/saas-boost-login.png" alt="SaasFactory" width="80%" />
                         </div>
                       </div>
                     </CardBody>
@@ -271,8 +260,8 @@ export default class SaasBoostSignIn extends SaasBoostAuthComponent {
           </Container>
         </div>
       </Fragment>
-    );
+    )
   }
 }
 
-export { SBInput };
+export { SBInput }

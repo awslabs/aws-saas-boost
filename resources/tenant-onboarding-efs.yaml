@@ -15,6 +15,9 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: SaaS Boost Tenant Onboarding EFS Extension
 Parameters:
+  Environment:
+    Description: Environment (test, uat, prod, etc.)
+    Type: String
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -53,7 +56,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-efs-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-efs-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       GroupDescription: EFS mount point Security Group
       VpcId: !Ref VPC
   EFSSecurityGroupIngressECS:
@@ -76,9 +79,11 @@ Resources:
           - - TransitionToIA: !Ref EFSLifecyclePolicy
           - !Ref 'AWS::NoValue'
       FileSystemTags:
+        - Key: Name
+          Value:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
         - Key: Tenant
           Value: !Ref TenantId
-#            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
   MountTargetA:
     Type: AWS::EFS::MountTarget
     Properties:

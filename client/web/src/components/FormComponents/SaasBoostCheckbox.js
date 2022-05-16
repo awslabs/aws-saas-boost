@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { useField } from "formik";
-import { FormGroup, Input } from "reactstrap";
-import { SaasBoostTooltippedLabel } from "./SaasBoostTooltippedLabel";
+import React from 'react'
+import { useField } from 'formik'
+import { PropTypes } from 'prop-types'
+import { FormGroup, Input } from 'reactstrap'
+import { SaasBoostTooltippedLabel } from './SaasBoostTooltippedLabel'
 
-export const SaasBoostCheckbox = ({
-  label,
-  value,
-  tooltip,
-  disabled,
-  ...props
-}) => {
-  const [field] = useField(props);
+export const SaasBoostCheckbox = ({ label, value, tooltip, disabled, ...props }) => {
+  const [field] = useField(props)
 
   return (
     <FormGroup check className="checkbox">
@@ -48,5 +43,12 @@ export const SaasBoostCheckbox = ({
         htmlFor={field.name}
       />
     </FormGroup>
-  );
-};
+  )
+}
+
+SaasBoostCheckbox.propTypes = {
+  label: PropTypes.string,
+  value: PropTypes.bool,
+  tooltip: PropTypes.string,
+  disabled: PropTypes.bool,
+}

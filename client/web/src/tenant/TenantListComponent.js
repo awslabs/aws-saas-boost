@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import Moment from "react-moment";
-
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import Moment from 'react-moment'
+import CIcon from '@coreui/icons-react'
+import { cilReload, cilListRich } from '@coreui/icons'
 import {
   Card,
   CardBody,
@@ -29,14 +30,19 @@ import {
   Alert,
   Badge,
   NavLink,
-} from "reactstrap";
+} from 'reactstrap'
+
+TenantListItem.propTypes = {
+  tenant: PropTypes.object,
+  handleTenantClick: PropTypes.func,
+}
 
 function TenantListItem({ tenant, handleTenantClick }) {
   return (
     <tr
       key={tenant.id}
       onClick={() => {
-        handleTenantClick(tenant.id);
+        handleTenantClick(tenant.id)
       }}
       className="pointer"
     >
@@ -44,7 +50,7 @@ function TenantListItem({ tenant, handleTenantClick }) {
         <NavLink
           href="#"
           onClick={() => {
-            handleTenantClick(tenant.id);
+            handleTenantClick(tenant.id)
           }}
           color="link"
           className="pl-0 pt-0"
@@ -54,8 +60,8 @@ function TenantListItem({ tenant, handleTenantClick }) {
       </td>
       <td>{tenant.name}</td>
       <td>
-        <Badge color={!!tenant && tenant.active ? "success" : "danger"}>
-          {!!tenant && tenant.active ? "Active" : "Inactive"}
+        <Badge color={!!tenant && tenant.active ? 'success' : 'danger'}>
+          {!!tenant && tenant.active ? 'Active' : 'Inactive'}
         </Badge>
       </td>
       <td>{tenant.subdomain}</td>
@@ -63,7 +69,7 @@ function TenantListItem({ tenant, handleTenantClick }) {
         <Moment format="LLL">{tenant.created}</Moment>
       </td>
     </tr>
-  );
+  )
 }
 
 function showError(error, handleError) {
@@ -72,7 +78,17 @@ function showError(error, handleError) {
       <h4 className="alert-heading">Error</h4>
       <p>{error}</p>
     </Alert>
-  );
+  )
+}
+
+TenantList.propTypes = {
+  tenants: PropTypes.array,
+  loading: PropTypes.string,
+  error: PropTypes.string,
+  handleProvisionTenant: PropTypes.func,
+  handleTenantClick: PropTypes.func,
+  handleRefresh: PropTypes.func,
+  handleError: PropTypes.func,
 }
 
 function TenantList({
@@ -96,16 +112,12 @@ function TenantList({
         </tr>
       </thead>
       <tbody>
-        {loading === "idle" &&
+        {loading === 'idle' &&
           tenants.length !== 0 &&
           tenants.map((tenant) => (
-            <TenantListItem
-              tenant={tenant}
-              key={tenant.id}
-              handleTenantClick={handleTenantClick}
-            />
+            <TenantListItem tenant={tenant} key={tenant.id} handleTenantClick={handleTenantClick} />
           ))}
-        {tenants.length === 0 && loading === "idle" && (
+        {tenants.length === 0 && loading === 'idle' && (
           <tr>
             <td colSpan="5" className="text-center">
               <p className="font-weight-bold">No results</p>
@@ -113,7 +125,7 @@ function TenantList({
             </td>
           </tr>
         )}
-        {loading === "pending" && (
+        {loading === 'pending' && (
           <tr>
             <td colSpan="5" className="text-center">
               <Spinner animation="border" role="status">
@@ -124,7 +136,7 @@ function TenantList({
         )}
       </tbody>
     </Table>
-  );
+  )
 
   return (
     <div className="animated fadeIn">
@@ -136,7 +148,7 @@ function TenantList({
           <div className="float-right">
             <Button color="secondary" className="mr-2" onClick={handleRefresh}>
               <span>
-                <i className={"fa fa-refresh"} />
+                <CIcon icon={cilReload} />
               </span>
             </Button>
           </div>
@@ -146,14 +158,14 @@ function TenantList({
         <Col xs="12" lg="12">
           <Card>
             <CardHeader>
-              <i className="fa fa-align-justify"></i> Tenants
+              <CIcon icon={cilListRich} /> Tenants
             </CardHeader>
             <CardBody>{toRender}</CardBody>
           </Card>
         </Col>
       </Row>
     </div>
-  );
+  )
 }
 
-export default TenantList;
+export default TenantList

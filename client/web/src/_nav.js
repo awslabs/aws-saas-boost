@@ -13,55 +13,77 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import React from 'react'
+import CIcon from '@coreui/icons-react'
+import {
+  cilHome,
+  cilLayers,
+  cilPeople,
+  cilPowerStandby,
+  cilSpeedometer,
+  cilUserPlus,
+} from '@coreui/icons'
+import { CNavGroup, CNavItem } from '@coreui/react'
 
-export default {
-  items: [
-    {
-      name: "Summary",
-      url: "/summary",
-      icon: "icon-home",
+const _nav = [
+  {
+    component: CNavItem,
+    name: 'Summary',
+    to: '/summary',
+    icon: <CIcon icon={cilHome} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavGroup,
+    name: 'Dashboard',
+    icon: <CIcon icon={cilSpeedometer} customClassName="nav-icon" />,
+    items: [
+      {
+        component: CNavItem,
+        name: 'Requests',
+        to: '/dashboard/alb',
+      },
+      {
+        component: CNavItem,
+        name: 'Compute',
+        to: '/dashboard/ecs',
+      },
+      {
+        component: CNavItem,
+        name: 'Usage',
+        to: '/dashboard/accesslogging',
+      },
+    ],
+  },
+  {
+    component: CNavItem,
+    name: 'Application',
+    to: '/application',
+    icon: <CIcon icon={cilPowerStandby} customClassName="nav-icon" />,
+    badge: {
+      color: 'danger',
+      text: 'SETUP',
     },
-    {
-      name: "Dashboard",
-      icon: "icon-speedometer",
-      children: [
-        {
-          name: "Requests",
-          url: "/dashboard/alb",
-          icon: "",
-        },
-        {
-          name: "Compute",
-          url: "/dashboard/ecs",
-          icon: "",
-        },
-        {
-          name: "Usage",
-          url: "/dashboard/accesslogging",
-          icon: "",
-        },
-      ],
-    },
-    {
-      name: "Application",
-      url: "/application",
-      icon: "icon-power",
-      badge: { variant: "danger", text: "SETUP" },
-    },
-    {
-      name: "Onboarding",
-      url: "/onboarding",
-      icon: "icon-power",
-      badge: {},
-      attributes: { disabled: true },
-    },
-    {
-      name: "Tenants",
-      url: "/tenants",
-      icon: "icon-layers",
-      badge: {},
-      attributes: { disabled: true },
-    },
-    { name: "Users", url: "/users", icon: "icon-people", badge: {} },
-  ],
-};
+  },
+  {
+    component: CNavItem,
+    name: 'Onboarding',
+    to: '/onboarding',
+    icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
+    disabled: true,
+  },
+  {
+    component: CNavItem,
+    name: 'Tenants',
+    to: '/tenants',
+    icon: <CIcon icon={cilLayers} customClassName="nav-icon" />,
+    disabled: true,
+  },
+  {
+    component: CNavItem,
+    name: 'Users',
+    to: '/users',
+    icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
+  },
+]
+
+export default _nav

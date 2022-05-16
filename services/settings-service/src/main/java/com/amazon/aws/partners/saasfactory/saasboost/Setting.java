@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -24,13 +25,13 @@ import java.util.regex.Pattern;
 @JsonDeserialize(builder = Setting.Builder.class)
 public class Setting {
 
-    private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_\\.-]+");
+    private static final Pattern PARAMETER_STORE_REGEX = Pattern.compile("[a-zA-Z0-9_/\\.-]+");
     private final String name;
     private final String value;
-    private boolean readOnly;
-    private boolean secure;
-    private Long version;
-    private String description;
+    private final boolean readOnly;
+    private final boolean secure;
+    private final Long version;
+    private final String description;
 
     private Setting(Builder builder) {
         this.name = builder.name;
@@ -78,6 +79,11 @@ public class Setting {
     }
 
     @Override
+    public String toString() {
+        return Utils.toJson(this);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj == null) {
             return false;
@@ -120,7 +126,7 @@ public class Setting {
 
         public Builder name(String name) {
             if (!isValidSettingName(name)) {
-                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 3 symbols .-_ are allowed.");
+                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 4 symbols .-_/ are allowed.");
             }
             this.name = name;
             return this;

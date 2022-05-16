@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,51 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URLEncodedUtils;
 import org.junit.Test;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
-import software.amazon.awssdk.http.SdkHttpMethod;
 
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.*;
 
 public class ApiGatewayHelperTest {
 
     @Test
-    public void testNameValuePairs() throws Exception {
+    public void testAppendQueryParams() throws Exception {
         ApiRequest request = ApiRequest.builder()
                 .resource("settings?setting=SAAS_BOOST_STACK&setting=DOMAIN_NAME")
                 .method("GET")
                 .build();
-        System.out.println("ApiRequest resource = " + request.getResource());
 
         String protocol = "https";
-        String host = "quwodec8vb.execute-api.us-east-2.amazonaws.com";
+        String host = "xxxxxxxxxx.execute-api.us-east-2.amazonaws.com";
         String stage = "v1";
-        String resource = "settings?setting=DOMAIN_NAME&setting=STACK_NAME";
-        SdkHttpMethod method = SdkHttpMethod.fromValue("PUT");
 
-        URL url = new URL(protocol, host, stage + "/" + resource);
-        List<NameValuePair> queryParams = URLEncodedUtils.parse(url.toURI(), StandardCharsets.UTF_8);
-        System.out.println(Arrays.deepToString(queryParams.toArray()));
+        URL url = new URL(protocol, host, stage + "/" + request.getResource());
 
         SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder()
                 .protocol(protocol)
                 .host(host)
                 .encodedPath(url.getPath())
-                .method(method);
-        if (queryParams != null) {
-            for (NameValuePair queryParam : queryParams) {
-                sdkRequestBuilder.appendRawQueryParameter(queryParam.getName(), queryParam.getValue());
-            }
-        }
-        SdkHttpFullRequest apiRequest = sdkRequestBuilder.build();
-        System.out.println(apiRequest.rawQueryParameters().toString());
-        System.out.println(apiRequest.toString());
+                .method(request.getMethod());
+
+        ApiGatewayHelper.appendQueryParams(sdkRequestBuilder, url);
+
+        Map<String, List<String>> actual = sdkRequestBuilder.rawQueryParameters();
+        assertEquals("2 query params with same name", 1, actual.size());
+        assertEquals("2 query params with same name", 2, actual.get("setting").size());
+        assertTrue("query parameter is named", actual.containsKey("setting"));
+        assertTrue("multivalue param", actual.get("setting").contains("SAAS_BOOST_STACK"));
+        assertTrue("multivalue param", actual.get("setting").contains("DOMAIN_NAME"));
     }
 }

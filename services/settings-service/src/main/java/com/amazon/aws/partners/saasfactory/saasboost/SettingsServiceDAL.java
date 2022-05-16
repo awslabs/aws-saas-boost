@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -39,25 +40,28 @@ public class SettingsServiceDAL {
 
     // Package private for testing
     static final String SAAS_BOOST_PREFIX = "saas-boost";
+    static final String APP_BASE_PATH = "app/";
+    static final String PARAMETER_STORE_PREFIX = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/";
     // e.g. /saas-boost/production/SAAS_BOOST_BUCKET
-    static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/(.+)$");
-    // e.g. /saas-boost/staging/tenant/00000000-0000-0000-0000-000000000000/DB_HOST
-    static final Pattern SAAS_BOOST_TENANT_PATTERN = Pattern.compile("^\\/" + SAAS_BOOST_PREFIX + "\\/" + SAAS_BOOST_ENV + "\\/tenant\\/(\\p{XDigit}{8}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{4}-\\p{XDigit}{12})\\/(.+)$");
+    static final Pattern SAAS_BOOST_PARAMETER_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + "(.+)$");
+    // e.g. /saas-boost/test/app/APP_NAME or /saas-boost/test/app/myService/SERVICE_JSON
+    static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + APP_BASE_PATH + "(.+)$");
 
-    private final SsmClient ssm;
+    private final ParameterStoreFacade parameterStore;
     private DynamoDbClient ddb;
 
     public SettingsServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing environment variable AWS_REGION");
         }
         if (Utils.isBlank(SAAS_BOOST_ENV)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_ENV");
         }
-        this.ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME);
+        SsmClient ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME);
         // Warm up SSM for cold start hack
-        this.ssm.getParametersByPath(request -> request.path("/" + SAAS_BOOST_PREFIX + "/JUNK"));
+        ssm.getParametersByPath(request -> request.path("/" + SAAS_BOOST_PREFIX + "/JUNK"));
+        parameterStore = new ParameterStoreFacade(ssm);
 
         if (Utils.isNotBlank(OPTIONS_TABLE)) {
             this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
@@ -68,111 +72,43 @@ public class SettingsServiceDAL {
     }
 
     public List<Setting> getAllSettings() {
-        long startTimeMillis = System.currentTimeMillis();
+        return getAllParametersUnder(PARAMETER_STORE_PREFIX, false)
+                .stream()
+                .map(SettingsServiceDAL::fromParameterStore)
+                .collect(Collectors.toList());
+    }
 
-        Map<String, Setting> parameterStore = new TreeMap<>();
-        String nextToken = null;
-        do {
-            try {
-                GetParametersByPathResponse response = ssm.getParametersByPath(GetParametersByPathRequest
-                        .builder()
-                        .path("/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV)
-                        .recursive(false) // don't get the tenant params
-                        .withDecryption(false) // don't expose secrets by default
-                        .nextToken(nextToken)
-                        .build()
-                );
-                nextToken = response.nextToken();
+    public List<Setting> getAppConfigSettings() {
+        return getAllParametersUnder(PARAMETER_STORE_PREFIX + APP_BASE_PATH, true)
+                .stream()
+                .map(SettingsServiceDAL::fromAppParameterStore)
+                .collect(Collectors.toList());
+    }
 
-                for (Parameter parameter : response.parameters()) {
-                    LOGGER.info("SettingsServiceDAL::getAllSettings loading Parameter Store param " + parameter.name());
-                    Setting setting = fromParameterStore(parameter);
-                    parameterStore.put(setting.getName(), setting);
-                }
-            } catch (SdkServiceException ssmError) {
-                LOGGER.error("ssm:GetParametersByPath error " + ssmError.getMessage());
-                throw ssmError;
-            }
-        } while (nextToken != null && !nextToken.isEmpty());
-
-        if (parameterStore.isEmpty()) {
-            throw new RuntimeException("Error loading Parameter Store SaaS Boost parameters");
-        } else {
-            if (!parameterStore.keySet().containsAll(SettingsService.REQUIRED_PARAMS)) {
-                for (String required : SettingsService.REQUIRED_PARAMS) {
-                    if (!parameterStore.containsKey(required)) {
-                        LOGGER.error("SettingsServiceDAL::getAllSettings Missing required parameter " + required);
-                    }
-                }
-                throw new RuntimeException("Missing one or more required parameters");
-            }
-            LOGGER.info("SettingsServiceDAL::getAllSettings Loaded " + parameterStore.size() + " parameters");
-        }
-
-        List<Setting> settings = List.copyOf(parameterStore.values());
-
+    public List<Parameter> getAllParametersUnder(String parameterStorePathPrefix, boolean recursive) {
+        final long startTimeMillis = System.currentTimeMillis();
+        boolean decrypt = false;
+        List<Parameter> parameters = parameterStore.getParametersByPath(parameterStorePathPrefix, recursive, decrypt);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::getAllSettings exec " + totalTimeMillis);
-
-        return settings;
-    }
-
-    public List<Setting> getMutableSettings() {
-        List<Setting> readWriteSettings = new ArrayList<>();
-        for (Setting setting : getAllSettings()) {
-            if (SettingsService.READ_WRITE_PARAMS.contains(setting.getName())) {
-                readWriteSettings.add(setting);
-            }
-        }
-        return readWriteSettings;
-    }
-
-    public List<Setting> getImmutableSettings() {
-        List<Setting> readOnlySettings = new ArrayList<>();
-        for (Setting setting : getAllSettings()) {
-            if (!SettingsService.READ_WRITE_PARAMS.contains(setting.getName())) {
-                readOnlySettings.add(setting);
-            }
-        }
-        return readOnlySettings;
+        LOGGER.info("SettingsServiceDAL::getAllSettingsUnder {} Loaded {} parameters",
+                parameterStorePathPrefix, parameters.size());
+        LOGGER.info("SettingsServiceDAL::getAllSettingsUnder exec " + totalTimeMillis);
+        return parameters;
     }
 
     public List<Setting> getNamedSettings(List<String> namedSettings) {
-        List<Setting> settings = new ArrayList<>();
-        List<String> batch = new ArrayList<>();
-
-        try {
-            Iterator<String> it = namedSettings.iterator();
-            while (it.hasNext()) {
-                if (batch.size() < 10) {
-                    Parameter namedParameter = toParameterStore(Setting.builder().name(it.next()).build());
-                    batch.add(namedParameter.name());
-
-                    // If namedSettings % 10 != 0, then be sure to make a request with the remainder
-                    if (!it.hasNext()) {
-                        GetParametersResponse response = ssm.getParameters(request -> request.names(batch));
-                        for (Parameter parameter : response.parameters()) {
-                            settings.add(fromParameterStore(parameter));
-                        }
-                        // We've reached the end of the request input
-                        break;
-                    }
-                } else {
-                    // Batch has reached max size of 10, make the request
-                    GetParametersResponse response = ssm.getParameters(request -> request.names(batch));
-                    for (Parameter parameter : response.parameters()) {
-                        settings.add(fromParameterStore(parameter));
-                    }
-
-                    // Clear the batch so we can fill it up for the next request
-                    batch.clear();
-                }
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameters error", ssmError);
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            throw ssmError;
-        }
+        LOGGER.info("getNamedSettings");
+        long startTime = System.currentTimeMillis();
+        List<String> parameterNames = namedSettings
+                .stream()
+                .map(settingName -> toParameterStore(Setting.builder().name(settingName).build()).name())
+                .collect(Collectors.toList());
+        List<Setting> settings = parameterStore.getParameters(parameterNames)
+                .stream()
+                .map(SettingsServiceDAL::fromParameterStore)
+                .collect(Collectors.toList());
+        long endTime = System.currentTimeMillis();
+        LOGGER.info("getNamedSettings exec: {} ms", endTime - startTime);
         return settings;
     }
 
@@ -180,172 +116,32 @@ public class SettingsServiceDAL {
         return getSetting(settingName, false);
     }
 
+    public Setting getSetting(String settingName, boolean decrypt) {
+        return fromParameterStore(parameterStore.getParameter(
+                toParameterStore(Setting.builder().name(settingName).build()).name(), decrypt));
+    }
+
     public Setting getSecret(String settingName) {
         return getSetting(settingName, true);
     }
 
-    private Setting getSetting(String settingName, boolean decrypt) {
-        Setting setting = null;
-        try {
-            Parameter parameter = toParameterStore(Setting.builder().name(settingName).build());
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name(parameter.name())
-                    .withDecryption(decrypt)
-            );
-            setting = fromParameterStore(response.parameter());
-        } catch (ParameterNotFoundException pnf) {
-            LOGGER.warn("ssm:GetParameter parameter not found for setting {}", settingName);
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return setting;
-    }
-
     public String getParameterStoreReference(String settingName) {
         Setting setting = getSetting(settingName);
-        String paramStoreRef = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName() + ":" + setting.getVersion();
-        return paramStoreRef;
-    }
-
-    public List<Setting> getTenantSettings(UUID tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
-
-        String parameterStorePath = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString();
-        Map<String, Setting> parameterStore = new TreeMap<>();
-        String nextToken = null;
-        do {
-            try {
-                GetParametersByPathResponse response = ssm.getParametersByPath(GetParametersByPathRequest
-                        .builder()
-                        .path(parameterStorePath)
-                        .recursive(false)
-                        .withDecryption(false) // don't expose secrets by default
-                        .nextToken(nextToken)
-                        .build()
-                );
-                nextToken = response.nextToken();
-
-                for (Parameter parameter : response.parameters()) {
-                    LOGGER.info("SettingsServiceDAL::getTenantSettings loading Parameter Store param " + parameter.name());
-                    Setting setting = fromTenantParameterStore(tenantId, parameter);
-                    parameterStore.put(setting.getName(), setting);
-                }
-            } catch (SdkServiceException ssmError) {
-                LOGGER.error("ssm:GetParametersByPath error " + ssmError.getMessage());
-                throw ssmError;
-            }
-        } while (nextToken != null && !nextToken.isEmpty());
-
-        LOGGER.info("SettingsServiceDAL::getTenantSettings Loaded " + parameterStore.size() + " parameters");
-
-        List<Setting> settings = List.copyOf(parameterStore.values());
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::getTenantSettings exec " + totalTimeMillis);
-
-        return settings;
-    }
-
-    public Setting getTenantSetting(UUID tenantId, String settingName) {
-        return getTenantSetting(tenantId, settingName, false);
-    }
-
-    public Setting getTenantSecret(UUID tenantId, String settingName) {
-        return getTenantSetting(tenantId, settingName, true);
-    }
-
-    private Setting getTenantSetting(UUID tenantId, String settingName, boolean decrypt) {
-        Setting setting = null;
-        try {
-            Parameter parameter = toTenantParameterStore(tenantId, Setting.builder().name(settingName).build());
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name(parameter.name())
-                    .withDecryption(decrypt)
-            );
-            setting = fromTenantParameterStore(tenantId, response.parameter());
-        } catch (ParameterNotFoundException pnf) {
-            LOGGER.warn("ssm:GetParameter parameter not found for tenant {} setting {}", tenantId.toString(), settingName);
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error " + ssmError.getMessage());
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-        }
-        return setting;
-    }
-
-    public Setting updateTenantSetting(UUID tenantId, Setting setting) {
-        Parameter updated = putParameter(toTenantParameterStore(tenantId, setting));
-        return fromTenantParameterStore(tenantId, updated);
-    }
-
-    public void deleteTenantSettings(UUID tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
-
-        String parameterStorePath = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString();
-        List<String> parametersToDelete = SettingsService.TENANT_PARAMS.stream()
-                .map(s -> parameterStorePath + "/" + s)
-                .collect(Collectors.toList());
-
-        try {
-            DeleteParametersResponse response = ssm.deleteParameters(r ->
-                    r.names(parametersToDelete)
-            );
-            LOGGER.info("SettingsServiceDAL::deleteTenantSettings removed " + response.deletedParameters().toString());
-            if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                LOGGER.warn("SettingsServiceDAL::deleteTenantSettings invalid parameters " + response.invalidParameters().toString());
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameters error " + ssmError.getMessage());
-            throw ssmError;
-        }
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::deleteTenantSettings exec " + totalTimeMillis);
-
-        return;
+        return PARAMETER_STORE_PREFIX + setting.getName() + ":" + setting.getVersion();
     }
 
     public Setting updateSetting(Setting setting) {
-        Parameter updated = putParameter(toParameterStore(setting));
-        return fromParameterStore(updated);
-    }
-
-    public void deleteSetting(Setting setting) {
-        deleteParameter(toParameterStore(setting));
-    }
-
-    private Parameter putParameter(Parameter parameter) {
-        Parameter updated = null;
-        try {
-            PutParameterResponse response = ssm.putParameter(request -> request
-                    .type(parameter.type())
-                    .overwrite(true)
-                    .name(parameter.name())
-                    .value(parameter.value())
-            );
-            updated = Parameter.builder()
-                    .name(parameter.name())
-                    .value(parameter.value())
-                    .type(parameter.type())
-                    .version(response.version())
-                    .build();
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:PutParameter error " + ssmError.getMessage());
-            throw ssmError;
+        Setting updated = fromParameterStore(parameterStore.putParameter(toParameterStore(setting)));
+        if (updated.isSecure()) {
+            // we don't want to return the unencrypted value, so replace this
+            // setting with the encrypted representation we just placed in ParameterStore
+            updated = getSetting(updated.getName());
         }
         return updated;
     }
 
-    private void deleteParameter(Parameter parameter) {
-        try {
-            ssm.deleteParameter(request -> request
-                    .name(parameter.name())
-            );
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameter error " + ssmError.getMessage());
-            throw ssmError;
-        }
-        return;
+    private void deleteSetting(Setting setting) {
+        parameterStore.deleteParameter(toParameterStore(setting));
     }
 
     public List<Map<String, Object>> rdsOptions() {
@@ -368,7 +164,7 @@ public class SettingsServiceDAL {
         return orderableOptionsByRegion;
     }
 
-    static final Comparator<Map<String, Object>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
+    private static final Comparator<Map<String, Object>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
         // T's before M's before R's
         int compare = 0;
         char type1 = ((String) instance1.get("instance")).charAt(0);
@@ -387,13 +183,13 @@ public class SettingsServiceDAL {
         return compare;
     });
 
-    static final Comparator<Map<String, Object>> INSTANCE_GENERATION_COMPARATOR = ((instance1, instance2) -> {
+    private static final Comparator<Map<String, Object>> INSTANCE_GENERATION_COMPARATOR = ((instance1, instance2) -> {
         Integer gen1 = Integer.valueOf(((String) instance1.get("instance")).substring(1, 2));
         Integer gen2 = Integer.valueOf(((String) instance2.get("instance")).substring(1, 2));
         return gen1.compareTo(gen2);
     });
 
-    static final Comparator<Map<String, Object>> INSTANCE_SIZE_COMPARATOR = ((instance1, instance2) -> {
+    private static final Comparator<Map<String, Object>> INSTANCE_SIZE_COMPARATOR = ((instance1, instance2) -> {
         String size1 = ((String) instance1.get("instance")).substring(3);
         String size2 = ((String) instance2.get("instance")).substring(3);
         List<String> sizes = Arrays.asList(
@@ -410,9 +206,11 @@ public class SettingsServiceDAL {
         return Integer.compare(sizes.indexOf(size1), sizes.indexOf(size2));
     });
 
-    static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR.thenComparing(INSTANCE_GENERATION_COMPARATOR).thenComparing(INSTANCE_SIZE_COMPARATOR);
+    public static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR
+            .thenComparing(INSTANCE_GENERATION_COMPARATOR)
+            .thenComparing(INSTANCE_SIZE_COMPARATOR);
 
-    protected static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
+    public static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
         Map<String, Object> option = new LinkedHashMap<>();
         option.put("engine", item.get("engine").s());
         option.put("region", item.get("region").s());
@@ -451,10 +249,30 @@ public class SettingsServiceDAL {
     }
 
     public AppConfig setAppConfig(AppConfig appConfig) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::setAppConfig");
-        for (Setting setting : toSettings(appConfig)) {
-            LOGGER.info("Updating setting {} {} in app config", setting.getName(), setting.getValue());
+        // updateSettingsAndServices sends PUTs to ParameterStore
+        List<Setting> updatedAppConfigSettings = updateSettingsAndSecrets(appConfigToSettings(appConfig));
+        appConfig = appConfigFromSettings(updatedAppConfigSettings);
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
+        return appConfig;
+    }
+
+    public ServiceConfig setServiceConfig(ServiceConfig serviceConfig) {
+        final long startTimeMillis = System.currentTimeMillis();
+        LOGGER.info("SettingsServiceDAL::setServiceConfig");
+        List<Setting> updatedServiceConfigSettings = updateSettingsAndSecrets(serviceConfigToSettings(serviceConfig));
+        serviceConfig = appConfigFromSettings(updatedServiceConfigSettings).getServices().get(serviceConfig.getName());
+        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+        LOGGER.info("SettingsServiceDAL::setServiceConfig exec " + totalTimeMillis);
+        return serviceConfig;
+    }
+
+    private List<Setting> updateSettingsAndSecrets(List<Setting> settingsToUpdate) {
+        List<Setting> updatedSettings = new LinkedList<>();
+        for (Setting setting : settingsToUpdate) {
+            LOGGER.info("Updating setting {} to {}", setting.getName(), setting.getValue());
             if (setting.isSecure()) {
                 Setting existing = getSetting(setting.getName());
                 if (existing != null) {
@@ -467,162 +285,97 @@ public class SettingsServiceDAL {
                 if (existing != null && existing.getValue().equals(setting.getValue())) {
                     // Nothing has changed, don't overwrite the value in Parameter Store
                     LOGGER.info("Skipping update of secret because encrypted values are the same");
+                    updatedSettings.add(existing);
                     continue;
                 }
             }
             LOGGER.info("Calling put parameter {}", setting.getName());
-            updateSetting(setting);
+            updatedSettings.add(updateSetting(setting));
         }
-        // Return a fresh copy of the config object to be sure all the encrypted
-        // values are represented
-        appConfig = getAppConfig();
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
-        return appConfig;
+        return updatedSettings;
     }
 
     public AppConfig getAppConfig() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::getAppConfig");
-        List<Setting> mutableSettings = getMutableSettings();
-        Map<String, String> appSettings = mutableSettings
-                .stream()
-                .collect(
-                        Collectors.toMap(Setting::getName, Setting::getValue)
-                );
-
-        // Get the secret value for the optional billing provider or you'll always
-        // be testing for empty against the encrypted hash of the "N/A" sentinel string
-        AppConfig appConfig = toAppConfig(appSettings, getSecret("BILLING_API_KEY"));
-
+        AppConfig appConfig = appConfigFromSettings(getAppConfigSettings());
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
         return appConfig;
     }
 
-    protected static AppConfig toAppConfig(Map<String, String> appSettings, Setting billingApiKey) {
-        AppConfig appConfig = null;
+    private AppConfig toAppConfig(Map<String, String> appSettings) {
+        AppConfig.Builder appConfigBuilder = AppConfig.builder()
+                .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
+                .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
+                .hostedZone(appSettings.get(APP_BASE_PATH + "HOSTED_ZONE"))
+                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
 
-        Database database = null;
-        if (Utils.isNotEmpty(appSettings.get("DB_ENGINE"))) {
-            database = Database.builder()
-                    .database(appSettings.get("DB_NAME"))
-                    .engine(appSettings.get("DB_ENGINE"))
-                    .version(appSettings.get("DB_VERSION"))
-                    .family(appSettings.get("DB_PARAM_FAMILY"))
-                    .instance(appSettings.get("DB_INSTANCE_TYPE"))
-                    .username(appSettings.get("DB_MASTER_USERNAME"))
-                    .password(appSettings.get("DB_MASTER_PASSWORD"))
-                    .bootstrapFilename(appSettings.get("DB_BOOTSTRAP_FILE"))
-                    .build();
-        }
-        SharedFilesystem filesystem = null;
-        if (Utils.isNotEmpty(appSettings.get("FILE_SYSTEM_TYPE"))) {
-            EfsFilesystem efs = null;
-            FsxFilesystem fsx = null;
-            if ("EFS".equals(appSettings.get("FILE_SYSTEM_TYPE"))) {
-                efs = EfsFilesystem.builder()
-                        .encryptAtRest(appSettings.get("FILE_SYSTEM_ENCRYPT"))
-                        .lifecycle(appSettings.get("FILE_SYSTEM_LIFECYCLE"))
-                        .build();
-            } else {  //FSX {
-                fsx = FsxFilesystem.builder()
-                        .backupRetentionDays(Integer.valueOf(appSettings.get("FSX_BACKUP_RETENTION_DAYS")))
-                        .dailyBackupTime(appSettings.get("FSX_DAILY_BACKUP_TIME"))
-                        .storageGb(Integer.valueOf(appSettings.get("FSX_STORAGE_GB")))
-                        .throughputMbs(Integer.valueOf(appSettings.get("FSX_THROUGHPUT_MBS")))
-                        .weeklyMaintenanceTime(appSettings.get("FSX_WEEKLY_MAINTENANCE_TIME"))
-                        .windowsMountDrive(appSettings.get("FSX_WINDOWS_MOUNT_DRIVE"))
-                        .build();
-            }
-            filesystem = SharedFilesystem.builder()
-                    .fileSystemType(appSettings.get("FILE_SYSTEM_TYPE"))
-                    .mountPoint(appSettings.get("FILE_SYSTEM_MOUNT_POINT"))
-                    .fsx(fsx)
-                    .efs(efs)
-                    .build();
-        }
-
+        // TODO we shouldn't assume Settings passed to this function are encrypted or decrypted
+        // but right now we are assuming they're encrypted, because they always are
         BillingProvider billingProvider = null;
-        if (billingApiKey != null) {
-            String apiKey = billingApiKey.getValue();
-            if (Utils.isNotEmpty(apiKey)) {
-                billingProvider = BillingProvider.builder()
-                        .apiKey(appSettings.get("BILLING_API_KEY"))
-                        .build();
+        Setting billingApiKey = getSetting(APP_BASE_PATH + "BILLING_API_KEY", true);
+        if (billingApiKey != null && Utils.isNotBlank(billingApiKey.getValue())) {
+            billingProvider = BillingProvider.builder()
+                    .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
+                    .build();
+        }
+        appConfigBuilder.billing(billingProvider);
+
+        for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
+            // every key that contains a "/" is necessarily nested under app
+            // e.g. /app/service_001/DB_MASTER_PASSWORD
+            //      /app/service_001/SERVICE_JSON
+            if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
+                ServiceConfig existingServiceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
+                ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(existingServiceConfig);
+                Map<String, ServiceTierConfig> newTiers = new HashMap<>();
+                for (Map.Entry<String, ServiceTierConfig> nameAndTier : existingServiceConfig.getTiers().entrySet()) {
+                    String name = nameAndTier.getKey();
+                    ServiceTierConfig tier = nameAndTier.getValue();
+                    ServiceTierConfig.Builder editedTier = ServiceTierConfig.builder(tier);
+                    if (tier.hasDatabase()) {
+                        // if this tier has a database, override the password with the encrypted version
+                        Database.Builder editedDatabase = Database.builder(tier.getDatabase());
+                        Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/" + name + "/DB_MASTER_PASSWORD", false);
+                        if (dbMasterPasswordSetting != null) {
+                            editedDatabase.password(dbMasterPasswordSetting.getValue());
+                        }
+                        editedTier.database(editedDatabase.build());
+                    }
+                    newTiers.put(name, editedTier.build());
+                }
+                editedServiceConfig.tiers(newTiers);
+                appConfigBuilder.serviceConfig(editedServiceConfig.build());
             }
         }
 
-        appConfig = AppConfig.builder()
-                .name(appSettings.get("APP_NAME"))
-                .domainName(appSettings.get("DOMAIN_NAME"))
-                .sslCertArn(appSettings.get("SSL_CERT_ARN"))
-                .healthCheckURL(appSettings.get("HEALTH_CHECK"))
-                .computeSize(appSettings.get("COMPUTE_SIZE"))
-                .defaultCpu(appSettings.get("TASK_CPU"))
-                .defaultMemory(appSettings.get("TASK_MEMORY"))
-                .containerPort(appSettings.get("CONTAINER_PORT"))
-                .minCount(appSettings.get("MIN_COUNT"))
-                .maxCount(appSettings.get("MAX_COUNT"))
-                .operatingSystem(appSettings.get("CLUSTER_OS"))
-                .instanceType(appSettings.get("CLUSTER_INSTANCE_TYPE"))
-                .database(database)
-                .filesystem(filesystem)
-                .billing(billingProvider)
-                .build();
-
-        return appConfig;
+        return appConfigBuilder.build();
     }
 
     public void deleteAppConfig() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsServiceDAL::deleteAppConfig");
         // NOTE: Could also implement this like deleteTenantSettings by combining SettingsService::REQUIRED_PARAMS
         // and SettingsService::READ_WRITE_PARAMS and building the Parameter Store path by hand to avoid the call(s)
         // to getParameters before the call to deleteParameters
-        List<String> parametersToDelete = toSettings(getAppConfig()).stream()
+        AppConfig appConfig = getAppConfig();
+        for (String serviceName : appConfig.getServices().keySet()) {
+            deleteServiceConfig(appConfig, serviceName);
+        }
+        List<String> parametersToDelete = appConfigToSettings(appConfig).stream()
                 .map(s -> toParameterStore(s).name())
                 .collect(Collectors.toList());
-        List<String> batch = new ArrayList<>();
-        try {
-            Iterator<String> it = parametersToDelete.iterator();
-            while (it.hasNext()) {
-                if (batch.size() < 10) {
-                    batch.add(it.next());
-                    // If parametersToDelete % 10 != 0, then be sure to make a request with the remainder
-                    if (!it.hasNext()) {
-                        DeleteParametersResponse response = ssm.deleteParameters(r ->
-                                r.names(batch)
-                        );
-                        LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
-                        if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                            LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
-                        }
-                        // We've reached the end of the request input
-                        break;
-                    }
-                } else {
-                    // Batch has reached max size of 10, make the request
-                    DeleteParametersResponse response = ssm.deleteParameters(r ->
-                            r.names(batch)
-                    );
-                    LOGGER.info("SettingsServiceDAL::deleteAppConfig removed " + response.deletedParameters().toString());
-                    if (response.hasInvalidParameters() && !response.invalidParameters().isEmpty()) {
-                        LOGGER.warn("SettingsServiceDAL::deleteAppConfig invalid parameters " + response.invalidParameters().toString());
-                    }
-                    // Clear the batch so we can fill it up for the next request
-                    batch.clear();
-                }
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:DeleteParameters error", ssmError);
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            throw ssmError;
-        }
-
+        parameterStore.deleteParameters(parametersToDelete);
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
-        return;
+    }
+
+    public void deleteServiceConfig(AppConfig appConfig, String serviceName) {
+        parameterStore.deleteParameters(serviceConfigToSettings(appConfig.getServices().get(serviceName))
+                .stream()
+                .map(s -> toParameterStore(s).name())
+                .collect(Collectors.toList()));
     }
 
     public static Setting fromParameterStore(Parameter parameter) {
@@ -640,8 +393,9 @@ public class SettingsServiceDAL {
             if (settingName == null) {
                 throw new RuntimeException("Parameter Store Parameter " + parameter.name() + " does not match SaaS Boost pattern");
             }
+
             setting = Setting.builder()
-                    .name(settingName)
+                    .name(settingName) // name now might be <serviceName>/SETTING
                     .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
                     .readOnly(!SettingsService.READ_WRITE_PARAMS.contains(settingName))
                     .secure(ParameterType.SECURE_STRING == parameter.type())
@@ -655,7 +409,7 @@ public class SettingsServiceDAL {
         if (setting == null || !Setting.isValidSettingName(setting.getName())) {
             throw new RuntimeException("Can't create Parameter Store parameter with invalid Setting name");
         }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/" + setting.getName();
+        String parameterName = PARAMETER_STORE_PREFIX + setting.getName();
         String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
         Parameter parameter = Parameter.builder()
                 .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
@@ -665,7 +419,7 @@ public class SettingsServiceDAL {
         return parameter;
     }
 
-    public static Setting fromTenantParameterStore(UUID tenantId, Parameter parameter) {
+    public static Setting fromAppParameterStore(Parameter parameter) {
         Setting setting = null;
         if (parameter != null) {
             String parameterStoreName = parameter.name();
@@ -673,18 +427,15 @@ public class SettingsServiceDAL {
                 throw new RuntimeException("Can't get Setting name for blank Parameter Store name");
             }
             String settingName = null;
-            Matcher regex = SAAS_BOOST_TENANT_PATTERN.matcher(parameterStoreName);
+            Matcher regex = SAAS_BOOST_APP_PATTERN.matcher(parameterStoreName);
             if (regex.matches()) {
-                if (!regex.group(1).equals(tenantId.toString())) {
-                    throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not belong to tenant " + tenantId.toString());
-                }
-                settingName = regex.group(2);
+                settingName = regex.group(1);
             }
             if (settingName == null) {
-                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost tenant pattern " + SAAS_BOOST_TENANT_PATTERN.toString());
+                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost app pattern " + SAAS_BOOST_APP_PATTERN);
             }
             setting = Setting.builder()
-                    .name(settingName)
+                    .name(APP_BASE_PATH + settingName)
                     .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
                     .readOnly(false)
                     .secure(ParameterType.SECURE_STRING == parameter.type())
@@ -694,119 +445,109 @@ public class SettingsServiceDAL {
         return setting;
     }
 
-    public static Parameter toTenantParameterStore(UUID tenantId, Setting setting) {
-        if (setting == null || Utils.isEmpty(setting.getName())) {
-            throw new RuntimeException("Can't create Parameter Store parameter from blank Setting name");
+    public List<Setting> appConfigToSettings(AppConfig appConfig) {
+        List<Setting> settings = new ArrayList<>();
+
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "APP_NAME")
+                .value(appConfig.getName())
+                .readOnly(false)
+                .build());
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "DOMAIN_NAME")
+                .value(appConfig.getDomainName())
+                .readOnly(false)
+                .build());
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "HOSTED_ZONE")
+                .value(appConfig.getHostedZone())
+                .readOnly(false)
+                .build());
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "SSL_CERT_ARN")
+                .value(appConfig.getSslCertificate())
+                .readOnly(false)
+                .build());
+
+        for (ServiceConfig serviceConfig : appConfig.getServices().values()) {
+            settings.addAll(serviceConfigToSettings(serviceConfig));
         }
-        String parameterName = "/" + SAAS_BOOST_PREFIX + "/" + SAAS_BOOST_ENV + "/tenant/" + tenantId.toString() + "/" + setting.getName();
-        String parameterValue = (Utils.isEmpty(setting.getValue())) ? "N/A" : setting.getValue();
-        Parameter parameter = Parameter.builder()
-                .type(setting.isSecure() ? ParameterType.SECURE_STRING : ParameterType.STRING)
-                .name(parameterName)
-                .value(parameterValue)
-                .build();
-        return parameter;
+
+        String billingApiKeySettingValue = null;
+        if (appConfig.getBilling() != null) {
+            billingApiKeySettingValue = appConfig.getBilling().getApiKey();
+        }
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + "BILLING_API_KEY")
+                .value(billingApiKeySettingValue)
+                .readOnly(false)
+                .secure(true)
+                .build());
+
+        return settings;
     }
 
-    public static List<Setting> toSettings(AppConfig appConfig) {
+    public List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
         List<Setting> settings = new ArrayList<>();
-        settings.add(Setting.builder().name("APP_NAME").value(appConfig.getName()).readOnly(false).build());
-        settings.add(Setting.builder().name("DOMAIN_NAME").value(appConfig.getDomainName()).readOnly(false).build());
-        settings.add(Setting.builder().name("SSL_CERT_ARN").value(appConfig.getSslCertArn()).readOnly(false).build());
-        settings.add(Setting.builder().name("HEALTH_CHECK").value(appConfig.getHealthCheckURL()).readOnly(false).build());
-        String computeSize = appConfig.getComputeSize() != null ? appConfig.getComputeSize().name() : null;
-        settings.add(Setting.builder().name("COMPUTE_SIZE").value(computeSize).readOnly(false).build());
-        String cpu = appConfig.getDefaultCpu() != null ? appConfig.getDefaultCpu().toString() : null;
-        settings.add(Setting.builder().name("TASK_CPU").value(cpu).readOnly(false).build());
-        String memory = appConfig.getDefaultMemory() != null ? appConfig.getDefaultMemory().toString() : null;
-        settings.add(Setting.builder().name("TASK_MEMORY").value(memory).readOnly(false).build());
-        String port = appConfig.getContainerPort() != null ? appConfig.getContainerPort().toString() : null;
-        settings.add(Setting.builder().name("CONTAINER_PORT").value(port).readOnly(false).build());
-        String minCount = appConfig.getMinCount() != null ? appConfig.getMinCount().toString() : null;
-        settings.add(Setting.builder().name("MIN_COUNT").value(minCount).readOnly(false).build());
-        String maxCount = appConfig.getMaxCount() != null ? appConfig.getMaxCount().toString() : null;
-        settings.add(Setting.builder().name("MAX_COUNT").value(maxCount).readOnly(false).build());
-        OperatingSystem os = appConfig.getOperatingSystem();
-        if (os != null) {
-            settings.add(Setting.builder().name("CLUSTER_OS").value(os.name()).readOnly(false).build());
-        }
-        settings.add(Setting.builder().name("CLUSTER_INSTANCE_TYPE").value(appConfig.getInstanceType()).readOnly(false).build());
-        SharedFilesystem filesystem = appConfig.getFilesystem();
-        if (filesystem != null) {
-            settings.add(Setting.builder().name("FILE_SYSTEM_TYPE").value(filesystem.getFileSystemType()).readOnly(false).build());
-            settings.add(Setting.builder().name("FILE_SYSTEM_MOUNT_POINT").value(filesystem.getMountPoint()).readOnly(false).build());
-            //for EFS filesystem
-            if ("EFS".equalsIgnoreCase(filesystem.getFileSystemType()) && filesystem.getEfs() != null) {
-                settings.add(Setting.builder().name("FILE_SYSTEM_ENCRYPT").value(filesystem.getEfs().getEncryptAtRest().toString()).readOnly(false).build());
-                settings.add(Setting.builder().name("FILE_SYSTEM_LIFECYCLE").value(filesystem.getEfs().getFilesystemLifecycle()).readOnly(false).build());
+        // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
+        // but that means we need to create the DB_MASTER_PASSWORD for each Service
+
+        // editedServiceConfig so that we can replace the password in all databases in tiers to have empty passwords
+        // that way we aren't storing actual passwords.
+        ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(serviceConfig);
+        Map<String, ServiceTierConfig> editedTiers = new HashMap<>();
+        for (Map.Entry<String, ServiceTierConfig> nameAndTierConfig : serviceConfig.getTiers().entrySet()) {
+            String dbPasswordSettingValue = null;
+            if (nameAndTierConfig.getValue().hasDatabase()) {
+                dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
+
+                // tiers are /saas-boost/env/app/serviceName/tierName/
+                // but we're setting db password at service level
+                Setting dbPasswordSetting = Setting.builder()
+                        .name(APP_BASE_PATH + serviceConfig.getName() + "/" + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
+                        .value(dbPasswordSettingValue)
+                        .secure(true).readOnly(false).build();
+                settings.add(dbPasswordSetting);
+
+                // place the passwordParam so appConfig holders can find the password if they need it
+                // and override password
+                // passwordParam should be an arn of the form
+                // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+                ServiceTierConfig.Builder editedTierConfig = ServiceTierConfig.builder(nameAndTierConfig.getValue());
+                editedTierConfig.database(
+                    Database.builder(nameAndTierConfig.getValue().getDatabase())
+                        .password("**encrypted**")
+                        .passwordParam(toParameterStore(dbPasswordSetting).name())
+                        .build());
+                editedTiers.put(nameAndTierConfig.getKey(), editedTierConfig.build());
             } else {
-                // Remove these settings in case we're updating
-                settings.add(Setting.builder().name("FILE_SYSTEM_ENCRYPT").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FILE_SYSTEM_LIFECYCLE").value(null).readOnly(false).build());
+                editedTiers.put(nameAndTierConfig.getKey(), nameAndTierConfig.getValue());
             }
-            // for FSX filesystem
-            if ("FSX".equalsIgnoreCase(filesystem.getFileSystemType()) && filesystem.getFsx() != null) {
-                settings.add(Setting.builder().name("FSX_STORAGE_GB").value(filesystem.getFsx().getStorageGb().toString()).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_THROUGHPUT_MBS").value(filesystem.getFsx().getThroughputMbs().toString()).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_BACKUP_RETENTION_DAYS").value(filesystem.getFsx().getBackupRetentionDays().toString()).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(filesystem.getFsx().getDailyBackupTime()).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(filesystem.getFsx().getWeeklyMaintenanceTime()).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(filesystem.getFsx().getWindowsMountDrive()).readOnly(false).build());
-            } else {
-                // Remove these settings in case we're updating
-                settings.add(Setting.builder().name("FSX_STORAGE_GB").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_THROUGHPUT_MBS").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_BACKUP_RETENTION_DAYS").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
-                settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
-            }
-        } else {
-            // Remove these settings in case we're updating
-            settings.add(Setting.builder().name("FILE_SYSTEM_TYPE").value(null).readOnly(false).build());
-            //efs
-            settings.add(Setting.builder().name("FILE_SYSTEM_MOUNT_POINT").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FILE_SYSTEM_ENCRYPT").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FILE_SYSTEM_LIFECYCLE").value(null).readOnly(false).build());
-            //fsx
-            settings.add(Setting.builder().name("FSX_STORAGE_GB").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FSX_THROUGHPUT_MBS").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FSX_BACKUP_RETENTION_DAYS").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FSX_DAILY_BACKUP_TIME").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FSX_WEEKLY_MAINTENANCE_TIME").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("FSX_WINDOWS_MOUNT_DRIVE").value(null).readOnly(false).build());
         }
 
-        Database database = appConfig.getDatabase();
-        if (database != null) {
-            settings.add(Setting.builder().name("DB_ENGINE").value(database.getEngineName()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_VERSION").value(database.getVersion()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_PARAM_FAMILY").value(database.getFamily()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_INSTANCE_TYPE").value(database.getInstanceClass()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_NAME").value(database.getDatabase()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_MASTER_USERNAME").value(database.getUsername()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_MASTER_PASSWORD").value(database.getPassword()).readOnly(false).secure(true).build());
-            settings.add(Setting.builder().name("DB_PORT").value(database.getPort().toString()).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_BOOTSTRAP_FILE").value(database.getBootstrapFilename()).readOnly(false).build());
-        } else {
-            // Remove these settings in case we're updating
-            settings.add(Setting.builder().name("DB_ENGINE").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_VERSION").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_PARAM_FAMILY").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_INSTANCE_TYPE").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_NAME").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_MASTER_USERNAME").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_MASTER_PASSWORD").value(null).readOnly(false).secure(true).build());
-            settings.add(Setting.builder().name("DB_PORT").value(null).readOnly(false).build());
-            settings.add(Setting.builder().name("DB_BOOTSTRAP_FILE").value(null).readOnly(false).build());
-        }
+        editedServiceConfig.tiers(editedTiers);
+        // if we don't remove the password from the database object in serviceConfig we'll end up storing it
+        // we can't @Ignore password because we're expecting to send it back
+        // the UI could have two defaults: '' means no database already configured, just the value of param otherwise
+        // we have this logic in the settings service to check if it's the same as the encrypted value though
+        // and we do that with the billing api key. it makes more sense to do the same with the database.
+        // which means we should return the encrypted password
+        // which means we can't ignore the password
+        // which means when we store this password in this serviceConfig we need to obfuscate.
+        // but that's what I'm saying.. it doesn't matter what I store, as long as it isn't the plaintext.
+        settings.add(Setting.builder()
+                .name(APP_BASE_PATH + serviceConfig.getName() + "/SERVICE_JSON")
+                .value(Utils.toJson(editedServiceConfig.build()))
+                .readOnly(false).build());
 
-        BillingProvider billing = appConfig.getBilling();
-        if (billing != null) {
-            settings.add(Setting.builder().name("BILLING_API_KEY").value(billing.getApiKey()).secure(true).readOnly(false).build());
-        } else {
-            settings.add(Setting.builder().name("BILLING_API_KEY").value(null).readOnly(false).secure(true).build());
-        }
         return settings;
+    }
+
+    public AppConfig appConfigFromSettings(List<Setting> appConfigSettings) {
+        // Get the secret value for the optional billing provider or you'll always
+        // be testing for empty against the encrypted hash of the "N/A" sentinel string
+        return toAppConfig(
+                appConfigSettings.stream()
+                        .collect(Collectors.toMap(Setting::getName, Setting::getValue)));
     }
 }

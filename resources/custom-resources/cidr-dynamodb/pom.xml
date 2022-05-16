@@ -21,7 +21,6 @@ limitations under the License.
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
         <artifactId>saasboost-custom-resources</artifactId>
         <version>1.0.0</version>
-        <relativePath>../</relativePath>
     </parent>
     <artifactId>CidrDynamoDB</artifactId>
     <version>1.0.0</version>
@@ -33,7 +32,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>7</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -83,10 +82,6 @@ limitations under the License.
 
     <dependencies>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>Utils</artifactId>
             <version>1.0.0</version>
@@ -94,23 +89,16 @@ limitations under the License.
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-core</artifactId>
-            <version>1.2.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-events</artifactId>
-            <version>2.2.7</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-lambda-java-log4j2</artifactId>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>dynamodb</artifactId>
-            <version>2.13.76</version>
+            <version>${aws.java.sdk.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>

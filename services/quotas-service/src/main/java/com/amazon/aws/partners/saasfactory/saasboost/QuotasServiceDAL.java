@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+ 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
@@ -21,6 +22,9 @@ import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.cloudwatch.model.*;
 import software.amazon.awssdk.services.ec2.Ec2Client;
+import software.amazon.awssdk.services.ec2.model.DescribeNatGatewaysResponse;
+import software.amazon.awssdk.services.ec2.model.NatGateway;
+import software.amazon.awssdk.services.ec2.model.NatGatewayState;
 import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.servicequotas.ServiceQuotasClient;
@@ -34,7 +38,7 @@ import java.util.*;
 
 public class QuotasServiceDAL {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(QuotasServiceDAL.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuotasServiceDAL.class);
     private final ElasticLoadBalancingV2Client elb;
     private final Ec2Client ec2;
     private final ServiceQuotasClient serviceQuotas;
@@ -42,7 +46,7 @@ public class QuotasServiceDAL {
     private final CloudWatchClient cloudWatch;
 
     public QuotasServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         this.elb = Utils.sdkClient(ElasticLoadBalancingV2Client.builder(), ElasticLoadBalancingV2Client.SERVICE_NAME);
         this.ec2 = Utils.sdkClient(Ec2Client.builder(), Ec2Client.SERVICE_NAME);
         this.serviceQuotas = Utils.sdkClient(ServiceQuotasClient.builder(), ServiceQuotasClient.SERVICE_NAME);
@@ -52,14 +56,14 @@ public class QuotasServiceDAL {
     }
 
     public QuotaCheck checkQuotas() {
-        boolean reportBackError = false;
-        boolean exceedsLimit = false;
         String serviceCode;
-        List<Service> retList = new ArrayList<>();
         Map<String, Double> deployedCountMap = new LinkedHashMap<>();
         Map<String, Double> quotasMap = new LinkedHashMap<>();
         StringBuilder builder = new StringBuilder();
 
+        boolean reportBackError = false;
+        boolean exceedsLimit = false;
+        List<Service> retList = new ArrayList<>();
         // RDS
         serviceCode = "rds";
         deployedCountMap.clear();
@@ -206,7 +210,15 @@ public class QuotasServiceDAL {
     private int getNatGateways() {
         int natGateways = 0;
         try {
-            natGateways = ec2.describeNatGateways().natGateways().size();
+            DescribeNatGatewaysResponse response = ec2.describeNatGateways();
+            if (response.hasNatGateways()) {
+                for (NatGateway natGateway : response.natGateways()) {
+                    if (NatGatewayState.AVAILABLE == natGateway.state()
+                            || NatGatewayState.PENDING == natGateway.state()) {
+                        natGateways++;
+                    }
+                }
+            }
         } catch (SdkServiceException ec2Error) {
             LOGGER.error("ec2::DescribeNatGateways", ec2Error);
             LOGGER.error(Utils.getFullStackTrace(ec2Error));
@@ -216,6 +228,7 @@ public class QuotasServiceDAL {
     }
 
     private Double getFargateResourceCount() {
+        final long startTime = System.currentTimeMillis();
         Double count = 0d;
         try {
             Metric metric = Metric.builder()
@@ -244,7 +257,6 @@ public class QuotasServiceDAL {
             Instant end = Instant.now();
             Instant start = end.minus(600, ChronoUnit.SECONDS);
 
-            long startTime = System.currentTimeMillis();
             GetMetricDataRequest getMetricDataRequest = GetMetricDataRequest.builder()
                     .maxDatapoints(10000)
                     .startTime(start)
@@ -270,6 +282,7 @@ public class QuotasServiceDAL {
     }
 
     private Double getVCpuCount() {
+        final long startTime = System.currentTimeMillis();
         Double count = 0d;
         try {
             Metric metric = Metric.builder()
@@ -298,7 +311,6 @@ public class QuotasServiceDAL {
             Instant end = Instant.now();
             Instant start = end.minus(600, ChronoUnit.SECONDS);
 
-            long startTime = System.currentTimeMillis();
             GetMetricDataRequest getMetricDataRequest = GetMetricDataRequest.builder()
                     .maxDatapoints(10000)
                     .startTime(start)
@@ -331,21 +343,21 @@ public class QuotasServiceDAL {
         LOGGER.info("Service: {}", serviceCode);
         try {
             do {
-                    ListServiceQuotasRequest request = ListServiceQuotasRequest.builder()
-                            .serviceCode(serviceCode)
-                            .nextToken(nextToken)
-                            .build();
-                    ListServiceQuotasResponse response = serviceQuotas.listServiceQuotas(request);
-                    nextToken = response.nextToken();
+                ListServiceQuotasRequest request = ListServiceQuotasRequest.builder()
+                        .serviceCode(serviceCode)
+                        .nextToken(nextToken)
+                        .build();
+                ListServiceQuotasResponse response = serviceQuotas.listServiceQuotas(request);
+                nextToken = response.nextToken();
 
-                    for (ServiceQuota quota : response.quotas()) {
-                        // Do something with check description.
-                        //LOGGER.info("Service: " + quota.serviceName() + " Quota: " + quota.quotaName() + " Value: " + quota.value());
-                        retVals.put(quota.quotaName(), quota.value());
-                        if (null == quota.value()) {
-                            LOGGER.debug(quota.toString());  //this is for permissions error troubleshooting
-                        }
+                for (ServiceQuota quota : response.quotas()) {
+                    // Do something with check description.
+                    //LOGGER.info("Service: " + quota.serviceName() + " Quota: " + quota.quotaName() + " Value: " + quota.value());
+                    retVals.put(quota.quotaName(), quota.value());
+                    if (null == quota.value()) {
+                        LOGGER.debug(quota.toString());  //this is for permissions error troubleshooting
                     }
+                }
             } while (nextToken != null && !nextToken.isEmpty());
             return retVals;
         } catch (Exception e) {
@@ -355,26 +367,26 @@ public class QuotasServiceDAL {
         }
     }
 
-/*    // Get the List of Available Trusted Advisor Checks
-    private void getServices() {
-        // Possible language parameters: "en" (English), "ja" (Japanese), "fr" (French), "zh" (Chinese)
-
-        String nextToken = null;
-
-        //build a list of services that we are interested in with a list of the quota names and iterate
-        Map<String, List<String>> serviceMap = new LinkedHashMap<>();
-        List<String> quotas = new ArrayList<>();
-
-        do {
-            ListServicesRequest request = ListServicesRequest.builder().nextToken(nextToken).build();
-            ListServicesResponse response = serviceQuotasClient.listServices(request);
-            nextToken = response.nextToken();
-            for (ServiceInfo info : response.services()) {
-                System.out.println(info.toString());
-                getQuotas(info.serviceCode());
-            }
-        } while (nextToken != null && !nextToken.isEmpty());
-    }*/
+//    // Get the List of Available Trusted Advisor Checks
+//    private void getServices() {
+//        // Possible language parameters: "en" (English), "ja" (Japanese), "fr" (French), "zh" (Chinese)
+//
+//        String nextToken = null;
+//
+//        //build a list of services that we are interested in with a list of the quota names and iterate
+//        Map<String, List<String>> serviceMap = new LinkedHashMap<>();
+//        List<String> quotas = new ArrayList<>();
+//
+//        do {
+//            ListServicesRequest request = ListServicesRequest.builder().nextToken(nextToken).build();
+//            ListServicesResponse response = serviceQuotasClient.listServices(request);
+//            nextToken = response.nextToken();
+//            for (ServiceInfo info : response.services()) {
+//                System.out.println(info.toString());
+//                getQuotas(info.serviceCode());
+//            }
+//        } while (nextToken != null && !nextToken.isEmpty());
+//    }
 
     public static class Service {
         private String serviceCode;

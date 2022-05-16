@@ -143,4 +143,4 @@ Write-host "Launch Java Installer for SaaS Boost"
 
 $env:AWS_REGION = $AWS_REGION
 
-java "-Djava.util.logging.config.file=logging.properties" -jar ${CURRENT_DIR}\installer\target\SaaSBoostInstall-1.0.0-shaded.jar
+java "-Djava.util.logging.config.file=logging.properties" -jar ${CURRENT_DIR}\installer\target\SaaSBoostInstall-1.0.0-shaded.jar $args

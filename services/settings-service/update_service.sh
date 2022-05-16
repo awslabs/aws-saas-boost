@@ -13,17 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
-echo "AWS Region = $MY_AWS_REGION"
-
-if [ "X$1" = "X" ]; then
-    echo "usage: $0 <Environment>"
+if [ -z $1 ]; then
+    echo "Usage: $0 <Environment> [Lambda Folder]"
     exit 2
 fi
 
+MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
+echo "AWS Region = $MY_AWS_REGION"
+
 ENVIRONMENT=$1
 LAMBDA_STAGE_FOLDER=$2
-if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
+if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
 LAMBDA_CODE=SettingsService-lambda.zip
@@ -31,56 +31,27 @@ LAMBDA_CODE=SettingsService-lambda.zip
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
 
-SAAS_BOOST_BUCKET=$(aws ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query "Parameter.Value" --output text)
+SAAS_BOOST_BUCKET=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query 'Parameter.Value' --output text)
 echo "SaaS Boost Bucket = $SAAS_BOOST_BUCKET"
-if [ "X$SAAS_BOOST_BUCKET" = "X" ]; then
-    echo "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET Parameter not read from AWS env"
+if [ -z $SAAS_BOOST_BUCKET ]; then
+    echo "Can't find SAAS_BOOST_BUCKET in Parameter Store"
     exit 1
 fi
 
-# Do a fresh build of the micro service
+# Do a fresh build of the project
 mvn
 if [ $? -ne 0 ]; then
     echo "Error building project"
     exit 1
 fi
+
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-settings-config-opts"
-	"sb-${ENVIRONMENT}-settings-get-all-tenant"
-	"sb-${ENVIRONMENT}-settings-get-all"
-	"sb-${ENVIRONMENT}-settings-get-by-id-tenant"
-	"sb-${ENVIRONMENT}-settings-get-by-id"
-	"sb-${ENVIRONMENT}-settings-get-config"
-	"sb-${ENVIRONMENT}-settings-get-secret"
-	"sb-${ENVIRONMENT}-settings-set-config"
-	"sb-${ENVIRONMENT}-settings-ssm-param"
-	"sb-${ENVIRONMENT}-settings-update-config"
-	"sb-${ENVIRONMENT}-settings-update-tenant"
-	"sb-${ENVIRONMENT}-settings-delete-tenant"
-	"sb-${ENVIRONMENT}-settings-update"
-	"sb-${ENVIRONMENT}-settings-get-all"
-	"sb-${ENVIRONMENT}-settings-get-config"
-)
-
+# Find all the functions for this microservice
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-settings-\`)] | [].FunctionName' --output text"\)
+FUNCTIONS=($FUNCTIONS)
 for FX in "${FUNCTIONS[@]}"; do
+	printf "Updating function code for %s\n" $FX
 	aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "$FX" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
 done
-
-
-# # "Increment function version and point alias to the new version because of provisioned concurrency for subset of functions"
-# ALIAS_FUNCTIONS=("sb-${ENVIRONMENT}-settings-get-all"
-# 	"sb-${ENVIRONMENT}-settings-get-config"
-# )
-
-# for FX in "${ALIAS_FUNCTIONS[@]}"; do
-#   echo "Lambda Function to increment version: $FX"
-# 	NEW_VERSION=$(aws lambda --region "$MY_AWS_REGION" publish-version --function-name "$FX"  --output text --query 'Version')
-# 	echo "Update Alias v1 for Function $FX with version $NEW_VERSION"
-#   aws lambda update-alias \
-#       --region "$MY_AWS_REGION" \
-#       --function-name "$FX" \
-#       --function-version "${NEW_VERSION}" \
-#       --name v1
-# done

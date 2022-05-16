@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { Fragment } from "react";
-import { Row, Col, Card, CardBody, CardHeader } from "reactstrap";
+import { PropTypes } from 'prop-types'
+import React, { Fragment } from 'react'
+import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 import {
   SaasBoostSelect,
   SaasBoostInput,
   SaasBoostCheckbox,
   SaasBoostFileUpload,
-} from "../components/FormComponents";
+} from '../components/FormComponents'
 
 export default class DatabaseSubform extends React.Component {
   getEngineOptions() {
@@ -30,86 +30,84 @@ export default class DatabaseSubform extends React.Component {
         <option value={engine.engine} key={engine.engine}>
           {engine.description}
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   getInstanceOptions() {
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
     if (!engine) {
-      return null;
+      return null
     }
-    const instances = engine.instances;
+    const instances = engine.instances
     const options = instances?.map((instance) => {
       return (
         <option value={instance.instance} key={instance.instance}>
           {instance.class} ({instance.description})
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   getVersionOptions() {
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
-    const instanceVal = this.props.values?.instance;
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
+    const instanceVal = this.props.values?.instance
     if (!engine || !instanceVal) {
-      return null;
+      return null
     }
-    const instance = engine.instances.find((i) => i.instance === instanceVal);
+    const instance = engine.instances.find((i) => i.instance === instanceVal)
     if (!instance) {
-      return null;
+      return null
     }
-    const versions = instance?.versions;
+    const versions = instance?.versions
     const options = versions.map((version) => {
       return (
         <option value={version.version} key={version.version}>
           {version.description}
         </option>
-      );
-    });
-    return options;
+      )
+    })
+    return options
   }
 
   versionChanged = (event) => {
-    const v = event.target.value;
-    console.log("Version Changed", v);
-    const engineVal = this.props.values?.engine;
-    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal);
-    const instanceVal = this.props.values?.instance;
+    const v = event.target.value
+    const engineVal = this.props.values?.engine
+    const engine = this.props.dbOptions?.find((en) => en.engine === engineVal)
+    const instanceVal = this.props.values?.instance
     if (!engine || !instanceVal) {
-      return null;
+      return null
     }
-    const instance = engine.instances.find((i) => i.instance === instanceVal);
-    const version = instance.versions.find((ver) => ver.version === v);
-    this.props.formik.setFieldValue("database.version", v);
-    this.props.formik.setFieldValue("database.family", version.family);
-  };
+    const instance = engine.instances.find((i) => i.instance === instanceVal)
+    const version = instance.versions.find((ver) => ver.version === v)
+    this.props.values.version = v
+    this.props.values.family = version.family
+  }
 
   render() {
     return (
       <Fragment>
-        <Row>
+        <Row className="mt-3">
           <Col xs={12}>
             <Card>
               <CardHeader>Database</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  name="provisionDb"
-                  id="provisionDb"
+                  name={this.props.formikTierPrefix + '.provisionDb'}
+                  id={this.props.formikTierPrefix + '.provisionDb'}
                   label="Provision a database for the application"
-                  value={this.props.provisionDb}
                 />
                 {this.props.provisionDb && (
                   <Row>
                     <Col xl={6}>
                       <SaasBoostSelect
                         label="Engine"
-                        name="database.engine"
-                        id="database.engine"
+                        name={this.props.formikTierPrefix + '.database.engine'}
+                        id={this.props.formikTierPrefix + '.database.engine'}
                         value={this.props.values?.engine}
                         disabled={this.props.isLocked}
                       >
@@ -121,8 +119,10 @@ export default class DatabaseSubform extends React.Component {
                           !!!this.props.values?.engine || this.props.isLocked
                         }
                         label="Instance"
-                        name="database.instance"
-                        id="database.instance"
+                        name={
+                          this.props.formikTierPrefix + '.database.instance'
+                        }
+                        id={this.props.formikTierPrefix + '.database.instance'}
                         value={this.props.values?.instance}
                       >
                         <option value="">Please select</option>
@@ -134,24 +134,28 @@ export default class DatabaseSubform extends React.Component {
                         }
                         onChange={this.versionChanged}
                         label="Version"
-                        name="database.version"
-                        id="database.version"
+                        name={this.props.formikTierPrefix + '.database.version'}
+                        id={this.props.formikTierPrefix + '.database.version'}
                         value={this.props.values?.version}
                       >
                         <option value="">Please select</option>
                         {this.getVersionOptions()}
                       </SaasBoostSelect>
                       <SaasBoostInput
-                        key="database.username"
+                        key={this.props.formikTierPrefix + '.database.username'}
                         label="Username"
-                        name="database.username"
+                        name={
+                          this.props.formikTierPrefix + '.database.username'
+                        }
                         type="text"
                         disabled={this.props.isLocked}
                       />
                       <SaasBoostInput
-                        key="database.password"
+                        key={this.props.formikTierPrefix + '.database.password'}
                         label="Password"
-                        name="database.password"
+                        name={
+                          this.props.formikTierPrefix + '.database.password'
+                        }
                         type="password"
                         disabled={this.props.isLocked}
                       />
@@ -159,13 +163,18 @@ export default class DatabaseSubform extends React.Component {
                     <Col xl={6}>
                       <Card>
                         <CardHeader>
-                          Database Initialization (Optional)
+                          {' '}
+                          Database Initialization (Optional){' '}
                         </CardHeader>
                         <CardBody>
                           <SaasBoostInput
-                            key="database.database"
+                            key={
+                              this.props.formikTierPrefix + '.database.database'
+                            }
                             label="Database Name"
-                            name="database.database"
+                            name={
+                              this.props.formikTierPrefix + '.database.database'
+                            }
                             type="text"
                             disabled={this.props.isLocked}
                           />
@@ -192,6 +201,14 @@ export default class DatabaseSubform extends React.Component {
           </Col>
         </Row>
       </Fragment>
-    );
+    )
   }
+}
+
+DatabaseSubform.propTypes = {
+  dbOptions: PropTypes.array,
+  values: PropTypes.object,
+  provisionDb: PropTypes.bool,
+  isLocked: PropTypes.bool,
+  onFileSelected: PropTypes.func,
 }

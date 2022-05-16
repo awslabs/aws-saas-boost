@@ -13,23 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Formik } from 'formik'
+import * as Yup from 'yup'
+import { SaasBoostInput } from '../components/FormComponents'
+import { Card, CardBody, CardHeader, Col, Row } from 'reactstrap'
 
-import React from "react";
-import { Formik } from "formik";
-import * as Yup from "yup"; //validation
-import { SaasBoostInput } from "../components/FormComponents";
-import { Card, CardBody, CardHeader, Col, Row } from "reactstrap";
-
-import config from "../config/appConfig";
+import config from '../config/appConfig'
 
 export const SettingsFormComponent = (props) => {
-  let initialValues = {};
-  let validationSpecs = {};
+  let initialValues = {}
+  let validationSpecs = {}
 
-  const { settings, updateSettings, loading } = props;
+  const { settings, updateSettings, loading } = props
 
-  const readOnlySettings = [];
-  const editableSettings = [];
+  const readOnlySettings = []
+  const editableSettings = []
   settings.map((setting) => {
     if (setting.readOnly) {
       readOnlySettings.push(
@@ -40,29 +40,24 @@ export const SettingsFormComponent = (props) => {
           value={setting.value}
           type="text"
           disabled={setting.readOnly}
-        />
-      );
+        />,
+      )
     } else {
       initialValues = {
         ...initialValues,
         [setting.name]: setting.value,
-      };
+      }
       validationSpecs = {
         ...validationSpecs,
         [setting.name]: Yup.string().required(),
-      };
+      }
       editableSettings.push(
-        <SaasBoostInput
-          key={setting.name}
-          label={setting.name}
-          name={setting.name}
-          type="text"
-        />
-      );
+        <SaasBoostInput key={setting.name} label={setting.name} name={setting.name} type="text" />,
+      )
     }
 
-    return {};
-  });
+    return {}
+  })
   readOnlySettings.unshift(
     <SaasBoostInput
       key="API_URL"
@@ -71,18 +66,18 @@ export const SettingsFormComponent = (props) => {
       value={config.apiUri}
       type="text"
       disabled={true}
-    />
-  );
+    />,
+  )
 
-  const validationSchema = Yup.object(validationSpecs);
+  const validationSchema = Yup.object(validationSpecs)
   return (
     <div className="animated fadeIn">
-      {loading === "pending" && (
+      {loading === 'pending' && (
         <Row>
           <Col sm={12}>Loading...</Col>
         </Row>
       )}
-      {loading === "idle" && (
+      {loading === 'idle' && (
         <Formik
           enableReinitialize={true}
           onSubmit={updateSettings}
@@ -98,9 +93,7 @@ export const SettingsFormComponent = (props) => {
                     Settings
                   </CardHeader>
                   <CardBody>
-                    <p>
-                      System wide settings displayed here for your reference.
-                    </p>
+                    <p>System wide settings displayed here for your reference.</p>
                     <>{readOnlySettings}</>
                   </CardBody>
                 </Card>
@@ -110,7 +103,13 @@ export const SettingsFormComponent = (props) => {
         </Formik>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default SettingsFormComponent;
+SettingsFormComponent.propTypes = {
+  settings: PropTypes.array,
+  updateSettings: PropTypes.func,
+  loading: PropTypes.bool,
+}
+
+export default SettingsFormComponent

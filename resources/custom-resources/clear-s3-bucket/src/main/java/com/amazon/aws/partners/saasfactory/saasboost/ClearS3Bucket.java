@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,37 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
 public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(ClearS3Bucket.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ClearS3Bucket.class);
     private final S3Client s3;
 
-    public ClearS3Bucket() throws URISyntaxException {
-        long startTimeMillis = System.currentTimeMillis();
+    public ClearS3Bucket() {
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
@@ -55,12 +48,12 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
         final String bucket = (String) resourceProperties.get("Bucket");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
-        ObjectNode responseData = JsonNodeFactory.instance.objectNode();
+        Map<String, Object> responseData = new HashMap<>();
         try {
             Runnable r = () -> {
                 if ("Create".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE or UPDATE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
 
@@ -68,9 +61,12 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                     List<ObjectIdentifier> toDelete = new ArrayList<>();
 
                     // Is the bucket versioned?
-                    GetBucketVersioningResponse versioningResponse = s3.getBucketVersioning(request -> request.bucket(bucket));
-                    if (BucketVersioningStatus.ENABLED == versioningResponse.status() || BucketVersioningStatus.SUSPENDED == versioningResponse.status()) {
-                        LOGGER.info("Bucket " + bucket + " is versioned (" + versioningResponse.status() + ")");
+                    GetBucketVersioningResponse versioningResponse = s3.getBucketVersioning(request -> request
+                            .bucket(bucket)
+                    );
+                    if (BucketVersioningStatus.ENABLED == versioningResponse.status()
+                            || BucketVersioningStatus.SUSPENDED == versioningResponse.status()) {
+                        LOGGER.info("Bucket {} is versioned ({})", bucket, versioningResponse.status());
                         ListObjectVersionsResponse response;
                         String keyMarker = null;
                         String versionIdMarker = null;
@@ -106,7 +102,7 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                                     .forEachOrdered(toDelete::add);
                         } while (response.isTruncated());
                     } else {
-                        LOGGER.info("Bucket " + bucket + " is not versioned (" + versioningResponse.status() + ")");
+                        LOGGER.info("Bucket {} is not versioned ({})", bucket, versioningResponse.status());
                         ListObjectsV2Response response;
                         String token = null;
                         do {
@@ -134,7 +130,7 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                         } while (response.isTruncated());
                     }
                     if (!toDelete.isEmpty()) {
-                        LOGGER.info("Deleting " + toDelete.size() + " objects");
+                        LOGGER.info("Deleting {} objects", toDelete.size());
                         final int maxBatchSize = 1000;
                         int batchStart = 0;
                         int batchEnd = 0;
@@ -151,82 +147,29 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                                     .bucket(bucket)
                                     .delete(delete)
                             );
-                            LOGGER.info("Cleaned up " + deleteResponse.deleted().size() + " objects in bucket " + bucket);
+                            LOGGER.info("Cleaned up {} objects in bucket {}", deleteResponse.deleted().size(), bucket);
                         }
                     } else {
-                        LOGGER.info("Bucket " + bucket + " is empty. No objects to clean up.");
+                        LOGGER.info("Bucket {} is empty. No objects to clean up.", bucket);
                     }
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else {
-                    LOGGER.error("FAILED unknown requestType " + requestType);
+                    LOGGER.error("FAILED unknown requestType {}", requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
-                    sendResponse(event, context, "FAILED", responseData);
+                    CloudFormationResponse.send(event, context, "FAILED", responseData);
                 }
             };
             Future<?> f = service.submit(r);
             f.get(context.getRemainingTimeInMillis() - 1000, TimeUnit.MILLISECONDS);
         } catch (final TimeoutException | InterruptedException | ExecutionException e) {
             // Timed out
-            LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
-            String stackTrace = Utils.getFullStackTrace(e);
-            LOGGER.error(stackTrace);
-            responseData.put("Reason", stackTrace);
-            sendResponse(event, context, "FAILED", responseData);
+            LOGGER.error("FAILED unexpected error or request timed out {}", e.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            responseData.put("Reason", e.getMessage());
+            CloudFormationResponse.send(event, context, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
         return null;
     }
-
-    /**
-     * Send a response to CloudFormation regarding progress in creating resource.
-     *
-     * @param event
-     * @param context
-     * @param responseStatus
-     * @param responseData
-     * @return
-     */
-    public final Object sendResponse(final Map<String, Object> event, final Context context, final String responseStatus, ObjectNode responseData) {
-        String responseUrl = (String) event.get("ResponseURL");
-        LOGGER.info("ResponseURL: " + responseUrl + "\n");
-
-        URL url;
-        try {
-            url = new URL(responseUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "");
-            connection.setRequestMethod("PUT");
-
-            ObjectNode responseBody = JsonNodeFactory.instance.objectNode();
-            responseBody.put("Status", responseStatus);
-            responseBody.put("RequestId", (String) event.get("RequestId"));
-            responseBody.put("LogicalResourceId", (String) event.get("LogicalResourceId"));
-            responseBody.put("StackId", (String) event.get("StackId"));
-            responseBody.put("PhysicalResourceId", (String) event.get("LogicalResourceId"));
-            if (!"FAILED".equals(responseStatus)) {
-                responseBody.set("Data", responseData);
-            } else {
-                responseBody.put("Reason", responseData.get("Reason").asText());
-            }
-            LOGGER.info("Response Body: " + responseBody.toString());
-
-            try (OutputStreamWriter response = new OutputStreamWriter(connection.getOutputStream())) {
-                response.write(responseBody.toString());
-            } catch (IOException ioe) {
-                LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(Utils.getFullStackTrace(ioe));
-            }
-
-            LOGGER.info("Response Code: " + connection.getResponseCode());
-            connection.disconnect();
-        } catch (IOException e) {
-            LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(Utils.getFullStackTrace(e));
-        }
-
-        return null;
-    }
-
 }

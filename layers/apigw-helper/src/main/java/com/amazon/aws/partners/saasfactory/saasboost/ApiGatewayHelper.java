@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.apache.http.NameValuePair;
@@ -21,9 +22,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.params.Aws4SignerParams;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.*;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -35,10 +42,12 @@ import software.amazon.awssdk.utils.StringInputStream;
 
 import java.io.*;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ApiGatewayHelper {
@@ -48,7 +57,23 @@ public class ApiGatewayHelper {
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final Aws4Signer SIG_V4 = Aws4Signer.create();
     private static SdkHttpClient HTTP_CLIENT = ApacheHttpClient.builder().build();
-    private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+    //private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+    private static final StsClient sts = StsClient.builder()
+            .httpClient(HTTP_CLIENT)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .region(Region.of(AWS_REGION))
+            .endpointOverride(URI.create("https://" + StsClient.SERVICE_NAME + "." + Region.of(AWS_REGION).toString() + ".amazonaws.com"))
+            .overrideConfiguration(ClientOverrideConfiguration.builder()
+                    .retryPolicy(RetryPolicy.builder()
+                            .backoffStrategy(BackoffStrategy.defaultStrategy())
+                            .throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy())
+                            .numRetries(SdkDefaultRetrySetting.defaultMaxAttempts())
+                            .retryCondition(RetryCondition.defaultRetryCondition())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
 
     private ApiGatewayHelper() {
         if (Utils.isBlank(AWS_REGION)) {
@@ -59,21 +84,20 @@ public class ApiGatewayHelper {
         }
     }
 
-    public static String signAndExecuteApiRequest(SdkHttpFullRequest apiRequest, String assumedRole, String context) throws Exception {
+    public static String signAndExecuteApiRequest(SdkHttpFullRequest apiRequest, String assumedRole, String context) {
         SdkHttpFullRequest signedApiRequest = signApiRequest(apiRequest, assumedRole, context);
         return executeApiRequest(apiRequest, signedApiRequest);
     }
 
-    public static String executeApiRequest(SdkHttpFullRequest apiRequest) throws Exception {
+    public static String executeApiRequest(SdkHttpFullRequest apiRequest) {
         return executeApiRequest(apiRequest, null);
     }
 
-    private static String executeApiRequest(SdkHttpFullRequest apiRequest, SdkHttpFullRequest signedApiRequest) throws Exception {
+    private static String executeApiRequest(SdkHttpFullRequest apiRequest, SdkHttpFullRequest signedApiRequest) {
         HttpExecuteRequest.Builder requestBuilder = HttpExecuteRequest.builder().request(signedApiRequest != null ? signedApiRequest : apiRequest);
         apiRequest.contentStreamProvider().ifPresent(c -> requestBuilder.contentStreamProvider(c));
         HttpExecuteRequest apiExecuteRequest = requestBuilder.build();
 
-        LOGGER.info("Created HTTP request");
 //        StringBuilder buffer = new StringBuilder();
 //        for (Map.Entry<String, List<String>> header : apiExecuteRequest.httpRequest().headers().entrySet()) {
 //            buffer.append(header.getKey());
@@ -92,7 +116,7 @@ public class ApiGatewayHelper {
             responseBody = responseReader.lines().collect(Collectors.joining());
             LOGGER.info(responseBody);
             if (!apiResponse.httpResponse().isSuccessful()) {
-                throw new Exception("{\"statusCode\":" + apiResponse.httpResponse().statusCode() + ", \"message\":\"" + apiResponse.httpResponse().statusText().get() + "\"}");
+                throw new RuntimeException("{\"statusCode\":" + apiResponse.httpResponse().statusCode() + ", \"message\":\"" + apiResponse.httpResponse().statusText().get() + "\"}");
             }
         } catch (IOException ioe) {
             LOGGER.error("HTTP Client error {}", ioe.getMessage());
@@ -100,7 +124,11 @@ public class ApiGatewayHelper {
             throw new RuntimeException(ioe);
         } finally {
             if (responseReader != null) {
-                responseReader.close();
+                try {
+                    responseReader.close();
+                } catch (IOException ioe) {
+                    // swallow
+                }
             }
         }
 
@@ -108,25 +136,21 @@ public class ApiGatewayHelper {
     }
 
     public static SdkHttpFullRequest getApiRequest(String host, String stage, ApiRequest request) {
-        return getApiRequest(host, stage, request.getResource(), request.getMethod(), request.getBody());
+        return getApiRequest(host, stage, request.getResource(), request.getMethod(), request.getHeaders(), request.getBody());
     }
 
-    public static SdkHttpFullRequest getApiRequest(String host, String stage, String resource, SdkHttpMethod method, String body) {
-        SdkHttpFullRequest apiRequest = null;
+    public static SdkHttpFullRequest getApiRequest(String host, String stage, String resource, SdkHttpMethod method, Map<String, String> headers, String body) {
+        SdkHttpFullRequest apiRequest;
         String protocol = "https";
         try {
             URL url = new URL(protocol, host, stage + "/" + resource);
-            List<NameValuePair> queryParams = URLEncodedUtils.parse(url.toURI(), StandardCharsets.UTF_8);
             SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder()
                     .protocol(protocol)
                     .host(host)
                     .encodedPath(url.getPath())
                     .method(method);
-            if (queryParams != null) {
-                for (NameValuePair queryParam : queryParams) {
-                    sdkRequestBuilder.appendRawQueryParameter(queryParam.getName(), queryParam.getValue());
-                }
-            }
+            appendQueryParams(sdkRequestBuilder, url);
+            putHeaders(sdkRequestBuilder, headers);
             if (body != null) {
                 sdkRequestBuilder.putHeader("Content-Type", "application/json; charset=utf-8");
                 sdkRequestBuilder.contentStreamProvider(() -> new StringInputStream(body));
@@ -141,7 +165,6 @@ public class ApiGatewayHelper {
             LOGGER.error(Utils.getFullStackTrace(use));
             throw new RuntimeException(use);
         }
-
         return apiRequest;
     }
 
@@ -151,12 +174,11 @@ public class ApiGatewayHelper {
                 .signingRegion(Region.of(AWS_REGION))
                 .awsCredentials(getTemporaryCredentials(assumedRole, context))
                 .build();
-        LOGGER.info("Signing API Gateway request with IAM credentials");
         SdkHttpFullRequest signedApiRequest = SIG_V4.sign(apiRequest, sigV4Params);
         return signedApiRequest;
     }
 
-    private static AwsCredentials getTemporaryCredentials(final String assumedRole, final String context) {
+    protected static AwsCredentials getTemporaryCredentials(final String assumedRole, final String context) {
         AwsCredentials systemCredentials = null;
 
         //LOGGER.info("Calling AssumeRole for {}", assumedRole);
@@ -180,12 +202,28 @@ public class ApiGatewayHelper {
                     temporaryCredentials.accessKeyId(),
                     temporaryCredentials.secretAccessKey(),
                     temporaryCredentials.sessionToken());
-            LOGGER.info("Generated temporary System credentials");
         } catch (SdkServiceException stsError) {
             LOGGER.error("sts::AssumeRole error {}", stsError.getMessage());
             LOGGER.error(Utils.getFullStackTrace(stsError));
             throw stsError;
         }
         return systemCredentials;
+    }
+
+    protected static void appendQueryParams(SdkHttpFullRequest.Builder sdkRequestBuilder, URL url) throws URISyntaxException {
+        List<NameValuePair> queryParams = URLEncodedUtils.parse(url.toURI(), StandardCharsets.UTF_8);
+        if (queryParams != null) {
+            for (NameValuePair queryParam : queryParams) {
+                sdkRequestBuilder.appendRawQueryParameter(queryParam.getName(), queryParam.getValue());
+            }
+        }
+    }
+
+    protected static void putHeaders(SdkHttpFullRequest.Builder sdkRequestBuilder, Map<String, String> headers) {
+        if (sdkRequestBuilder != null && headers != null) {
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                sdkRequestBuilder.putHeader(header.getKey(), header.getValue());
+            }
+        }
     }
 }

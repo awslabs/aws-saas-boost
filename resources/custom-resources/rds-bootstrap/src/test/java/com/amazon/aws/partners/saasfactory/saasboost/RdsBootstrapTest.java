@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,23 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
 public class RdsBootstrapTest {
 
     @Test
-    @Ignore
     public void testSqlScanner() throws Exception {
         InputStream bootstrapSQL = Thread.currentThread().getContextClassLoader().getResourceAsStream("bootstrap.sql");
         Scanner sqlScanner = new Scanner(bootstrapSQL, "UTF-8");
@@ -41,7 +39,6 @@ public class RdsBootstrapTest {
                 sql.add(ddl);
             }
         }
-        AtomicInteger batch = new AtomicInteger(1);
-        sql.forEach(str -> System.out.println(String.format("%02d %s", batch.getAndIncrement(), str)));
+        assertEquals(6, sql.size());
     }
 }

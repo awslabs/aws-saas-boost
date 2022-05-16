@@ -14,180 +14,180 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import { fetchAccessToken } from "../../api";
-import appConfig from "../../config/appConfig";
+import axios from 'axios'
+import { fetchAccessToken } from '../../api'
+import appConfig from '../../config/appConfig'
 
-const { apiUri } = appConfig;
+const { apiUri } = appConfig
 const apiServer = axios.create({
   baseURL: `${apiUri}/users`,
   headers: {
     common: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   },
-});
+})
 
-const CancelToken = axios.CancelToken;
-const source = CancelToken.source();
+const CancelToken = axios.CancelToken
+const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
-  console.log(r);
+  console.log(r)
   //Obtain and pass along Authorization token
-  const authorizationToken = await fetchAccessToken();
-  r.headers.Authorization = authorizationToken;
+  const authorizationToken = await fetchAccessToken()
+  r.headers.Authorization = authorizationToken
 
   //Configure the AbortSignal
   r.signal.onabort = () => {
-    console.log("Aborting API Call");
-    source.cancel();
-    console.log("Call aborted");
-  };
-  r.cancelToken = source.token;
+    console.log('Aborting API Call')
+    source.cancel()
+    console.log('Call aborted')
+  }
+  r.cancelToken = source.token
 
-  return r;
-});
+  return r
+})
 
 //API Aborted class
 class Aborted extends Error {
   constructor(message, cause) {
-    super(message);
-    this.aborted = true;
-    this.cause = cause;
+    super(message)
+    this.aborted = true
+    this.cause = cause
   }
 }
 
 const usersAPI = {
   fetchAll: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.get("", { signal });
-      return response.data;
+      const response = await apiServer.get('', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to fetch users");
+        console.error(err)
+        throw Error('Unable to fetch users')
       }
     }
   },
   fetch: async (userId, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.get(`/${userId}`, {
         signal,
-      });
+      })
 
-      return response.data;
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to fetch user with Id: ${userId}`);
+        console.error(err)
+        throw Error(`Unable to fetch user with Id: ${userId}`)
       }
     }
   },
   create: async (user, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.post(`/`, JSON.stringify(user), {
         signal,
-      });
-      return response.data;
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to create user: ${JSON.stringify(user)}`);
+        console.error(err)
+        throw Error(`Unable to create user: ${JSON.stringify(user)}`)
       }
     }
   },
   update: async (user, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.put(`/${user.username}`, user, {
         signal,
-      });
-      console.log(response);
-      return response.data;
+      })
+      console.log(response)
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update user: ${user.username}`);
+        console.error(err)
+        throw Error(`Unable to update user: ${user.username}`)
       }
     }
   },
   activate: async (username, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.patch(
         `/${username}/enable`,
         { username },
         {
           signal,
-        }
-      );
-      console.log(response);
-      return response.data;
+        },
+      )
+      console.log(response)
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update user: ${username}`);
+        console.error(err)
+        throw Error(`Unable to update user: ${username}`)
       }
     }
   },
   deactivate: async (username, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.patch(
         `/${username}/disable`,
         { username },
         {
           signal,
-        }
-      );
-      console.log(response);
-      return response.data;
+        },
+      )
+      console.log(response)
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update user: ${username}`);
+        console.error(err)
+        throw Error(`Unable to update user: ${username}`)
       }
     }
   },
   delete: async (username, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.delete(`/${username}`, {
         signal,
         data: { username },
-      });
-      return response.data;
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to delete user: ${username}`);
+        console.error(err)
+        throw Error(`Unable to delete user: ${username}`)
       }
     }
   },
   isCancel: (err) => {
     if (err.aborted && err.aborted === true) {
-      return true;
+      return true
     }
-    return false;
+    return false
   },
-};
+}
 
-export default usersAPI;
+export default usersAPI

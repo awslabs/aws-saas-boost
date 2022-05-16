@@ -1,0 +1,75 @@
+{
+  "name": "Multi Container",
+  "domainName": "",
+  "hostedZone": "",
+  "sslCertificate": "",
+  "services": {
+    "main": {
+      "name": "main",
+      "description": "Main Service",
+      "public": true,
+      "path": "/*",
+      "healthCheckUrl": "/health",
+      "operatingSystem": "LINUX",
+      "containerPort": 7000,
+      "containerRepo": "",
+      "containerTag": "latest",
+      "tiers": {
+        "default": {
+          "instanceType": "t3.medium",
+          "cpu": 512,
+          "memory": 1024,
+          "min": 1,
+          "max": 2,
+          "database": null,
+          "filesystem": null
+        }
+      }
+    },
+    "feature": {
+      "name": "feature",
+      "description": "Feature service public path routing",
+      "public": true,
+      "path": "/feature*",
+      "healthCheckUrl": "/health",
+      "operatingSystem": "LINUX",
+      "containerPort": 7000,
+      "containerRepo": "",
+      "containerTag": "latest",
+      "tiers": {
+        "default": {
+          "instanceType": "t3.medium",
+          "cpu": 512,
+          "memory": 1024,
+          "min": 1,
+          "max": 2,
+          "database": null,
+          "filesystem": null
+        }
+      }
+    },
+    "internal": {
+      "name": "internal",
+      "description": "Internal private service",
+      "public": false,
+      "path": "",
+      "healthCheckUrl": "/health",
+      "operatingSystem": "LINUX",
+      "containerPort": 7000,
+      "containerRepo": "",
+      "containerTag": "latest",
+      "tiers": {
+        "default": {
+          "instanceType": "t3.medium",
+          "cpu": 512,
+          "memory": 1024,
+          "min": 1,
+          "max": 2,
+          "database": null,
+          "filesystem": null
+        }
+      }
+    }
+  },
+  "billing": null
+}

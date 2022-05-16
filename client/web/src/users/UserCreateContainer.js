@@ -13,64 +13,63 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { Component } from 'react'
+import { UserFormComponent } from './UserFormComponent'
+import { connect } from 'react-redux'
+import { withRouter } from 'react-router'
 
-import React, { Component } from "react";
-import { UserFormComponent } from "./UserFormComponent";
-import { connect } from "react-redux";
-import { withRouter } from "react-router";
-
-import { dismissError, createdUser } from "./ducks";
+import { dismissError, createdUser } from './ducks'
 
 const mapDispatchToProps = {
   createdUser,
   dismissError,
-};
+}
 
 const mapStateToProps = (state) => {
-  return { users: state.users };
-};
+  return { users: state.users }
+}
 
 class UserCreateContainer extends Component {
   constructor(props) {
-    super(props);
-    this.state = {};
+    super(props)
+    this.state = {}
 
-    this.saveUser = this.saveUser.bind(this);
-    this.handleError = this.handleError.bind(this);
+    this.saveUser = this.saveUser.bind(this)
+    this.handleError = this.handleError.bind(this)
   }
 
   async saveUser(values, { setSubmitting, resetForm }) {
-    const { createdUser, history } = this.props;
-    const user = values;
-    const { username } = user;
+    const { createdUser, history } = this.props
+    const user = values
+    const { username } = user
 
     try {
-      const createdResponse = await createdUser(user);
-      //console.log(createdResponse);
+      const createdResponse = await createdUser(user)
       if (!createdResponse.error) {
-        history.push(`/users/${username}`);
+        history.push(`/users/${username}`)
       } else {
-        setSubmitting(false);
-        resetForm({ values });
+        setSubmitting(false)
+        resetForm({ values })
       }
     } catch (e) {
-      setSubmitting(false);
-      resetForm({ values });
+      setSubmitting(false)
+      resetForm({ values })
     }
   }
 
   handleCancel = () => {
-    const { history } = this.props;
-    history.goBack();
-  };
+    const { history } = this.props
+    history.goBack()
+  }
 
   handleError = () => {
-    const { dismissError } = this.props;
-    dismissError();
-  };
+    const { dismissError } = this.props
+    dismissError()
+  }
 
   render() {
-    const { error } = this.props.users;
+    const { error } = this.props.users
     return (
       <UserFormComponent
         handleCancel={this.handleCancel}
@@ -78,13 +77,20 @@ class UserCreateContainer extends Component {
         error={error}
         handleError={this.handleError}
       />
-    );
+    )
   }
+}
+
+UserCreateContainer.propTypes = {
+  createdUser: PropTypes.func,
+  history: PropTypes.object,
+  users: PropTypes.object,
+  dismissError: PropTypes.func,
 }
 
 export const UserCreateContainerWithRouter = connect(
   mapStateToProps,
-  mapDispatchToProps
-)(withRouter(UserCreateContainer));
+  mapDispatchToProps,
+)(withRouter(UserCreateContainer))
 
-export default UserCreateContainerWithRouter;
+export default UserCreateContainerWithRouter

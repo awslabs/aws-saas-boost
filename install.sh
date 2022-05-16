@@ -85,4 +85,4 @@ cd ${CURRENT_DIR}
 clear
 echo "Launching installer for SaaS Boost..."
 
-java -Djava.util.logging.config.file=logging.properties -jar ${CURRENT_DIR}/installer/target/SaaSBoostInstall-1.0.0-shaded.jar
+java -Djava.util.logging.config.file=logging.properties -jar ${CURRENT_DIR}/installer/target/SaaSBoostInstall-1.0.0-shaded.jar "$@"

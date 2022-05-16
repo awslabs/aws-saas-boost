@@ -37,23 +37,21 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Origins:
-          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
-            Id: saas-boost-s3-website
-            S3OriginConfig:
-              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
-        Enabled: true
         Comment: Saas Boost Admin Console
         DefaultRootObject: index.html
+        Enabled: true
+        IPV6Enabled: false
+        HttpVersion: http2
+        Origins:
+          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
+            Id: !Sub sb-${Environment}-s3-website
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
             ResponsePagePath: /index.html
             ErrorCachingMinTTL: 300
-        #Logging:
-        #  IncludeCookies: 'false'
-        #  Bucket: mylogs.s3.amazonaws.com
-        #  Prefix: myprefix
         DefaultCacheBehavior:
           AllowedMethods:
             - DELETE
@@ -63,26 +61,26 @@ Resources:
             - PATCH
             - POST
             - PUT
-          TargetOriginId: saas-boost-s3-website
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          ViewerProtocolPolicy: allow-all
-        IPV6Enabled: true
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub sb-${Environment}-s3-website
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # CachingOptimized managed cache policy
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # CORS-S3Origin managed origin request policy
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
+          ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
-        # Restrictions:
-        #   GeoRestriction:
-        #     RestrictionType: whitelist
-        #     #this is for testing to reduce distribution locations
-        #     Locations:
-        #       - US
   ConsoleUserPool:
     Type: AWS::Cognito::UserPool
     DependsOn: ConsoleCloudFrontDistribution
     Properties:
-      UserPoolName: !Sub sb-users-${Environment}
+      UserPoolName: !Sub sb-${Environment}-users
       MfaConfiguration: "OFF"
       Policies:
         PasswordPolicy:
@@ -106,16 +104,13 @@ Resources:
             <br>
           EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
       Schema:
-        - Name: tenant_id
-          AttributeDataType: String
-          Mutable: false
         - Name: identity_pool
           AttributeDataType: String
           Mutable: false
   ConsoleUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: !Sub sb-client-app-${Environment}
+      ClientName: !Sub sb-${Environment}-client-app
       UserPoolId: !Ref ConsoleUserPool
       SupportedIdentityProviders:
         - COGNITO
@@ -128,7 +123,7 @@ Resources:
   ConsoleIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
-      IdentityPoolName: !Sub sb-identities-${Environment}
+      IdentityPoolName: !Sub sb-${Environment}-identities
       AllowClassicFlow: true
       AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
@@ -138,7 +133,7 @@ Resources:
   ConsoleIdentityPoolAuthRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-cognito-auth-role-${Environment}-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-cognito-auth-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17

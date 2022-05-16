@@ -13,31 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import { Formik, Form } from "formik";
-import {
-  Button,
-  Card,
-  CardHeader,
-  CardFooter,
-  CardBody,
-  Row,
-  Col,
-  Alert,
-} from "reactstrap";
-import {
-  SaasBoostInput,
-  SaasBoostCheckbox,
-} from "../components/FormComponents";
-import * as Yup from "yup";
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Formik, Form } from 'formik'
+import { Button, Card, CardHeader, CardFooter, CardBody, Row, Col, Alert } from 'reactstrap'
+import { SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents'
+import * as Yup from 'yup'
 
 const initialUser = {
-  username: "",
-  firstName: "",
-  lastName: "",
-  email: "",
-};
+  username: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+}
 
 export const UserFormComponent = ({
   handleSubmit,
@@ -49,26 +37,20 @@ export const UserFormComponent = ({
   const mutableUser = {
     ...user,
     emailVerified: false,
-  };
-  console.log(mutableUser);
+  }
+  console.log(mutableUser)
   return (
     <Formik
       initialValues={mutableUser}
       onSubmit={handleSubmit}
       validationSchema={Yup.object({
-        username: Yup.string()
-          .max(25, "Must be 25 characters or less.")
-          .required("Required"),
-        firstName: Yup.string()
-          .max(25, "Must be 50 characters or less.")
-          .required("Required"),
-        lastName: Yup.string()
-          .max(25, "Must be 50 characters or less.")
-          .required("Required"),
+        username: Yup.string().max(25, 'Must be 25 characters or less.').required('Required'),
+        firstName: Yup.string().max(25, 'Must be 50 characters or less.').required('Required'),
+        lastName: Yup.string().max(25, 'Must be 50 characters or less.').required('Required'),
         email: Yup.string()
-          .email("Enter a valid email address")
-          .max(255, "Must be 255 characters or less.")
-          .required("Required"),
+          .email('Enter a valid email address')
+          .max(255, 'Must be 255 characters or less.')
+          .required('Required'),
         emailVerified: Yup.bool(),
       })}
     >
@@ -98,28 +80,16 @@ export const UserFormComponent = ({
                     />
                     <Row>
                       <Col md={6}>
-                        <SaasBoostInput
-                          label="First Name"
-                          name="firstName"
-                          type="text"
-                        />
+                        <SaasBoostInput label="First Name" name="firstName" type="text" />
                       </Col>
                       <Col md={6}>
-                        <SaasBoostInput
-                          label="Last Name"
-                          name="lastName"
-                          type="text"
-                        />
+                        <SaasBoostInput label="Last Name" name="lastName" type="text" />
                       </Col>
                     </Row>
 
                     <Row>
                       <Col>
-                        <SaasBoostInput
-                          label="Email"
-                          name="email"
-                          type="email"
-                        />
+                        <SaasBoostInput label="Email" name="email" type="email" />
                         {!mutableUser.created && (
                           <SaasBoostCheckbox
                             id="emailVerified"
@@ -132,19 +102,11 @@ export const UserFormComponent = ({
                     </Row>
                   </CardBody>
                   <CardFooter>
-                    <Button
-                      color="danger"
-                      className="mr-2"
-                      onClick={handleCancel}
-                    >
+                    <Button color="danger" className="mr-2" onClick={handleCancel}>
                       Cancel
                     </Button>
-                    <Button
-                      color="primary"
-                      type="Submit"
-                      disabled={props.isSubmitting}
-                    >
-                      {props.isSubmitting ? "Saving..." : "Submit"}
+                    <Button color="primary" type="Submit" disabled={props.isSubmitting}>
+                      {props.isSubmitting ? 'Saving...' : 'Submit'}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -154,5 +116,15 @@ export const UserFormComponent = ({
         </Form>
       )}
     </Formik>
-  );
-};
+  )
+}
+
+UserFormComponent.propTypes = {
+  user: PropTypes.object,
+  error: PropTypes.string,
+  values: PropTypes.object,
+  handleSubmit: PropTypes.func,
+  handleCancel: PropTypes.func,
+  handleError: PropTypes.func,
+  isSubmitting: PropTypes.bool,
+}

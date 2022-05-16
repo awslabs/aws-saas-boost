@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
@@ -147,7 +148,11 @@ public class SaaSBoostInstall {
     public static void main(String[] args) {
         SaaSBoostInstall installer = new SaaSBoostInstall();
         try {
-            installer.start();
+            String existingBucket = null;
+            if (args.length > 0) {
+                existingBucket = args[0];
+            }
+            installer.start(existingBucket);
         } catch (Exception e) {
             outputMessage("===========================================================");
             outputMessage("Installation Error: " + e.getLocalizedMessage());
@@ -161,7 +166,7 @@ public class SaaSBoostInstall {
 //        processLambdas();
     }
 
-    public void start() {
+    public void start(String existingBucket) {
         outputMessage("===========================================================");
         outputMessage("Welcome to the AWS SaaS Boost Installer");
         outputMessage("Installer Version: " + VERSION);
@@ -197,7 +202,7 @@ public class SaaSBoostInstall {
 
         switch (installOption) {
             case INSTALL:
-                installSaaSBoost();
+                installSaaSBoost(existingBucket);
                 break;
             case UPDATE:
                 updateSaaSBoost();
@@ -226,7 +231,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void installSaaSBoost() {
+    protected void installSaaSBoost(String existingBucket) {
         LOGGER.info("Performing new installation of AWS SaaS Boost");
 
         // Check if yarn.lock exists in the client/web folder
@@ -280,7 +285,7 @@ public class SaaSBoostInstall {
 
         System.out.println("If your application runs on Windows and uses a shared file system, Active Directory is required.");
         System.out.print("Would you like to provision AWS Directory Service to use with FSx for Windows File Server (y or n)? ");
-        boolean setupActiveDirectory = Keyboard.readBoolean();
+        final boolean setupActiveDirectory = Keyboard.readBoolean();
 
         System.out.println();
         outputMessage("===========================================================");
@@ -314,18 +319,29 @@ public class SaaSBoostInstall {
         outputMessage("Checking for necessary AWS service linked roles");
         setupAwsServiceRoles();
 
-        // Create the S3 artifacts bucket
-        outputMessage("Creating S3 artifacts bucket");
-        saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
-        outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
+        if (existingBucket == null) {
+            // Create the S3 artifacts bucket
+            outputMessage("Creating S3 artifacts bucket");
+            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+            outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
-        // Copy the CloudFormation templates
-        outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-        copyTemplateFilesToS3();
+            // Copy the CloudFormation templates
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyTemplateFilesToS3();
 
-        // Compile all the source code
-        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
-        processLambdas();
+            // Compile all the source code
+            outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+            processLambdas();
+        } else {
+            outputMessage("Reusing existing artifacts bucket " + existingBucket);
+            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            try {
+                s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
+            } catch (SdkServiceException s3error) {
+                outputMessage("Bucket " + existingBucket + " does not exist!");
+                throw s3error;
+            }
+        }
 
         final String activeDirectoryPasswordParameterName = "/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD";
         if (setupActiveDirectory) {
@@ -358,7 +374,7 @@ public class SaaSBoostInstall {
         // project and have CloudFormation own building/copying the web files to S3.
         // Wait for completion and then build web app
         outputMessage("Build website and upload to S3");
-        String webUrl = buildAndCopyWebApp();
+        final String webUrl = buildAndCopyWebApp();
 
         if (useAnalyticsModule) {
             LOGGER.info("Install metrics and analytics module");
@@ -376,8 +392,9 @@ public class SaaSBoostInstall {
     protected void updateSaaSBoost() {
         LOGGER.info("Perform Update of AWS SaaS Boost deployment");
         outputMessage("******* W A R N I N G *******");
-        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test an updated install in a non-production environment\n" +
-                "before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
+        outputMessage("Updating AWS SaaS Boost environment is an IRREVERSIBLE operation. You should test an "
+                + "updated install in a non-production environment\n"
+                + "before updating a production environment. By continuing you understand and ACCEPT the RISKS!");
         System.out.print("Enter y to continue with UPDATE of " + stackName + " or n to CANCEL: ");
         boolean continueUpgrade = Keyboard.readBoolean();
         if (!continueUpgrade) {
@@ -394,7 +411,7 @@ public class SaaSBoostInstall {
         // Grab the current Lambda folder. We are going to upload the (potentially) modified Lambda functions to a
         // different S3 folder as a way to force CloudFormation to update the function resources. After we copy the
         // function code up to S3 in the new folder, we can delete the existing one to save space/money on S3.
-        String existingLambdaSourceFolder = this.lambdaSourceFolder;
+        final String existingLambdaSourceFolder = this.lambdaSourceFolder;
 
         // Now create a new S3 folder for the Lambda functions so that CloudFormation sees a change that will
         // trigger an update function call to the Lambda service.
@@ -506,7 +523,7 @@ public class SaaSBoostInstall {
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error", ssmError);
             LOGGER.error(getFullStackTrace(ssmError));
-            throw ssmError;
+            // throw ssmError;
         }
 
         // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
@@ -860,7 +877,7 @@ public class SaaSBoostInstall {
         try {
             Map<String, Object> systemApiRequest = new HashMap<>();
             Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "tenants/provisioned");
+            detail.put("resource", "tenants");
             detail.put("method", "GET");
             systemApiRequest.put("detail", detail);
             final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
@@ -1008,7 +1025,7 @@ public class SaaSBoostInstall {
          */
         LOGGER.info("User for QuickSight: " + this.quickSightUsername);
         LOGGER.info("Create data source in QuickSight for metrics Redshift table in Region: " + AWS_REGION.id());
-        CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
+        final CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
                 .dataSourceId("sb-" + this.envName + "-metrics-source")
                 .name("sb-" + this.envName + "-metrics-source")
                 .awsAccountId(accountId)
@@ -1155,7 +1172,9 @@ public class SaaSBoostInstall {
                     .collect(Collectors.toSet());
             outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
-                LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> " + cloudFormationTemplate.getFileName().toString());
+                LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> "
+                        + cloudFormationTemplate.getFileName().toString());
+                // TODO validate template for syntax errors before continuing with installation
                 saasBoostArtifactsBucket.putFile(s3, cloudFormationTemplate, cloudFormationTemplate.getFileName());
             }
         } catch (IOException ioe) {
@@ -1236,7 +1255,8 @@ public class SaaSBoostInstall {
         try {
             ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
         } catch (ParameterNotFoundException ssmError) {
-            outputMessage("Cannot find existing SaaS Boost environment " + environment + " in this AWS account and region.");
+            outputMessage("Cannot find existing SaaS Boost environment " + environment
+                    + " in this AWS account and region.");
             System.exit(2);
         }
         return environment;
@@ -1258,14 +1278,6 @@ public class SaaSBoostInstall {
         }
         return valid;
     }
-
-//    protected static boolean validateDomain(String domainName) {
-//        boolean valid = false;
-//        if (domainName != null) {
-//            valid = domainName.matches("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$");
-//        }
-//        return valid;
-//    }
 
     protected SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket() {
         LOGGER.info("Getting existing SaaS Boost artifact bucket name from Parameter Store");
@@ -1410,6 +1422,7 @@ public class SaaSBoostInstall {
             // package to S3 below. Build utils before anything else.
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "cloudformation-utils")));
 
             DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
             functions.forEach(sourceDirectories::add);
@@ -1463,13 +1476,14 @@ public class SaaSBoostInstall {
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                            .stackName(stackName)
-                            //.onFailure("DO_NOTHING") // TODO bug on roll back?
-                            //.timeoutInMinutes(90)
-                            .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                            .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
-                            .parameters(templateParameters)
-                            .build()
+                    .stackName(stackName)
+                    .disableRollback(true)
+                    //.onFailure("DO_NOTHING") // TODO bug on roll back?
+                    //.timeoutInMinutes(90)
+                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
+                    .parameters(templateParameters)
+                    .build()
             );
             stackId = cfnResponse.stackId();
             LOGGER.info("createSaaSBoostStack::stack id " + stackId);
@@ -1672,7 +1686,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected boolean checkCloudFormationStack (final String stackName) {
+    protected boolean checkCloudFormationStack(final String stackName) {
         LOGGER.info("checkCloudFormationStack stack " + stackName);
         boolean exists = false;
         try {
@@ -1783,10 +1797,9 @@ public class SaaSBoostInstall {
 
         // Sync files to the web bucket
         outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
+        // First, clear out any files that are currently in the web bucket
         cleanUpS3(webBucket, "");
-        Map<String, String> metadata = Stream
-                .of(new AbstractMap.SimpleEntry<>("Cache-Control", "no-store"))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        String cacheControl = null;
         Path yarnBuildDir = webDir.resolve(Path.of("build"));
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(yarnBuildDir)) {
@@ -1795,16 +1808,19 @@ public class SaaSBoostInstall {
             for (Path fileToUpload : filesToUpload) {
                 // Remove the parent client/web/build path from the S3 key
                 String key = fileToUpload.subpath(yarnBuildDir.getNameCount(), fileToUpload.getNameCount()).toString();
+                if (key.endsWith("index.html") || key.endsWith("asset-manifest.json") || key.startsWith("static/")) {
+                    cacheControl = "no-store";
+                }
                 try {
-                    // TODO this really should be a delete and copy like aws s3 sync --delete
+                    // Now copy all of the files from the Node build up to the web bucket
                     LOGGER.info("Uploading to S3 " + fileToUpload.toString() + " -> " + key);
                     s3.putObject(PutObjectRequest.builder()
                             .bucket(webBucket)
                             // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
                             // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
-                            // definitions of Lambda functions will always use forward slashes for the S3Key property.
+                            // definitions of the Lambda functions will always use forward slashes for the S3Key property.
                             .key(key.replace('\\', '/'))
-                            .metadata(metadata)
+                            .cacheControl(cacheControl)
                             .build(), RequestBody.fromFile(fileToUpload)
                     );
                 } catch (SdkServiceException s3Error) {
@@ -2063,7 +2079,7 @@ public class SaaSBoostInstall {
      * Generate a random password that matches the password policy of the Cognito user pool
      * @return a random password that matches the password policy of the Cognito user pool
      */
-    public static String generatePassword (int passwordLength) {
+    public static String generatePassword(int passwordLength) {
         if (passwordLength < 8) {
             throw new IllegalArgumentException("Invalid password length. Minimum of 8 characters is required.");
         }

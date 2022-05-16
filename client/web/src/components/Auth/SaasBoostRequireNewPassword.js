@@ -14,79 +14,69 @@
  * limitations under the License.
  */
 
-import React from "react";
-import SaasBoostAuthComponent from "./SaasBoostAuthComponent";
-import { Auth } from "aws-amplify";
-import {
-  Button,
-  Card,
-  CardBody,
-  Col,
-  Container,
-  Row,
-  CardFooter,
-} from "reactstrap";
-import { Formik, Form as FormikForm } from "formik";
+import React from 'react'
+import SaasBoostAuthComponent from './SaasBoostAuthComponent'
+import { Auth } from 'aws-amplify'
+import { Button, Card, CardBody, Col, Container, Row, CardFooter } from 'reactstrap'
+import { Formik, Form as FormikForm } from 'formik'
 
-import { SBInput } from "./SaasBoostSignIn";
-import * as Yup from "yup";
+import { SBInput } from './SaasBoostSignIn'
+import * as Yup from 'yup'
 
 export class SaasBoostRequireNewPassword extends SaasBoostAuthComponent {
-  _initialState = {};
+  _initialState = {}
   constructor(props) {
-    super(props);
-    this._validAuthStates = ["requireNewPassword"];
-    this.state = this._initialState;
-    this.change = this.change.bind(this);
+    super(props)
+    this._validAuthStates = ['requireNewPassword']
+    this.state = this._initialState
+    this.change = this.change.bind(this)
   }
 
   change(values, { resetForm }) {
-    const user = this.props.authData;
-    const attrs = {};
-    const { password } = values;
+    const user = this.props.authData
+    const attrs = {}
+    const { password } = values
 
-    if (!Auth || typeof Auth.completeNewPassword !== "function") {
-      throw new Error(
-        "No Auth module found, please ensure @aws-amplify/auth is imported"
-      );
+    if (!Auth || typeof Auth.completeNewPassword !== 'function') {
+      throw new Error('No Auth module found, please ensure @aws-amplify/auth is imported')
     }
-    resetForm(values);
+    resetForm(values)
     Auth.completeNewPassword(user, password, attrs)
       .then((user) => {
-        if (user.challengeName === "SMS_MFA") {
-          this.changeState("confirmSignIn", user);
-        } else if (user.challengeName === "MFA_SETUP") {
-          this.changeState("TOTPSetup", user);
+        if (user.challengeName === 'SMS_MFA') {
+          this.changeState('confirmSignIn', user)
+        } else if (user.challengeName === 'MFA_SETUP') {
+          this.changeState('TOTPSetup', user)
         } else {
-          this.checkContact(user);
+          this.checkContact(user)
         }
       })
       .catch((err) => {
-        this.setState({ error: err });
-        this.error(err);
-      });
+        this.setState({ error: err })
+        this.error(err)
+      })
   }
 
   showComponent() {
     const validationSchema = Yup.object({
       password: Yup.string()
-        .required("Required")
-        .min(6, "Password must have a minimum of 6 characters"),
+        .required('Required')
+        .min(6, 'Password must have a minimum of 6 characters'),
       confirmPassword: Yup.string()
-        .min(6, "Password must have a minimum of 6 characters")
-        .equals([Yup.ref("password"), null], "Password does not match")
-        .required("Required"),
-    });
+        .min(6, 'Password must have a minimum of 6 characters')
+        .equals([Yup.ref('password'), null], 'Password does not match')
+        .required('Required'),
+    })
 
     return (
-      <div className="app flex-row align-items-center">
+      <div className="app d-flex min-vh-100 align-items-center bg-light">
         <Container>
           <Row className="justify-content-center">
             <Col md="9" lg="7" xl="6">
               <Formik
                 initialValues={{
-                  password: "",
-                  confirmPassword: "",
+                  password: '',
+                  confirmPassword: '',
                 }}
                 validationSchema={validationSchema}
                 onSubmit={this.change}
@@ -121,7 +111,7 @@ export class SaasBoostRequireNewPassword extends SaasBoostAuthComponent {
                           type="link"
                           color="secondary"
                           onClick={() => {
-                            this.changeState("signIn");
+                            this.changeState('signIn')
                           }}
                           className="ml-3"
                         >
@@ -136,8 +126,8 @@ export class SaasBoostRequireNewPassword extends SaasBoostAuthComponent {
           </Row>
         </Container>
       </div>
-    );
+    )
   }
 }
 
-export default SaasBoostRequireNewPassword;
+export default SaasBoostRequireNewPassword

@@ -1,0 +1,12 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Resource Name Macro Test",
+  "Parameters": {
+    "ApplicationServices": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Resources": {
+  }
+}

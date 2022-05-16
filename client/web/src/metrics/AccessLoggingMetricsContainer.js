@@ -14,87 +14,85 @@
  * limitations under the License.
  */
 
-import React, { lazy, useState, useEffect } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
-import { useDispatch, useSelector } from "react-redux";
-import {
-  accessLogMetricsUrls,
-  selectAccessLogUrlById,
-} from "./ducks/accessLogMetrics";
+import React, { lazy, useState, useEffect } from 'react'
+import { Row, Col, Card, CardBody } from 'reactstrap'
+import { useDispatch, useSelector } from 'react-redux'
+import { accessLogMetricsUrls } from './ducks/accessLogMetrics'
 import {
   dismissError,
   fetchTenantsThunk,
   selectAllTenants,
-} from "../tenant/ducks";
-import SelectTenantComponent from "./SelectTenantComponent";
+} from '../tenant/ducks'
+import SelectTenantComponent from './SelectTenantComponent'
 
 const SelectTimePeriodComponent = lazy(() =>
-  import("./SelectTimePeriodComponent")
-);
+  import('./SelectTimePeriodComponent')
+)
 
 const AccessLoggingGraphContainer = lazy(() =>
-  import("./AccessLoggingGraphContainer")
-);
+  import('./AccessLoggingGraphContainer')
+)
 
 const AccessLogsMetricsContainer = lazy(() =>
-  import("./AccessLogsMetricsContainer")
-);
+  import('./AccessLogsMetricsContainer')
+)
 
 export default function AccessLoggingMetricsContainer(props) {
-  const dispatch = useDispatch();
-  const timePeriods = ["HOUR_1", "HOUR_24", "DAY_7"];
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("DAY_7");
+  const dispatch = useDispatch()
+  const timePeriods = ['HOUR_1', 'HOUR_24', 'DAY_7']
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
-    setSelectedTimePeriod(period);
-  };
+    setSelectedTimePeriod(period)
+  }
 
   const refreshPage = () => {
-    const thunkResponse = dispatch(accessLogMetricsUrls());
+    const thunkResponse = dispatch(accessLogMetricsUrls())
     return () => {
-      if (thunkResponse.PromiseStatus === "pending") {
-        thunkResponse.abort();
+      if (thunkResponse.PromiseStatus === 'pending') {
+        thunkResponse.abort()
       }
-    };
-  };
-
-  useEffect(() => {
-    refreshPage();
-  }, [dispatch]);
-
-  const tenants = useSelector(selectAllTenants);
-  const [selectedTenant, setSelectedTenant] = useState(null);
-  const selectTenant = (tenant) => {
-    if (tenant === "") {
-      setSelectedTenant(null);
-    } else {
-      setSelectedTenant(tenant);
     }
-  };
+  }
+
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    refreshPage()
+  }, [dispatch])
+
+  const tenants = useSelector(selectAllTenants)
+  const activeTenants = tenants.filter((t) => t.active)
+  const [selectedTenant, setSelectedTenant] = useState(null)
+  const selectTenant = (tenant) => {
+    if (tenant === '') {
+      setSelectedTenant(null)
+    } else {
+      setSelectedTenant(tenant)
+    }
+  }
+  useEffect(() => {
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
     <div className="animated fadeIn">
       <Row>
-        <Col xs={12} lg={12}>
+        <Col xs={12}>
           <Card>
             <CardBody>
               <Row>
-                <Col lg={6} sm={6}>
+                <Col sm={3}>
                   <SelectTenantComponent
-                    tenants={tenants}
+                    tenants={activeTenants}
                     selectTenant={selectTenant}
                     selectedTenant={selectedTenant}
                   />
                 </Col>
-                <Col lg={5} sm={5}>
+                <Col sm={8}>
                   <SelectTimePeriodComponent
                     selectTimePeriod={selectTimePeriod}
                     timePeriods={timePeriods}
@@ -153,5 +151,5 @@ export default function AccessLoggingMetricsContainer(props) {
         </Row>
       )}
     </div>
-  );
+  )
 }

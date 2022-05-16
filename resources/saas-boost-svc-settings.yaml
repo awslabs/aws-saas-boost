@@ -39,8 +39,8 @@ Parameters:
   PrivateApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
-  CloudFrontDistribution:
-    Description: CloudFront distribution the SaaS Boost admin console is running behind
+  ResourcesBucket:
+    Description: S3 bucket containing tenant custom config files (zip archive)
     Type: String
 Resources:
   RdsOptionsTable:
@@ -120,6 +120,9 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsOptions
       Layers:
         - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/RdsOptions-lambda.zip
@@ -189,19 +192,13 @@ Resources:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
               - Effect: Allow
                 Action:
-                  - s3:GetBucketCORS
-                  - s3:PutBucketCORS
-                Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}
-              - Effect: Allow
-                Action:
                   - s3:PutObject
                 Resource:
-                  - !Sub arn:aws:s3:::${SaaSBoostBucket}/*
+                  - !Sub arn:aws:s3:::${ResourcesBucket}/*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
   SettingsServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -224,6 +221,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -231,19 +229,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
-  # SettingsServiceGetAllVersion:
-  #   Type: AWS::Lambda::Version
-  #   Properties:
-  #     FunctionName: !Ref SettingsServiceGetAll
-  #     Description: v1
-  # SettingsServiceGetAllAlias:
-  #   Type: AWS::Lambda::Alias
-  #   Properties:
-  #     FunctionName: !Ref SettingsServiceGetAll
-  #     FunctionVersion: !GetAtt SettingsServiceGetAllVersion.Version
-  #     Name: v1
-  #     ProvisionedConcurrencyConfig:
-  #       ProvisionedConcurrentExecutions: 1
   SettingsServiceGetByIdLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -266,6 +251,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -295,6 +281,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -324,152 +311,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceTenantGetAllLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-get-all-tenant
-      RetentionInDays: 30
-  SettingsServiceTenantGetAll:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-get-all-tenant
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getTenantSettings
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceTenantGetByIdLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-get-by-id-tenant
-      RetentionInDays: 30
-  SettingsServiceTenantGetById:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-get-by-id-tenant
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getTenantSetting
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceTenantUpdateLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-update-tenant
-      RetentionInDays: 30
-  SettingsServiceTenantUpdate:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-update-tenant
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateTenantSetting
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceTenantDeleteLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-delete-tenant
-      RetentionInDays: 30
-  SettingsServiceTenantDelete:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-delete-tenant
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::deleteTenantSettings
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceSetAppConfigLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-set-config
-      RetentionInDays: 30
-  SettingsServiceSetAppConfig:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-set-config
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::setAppConfig
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -501,9 +343,11 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          API_TRUST_ROLE: !Sub arn:aws:iam::${AWS::AccountId}:role/sb-private-api-trust-role-${Environment}-${AWS::Region}
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
           API_GATEWAY_STAGE: !Ref PrivateApiStage
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -533,6 +377,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -562,6 +407,7 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -569,49 +415,20 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
-  SettingsServiceParamStoreRefLogs:
+  AppConfigEventHandlerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-ssm-param
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-app-config-events
       RetentionInDays: 30
-  SettingsServiceParamStoreRef:
+  AppConfigEventHandler:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-settings-ssm-param
-      Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
-      Timeout: 300
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getParameterStoreReference
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Settings"
-  SettingsServiceConfigOptionsLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-config-opts
-      RetentionInDays: 30
-  SettingsServiceConfigOptions:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-settings-config-opts
+      FunctionName: !Sub sb-${Environment}-settings-app-config-events
       Role: !GetAtt SettingsServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 300
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::configOptions
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::handleAppConfigEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
@@ -620,9 +437,8 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
-          OPTIONS_TABLE: !Ref RdsOptionsTable
-          CLOUDFRONT_DISTRIBUTION: !Ref CloudFrontDistribution
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -630,50 +446,123 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Settings"
+  SettingsServiceOptionsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-settings-options
+      RetentionInDays: 30
+  SettingsServiceOptions:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-settings-options
+      Role: !GetAtt SettingsServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::options
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          OPTIONS_TABLE: !Ref RdsOptionsTable
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Settings"
+  AppConfigEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-app-config-events
+      Description: SaaS Boost application config events
+      EventBusName: !Ref SaaSBoostEventBus
+      EventPattern:
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [{
+            "prefix": "Application Configuration "
+          }]
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AppConfigEventHandler.Arn
+          Id: !Sub sb-${Environment}-app-config-events
+  AppConfigEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AppConfigEventRule.Arn
+  AppConfigResourceFilesEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-settings-app-config
+      Description: SaaS Boost application config resources bucket events
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created"
+          ],
+          "detail": {
+            "reason": [
+              "PutObject"
+            ],
+            "bucket": {
+              "name": [
+                "${ResourcesBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "services"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AppConfigEventHandler.Arn
+          Id: !Sub sb-${Environment}-settings-app-config-file-event
+  AppConfigResourceFilesEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AppConfigResourceFilesEventRule.Arn
 Outputs:
-  # SettingsServiceGetAllAliasArn:
-  #   Description: Settings Service get all settings Lambda ARN
-  #   Value: !Ref SettingsServiceGetAllAlias
   SettingsServiceGetAllArn:
     Description: Settings Service get all settings Lambda ARN
     Value: !GetAtt SettingsServiceGetAll.Arn
   SettingsServiceByIdArn:
     Description: Settings Service get setting Lambda ARN
     Value: !GetAtt SettingsServiceGetById.Arn
-  SettingsServiceConfigOptionsArn:
-    Description: Settings Service get configuration options Lambda ARN
-    Value: !GetAtt SettingsServiceConfigOptions.Arn
+  SettingsServiceOptionsArn:
+    Description: Settings Service get options Lambda ARN
+    Value: !GetAtt SettingsServiceOptions.Arn
   SettingsServiceGetAppConfigArn:
     Description: Settings Service get application configuration Lambda ARN
     Value: !GetAtt SettingsServiceGetAppConfig.Arn
-  # SettingsServiceGetAppConfigAliasArn:
-  #   Description: Settings Service get application configuration Lambda ARN
-  #   Value: !Ref SettingsServiceGetAppConfigAlias
-  SettingsServiceSetAppConfigArn:
-    Description: Settings Service set application configuration Lambda ARN
-    Value: !GetAtt SettingsServiceSetAppConfig.Arn
   SettingsServiceUpdateAppConfigArn:
     Description: Settings Service update application configuration Lambda ARN
     Value: !GetAtt SettingsServiceUpdateAppConfig.Arn
   SettingsServiceDeleteAppConfigArn:
     Description: Settings Service delete application configuration Lambda ARN
     Value: !GetAtt SettingsServiceDeleteAppConfig.Arn
-  SettingsServiceTenantGetAllArn:
-    Description: Settings Service get all settings for a tenant Lambda ARN
-    Value: !GetAtt SettingsServiceTenantGetAll.Arn
-  SettingsServiceTenantByIdArn:
-    Description: Settings Service get setting for a tenant Lambda ARN
-    Value: !GetAtt SettingsServiceTenantGetById.Arn
   SettingsServiceGetSecretArn:
     Description: Settings Service get decrypted secret setting Lambda ARN
     Value: !GetAtt SettingsServiceGetSecret.Arn
-  SettingsServiceParamStoreRefArn:
-    Description: Settings Service get parameter store reference for a setting Lambda ARN
-    Value: !GetAtt SettingsServiceParamStoreRef.Arn
-  SettingsServiceTenantUpdateArn:
-    Description: Settings Service update a tenant setting Lambda ARN
-    Value: !GetAtt SettingsServiceTenantUpdate.Arn
-  SettingsServiceTenantDeleteArn:
-    Description: Settings Service delete tenant settings Lambda ARN
-    Value: !GetAtt SettingsServiceTenantDelete.Arn
 ...

@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Switch, Route } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-
+import React, { useEffect, useState } from 'react'
+import { Switch, Route } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  saveToPresignedBucket,
+  selectServiceToS3BucketMap,
+} from '../settings/ducks'
 import {
   fetchSettings,
   fetchConfig,
   updateConfig,
-  saveToPresignedBucket,
   selectAllSettings,
   dismissError,
   selectLoading,
@@ -30,161 +32,224 @@ import {
   selectConfigLoading,
   selectConfigError,
   selectConfigMessage,
-  createConfig,
-} from './ducks';
+} from './ducks'
 
-import { ApplicationComponent } from './ApplicationComponent';
-import { ConfirmModal } from './ConfirmModal';
-import { selectDbOptions, selectOsOptions, selectDbUploadUrl } from '../options/ducks';
-import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks';
+import { ApplicationComponent } from './ApplicationComponent'
+import { ConfirmModal } from './ConfirmModal'
+import { selectDbOptions, selectOsOptions } from '../options/ducks'
+import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
+import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
 
 export function ApplicationContainer(props) {
-  const EFS = 'EFS';
-  const FSX = 'FSX';
-  const LINUX = 'LINUX';
+  const EFS = 'EFS'
+  const FSX = 'FSX'
+  const LINUX = 'LINUX'
 
-  const dispatch = useDispatch();
-  const settings = useSelector(selectAllSettings);
-  const loading = useSelector(selectLoading);
-  const appConfig = useSelector(selectConfig);
-  const dbOptions = useSelector(selectDbOptions);
-  const osOptions = useSelector(selectOsOptions);
-  const configLoading = useSelector(selectConfigLoading);
-  const configMessage = useSelector(selectConfigMessage);
-  const configError = useSelector(selectConfigError);
-  const dbUploadUrl = useSelector(selectDbUploadUrl);
+  const dispatch = useDispatch()
+  const appConfig = useSelector(selectConfig)
+  const configError = useSelector(selectConfigError)
+  const configLoading = useSelector(selectConfigLoading)
+  const configMessage = useSelector(selectConfigMessage)
+  const dbOptions = useSelector(selectDbOptions)
+  const loading = useSelector(selectLoading)
+  const osOptions = useSelector(selectOsOptions)
+  const serviceToS3BucketMap = useSelector(selectServiceToS3BucketMap)
+  const settings = useSelector(selectAllSettings)
+
   const hasTenants = useSelector((state) => {
-    return selectAllTenants(state)?.length > 0;
-  });
+    return selectAllTenants(state)?.length > 0
+  })
+  const tiers = useSelector(selectAllTiers)
 
-  const [modal, setModal] = useState(false);
-  const [file, setFile] = useState({});
-  const [formValues, setFormValues] = useState(null);
+  const [modal, setModal] = useState(false)
+  const [file, setFile] = useState({})
+  const [formValues, setFormValues] = useState(null)
 
-  const toggleModal = () => setModal(!modal);
+  const toggleModal = () => setModal(!modal)
 
-  let settingsObj = {};
+  let settingsObj = {}
 
   if (!!settings) {
     // covert array to object to reference values easier
     settings.forEach((setting) => {
-      settingsObj[setting.name] = setting;
-    });
+      settingsObj[setting.name] = setting
+    })
   }
 
   useEffect(() => {
-    const settingsResponse = dispatch(fetchSettings());
+    const settingsResponse = dispatch(fetchSettings())
     return () => {
       if (settingsResponse.PromiseStatus === 'pending') {
-        settingsResponse.abort();
+        settingsResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   useEffect(() => {
-    const fetchConfigResponse = dispatch(fetchConfig());
+    const fetchConfigResponse = dispatch(fetchConfig())
     return () => {
       if (fetchConfigResponse.PromiseStatus === 'pending') {
-        fetchConfigResponse.abort();
+        fetchConfigResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   useEffect(() => {
-    const fetchTenantsResponse = dispatch(fetchTenantsThunk());
+    const fetchTenantsResponse = dispatch(fetchTenantsThunk())
     return () => {
       if (fetchTenantsResponse.PromiseStatus === 'pending') {
-        fetchTenantsResponse.abort();
+        fetchTenantsResponse.abort()
       }
-      dismissError(dismissError());
-    };
-  }, [dispatch]);
+      dismissError(dismissError())
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    const fetchTiersResponse = dispatch(fetchTiersThunk())
+    return () => {
+      if (fetchTiersResponse.PromiseStatus === 'pending') {
+        fetchTiersResponse.abort()
+      }
+      dismissError(dismissError())
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    Object.keys(file).forEach((fn) => {
+      const dbFile = file[fn]
+      const url = serviceToS3BucketMap[fn]
+      if (dbFile && url) {
+        dispatch(
+          saveToPresignedBucket({
+            dbFile,
+            url,
+          })
+        )
+      }
+    })
+  }, [serviceToS3BucketMap, appConfig, dispatch, file])
 
   const presubmitCheck = (values) => {
-    setFormValues(values);
+    setFormValues(values)
     if (hasTenants) {
-      setModal(true);
+      setModal(true)
     } else {
-      setModal(false);
-      updateConfiguration(values);
+      setModal(false)
+      updateConfiguration(values)
     }
-  };
+  }
 
   const confirmSubmit = () => {
-    setModal(false);
-    updateConfiguration(formValues);
-  };
+    setModal(false)
+    updateConfiguration(formValues)
+  }
 
   const getFormattedTime = (timeString) => {
     // Expecting timeString to be HH:MM:SS
-    let parts = timeString.split(':');
+    let parts = timeString.split(':')
     if (parts.length === 3) {
-      parts = parts.splice(0, 2); //Trim the trailing :00. Server doesn't need seconds
+      parts = parts.splice(0, 2) //Trim the trailing :00. Server doesn't need seconds
     }
-    return parts.join(':');
-  };
+    return parts.join(':')
+  }
 
   const updateConfiguration = async (values) => {
     const isMatch = (pw, encryptedPw) => {
-      return encryptedPw.substring(0, 8) === pw;
-    };
+      return encryptedPw.substring(0, 8) === pw
+    }
 
     try {
-      const {
-        windowsVersion,
-        operatingSystem,
-        provisionDb,
-        provisionFS,
-        provisionBilling,
-        filesystem,
-        database,
-        billing,
-        ...rest
-      } = values;
-      let { filesystemLifecycle, ...cleanedFs } = filesystem;
-      let { weeklyMaintenanceDay, weeklyMaintenanceTime: time, ...cleanedFsx } = cleanedFs.fsx;
-      const weeklyTime = getFormattedTime(time);
-      const fsx = {
-        ...cleanedFsx,
-        weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
-      };
-      cleanedFs = {
-        ...cleanedFs,
-        efs: cleanedFs.fileSystemType === EFS ? cleanedFs.efs : null,
-        fsx: cleanedFs.fileSystemType === FSX ? fsx : null,
-      };
-      const { port, hasEncryptedPassword, encryptedPassword, ...restDb } = database;
-      // If we detected an encrypted password coming in, and it looks like they haven't changed it
-      // then send the encrypted password back to the server. Otherwise send what they changed.
-      const cleanedDb = {
-        ...restDb,
-        password:
-          hasEncryptedPassword && isMatch(restDb.password, encryptedPassword)
-            ? encryptedPassword
-            : restDb.password,
-      };
+      const { services, billing, provisionBilling, ...rest } = values
+      let cleanedServicesMap = {}
+      for (var serviceIndex in services) {
+        let thisService = services[serviceIndex]
+        if (thisService.tombstone) continue
+        // update the tier config
+        // TODO: validate tiers against Tier Service
+        let cleanedTiersMap = {}
+        for (var tierName in thisService.tiers) {
+          const {
+            filesystem,
+            database,
+            provisionDb,
+            provisionFS,
+            ...rest
+          } = thisService.tiers[tierName]
+          let { filesystemLifecycle, ...cleanedFs } = filesystem
+          let {
+            weeklyMaintenanceDay,
+            weeklyMaintenanceTime: time,
+            ...cleanedFsx
+          } = cleanedFs.fsx
+          const weeklyTime = getFormattedTime(time)
+          const fsx = {
+            ...cleanedFsx,
+            weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
+          }
+          cleanedFs = {
+            ...cleanedFs,
+            efs: thisService.filesystem?.fileSystemType === EFS ? cleanedFs.efs : null,
+            fsx: thisService.filesystem?.fileSystemType === FSX ? fsx : null,
+            fileSystemType: thisService.filesystem?.fileSystemType,
+          }
+          const {
+            port,
+            hasEncryptedPassword,
+            encryptedPassword,
+            bootstrapFilename,
+            ...restDb
+          } = database
+          // If we detected an encrypted password coming in, and it looks like they haven't changed it
+          // then send the encrypted password back to the server. Otherwise send what they changed.
+          const cleanedDb = {
+            ...restDb,
+            password:
+              hasEncryptedPassword &&
+              isMatch(restDb.password, encryptedPassword)
+                ? encryptedPassword
+                : restDb.password,
+          }
+          cleanedTiersMap[tierName] = {
+            ...rest,
+            filesystem: provisionFS ? cleanedFs : null,
+            database: provisionDb ? cleanedDb : null,
+          }
+        }
+        // update the service config
+        const {
+          name,
+          windowsVersion,
+          operatingSystem,
+          filesystem,
+          tombstone,
+          ...rest
+        } = thisService
+        cleanedServicesMap[name] = {
+          ...rest,
+          name,
+          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+          tiers: cleanedTiersMap,
+        }
+      }
 
+      // compile the complete appConfig
       const configToSend = {
         ...rest,
-        filesystem: provisionFS ? cleanedFs : null,
-        database: provisionDb ? cleanedDb : null,
         billing: provisionBilling ? billing : null,
-        operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
-      };
-      if (!!file && file.name && provisionDb) {
-        await dispatch(saveToPresignedBucket({ dbFile: file, url: dbUploadUrl }));
+        services: cleanedServicesMap,
       }
-      await dispatch(hasTenants ? updateConfig(configToSend) : createConfig(configToSend));
+      dispatch(updateConfig(configToSend))
     } catch (e) {
-      console.error(e);
+      console.error(e)
     }
-  };
+  }
 
-  const handleFileSelected = (file) => {
-    setFile(file);
-  };
+  const handleFileSelected = (newFile) => {
+    file[newFile.serviceName] = newFile.file
+    setFile(file)
+  }
 
   return (
     <Switch>
@@ -211,15 +276,20 @@ export function ApplicationContainer(props) {
               settingsObj={settingsObj}
               error={configError}
               message={configMessage}
-              loading={loading === 'idle' && configLoading === 'idle' ? 'idle' : 'pending'}
+              loading={
+                loading === 'idle' && configLoading === 'idle'
+                  ? 'idle'
+                  : 'pending'
+              }
               updateConfiguration={presubmitCheck}
+              tiers={tiers}
               {...props}
             />
           </>
         )}
       ></Route>
     </Switch>
-  );
+  )
 }
 
-export default ApplicationContainer;
+export default ApplicationContainer

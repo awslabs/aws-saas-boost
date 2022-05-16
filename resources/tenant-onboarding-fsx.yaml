@@ -14,83 +14,30 @@
 # limitations under the License.
 AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS SaaS Boost Tenant Onboarding FSx for Windows File Server Extension
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: Network configuration
-        Parameters:
-          - PrivateSubnet1ID
-          - PrivateSubnet2ID
-          - VPCID
-      - Label:
-          default: FSx for Windows File Server configuration
-        Parameters:
-          - BackupRetention
-          - DailyBackupTime
-          - StorageCapacity
-          - ThroughputCapacity
-          - FSxAllowedCIDR
-          - FSxEncryptionKey
-          - FSxExistingKeyID
-          - WeeklyMaintenanceTime
-      - Label:
-          default: AWS Managed Microsoft AD settings for Amazon FSx
-        Parameters:
-          - ActiveDirectoryId
-          - TenantId
-    ParameterLabels:
-      ActiveDirectoryId:
-        default: AWS Managed Microsoft AD Id
-      TenantId:
-        default: Id of the SaaS Boost Tenant
-      BackupRetention:
-        default: Automated backup retention
-      DailyBackupTime:
-        default: Daily backup start time
-      FSxEncryptionKey:
-        default: Type of AWS KMS key used by FSx
-      FSxExistingKeyID:
-        default: AWS KMS key Id
-      PrivateSubnet1ID:
-        default: Private subnet 1 Id
-      PrivateSubnet2ID:
-        default: Private subnet 2 Id
-      StorageCapacity:
-        default: Storage size
-      ThroughputCapacity:
-        default: Throughput capacity of Amazon FSx file system
-      FSxAllowedCIDR:
-        default: CIDR range allowed to connect to Amazon FSx file system
-      VPCID:
-        default: VPC Id
-      WeeklyMaintenanceTime:
-        default: Weekly maintenance start time
 Parameters:
-  ActiveDirectoryId:
-    Description: Enter the Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
-    Type: String
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
   TenantId:
-    Description: Enter the Id of the Tenant
+    Description: The GUID for the tenant
     Type: String
   SaaSBoostBucket:
     Description: SaaS Boost assets S3 bucket
     Type: String
-  LambdaSourceFolder:
-    Description: Folder for lambda source code to change on each deployment
-    Type: String
-  BackupRetention:
-    Description: Specify the number of days to retain automatic backups.
-      Setting this value to 0 disables the creation of automatic backups. The maximum retention period
-      for backups is 35 days.
-    Default: 7
-    Type: Number
-  DailyBackupTime:
-    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
-    Default: '01:00'
+  VPC:
+    Description: VPC id for this tenant
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetA:
+    Description: Choose the Id of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetB:
+    Description: Choose the Id of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd).
+    Type: AWS::EC2::Subnet::Id
+  ECSSecurityGroup:
+    Description: Source security group of ECS instances
+    Type: AWS::EC2::SecurityGroup::Id
+  ActiveDirectoryId:
+    Description: Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
     Type: String
   FSxEncryptionKey:
     AllowedValues:
@@ -105,49 +52,34 @@ Parameters:
     Description: If you chose the option to use an existing key, you must specify the KMS Key ID you want to use.
     Default: ''
     Type: String
-  PrivateSubnet1ID:
-    Description: Choose the Id of the private subnet 1 in Availability Zone 1 (e.g., subnet-a0246dcd).
-    Type: AWS::EC2::Subnet::Id
-  PrivateSubnet2ID:
-    Description: Choose the Id of the private subnet 2 in Availability Zone 2 (e.g., subnet-a0246dcd).
-    Type: AWS::EC2::Subnet::Id
   StorageCapacity:
     Default: 32
     Description: Specify the storage capacity of the file system being created, in gibibytes.
-      Valid values are 32 GiB - 65,536 GiB. Consider choosing a higher value for greater capacity.
+      Valid values are 32 GiB - 65,536 GiB.
     Type: Number
   ThroughputCapacity:
     Default: 8
     Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
-      Consider choosing a higher value for better performance.
     Type: Number
-  FSxAllowedCIDR:
-    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/16-28
-    Description: Specify the CIDR block that is allowed access to FSx for Windows File Server.
+  BackupRetention:
+    Description: Number of days to retain automatic backups.
+      Setting this to 0 disables the creation of automatic backups. The maximum retention period
+      for backups is 35 days.
+    Default: 7
+    Type: Number
+  DailyBackupTime:
+    Description: Preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
+    Default: '01:00'
     Type: String
-  VPCID:
-    Description: Choose the Id of the VPC (e.g., vpc-0343606e).
-    Type: AWS::EC2::VPC::Id
   WeeklyMaintenanceTime:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
      Default: '7:02:00'
      Type: String
 Conditions:
-  UseAWSDirectoryService: !Not
-    - !Equals
-      - ''
-      - !Ref 'ActiveDirectoryId'
-  HasKey: !Equals
-      - 'UseKey'
-      - !Ref 'FSxEncryptionKey'
-  CreateKey: !Equals
-      - 'GenerateKey'
-      - !Ref 'FSxEncryptionKey'
-  UseNonDefault: !Not
-    - !Equals
-      - 'Default'
-      - !Ref 'FSxEncryptionKey'
+  UseAWSDirectoryService: !Not [!Equals [!Ref ActiveDirectoryId, '']]
+  HasKey: !Equals [!Ref FSxEncryptionKey, 'UseKey']
+  CreateKey: !Equals [!Ref FSxEncryptionKey, 'GenerateKey']
+  UseNonDefault: !Not [!Equals [!Ref FSxEncryptionKey, 'Default']]
 Resources:
   FSxKMSKey:
     Condition: CreateKey
@@ -157,171 +89,155 @@ Resources:
     Properties:
       KeyPolicy:
         Version: 2012-10-17
-        Id:
-          Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
+        Id: !Sub sb-${Environment}-fsx-key-${TenantId}
         Statement:
           - Effect: Allow
             Principal:
               AWS:
-                - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action: 'kms:*'
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
             Resource: '*'
           - Effect: Allow
             Principal:
               AWS: '*'
             Action:
-              - 'kms:Encrypt'
-              - 'kms:Decrypt'
-              - 'kms:ReEncrypt*'
-              - 'kms:GenerateDataKey*'
-              - 'kms:CreateGrant'
-              - 'kms:ListGrants'
-              - 'kms:DescribeKey'
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:DescribeKey
             Resource: '*'
             Condition:
               StringEquals:
-                kms:ViaService: !Sub 'fsx.${AWS::Region}.amazonaws.com'
-                kms:CallerAccount: !Sub '${AWS::AccountId}'
+                kms:ViaService: !Sub fsx.${AWS::Region}.amazonaws.com
+                kms:CallerAccount: !Ref 'AWS::AccountId'
       Tags:
         - Key: Name
           Value:
-            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
         - Key: Tenant
           Value: !Ref TenantId
   FSxKeyAlias:
     Condition: CreateKey
     Type: AWS::KMS::Alias
     Properties:
-      AliasName:
-        Fn::Join: ['', ['alias/tenant-', !Select [0, !Split ['-', !Ref TenantId]], "-kms-fsx"]]
+      AliasName: !Sub alias/sb-${Environment}-fsx-${TenantId}
       TargetKeyId: !Ref FSxKMSKey
   FSxSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId: !Ref VPCID
-      GroupDescription: Security Group for FSx for Windows File Storage Access
+      VpcId: !Ref VPC
+      GroupDescription: FSx File System Security Group
       GroupName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-fsx-sg']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 53
           ToPort: 53
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 53
           ToPort: 53
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 88
           ToPort: 88
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 88
           ToPort: 88
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 123
           ToPort: 123
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 135
           ToPort: 135
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 389
           ToPort: 389
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 389
           ToPort: 389
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 445
           ToPort: 445
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 445
           ToPort: 445
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: udp
           FromPort: 464
           ToPort: 464
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 464
           ToPort: 464
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 636
           ToPort: 636
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 3268
           ToPort: 3268
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 3269
           ToPort: 3269
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 5985
           ToPort: 5985
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 9389
           ToPort: 9389
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
         - IpProtocol: tcp
           FromPort: 49152
           ToPort: 65535
-          CidrIp: !Ref FSxAllowedCIDR
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
   WindowsFSx:
     Type: AWS::FSx::FileSystem
     Properties:
-      #Name: tenantid-windows-fsx
       FileSystemType: WINDOWS
       KmsKeyId: !If
         - UseNonDefault
         - !If
           - HasKey
-          - !Ref 'FSxExistingKeyID'
-          - !Ref 'FSxKMSKey'
+          - !Ref FSxExistingKeyID
+          - !Ref FSxKMSKey
         - !Ref 'AWS::NoValue'
-      StorageCapacity: !Ref 'StorageCapacity'
+      StorageCapacity: !Ref StorageCapacity
       SubnetIds:
-        - !Ref 'PrivateSubnet1ID'
-        - !Ref 'PrivateSubnet2ID'
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
       SecurityGroupIds:
-        - !Ref 'FSxSecurityGroup'
+        - !Ref FSxSecurityGroup
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
-      WindowsConfiguration: !If
-        - UseAWSDirectoryService
-        - ActiveDirectoryId: !Ref 'ActiveDirectoryId'
-          WeeklyMaintenanceStartTime: !Ref 'WeeklyMaintenanceTime'
-          DailyAutomaticBackupStartTime: !Ref 'DailyBackupTime'
-          AutomaticBackupRetentionDays: !Ref 'BackupRetention'
-          DeploymentType: MULTI_AZ_1
-          PreferredSubnetId: !Ref 'PrivateSubnet1ID'
-          ThroughputCapacity: !Ref 'ThroughputCapacity'
-        - WeeklyMaintenanceStartTime: !Ref 'WeeklyMaintenanceTime'
-          DailyAutomaticBackupStartTime: !Ref 'DailyBackupTime'
-          AutomaticBackupRetentionDays: !Ref 'BackupRetention'
-          DeploymentType: MULTI_AZ_1
-          PreferredSubnetId: !Ref 'PrivateSubnet1ID'
-          ThroughputCapacity: !Ref 'ThroughputCapacity'
-
-# need to get the DNSName for FSX for output
+      WindowsConfiguration:
+        ActiveDirectoryId: !If [UseAWSDirectoryService, !Ref ActiveDirectoryId, !Ref 'AWS::NoValue']
+        WeeklyMaintenanceStartTime: !Ref WeeklyMaintenanceTime
+        DailyAutomaticBackupStartTime: !Ref DailyBackupTime
+        AutomaticBackupRetentionDays: !Ref BackupRetention
+        DeploymentType: MULTI_AZ_1
+        PreferredSubnetId: !Ref PrivateSubnetA
+        ThroughputCapacity: !Ref ThroughputCapacity
   FsxDnsNameRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName:
-        Fn::Join:
-          - ''
-          - - 'tenant-'
-            - !Select [0, !Split ['-', !Ref TenantId]]
-            - 'fsx-dnsname-role'
+        Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-dns-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -334,11 +250,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join:
-              - ''
-              - - 'tenant-'
-                - !Select [0, !Split ['-', !Ref TenantId]]
-                - '-policy-tenant'
+            Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-dns-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -368,7 +280,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Join: ['', ['/aws/lambda/tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-fsx-dnsname-tenant']]
+        Fn::Join: ['', ['/aws/lambda/sb-', !Ref Environment, '-fsx-dns-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       RetentionInDays: 30
   FsxDnsNameFunction:
     Type: AWS::Lambda::Function
@@ -376,45 +288,42 @@ Resources:
       - FsxDnsNameLogs
     Properties:
       FunctionName:
-        Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-fsx-dnsname-tenant']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-dns-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
       Role: !GetAtt FsxDnsNameRole.Arn
       Runtime: java11
       Timeout: 870
       MemorySize: 640
-      # Has to be a VPC Lambda because we're talking to FSX
+      # Has to be a VPC Lambda because we're talking to FSx
       VpcConfig:
         SecurityGroupIds:
           - !Ref FSxSecurityGroup
         SubnetIds:
-          - !Ref PrivateSubnet1ID
-          - !Ref PrivateSubnet2ID
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
       Handler: com.amazon.aws.partners.saasfactory.saasboost.FsxDnsName
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/FsxDnsName-lambda.zip
+        S3Key: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_LAMBDAS_FOLDER}}/FsxDnsName-lambda.zip'
+      Layers:
+         - !Sub '{{resolve:ssm:/saas-boost/${Environment}/UTILS_LAYER}}'
+         - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CFN_UTILS_LAYER}}'
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
   InvokeGetFsxDnsName:
     Type: Custom::CustomResource
+    DependsOn:
+      - FsxDnsNameLogs
     Properties:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref WindowsFSx
-
-  SSMParamFilesystem:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/tenant/${TenantId}/WINDOWS_FSX_DNS_NAME
-      Type: String
-      Value: !GetAtt InvokeGetFsxDnsName.DnsName
-
 Outputs:
-  FSxFileSystemID:
+  FileSystemId:
     Description: File System ID for FSx for Windows File Server
     Value: !Ref WindowsFSx
-  WindowsFSxSGID:
-    Value: !Ref FSxSecurityGroup
-    Description: FSx for Windows File Server Security Group ID
   WindowsFSxDnsName:
     Value: !GetAtt InvokeGetFsxDnsName.DnsName
     Description: FSx for Windows File Server DNS Name

@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.io.InputStream;
@@ -31,18 +32,33 @@ import java.util.Scanner;
 public class DataSourceConfig {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DataSourceConfig.class);
+    private static final String DB_NAME = System.getenv("DB_NAME");
+    private static final String DB_HOST = System.getenv("DB_HOST");
+    private static final String DB_PORT = System.getenv("DB_PORT");
+    private static final String DB_USER = System.getenv("DB_USER");
+    private static final String DB_PASSORD = System.getenv("DB_PASSWORD");
     private static Boolean INITIALIZED = Boolean.FALSE;
-    private static final String DB_NAME = !"".equals(System.getenv("DB_NAME")) ? System.getenv("DB_NAME") : "saas_boost";
 
     @Bean
     public static DataSource getDataSource() {
-        String port = System.getenv("DB_PORT");
-        String driverClassName = driverClassNameFromPort(port);
-        String type = typeFromPort(port);
-        String username = System.getenv("DB_MASTER_USERNAME");
-        String password = System.getenv("DB_MASTER_PASSWORD");
+        if (!StringUtils.hasText(DB_NAME)) {
+            throw new IllegalStateException("Missing environment variable DB_NAME");
+        }
+        if (!StringUtils.hasText(DB_HOST)) {
+            throw new IllegalStateException("Missing environment variable DB_HOST");
+        }
+        if (!StringUtils.hasText(DB_PORT)) {
+            throw new IllegalStateException("Missing environment variable DB_PORT");
+        }
+        if (!StringUtils.hasText(DB_USER)) {
+            throw new IllegalStateException("Missing environment variable DB_USER");
+        }
+        if (!StringUtils.hasText(DB_PASSORD)) {
+            throw new IllegalStateException("Missing environment variable DB_PASSWORD");
+        }
+        String driverClassName = driverClassNameFromPort(DB_PORT);
+        String type = typeFromPort(DB_PORT);
 
-        LOGGER.info("DB_NAME={}", DB_NAME);
         // We may need to bootstrap the database initially
         if (!INITIALIZED) {
             LOGGER.info("Initializing DataSource bean");
@@ -61,7 +77,8 @@ public class DataSourceConfig {
             LOGGER.info("database={}", database);
 
             // Create the database if it doesn't exist
-            try (Connection conn = DriverManager.getConnection(jdbcUrl(type, driverClassName, port, database), username, password)) {
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl(type, driverClassName, DB_PORT, database), DB_USER, DB_PASSORD)) {
                 String engine = conn.getMetaData().getDatabaseProductName().toLowerCase();
                 createdb(conn, engine);
             } catch (SQLException e) {
@@ -75,7 +92,8 @@ public class DataSourceConfig {
             database = DB_NAME;
 
             // Bootstrap the database relations using "WHERE NOT EXISTS" statements
-            try (Connection conn = DriverManager.getConnection(jdbcUrl(type, driverClassName, port, database), username, password)) {
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl(type, driverClassName, DB_PORT, database), DB_USER, DB_PASSORD)) {
                 String engine = conn.getMetaData().getDatabaseProductName().toLowerCase();
                 bootstrap(conn, engine);
             } catch (SQLException e) {
@@ -92,9 +110,9 @@ public class DataSourceConfig {
         // Now we know the database exists and the relations have been bootstrapped,
         // so we can create our DataSource bean and return connections
         HikariConfig dbConfig = new HikariConfig();
-        dbConfig.setJdbcUrl(jdbcUrl(type, driverClassName, port, DB_NAME));
-        dbConfig.setPassword(System.getenv("DB_MASTER_PASSWORD"));
-        dbConfig.setUsername(System.getenv("DB_MASTER_USERNAME"));
+        dbConfig.setJdbcUrl(jdbcUrl(type, driverClassName, DB_PORT, DB_NAME));
+        dbConfig.setPassword(DB_PASSORD);
+        dbConfig.setUsername(DB_USER);
         dbConfig.setDriverClassName(driverClassName);
 
         DataSource dataSource = new HikariDataSource(dbConfig);
@@ -106,16 +124,16 @@ public class DataSourceConfig {
         if (!exists) {
             LOGGER.info("Creating {} database", engine);
             try (Statement create = conn.createStatement()) {
-                if (engine.indexOf("postgresql") != -1) {
+                if (engine.contains("postgresql")) {
                     // Postgres has no real way of doing CREATE DATABASE IF NOT EXISTS...
                     create.executeUpdate("CREATE DATABASE " + DB_NAME);
-                } else if (engine.indexOf("microsoft") != -1) {
+                } else if (engine.contains("microsoft")) {
                     create.executeUpdate("IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '" + DB_NAME + "')\n" +
                             "BEGIN\n" +
                             "CREATE DATABASE " + DB_NAME + "\n" +
                             "END"
                     );
-                } else if (engine.indexOf("mysql") != -1 || engine.indexOf("mariadb") != -1) {
+                } else if (engine.contains("mysql") || engine.contains("mariadb")) {
                     create.executeUpdate("CREATE DATABASE IF NOT EXISTS " + DB_NAME);
                 }
             } catch (SQLException e) {
@@ -129,14 +147,14 @@ public class DataSourceConfig {
 
     public static void bootstrap(Connection conn, String engine) throws SQLException {
 
-        String bootstrapScriptFilename = null;
-        if (engine.indexOf("mysql") != -1 || engine.indexOf("mariadb") != -1) {
+        String bootstrapScriptFilename;
+        if (engine.contains("mysql") || engine.contains("mariadb")) {
             LOGGER.info("Loading MySQL/MariaDB bootstrap script");
             bootstrapScriptFilename = "bootstrap-mysql.sql";
-        } else if (engine.indexOf("postgresql") != -1) {
+        } else if (engine.contains("postgresql")) {
             LOGGER.info("Loading PostgreSQL bootstrap script");
             bootstrapScriptFilename = "bootstrap-pg.sql";
-        } else if (engine.indexOf("microsoft") != -1) {
+        } else if (engine.contains("microsoft")) {
             LOGGER.info("Loading Microsoft SQL Server bootstrap script");
             bootstrapScriptFilename = "bootstrap-mssql.sql";
         } else {
@@ -167,7 +185,7 @@ public class DataSourceConfig {
     private static boolean databaseExists(Connection conn, String engine, String database) throws SQLException {
         LOGGER.info("Checking for existence of database {}", database);
         boolean databaseExists = false;
-        ResultSet rs = null;
+        ResultSet rs;
         if (engine.equals("postgresql")) {
             // Postgres doesn't support multiple databases (catalogs) per connection, so we can't use the JDBC
             // metadata to get a list of all the databases on the host like you can with MySQL/MariaDB

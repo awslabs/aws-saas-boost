@@ -1,0 +1,146 @@
+{
+  "name": "Multi Container",
+  "domainName": "",
+  "hostedZone": "",
+  "sslCertificate": "",
+  "billing": null,
+  "application": {
+    "services": {
+      "main": {
+        "name": "main",
+        "description": "Main Service",
+        "public": true,
+        "path": "/*",
+        "healthCheckUrl": "/",
+        "operatingSystem": "LINUX",
+        "containerPort": 80,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "instanceType": "t3.medium",
+            "cpu": 512,
+            "memory": 1024,
+            "min": 1,
+            "max": 2,
+            "database": {
+              "engine": "MARIADB",
+              "instance": "T3_MICRO",
+              "version": "10.5.12",
+              "family": "mariadb10.5",
+              "database": "boost",
+              "username": "boost",
+              "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
+              "bootstrapFilename": "",
+              "port": 3306,
+              "engineName": "mariadb",
+              "instanceClass": "db.t3.micro"
+            },
+            "filesystem": {
+              "fileSystemType": "EFS",
+              "mountPoint": "/mnt",
+              "fsx": null,
+              "efs": {
+                "encryptAtRest": true,
+                "lifecycle": 0,
+                "filesystemLifecycle": "NEVER"
+              }
+            }
+          },
+          "premium": {
+            "instanceType": "m5.xlarge",
+            "cpu": 2048,
+            "memory": 4096,
+            "min": 2,
+            "max": 6,
+            "database": {
+              "engine": "MARIADB",
+              "instance": "T3_LARGE",
+              "version": "10.5.12",
+              "family": "mariadb10.5",
+              "database": "boost",
+              "username": "boost",
+              "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
+              "bootstrapFilename": "",
+              "port": 3306,
+              "engineName": "mariadb",
+              "instanceClass": "db.t3.large"
+            },
+            "filesystem": {
+              "fileSystemType": "EFS",
+              "mountPoint": "/mnt",
+              "fsx": null,
+              "efs": {
+                "encryptAtRest": true,
+                "lifecycle": 0,
+                "filesystemLifecycle": "NEVER"
+              }
+            }
+          }
+        }
+      },
+      "internal": {
+        "name": "internal",
+        "description": "Internal Service",
+        "public": false,
+        "path": null,
+        "healthCheckUrl": "/",
+        "operatingSystem": "LINUX",
+        "containerPort": 80,
+        "containerRepo": "sb-mc-core-1dpih9lvcvyuf-internal-r1sjma8wjygs",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "instanceType": "t3.micro",
+            "cpu": 512,
+            "memory": 1024,
+            "min": 1,
+            "max": 2,
+            "database": null,
+            "filesystem": null
+          },
+          "premium": {
+            "instanceType": "m5.medium",
+            "cpu": 1024,
+            "memory": 2048,
+            "min": 2,
+            "max": 4,
+            "database": null,
+            "filesystem": null
+          }
+        }
+      },
+      "feature": {
+        "name": "feature",
+        "description": "Feature Service",
+        "public": true,
+        "path": "/feature*",
+        "healthCheckUrl": "/",
+        "operatingSystem": "LINUX",
+        "containerPort": 80,
+        "containerRepo": "sb-mc-core-1dpih9lvcvyuf-feature-yudogr4llitc",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "instanceType": "t3.micro",
+            "cpu": 512,
+            "memory": 1024,
+            "min": 1,
+            "max": 2,
+            "database": null,
+            "filesystem": null
+          },
+          "premium": {
+            "instanceType": "m5.medium",
+            "cpu": 1024,
+            "memory": 2048,
+            "min": 2,
+            "max": 4,
+            "database": null,
+            "filesystem": null
+          }
+        }
+      }
+    }
+  }
+}
