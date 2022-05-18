@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-import React, { useState } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
+import PropTypes from 'prop-types'
+import React from 'react'
+import { Col, Card, CardBody } from 'reactstrap'
+
+ActiveTenantsComponent.propTypes = {
+  activeTenants: PropTypes.number,
+  totalTenants: PropTypes.number,
+}
 
 export default function ActiveTenantsComponent(props) {
-  const { activeTenants = 0, totalTenants = 10 } = props;
+  const { activeTenants = 0, totalTenants = 10 } = props
 
   return (
     <Col xs={1} md={3} lg={3}>
@@ -34,5 +40,5 @@ export default function ActiveTenantsComponent(props) {
         </CardBody>
       </Card>
     </Col>
-  );
+  )
 }

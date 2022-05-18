@@ -13,17 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import PropTypes from 'prop-types'
+import React, { useState } from 'react'
+import { Modal, ModalBody, ModalHeader } from 'reactstrap'
 
-import React, { useState } from "react";
-import { Modal, ModalBody, ModalHeader } from "reactstrap";
+ECRInstructions.propTypes = {
+  awsAccount: PropTypes.string,
+  awsRegion: PropTypes.string,
+  ecrRepo: PropTypes.string,
+  children: PropTypes.object,
+}
 
 export default function ECRInstructions(props) {
-  const { awsAccount, awsRegion, ecrRepo, children } = props;
+  const { awsAccount, awsRegion, ecrRepo, children } = props
 
-  const [showModal, toggleShowModal] = useState(false);
+  const [showModal, toggleShowModal] = useState(false)
 
   function toggleModal() {
-    toggleShowModal((s) => !s);
+    toggleShowModal((s) => !s)
   }
 
   return (
@@ -31,21 +38,21 @@ export default function ECRInstructions(props) {
       <a href="#" onClick={toggleShowModal}>
         {children}
       </a>
-      <Modal size="lg" fade={true} isOpen={showModal}>
-        <ModalHeader toggle={toggleModal} className="bg-primary">
+      <Modal size="lg" fade={true} isOpen={!!showModal}>
+        <ModalHeader toggle={toggleModal} className="bg-secondary">
           Push commands for ECR repository
         </ModalHeader>
         <ModalBody>
           <p>
             Make sure that you have the latest version of the AWS CLI and Docker
-            installed. For more information, see Getting Started with Amazon ECR
-            .
+            installed. For more information, see Getting Started with Amazon
+            ECR.
           </p>
           <p>
             Use the following steps to authenticate and push an image to your
             repository. For additional registry authentication methods,
             including the Amazon ECR credential helper, see Registry
-            Authentication .
+            Authentication.
           </p>
           <div>
             <ol>
@@ -67,26 +74,25 @@ export default function ECRInstructions(props) {
                 Build your Docker image using the following command. For
                 information on building a Docker file from scratch see the
                 instructions here . You can skip this step if your image is
-                already built:{" "}
+                already built:{' '}
                 <div className="text-monospace bg-gray-200 mt-3 mb-3 p-2">
                   docker build -t saas-boost .
                 </div>
               </li>
               <li>
                 After the build completes, tag your image so you can push the
-                image to this repository:{" "}
+                image to this repository:{' '}
                 <div className="text-monospace bg-gray-200 mt-3 mb-3 p-2">
-                  docker tag saas-boost:latest {awsAccount}
-                  .dkr.ecr.{awsRegion}.amazonaws.com/
+                  docker tag saas-boost:latest {awsAccount}.dkr.ecr.{awsRegion}
+                  .amazonaws.com/
                   {ecrRepo}:latest
                 </div>
               </li>
               <li>
                 Run the following command to push this image to your newly
-                created AWS repository:{" "}
+                created AWS repository:{' '}
                 <div className="text-monospace bg-gray-200 mt-3 mb-3 p-2">
-                  docker push {awsAccount}.dkr.ecr.{awsRegion}
-                  .amazonaws.com/
+                  docker push {awsAccount}.dkr.ecr.{awsRegion}.amazonaws.com/
                   {ecrRepo}:latest
                 </div>
               </li>
@@ -95,5 +101,5 @@ export default function ECRInstructions(props) {
         </ModalBody>
       </Modal>
     </>
-  );
+  )
 }

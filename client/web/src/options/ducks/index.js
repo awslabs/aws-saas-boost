@@ -14,83 +14,74 @@
  * limitations under the License.
  */
 
-import {
-  createAsyncThunk,
-  createSlice,
-  createEntityAdapter,
-} from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 
-import { isEmpty } from "lodash";
-import optionsAPI from "../api";
+import { isEmpty } from 'lodash'
+import optionsAPI from '../api'
 
-export const fetchOptions = createAsyncThunk(
-  "options/fetch",
-  async (...[, thunkAPI]) => {
-    const { signal } = thunkAPI;
-    try {
-      const options = await optionsAPI.fetchOptions({ signal });
-      return options;
-    } catch (err) {
-      if (optionsAPI.isCancel(err)) {
-        return;
-      } else {
-        console.error(err);
-        return thunkAPI.rejectWithValue(err.message);
-      }
+export const fetchOptions = createAsyncThunk('options/fetch', async (...[, thunkAPI]) => {
+  const { signal } = thunkAPI
+  try {
+    const options = await optionsAPI.fetchOptions({ signal })
+    return options
+  } catch (err) {
+    if (optionsAPI.isCancel(err)) {
+      return
+    } else {
+      console.error(err)
+      return thunkAPI.rejectWithValue(err.message)
     }
   }
-);
+})
 const initialState = {
-  loading: "idle",
+  loading: 'idle',
   error: null,
   data: {},
-};
+}
 const optionsSlice = createSlice({
-  name: "options",
+  name: 'options',
   initialState,
   reducers: {},
   extraReducers: {
     RESET: (state) => {
-      return initialState;
+      return initialState
     },
     [fetchOptions.fulfilled]: (state, action) => {
-      state.loading = "idle";
-      state.error = null;
-      state.data = action.payload;
+      state.loading = 'idle'
+      state.error = null
+      state.data = action.payload
     },
     [fetchOptions.pending]: (state, action) => {
-      state.loading = "pending";
-      state.error = null;
+      state.loading = 'pending'
+      state.error = null
     },
     [fetchOptions.rejected]: (state, action) => {
-      state.loading = "idle";
-      state.error = action.payload;
+      state.loading = 'idle'
+      state.error = action.payload
     },
   },
-});
+})
 
-export const { actions, reducer } = optionsSlice;
-export const selectOptions = (state) => state.options.data;
+export const { actions, reducer } = optionsSlice
+export const selectOptions = (state) => state.options.data
 
-export const selectDbUploadUrl = (state) =>
-  state.options?.data?.sqlUploadOptions?.url;
+export const selectDbUploadUrl = (state) => state.options?.data?.sqlUploadOptions?.url
 
-export const selectDbOptions = (state) => state.options?.data?.dbOptions;
+export const selectDbOptions = (state) => state.options?.data?.dbOptions
 
-export const selectOsOptions = (state) => state.options?.data?.osOptions;
+export const selectOsOptions = (state) => state.options?.data?.osOptions
 
 export const selectOSLabel = (state, os) => {
   return isEmpty(os) || isEmpty(state.options?.data?.osOptions)
-    ? ""
-    : state.options?.data?.osOptions[os];
-};
+    ? ''
+    : state.options?.data?.osOptions[os]
+}
 
 export const selectDbLabel = (state, db) =>
-  state.options.data?.dbOptions?.find((e) => e.name == db)?.description;
+  state.options.data?.dbOptions?.find((e) => e.name === db)?.description
 
-export const selectIsOptionsLoading = (state) =>
-  state.options.loading !== "idle";
+export const selectIsOptionsLoading = (state) => state.options.loading !== 'idle'
 
-export const selectOptionsError = (state) => state.options.error;
+export const selectOptionsError = (state) => state.options.error
 
-export default reducer;
+export default reducer

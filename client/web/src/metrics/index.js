@@ -14,31 +14,29 @@
  * limitations under the License.
  */
 
-import { lazy } from "react";
+import { lazy } from 'react'
 
-const ALBMetricsContainer = lazy(() => import("./ALBMetrics"));
-const ECSMetricsContainer = lazy(() => import("./ECSMetricsContainer"));
-const AccessLoggingMetricsContainer = lazy(() =>
-  import("./AccessLoggingMetricsContainer")
-);
+const ALBMetricsContainer = lazy(() => import('./ALBMetrics'))
+const ECSMetricsContainer = lazy(() => import('./ECSMetricsContainer'))
+const AccessLoggingMetricsContainer = lazy(() => import('./AccessLoggingMetricsContainer'))
 
 export const MetricsRoutes = [
   {
-    path: "/dashboard/alb",
+    path: '/dashboard/alb',
     exact: true,
-    name: "Request",
+    name: 'Request',
     component: ALBMetricsContainer,
   },
   {
-    path: "/dashboard/ecs",
+    path: '/dashboard/ecs',
     exact: true,
-    name: "Compute",
+    name: 'Compute',
     component: ECSMetricsContainer,
   },
   {
-    path: "/dashboard/accesslogging",
+    path: '/dashboard/accesslogging',
     exact: true,
-    name: "Usage",
+    name: 'Usage',
     component: AccessLoggingMetricsContainer,
   },
-];
+]

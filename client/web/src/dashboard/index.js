@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import React, { Component, lazy } from "react";
+import React, { Component, lazy } from 'react'
 
-const DashboardComponent = lazy(() => import("./DashboardComponent"));
+const DashboardComponent = lazy(() => import('./DashboardComponent'))
 
 class Dashboard extends Component {
-  loading = () => (
-    <div className="animated fadeIn pt-1 text-center">Loading...</div>
-  );
+  loading = () => <div className="animated fadeIn pt-1 text-center">Loading...</div>
 
   render() {
-    return <DashboardComponent />;
+    return <DashboardComponent />
   }
 }
-export default Dashboard;
+export default Dashboard

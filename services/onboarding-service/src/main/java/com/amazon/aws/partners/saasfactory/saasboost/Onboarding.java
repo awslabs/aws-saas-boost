@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-@JsonIgnoreProperties(value = {"cloudFormationUrl"}, allowGetters = true)
 public class Onboarding {
 
     private UUID id;
@@ -28,25 +29,11 @@ public class Onboarding {
     private LocalDateTime modified;
     private OnboardingStatus status;
     private UUID tenantId;
-    private String tenantName;
-    private String stackId;
-    private String zipFileUrl;
+    private OnboardingRequest request;
+    private List<OnboardingStack> stacks = new ArrayList<>();
+    private String zipFile;
 
     public Onboarding() {
-    }
-
-    public Onboarding(UUID id, OnboardingStatus status) {
-        this(id, LocalDateTime.now(), LocalDateTime.now(), status, null, null, null);
-    }
-
-    public Onboarding(UUID id, LocalDateTime created, LocalDateTime modified, OnboardingStatus status, UUID tenantId, String tenantName, String stackId) {
-        this.id = id;
-        this.created = created;
-        this.modified = modified;
-        this.status = status;
-        this.tenantId = tenantId;
-        this.tenantName = tenantName;
-        this.stackId = stackId;
     }
 
     public UUID getId() {
@@ -55,14 +42,6 @@ public class Onboarding {
 
     public void setId(UUID id) {
         this.id = id;
-    }
-
-    public void setZipFileUrl(String zipFileUrl) {
-        this.zipFileUrl = zipFileUrl;
-    }
-
-    public String getZipFileUrl() {
-        return zipFileUrl;
     }
 
     public LocalDateTime getCreated() {
@@ -97,36 +76,102 @@ public class Onboarding {
         this.tenantId = tenantId;
     }
 
-    public String getTenantName() {
-        return tenantName;
+    public OnboardingRequest getRequest() {
+        return request;
     }
 
-    public void setTenantName(String tenantName) {
-        this.tenantName = tenantName;
+    public void setRequest(OnboardingRequest request) {
+        this.request = request;
     }
 
-    public String getStackId() {
-        return stackId;
+    public List<OnboardingStack> getStacks() {
+        return stacks;
     }
 
-    public void setStackId(String stackId) {
-        this.stackId = stackId;
+    public void setZipFile(String zipFile) {
+        this.zipFile = zipFile;
     }
 
-    public String getCloudFormationUrl() {
-        String url = null;
-        if (getStackId() != null) {
-            String[] arn = getStackId().split(":");
-            if (arn.length > 4) {
-                String region = arn[3];
-                url = String.format(
-                        "https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringText=&filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
-                        region,
-                        region,
-                        getStackId()
-                );
+    public String getZipFile() {
+        return zipFile;
+    }
+
+    public void setStacks(List<OnboardingStack> stacks) {
+        this.stacks = stacks != null ? new ArrayList<>(stacks) : new ArrayList<>();
+    }
+
+    public void addStack(OnboardingStack stack) {
+        if (stack != null) {
+            this.stacks.add(stack);
+        }
+    }
+
+    public boolean hasBaseStacks() {
+        return !getStacks()
+                .stream()
+                .filter(OnboardingStack::isBaseStack)
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
+    public boolean hasAppStacks() {
+        return !getStacks()
+                .stream()
+                .filter(s -> !s.isBaseStack())
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
+    public boolean appStacksDeleted() {
+        return !hasAppStacks() || getStacks()
+                .stream()
+                .filter(s -> !s.isBaseStack())
+                .filter(s -> !"DELETE_COMPLETE".equals(s.getStatus()))
+                .collect(Collectors.toList())
+                .isEmpty();
+    }
+
+    public boolean stacksComplete() {
+        return stacksComplete(false);
+    }
+
+    public boolean baseStacksComplete() {
+        return stacksComplete(true);
+    }
+
+    public boolean stacksDeployed() {
+        boolean deployed = true;
+        for (OnboardingStack stack : getStacks()) {
+            if (!stack.isDeployed()) {
+                deployed = false;
+                break;
             }
         }
-        return url;
+        return deployed;
+    }
+
+    protected boolean stacksComplete(boolean baseStacks) {
+        boolean complete = false;
+        if (!getStacks().isEmpty()) {
+            if (baseStacks && !hasBaseStacks()) {
+                // If there are no base stacks, then base stacks can't be complete
+                complete = false;
+            } else {
+                if (baseStacks) {
+                    // All base stacks have to be complete
+                    complete = getStacks().stream()
+                            .filter(stack ->  stack.isBaseStack() && !stack.isComplete())
+                            .collect(Collectors.toList())
+                            .isEmpty();
+                } else {
+                    // All stacks have to be complete
+                    complete = getStacks().stream()
+                            .filter(stack -> !stack.isComplete())
+                            .collect(Collectors.toList())
+                            .isEmpty();
+                }
+            }
+        }
+        return complete;
     }
 }

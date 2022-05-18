@@ -14,45 +14,45 @@
  * limitations under the License.
  */
 
-import React, { useEffect, Fragment } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import React, { useEffect, Fragment } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 
-import { fetchTenantsThunk, selectAllTenants, dismissError } from "./ducks";
-import TenantListComponent from "./TenantListComponent";
-import { useHistory } from "react-router-dom";
+import { fetchTenantsThunk, selectAllTenants, dismissError } from './ducks'
+import TenantListComponent from './TenantListComponent'
+import { useHistory } from 'react-router-dom'
 
 export default function TenantListContainer() {
-  const dispatch = useDispatch();
-  const history = useHistory();
-  const tenants = useSelector(selectAllTenants);
-  const loading = useSelector((state) => state.tenants.loading); //TODO: move to tenants duck file.
-  const error = useSelector((state) => state.tenants.error);
+  const dispatch = useDispatch()
+  const history = useHistory()
+  const tenants = useSelector(selectAllTenants)
+  const loading = useSelector((state) => state.tenants.loading) //TODO: move to tenants duck file.
+  const error = useSelector((state) => state.tenants.error)
 
   const handleProvisionTenant = () => {
-    history.push("/tenants/provision");
-  };
+    history.push('/tenants/provision')
+  }
 
   const handleTenantClick = (tenantId) => {
-    history.push(`/tenants/${tenantId}`);
-  };
+    history.push(`/tenants/${tenantId}`)
+  }
 
   const handleRefresh = () => {
-    dispatch(fetchTenantsThunk());
-  };
+    dispatch(fetchTenantsThunk())
+  }
 
   const handleError = () => {
-    dispatch(dismissError());
-  };
+    dispatch(dismissError())
+  }
 
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
     <Fragment>
@@ -66,5 +66,5 @@ export default function TenantListContainer() {
         handleError={handleError}
       />
     </Fragment>
-  );
+  )
 }

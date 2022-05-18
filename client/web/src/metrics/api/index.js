@@ -14,83 +14,71 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import moment from "moment";
-import { fetchAccessToken } from "../../api";
-import appConfig from "../../config/appConfig";
+import axios from 'axios'
+import moment from 'moment'
+import { fetchAccessToken } from '../../api'
+import appConfig from '../../config/appConfig'
 
-const tzOffset = moment().utcOffset();
-
-const { apiUri, signoutUri } = appConfig;
+const { apiUri } = appConfig
 const apiServer = axios.create({
   baseURL: `${apiUri}/metrics`,
-  //baseURL: `https://h3ts4q4p4a.execute-api.us-west-2.amazonaws.com/Prod/metrics`,
   headers: {
     common: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   },
-  // transformRequest: [
-  //   (data) => {
-  //     console.log('******DATAT******', data);
-  //     return data;
-  //     // const jData = JSON.parse(data);
-  //     // jData.tzOffset = tzOffset;
-  //     // return JSON.stringify(jData);
-  //   },
-  // ],
-});
+})
 
 const datasetServer = axios.create({
   headers: {
     common: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   },
-});
+})
 
-const CancelToken = axios.CancelToken;
-const source = CancelToken.source();
+const CancelToken = axios.CancelToken
+const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
-  const authorizationToken = await fetchAccessToken();
-  r.headers.Authorization = authorizationToken;
-  r.headers["Content-Type"] = "application/json";
+  const authorizationToken = await fetchAccessToken()
+  r.headers.Authorization = authorizationToken
+  r.headers['Content-Type'] = 'application/json'
 
   //Configure the AbortSignal
   r.signal.onabort = () => {
-    console.log("Aborting API Call");
-    source.cancel();
-    console.log("Call aborted");
-  };
-  r.cancelToken = source.token;
+    console.log('Aborting API Call')
+    source.cancel()
+    console.log('Call aborted')
+  }
+  r.cancelToken = source.token
 
-  return r;
-});
+  return r
+})
 
 datasetServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
 
-  r.headers["Content-Type"] = "application/json";
+  r.headers['Content-Type'] = 'application/json'
 
   //Configure the AbortSignal
   r.signal.onabort = () => {
-    console.log("Aborting API Call");
-    source.cancel();
-    console.log("Call aborted");
-  };
-  r.cancelToken = source.token;
+    console.log('Aborting API Call')
+    source.cancel()
+    console.log('Call aborted')
+  }
+  r.cancelToken = source.token
 
-  return r;
-});
+  return r
+})
 
 //API Aborted class
 class Aborted extends Error {
   constructor(message, cause) {
-    super(message);
-    this.aborted = true;
-    this.cause = cause;
+    super(message)
+    this.aborted = true
+    this.cause = cause
   }
 }
 
@@ -112,108 +100,101 @@ const metricsAPI = {
   }, */
 
   query: async (metricQuery, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.post(
-        `/query`,
-        JSON.stringify(metricQuery),
-        {
-          signal,
-        }
-      );
-      return response.data;
+      const response = await apiServer.post(`/query`, JSON.stringify(metricQuery), {
+        signal,
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to query metrics: ${JSON.stringify(metricQuery)}`);
+        console.error(err)
+        throw Error(`Unable to query metrics: ${JSON.stringify(metricQuery)}`)
       }
     }
   },
 
-  accessLogMetrics: async (metric = "Count", timePeriod, ops) => {
-    const { signal } = ops;
+  accessLogMetrics: async (metric = 'Count', timePeriod, ops) => {
+    const { signal } = ops
 
-    let period = "07Day";
+    let period = '07Day'
     switch (timePeriod) {
-      case "DAY_07":
-        period = "07Day";
-        break;
-      case "HOUR_24":
-        period = "24Hour";
-        break;
-      case "HOUR_1":
-        period = "01Hour";
-        break;
+      case 'DAY_07':
+        period = '07Day'
+        break
+      case 'HOUR_24':
+        period = '24Hour'
+        break
+      case 'HOUR_1':
+        period = '01Hour'
+        break
     }
 
-    const fileName = `path${metric}${period}.js`;
+    const fileName = `path${metric}${period}.js`
     try {
-      const response = await datasetServer.get(`/${fileName}`, { signal });
-      return response.data;
+      const response = await datasetServer.get(`/${fileName}`, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to query metrics: ${JSON.stringify(timePeriod)}`);
+        console.error(err)
+        throw Error(`Unable to query metrics: ${JSON.stringify(timePeriod)}`)
       }
     }
   },
   getAccessLogsByTenant: async (metric, timerange, id, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.get(
-        `/alb/${metric}/${timerange}/${id}`,
-        { signal }
-      );
-      return response.data;
+      const response = await apiServer.get(`/alb/${metric}/${timerange}/${id}`, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call Aborted", err);
+        throw new Aborted('Call Aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to obtain Tenant Access Logs");
+        console.error(err)
+        throw Error('Unable to obtain Tenant Access Logs')
       }
     }
   },
   getAccessLogsSignedUrls: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.get(`/datasets`, { signal });
-      return response.data;
+      const response = await apiServer.get(`/datasets`, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call Aborted", err);
+        throw new Aborted('Call Aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to obtain signed URLs for Access Logs");
+        console.error(err)
+        throw Error('Unable to obtain signed URLs for Access Logs')
       }
     }
   },
 
   getAccessLogFile: async (url, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await datasetServer.get(url, { signal });
-      return response.data;
+      const response = await datasetServer.get(url, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to obtain data file from:  ${url}`);
+        console.error(err)
+        throw Error(`Unable to obtain data file from:  ${url}`)
       }
     }
   },
 
   isCancel: (err) => {
     if (err.aborted && err.aborted === true) {
-      return true;
+      return true
     }
-    return false;
+    return false
   },
-};
+}
 
-export default metricsAPI;
+export default metricsAPI

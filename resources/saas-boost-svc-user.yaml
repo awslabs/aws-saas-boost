@@ -96,6 +96,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -126,6 +127,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -133,7 +135,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -157,6 +158,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -164,7 +166,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -188,6 +189,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -195,7 +197,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -219,6 +220,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -226,7 +228,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceEnableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -250,6 +251,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -257,7 +259,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceDisableLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -281,6 +282,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -288,7 +290,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
   UserServiceTokenLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -312,6 +313,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_USERPOOL_ID: !Ref CognitoUserPoolId
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -319,7 +321,6 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "User"
-
 Outputs:
   UserServiceGetAllArn:
     Description: User Service get all users Lambda ARN

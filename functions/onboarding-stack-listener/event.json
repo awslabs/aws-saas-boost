@@ -1,0 +1,9 @@
+{
+  "records": [
+    {
+      "sns": {
+        "message": "StackId='arn:aws:cloudformation:us-west-2:914245659875:stack/sb-multi-tenant-e2f85934/3b77ee40-5a03-11ec-8817-02418856b67f'\nLogicalResourceId='sb-multi-tenant-e2f85934'\nPhysicalResourceId='arn:aws:cloudformation:us-west-2:914245659875:stack/sb-multi-tenant-e2f85934/3b77ee40-5a03-11ec-8817-02418856b67f'\nResourceStatus='CREATE_COMPLETE'\nResourceType='AWS::CloudFormation::Stack'\nStackName='sb-multi-tenant-e2f85934'"
+      }
+    }
+  ]
+}

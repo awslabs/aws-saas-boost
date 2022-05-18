@@ -13,57 +13,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React, { useEffect } from 'react'
 
-import React, { useEffect } from "react";
-
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector } from 'react-redux'
 import {
   fetchOnboarding,
   selectError,
   selectOnboardingRequestById,
   selectLoading,
   dismissError,
-} from "./ducks";
+} from './ducks'
 
-import { OnboardingDetailComponent } from "./OnboardingDetailComponent";
-import { useHistory } from "react-router-dom";
+import { OnboardingDetailComponent } from './OnboardingDetailComponent'
+import { useHistory } from 'react-router-dom'
+
+OnboardingDetailContainer.propTypes = {
+  match: PropTypes.object,
+}
 
 export default function OnboardingDetailContainer(props) {
-  const dispatch = useDispatch();
-  const history = useHistory();
+  const dispatch = useDispatch()
+  const history = useHistory()
 
-  const { match } = props;
-  const { params } = match;
-  const { id } = params;
+  const { match } = props
+  const { params } = match
+  const { id } = params
 
-  const onboarding = useSelector((state) =>
-    selectOnboardingRequestById(state, id)
-  );
-  const loading = useSelector(selectLoading);
-  const error = useSelector(selectError);
+  const onboarding = useSelector((state) => selectOnboardingRequestById(state, id))
+  const loading = useSelector(selectLoading)
+  const error = useSelector(selectError)
 
   const clearError = () => {
-    dispatch(dismissError());
-  };
+    dispatch(dismissError())
+  }
 
   const refresh = () => {
-    dispatch(fetchOnboarding(id));
-  };
+    dispatch(fetchOnboarding(id))
+  }
 
   const showTenant = (id) => {
-    history.push(`/tenants/${id}`);
-  };
+    history.push(`/tenants/${id}`)
+  }
 
   useEffect(() => {
-    const fetchResponse = dispatch(fetchOnboarding(id));
+    const fetchResponse = dispatch(fetchOnboarding(id))
     return () => {
-      if (fetchResponse.PromiseStatus === "pending") {
-        console.log("Clean up onboarding list request");
-        fetchResponse.abort();
+      if (fetchResponse.PromiseStatus === 'pending') {
+        console.log('Clean up onboarding list request')
+        fetchResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [id, dispatch]);
+      dispatch(dismissError())
+    }
+  }, [id, dispatch])
 
   return (
     <OnboardingDetailComponent
@@ -74,5 +76,5 @@ export default function OnboardingDetailContainer(props) {
       refresh={refresh}
       showTenant={showTenant}
     />
-  );
+  )
 }

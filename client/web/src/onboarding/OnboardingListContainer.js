@@ -14,73 +14,71 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import * as logger from "loglevel";
+import React, { useEffect, useState } from 'react'
+import { useHistory } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
+import * as logger from 'loglevel'
 import {
   dismissError,
   fetchOnboardings,
   selectAllOnboarding,
   selectError,
   selectLoading,
-} from "./ducks";
-import globalConfig from "../config/appConfig";
+} from './ducks'
+import globalConfig from '../config/appConfig'
 
-import { selectSettingsById } from "../settings/ducks";
+import { selectSettingsById } from '../settings/ducks'
 
-import { OnboardingListComponent } from "./OnboardingListComponent";
+import { OnboardingListComponent } from './OnboardingListComponent'
 
-const log = logger.getLogger("onboarding");
-log.setLevel(log.levels.INFO);
+const log = logger.getLogger('onboarding')
+log.setLevel(log.levels.INFO)
 
 export default function OnboardingListContainer() {
-  const [showEcrPushModal, setShowEcrPushModal] = useState(false);
-  const dispatch = useDispatch();
-  const history = useHistory();
+  const [showEcrPushModal, setShowEcrPushModal] = useState(false)
+  const dispatch = useDispatch()
+  const history = useHistory()
 
-  const onboardings = useSelector(selectAllOnboarding);
-  const loading = useSelector(selectLoading);
-  const error = useSelector(selectError);
+  const onboardings = useSelector(selectAllOnboarding)
+  const loading = useSelector(selectLoading)
+  const error = useSelector(selectError)
 
-  const ecrRepository = useSelector((state) =>
-    selectSettingsById(state, "ECR_REPO")
-  );
+  const ecrRepository = useSelector((state) => selectSettingsById(state, 'ECR_REPO'))
 
   const showOnboardRequestForm = () => {
-    history.push("/onboarding/request");
-  };
+    history.push('/onboarding/request')
+  }
 
   const clickOnboardingRequest = (id) => {
-    history.push(`/onboarding/${id}`);
-  };
+    history.push(`/onboarding/${id}`)
+  }
 
   const clickTenantDetails = (id) => {
-    history.push(`/tenants/${id}`);
-  };
+    history.push(`/tenants/${id}`)
+  }
 
   const clearError = () => {
-    dispatch(dismissError());
-  };
+    dispatch(dismissError())
+  }
 
   const refresh = () => {
-    dispatch(fetchOnboardings());
-  };
+    dispatch(fetchOnboardings())
+  }
 
   const toggleEcrPushModal = () => {
-    setShowEcrPushModal((state) => !state);
-  };
+    setShowEcrPushModal((state) => !state)
+  }
 
   useEffect(() => {
-    const onboardingResponse = dispatch(fetchOnboardings());
+    const onboardingResponse = dispatch(fetchOnboardings())
     return () => {
-      if (onboardingResponse.PromiseStatus === "pending") {
-        console.log("Clean up onboarding list request");
-        onboardingResponse.abort();
+      if (onboardingResponse.PromiseStatus === 'pending') {
+        console.log('Clean up onboarding list request')
+        onboardingResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   return (
     <OnboardingListComponent
@@ -98,5 +96,5 @@ export default function OnboardingListContainer() {
       toggleEcrPushModal={toggleEcrPushModal}
       clickTenantDetails={clickTenantDetails}
     />
-  );
+  )
 }

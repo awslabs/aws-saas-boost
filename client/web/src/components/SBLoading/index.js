@@ -14,26 +14,22 @@
  * limitations under the License.
  */
 
-import React from "react";
-import { BarLoader } from "react-spinners";
-import { Container, Row, Col, Card, CardBody } from "reactstrap";
+import React from 'react'
+import { BarLoader } from 'react-spinners'
+import { Container, Row, Col, Card, CardBody } from 'reactstrap'
 
 function SBLoading(props) {
   return (
-    <div className="app flex-row align-items-center">
+    <div className="app d-flex min-vh-100 align-items-center bg-light">
       <Container>
         <Row className="justify-content-center">
           <Col md="9" lg="7" xl="6">
             <Card className="mx-4">
               <CardBody className="p-4">
-                <h2 className="text-muted text-center">
-                  Initializing Application
-                </h2>
+                <h2 className="text-muted text-center">Initializing Application</h2>
                 <div className="m-5">
-                  <BarLoader size={120} width="100%" />
-                  <div className="text-muted text-center mt-2">
-                    Loading application settings...
-                  </div>
+                  <BarLoader size={120} width="100%" css="display: block" />
+                  <div className="text-muted text-center mt-2">Loading application settings...</div>
                 </div>
               </CardBody>
             </Card>
@@ -41,7 +37,7 @@ function SBLoading(props) {
         </Row>
       </Container>
     </div>
-  );
+  )
 }
 
-export default SBLoading;
+export default SBLoading

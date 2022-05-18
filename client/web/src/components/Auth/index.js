@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-export { default as CurrentUserContainer } from "./CurrentUserContainer";
-export { default as SaasBoostLoading } from "./SaasBoostLoading";
-export { default as SaasBoostSignIn } from "./SaasBoostSignIn";
-export { default as SaasBoostVerifyContact } from "./SaasBoostVerifyContact";
-export { default as SaasBoostChangePassword } from "./SaasBoostForgotPassword";
-export { default as SaasBoostRequireNewPassword } from "./SaasBoostRequireNewPassword";
+export { default as CurrentUserContainer } from './CurrentUserContainer'
+export { default as SaasBoostLoading } from './SaasBoostLoading'
+export { default as SaasBoostSignIn } from './SaasBoostSignIn'
+export { default as SaasBoostVerifyContact } from './SaasBoostVerifyContact'
+export { default as SaasBoostChangePassword } from './SaasBoostForgotPassword'
+export { default as SaasBoostRequireNewPassword } from './SaasBoostRequireNewPassword'

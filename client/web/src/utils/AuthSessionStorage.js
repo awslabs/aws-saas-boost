@@ -14,51 +14,49 @@
  * limitations under the License.
  */
 
-const SESSION_KEY = "@SaasBoost:";
-let dataMemory = {};
+const SESSION_KEY = '@SaasBoost:'
+let dataMemory = {}
 
 export class AuthSessionStorage {
-  static syncPromise = null;
+  static syncPromise = null
 
   static sync() {
     if (!AuthSessionStorage.syncPromise) {
       AuthSessionStorage.syncPromise = new Promise((res, rej) => {
-        const numKeys = sessionStorage.length;
-        let key = "";
+        const numKeys = sessionStorage.length
+        let key = ''
         // get all keys
         for (let i = 0; i < numKeys; i++) {
-          key = sessionStorage.key(i);
+          key = sessionStorage.key(i)
           if (key.startsWith(SESSION_KEY)) {
-            let value = sessionStorage.getItem(key);
-            let shortKey = key.replace(SESSION_KEY, "");
-            dataMemory[shortKey] = value;
+            let value = sessionStorage.getItem(key)
+            let shortKey = key.replace(SESSION_KEY, '')
+            dataMemory[shortKey] = value
           }
         }
-        res();
-      });
+        res()
+      })
     }
-    return AuthSessionStorage.syncPromise;
+    return AuthSessionStorage.syncPromise
   }
 
   static setItem(key, value) {
-    sessionStorage.setItem(SESSION_KEY + key, value);
-    dataMemory[key] = value;
-    return dataMemory[key];
+    sessionStorage.setItem(SESSION_KEY + key, value)
+    dataMemory[key] = value
+    return dataMemory[key]
   }
 
   static getItem(key) {
-    return Object.prototype.hasOwnProperty.call(dataMemory, key)
-      ? dataMemory[key]
-      : undefined;
+    return Object.prototype.hasOwnProperty.call(dataMemory, key) ? dataMemory[key] : undefined
   }
 
   static removeItem(key) {
-    sessionStorage.removeItem(SESSION_KEY + key);
-    return delete dataMemory[key];
+    sessionStorage.removeItem(SESSION_KEY + key)
+    return delete dataMemory[key]
   }
 
   static clear() {
-    dataMemory = {};
-    sessionStorage.clear();
+    dataMemory = {}
+    sessionStorage.clear()
   }
 }

@@ -14,163 +14,163 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import { fetchAccessToken } from "../../api";
-import appConfig from "../../config/appConfig";
-const { apiUri } = appConfig;
+import axios from 'axios'
+import { fetchAccessToken } from '../../api'
+import appConfig from '../../config/appConfig'
+const { apiUri } = appConfig
 
 const apiServer = axios.create({
   baseURL: `${apiUri}/settings`,
   headers: {
     common: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   },
-});
-const CancelToken = axios.CancelToken;
-const source = CancelToken.source();
+})
+const CancelToken = axios.CancelToken
+const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
-  const authorizationToken = await fetchAccessToken();
-  r.headers.Authorization = authorizationToken;
+  const authorizationToken = await fetchAccessToken()
+  r.headers.Authorization = authorizationToken
 
   //Configure the AbortSignal
   r.signal.onabort = () => {
-    source.cancel();
-  };
-  r.cancelToken = source.token;
+    source.cancel()
+  }
+  r.cancelToken = source.token
 
-  return r;
-});
+  return r
+})
 
 //API Aborted class
 class Aborted extends Error {
   constructor(message, cause) {
-    super(message);
-    this.aborted = true;
-    this.cause = cause;
+    super(message)
+    this.aborted = true
+    this.cause = cause
   }
 }
 
 const settingsAPI = {
   fetchAll: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.get("/", { signal });
-      return response.data;
+      const response = await apiServer.get('/', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to fetch settings");
+        console.error(err)
+        throw Error('Unable to fetch settings')
       }
     }
   },
   updateSettings: async (settings, ops) => {
-    const keys = Object.keys(settings);
-    let calls = [];
+    const keys = Object.keys(settings)
+    let calls = []
     keys.forEach((name, index) => {
       const settingToUpdate = {
         name: name,
         value: settings[name],
-      };
-      calls.push(settingsAPI.updateSetting(settingToUpdate, ops));
-    });
+      }
+      calls.push(settingsAPI.updateSetting(settingToUpdate, ops))
+    })
 
-    const updatesResponse = await axios.all(calls);
-    return updatesResponse;
+    const updatesResponse = await axios.all(calls)
+    return updatesResponse
   },
   updateSetting: async (setting, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.put(`/${setting.name}`, setting, {
         signal,
-      });
-      return response.data;
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update setting: ${setting.name}`);
+        console.error(err)
+        throw Error(`Unable to update setting: ${setting.name}`)
       }
     }
   },
   fetchConfig: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer.get("/config", { signal });
-      return response.data;
+      const response = await apiServer.get('/config', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to fetch application configuration");
+        console.error(err)
+        throw Error('Unable to fetch application configuration')
       }
     }
   },
   updateConfig: async (config, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.put(`/config`, config, { signal });
-      return response.data;
+      const response = await apiServer.put('/config', config, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update application configuration`);
+        console.error(err)
+        throw Error('Unable to update application configuration')
       }
     }
   },
   createConfig: async (config, ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.post(`/config`, config, { signal });
-      return response.data;
+      const response = await apiServer.post('/config', config, { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to update application configuration`);
+        console.error(err)
+        throw Error('Unable to update application configuration')
       }
     }
   },
   fetchDbOptions: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
-      const response = await apiServer.get(`/options`, {
+      const response = await apiServer.get('/options', {
         signal,
-      });
-      return response.data;
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to get DB Options`);
+        console.error(err)
+        throw Error('Unable to get DB Options')
       }
     }
   },
   putToPresignedBucket: async (url, file) => {
     const s3 = axios.create({
       baseURL: url,
-    });
-    const response = await s3.put("", file);
-    return response;
+    })
+    const response = await s3.put('', file)
+    return response
   },
   isCancel: (err) => {
     if (err.aborted && err.aborted === true) {
-      return true;
+      return true
     }
-    return false;
+    return false
   },
-};
+}
 
-export default settingsAPI;
+export default settingsAPI

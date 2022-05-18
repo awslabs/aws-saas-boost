@@ -13,28 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
-echo "AWS Region = $MY_AWS_REGION"
-
-if [ "X$1" = "X" ]; then
-    echo "usage: $0 <Environment>"
+if [ -z $1 ]; then
+    echo "Usage: $0 <Environment> [Lambda Folder]"
     exit 2
 fi
 
+MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
+echo "AWS Region = $MY_AWS_REGION"
+
 ENVIRONMENT=$1
 LAMBDA_STAGE_FOLDER=$2
-if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
+if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
 LAMBDA_CODE=Utils-lambda.zip
+LAYER_NAME="sb-${ENVIRONMENT}-utils"
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
 
-SAAS_BOOST_BUCKET=$(aws ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query "Parameter.Value" --output text)
+SAAS_BOOST_BUCKET=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query 'Parameter.Value' --output text)
 echo "SaaS Boost Bucket = $SAAS_BOOST_BUCKET"
-if [ "X$SAAS_BOOST_BUCKET" = "X" ]; then
-    echo "SaaS Boost Bucket export not read from AWS env"
+if [ -z $SAAS_BOOST_BUCKET ]; then
+    echo "Can't find SAAS_BOOST_BUCKET in Parameter Store"
     exit 1
 fi
 
@@ -44,51 +45,38 @@ if [ $? -ne 0 ]; then
     echo "Error building project"
     exit 1
 fi
+
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-PUBLISHED_LAYER=$(aws lambda publish-layer-version --layer-name "sb-${ENVIRONMENT}-utils" --compatible-runtimes java11 --content S3Bucket="${SAAS_BOOST_BUCKET}",S3Key="${LAMBDA_STAGE_FOLDER}/${LAMBDA_CODE}")
-LAYER_VERSION=$(echo $PUBLISHED_LAYER | jq -r '.LayerVersionArn')
-echo "Published new layer $LAYER_VERSION"
+# Publish a new version of the layer
+PUBLISHED_LAYER=$(aws --region $MY_AWS_REGION lambda publish-layer-version --layer-name "${LAYER_NAME}" --compatible-runtimes java11 --content S3Bucket="${SAAS_BOOST_BUCKET}",S3Key="${LAMBDA_STAGE_FOLDER}/${LAMBDA_CODE}")
 
-exit
+# Use eval to deal with the backticks in the filter expression
+eval LAYER_VERSION_ARN=\$\("aws lambda list-layers --query 'Layers[?LayerName==\`${LAYER_NAME}\`].LatestMatchingVersion.LayerVersionArn' --output text"\)
+echo "Published new layer = $LAYER_VERSION_ARN"
 
-TENANT_SVC=("sb-${ENVIRONMENT}-tenants-delete" 
-	"sb-${ENVIRONMENT}-tenants-disable"
-	"sb-${ENVIRONMENT}-tenants-enable"
-	"sb-${ENVIRONMENT}-tenants-get-all"
-	"sb-${ENVIRONMENT}-tenants-get-by-id"
-	"sb-${ENVIRONMENT}-tenants-get-provisioned"
-	"sb-${ENVIRONMENT}-tenants-insert"
-	"sb-${ENVIRONMENT}-tenants-update-onboarding"
-	"sb-${ENVIRONMENT}-tenants-update" 
-)
-USER_SVC=("sb-${ENVIRONMENT}-users-insert"
-	"sb-${ENVIRONMENT}-users-disable"
-	"sb-${ENVIRONMENT}-users-enable"
-	"sb-${ENVIRONMENT}-users-delete"
-	"sb-${ENVIRONMENT}-users-get-by-id"
-	"sb-${ENVIRONMENT}-users-update"
-	"sb-${ENVIRONMENT}-users-get-all"
-	"sb-${ENVIRONMENT}-users-token"
-)
-ONBOARDING_SVC=("sb-${ENVIRONMENT}-onboarding-get-all"
-	"sb-${ENVIRONMENT}-onboarding-start"
-	"sb-${ENVIRONMENT}-onboarding-get-by-id"
-	"sb-${ENVIRONMENT}-onboarding-update-status"
-	"sb-${ENVIRONMENT}-onboarding-provision"
-	"sb-${ENVIRONMENT}-onboarding-listener"
-)
-SETTINGS_SVC=("sb-${ENVIRONMENT}-settings-get-by-id"
-	"sb-${ENVIRONMENT}-settings-update"
-	"sb-${ENVIRONMENT}-settings-get-all"
-)
+# Find all the functions for this SaaS Boost environment that have layers
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-\`)] | [?Layers != null] | [].FunctionName' --output text"\)
+FUNCTIONS=($FUNCTIONS)
+#echo "Updating ${#FUNCTIONS[@]} functions with new layer version"
 
-METRICS_SVC=("sb-${ENVIRONMENT}-metrics-query"
-	"sb-${ENVIRONMENT}-metrics-presigned-urls"
-)
-
-FUNCTIONS=("${TENANT_SVC[@]}" "${USER_SVC[@]}" "${ONBOARDING_SVC[@]}" "${SETTINGS_SVC[@]}" "${METRICS_SVC[@]}")
 for FX in ${FUNCTIONS[@]}; do
-	aws lambda --region $MY_AWS_REGION update-function-configuration --function-name $FX --layers $LAYER_VERSION
+	# The order of the function's layers must be maintained. Iterate through this function's layers
+	# and update this layer's ARN with the newly published version.
+	FOUND=0
+	LAYERS=""
+	for LAYER_ARN in $(aws --region $MY_AWS_REGION lambda get-function --function-name $FX --query 'Configuration.Layers[].Arn' --output text); do
+		if [[ $LAYER_ARN == *"${LAYER_NAME}"* ]]; then
+			LAYER_ARN=$LAYER_VERSION_ARN
+			FOUND=1
+		fi
+		if [ ${#LAYERS} -gt 0 ]; then
+			LAYERS="${LAYERS} "
+		fi
+		LAYERS="${LAYERS}${LAYER_ARN}"
+	done
+	if (( $FOUND )); then
+		eval "aws --region $MY_AWS_REGION lambda update-function-configuration --function-name $FX --layers $LAYERS"
+	fi
 done

@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React, { Component, Fragment } from "react";
+import { PropTypes } from 'prop-types'
+import React, { Component, Fragment } from 'react'
 import {
   Alert,
   Spinner,
@@ -27,56 +27,57 @@ import {
   Card,
   CardHeader,
   CardBody,
-} from "reactstrap";
-import { SBMoment } from "../components/SBMoment";
-import Display from "../components/Display";
-import UserDeleteConfirmationComponent from "./UserDeleteConfirmationComponent";
+} from 'reactstrap'
+import { SBMoment } from '../components/SBMoment'
+import Display from '../components/Display'
+import UserDeleteConfirmationComponent from './UserDeleteConfirmationComponent'
 
 function showError(error, handleError) {
   return (
     <Alert color="danger" isOpen={!!error} toggle={() => handleError()}>
-      <h4 className={"alert-heading"}>Error</h4>
+      <h4 className={'alert-heading'}>Error</h4>
       <p>{error}</p>
     </Alert>
-  );
+  )
 }
+
 export class UserViewComponent extends Component {
   constructor(props) {
-    super(props);
+    super(props)
 
-    this.showError = this.showError.bind(this);
-    this.toggleActions = this.toggleActions.bind(this);
-    this.toggleDeleteConfirm = this.toggleDeleteConfirm.bind(this);
+    this.showError = this.showError.bind(this)
+    this.toggleActions = this.toggleActions.bind(this)
+    this.toggleDeleteConfirm = this.toggleDeleteConfirm.bind(this)
 
     this.state = {
       dropdownOpen: false,
       confirmDeleteModal: false,
-    };
+    }
   }
 
   toggleActions() {
     this.setState((state) => {
       return {
         dropdownOpen: state.dropdownOpen ? false : true,
-      };
-    });
+      }
+    })
   }
 
   toggleDeleteConfirm() {
     this.setState((state) => {
       return {
         confirmDeleteModal: state.confirmDeleteModal ? false : true,
-      };
-    });
+      }
+    })
   }
 
   showError(error, handleError) {
     return (
       <Alert color="danger" isOpen={!!error} toggle={() => handleError()}>
-        <h4 classname={"alert-heading"}>Error</h4>
+        <h4 className={'alert-heading'}>Error</h4>
         <p>{error}</p>
       </Alert>
-    );
+    )
   }
 
   viewLoading() {
@@ -84,21 +85,14 @@ export class UserViewComponent extends Component {
       <Spinner animation="border" role="status">
         Loading...
       </Spinner>
-    );
+    )
   }
 
   render() {
-    const {
-      user,
-      loading,
-      error,
-      toggleEdit,
-      handleActiveToggle,
-      handleError,
-      deleteUser,
-    } = this.props;
+    const { user, loading, error, toggleEdit, handleActiveToggle, handleError, deleteUser } =
+      this.props
 
-    const { dropdownOpen } = this.state;
+    const { dropdownOpen } = this.state
 
     return (
       <Fragment>
@@ -107,44 +101,28 @@ export class UserViewComponent extends Component {
             <Col>{error && showError(error, handleError)}</Col>
           </Row>
           <Row>
-            <Col>{loading === "pending" && this.viewLoading()}</Col>
+            <Col>{loading === 'pending' && this.viewLoading()}</Col>
             <Col className="justify-content-end">
-              <Dropdown
-                className="float-right"
-                toggle={this.toggleActions}
-                isOpen={dropdownOpen}
-              >
-                <DropdownToggle
-                  caret
-                  color={"primary"}
-                  disabled={loading === "pending" || !!error}
-                >
+              <Dropdown className="float-right" toggle={this.toggleActions} isOpen={dropdownOpen}>
+                <DropdownToggle caret color={'primary'} disabled={loading === 'pending' || !!error}>
                   Actions
                 </DropdownToggle>
-                {loading === "idle" && !!user && (
-                  <DropdownMenu right>
-                    <DropdownItem onClick={() => toggleEdit()}>
-                      Edit
-                    </DropdownItem>
+                {loading === 'idle' && !!user && (
+                  <DropdownMenu end="true">
+                    <DropdownItem onClick={() => toggleEdit()}>Edit</DropdownItem>
                     <DropdownItem
                       disabled={user.active}
-                      onClick={() =>
-                        handleActiveToggle("activate", user.username)
-                      }
+                      onClick={() => handleActiveToggle('activate', user.username)}
                     >
                       Enable
                     </DropdownItem>
                     <DropdownItem
                       disabled={!user.active}
-                      onClick={() =>
-                        handleActiveToggle("deactivate", user.username)
-                      }
+                      onClick={() => handleActiveToggle('deactivate', user.username)}
                     >
                       Disable
                     </DropdownItem>
-                    <DropdownItem onClick={this.toggleDeleteConfirm}>
-                      Delete
-                    </DropdownItem>
+                    <DropdownItem onClick={this.toggleDeleteConfirm}>Delete</DropdownItem>
                   </DropdownMenu>
                 )}
               </Dropdown>
@@ -155,7 +133,7 @@ export class UserViewComponent extends Component {
             <Col md={12} className="pt-2">
               <Card>
                 <CardHeader>
-                  <i className={"fa fa-info"} />
+                  <i className="fa fa-info" />
                   User Details
                 </CardHeader>
                 <CardBody>
@@ -163,9 +141,7 @@ export class UserViewComponent extends Component {
                     <Col className="border border-top-0 border-left-0 border-bottom-0">
                       <dt>Username</dt>
                       <dd>
-                        <Display condition={!!user}>
-                          {user && user.username}
-                        </Display>
+                        <Display condition={!!user}>{user && user.username}</Display>
                       </dd>
 
                       <dt>Name</dt>
@@ -190,7 +166,7 @@ export class UserViewComponent extends Component {
                               ) : (
                                 <span className="text-danger">Inactive</span>
                               )}
-                              {" / "}
+                              {' / '}
                               {user.status}
                             </>
                           ) : undefined}
@@ -201,7 +177,7 @@ export class UserViewComponent extends Component {
                       <dt>Created On</dt>
                       <dd>
                         <Display condition={!!user}>
-                          <SBMoment instant={!!user && user.created} />
+                          <SBMoment instant="{!!user && user.created}" />
                         </Display>
                       </dd>
                     </Col>
@@ -232,8 +208,18 @@ export class UserViewComponent extends Component {
           />
         )}
       </Fragment>
-    );
+    )
   }
 }
 
-export default UserViewComponent;
+UserViewComponent.propTypes = {
+  user: PropTypes.object,
+  loading: PropTypes.string,
+  error: PropTypes.string,
+  toggleEdit: PropTypes.func,
+  handleActiveToggle: PropTypes.func,
+  handleError: PropTypes.func,
+  deleteUser: PropTypes.func,
+}
+
+export default UserViewComponent

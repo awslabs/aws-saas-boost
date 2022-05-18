@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import React from "react";
+import React from 'react'
 
-import SaasBoostSignOut from "./SaasBoostSignOut";
+import SaasBoostSignOut from './SaasBoostSignOut'
 
 function CurrentUserContainer() {
-  return <SaasBoostSignOut />; //<CurrentUserComponent username={username} handleSignOut={handleSignOut} />
+  return <SaasBoostSignOut />
 }
 
-export default CurrentUserContainer;
+export default CurrentUserContainer

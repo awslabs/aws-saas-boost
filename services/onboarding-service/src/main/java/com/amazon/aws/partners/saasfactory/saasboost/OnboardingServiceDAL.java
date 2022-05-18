@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
@@ -25,17 +26,16 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class OnboardingServiceDAL {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(OnboardingServiceDAL.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingServiceDAL.class);
     private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String CIDR_BLOCK_TABLE = System.getenv("CIDR_BLOCK_TABLE");
     private final DynamoDbClient ddb;
 
     public OnboardingServiceDAL() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(ONBOARDING_TABLE)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_TABLE");
         }
@@ -46,7 +46,7 @@ public class OnboardingServiceDAL {
     }
 
     public List<Onboarding> getOnboardings() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboardings");
         List<Onboarding> onboardings = new ArrayList<>();
         try {
@@ -68,9 +68,9 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding getOnboarding(String onboardingId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboarding");
-        Map<String, AttributeValue> item = null;
+        Map<String, AttributeValue> item;
         try {
             Map<String, AttributeValue> key = new HashMap<>();
             key.put("id", AttributeValue.builder().s(onboardingId).build());
@@ -87,13 +87,13 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding getOnboardingByTenantId(String tenantId) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::getOnboardingByTenantId");
         Onboarding onboarding = null;
         try {
-            final int UUID_LENGTH = 36;
-            String filter = null;
-            if (tenantId.length() < UUID_LENGTH) {
+            final int uuidLength = 36;
+            String filter;
+            if (tenantId.length() < uuidLength) {
                 filter = "begins_with(tenant_id, :tenantId)";
             } else {
                 filter = "tenant_id = :tenantId";
@@ -101,9 +101,8 @@ public class OnboardingServiceDAL {
             ScanResponse scan = ddb.scan(ScanRequest.builder()
                     .tableName(ONBOARDING_TABLE)
                     .filterExpression(filter)
-                    .expressionAttributeValues(Stream
-                            .of(new AbstractMap.SimpleEntry<String, AttributeValue>(":tenantId", AttributeValue.builder().s(tenantId).build()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeValues(
+                            Collections.singletonMap(":tenantId", AttributeValue.builder().s(tenantId).build())
                     )
                     .build()
             );
@@ -126,7 +125,7 @@ public class OnboardingServiceDAL {
     // Choosing to do a replacement update as you might do in a RDBMS by
     // setting columns = NULL when they do not exist in the updated value
     public Onboarding updateOnboarding(Onboarding onboarding) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::updateOnboarding");
         try {
             // Created and Modified are owned by the DAL since they reflect when the
@@ -148,7 +147,7 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding updateStatus(UUID onboardingId, OnboardingStatus status) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::updateStatus");
         Onboarding updated = new Onboarding();
         updated.setId(onboardingId);
@@ -162,16 +161,10 @@ public class OnboardingServiceDAL {
                     .tableName(ONBOARDING_TABLE)
                     .key(key)
                     .updateExpression("SET #status = :status, modified = :modified")
-                    .expressionAttributeNames(Stream
-                            .of(new AbstractMap.SimpleEntry<String, String>("#status", "status"))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                    )
-                    .expressionAttributeValues(Stream
-                            .of(
-                                new AbstractMap.SimpleEntry<String, AttributeValue>(":status", AttributeValue.builder().s(status.toString()).build()),
-                                new AbstractMap.SimpleEntry<String, AttributeValue>(":modified", AttributeValue.builder().s(modified).build())
-                            )
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeNames(Map.of("#status", "status"))
+                    .expressionAttributeValues(Map.of(
+                            ":status", AttributeValue.builder().s(status.toString()).build(),
+                            ":modified", AttributeValue.builder().s(modified).build())
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );
@@ -186,17 +179,26 @@ public class OnboardingServiceDAL {
     }
 
     public Onboarding insertOnboarding(Onboarding onboarding) {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("OnboardingServiceDAL::insertOnboarding");
+
+        // Unique identifier is owned by the DAL
+        if (onboarding.getId() != null) {
+            throw new IllegalArgumentException("Can't insert a new onboarding record that already has an id");
+        }
         UUID onboardingId = UUID.randomUUID();
         onboarding.setId(onboardingId);
+
+        // We start in a created state
+        onboarding.setStatus(OnboardingStatus.created);
+
+        // Created and Modified are owned by the DAL since they reflect when the
+        // object was persisted
+        LocalDateTime now = LocalDateTime.now();
+        onboarding.setCreated(now);
+        onboarding.setModified(now);
+        Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
         try {
-            // Created and Modified are owned by the DAL since they reflect when the
-            // object was persisted
-            LocalDateTime now = LocalDateTime.now();
-            onboarding.setCreated(now);
-            onboarding.setModified(now);
-            Map<String, AttributeValue> item = toAttributeValueMap(onboarding);
             ddb.putItem(request -> request.tableName(ONBOARDING_TABLE).item(item));
             long putItemTimeMillis = System.currentTimeMillis() - startTimeMillis;
             LOGGER.info("OnboardingServiceDAL::insertOnboarding PutItem exec " + putItemTimeMillis);
@@ -209,23 +211,69 @@ public class OnboardingServiceDAL {
         return onboarding;
     }
 
-    public String assignCidrBlock(String tenantId) {
+    public String getCidrBlock(UUID tenantId) {
+        return getCidrBlock(tenantId.toString());
+    }
+
+    public String getCidrBlock(String tenantId) {
         if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
             throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
         }
         String cidrBlock = null;
         try {
-            // Do both checks at once
+            ScanResponse scan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
+            if (!scan.items().isEmpty()) {
+                for (Map<String, AttributeValue> item : scan.items()) {
+                    if (item.containsKey("tenant_id") && item.get("tenant_id").s().equals(tenantId)) {
+                        cidrBlock = item.get("cidr_block").s();
+                    }
+                }
+            }
+        } catch (DynamoDbException ddbError) {
+            LOGGER.error("dynamodb:Scan error", ddbError);
+            LOGGER.error(Utils.getFullStackTrace(ddbError));
+            throw ddbError;
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error", e);
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+        return cidrBlock;
+    }
+
+    public boolean availableCidrBlock() {
+        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
+            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
+        }
+        boolean available;
+        try {
+            ScanResponse scan = ddb.scan(r -> r
+                    .tableName(CIDR_BLOCK_TABLE)
+                    .filterExpression("attribute_not_exists(tenant_id)")
+            );
+            available = scan.hasItems() && !scan.items().isEmpty();
+        } catch (DynamoDbException ddbError) {
+            LOGGER.error("dynamodb:Scan error", ddbError);
+            LOGGER.error(Utils.getFullStackTrace(ddbError));
+            throw ddbError;
+        }
+        return available;
+    }
+
+    public String assignCidrBlock(String tenantId) {
+        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
+            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
+        }
+        String cidrBlock;
+        try {
             long scanStartTimeMillis = System.currentTimeMillis();
-            boolean cidrBlockAvailable = true;
             List<String> availableCidrBlocks = new ArrayList<>();
             ScanResponse fullScan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
             if (!fullScan.items().isEmpty()) {
                 for (Map<String, AttributeValue> item : fullScan.items()) {
                     // Make sure we're not trying to assign a CIDR block to a tenant that already has one
                     if (item.containsKey("tenant_id") && tenantId.equals(item.get("tenant_id").s())) {
-                        cidrBlockAvailable = false;
-                        break;
+                        throw new RuntimeException("CIDR block already assigned for tenant " + tenantId);
                     }
                     if (!item.containsKey("tenant_id")) {
                         availableCidrBlocks.add(item.get("cidr_block").s());
@@ -233,12 +281,8 @@ public class OnboardingServiceDAL {
                 }
                 // Make sure we have an open CIDR block left to assign
                 if (availableCidrBlocks.isEmpty()) {
-                    cidrBlockAvailable = false;
+                    throw new RuntimeException("No remaining CIDR blocks");
                 }
-            }
-            if (!cidrBlockAvailable) {
-                // We're out of CIDR blocks that we can assign to tenant VPCs
-                throw new RuntimeException("No remaining CIDR blocks");
             }
             long scanTotalTimeMillis = System.currentTimeMillis() - scanStartTimeMillis;
             LOGGER.info("OnboardingServiceDAL::assignCidrBlock scan " + scanTotalTimeMillis);
@@ -252,9 +296,8 @@ public class OnboardingServiceDAL {
                     .tableName(CIDR_BLOCK_TABLE)
                     .key(key)
                     .updateExpression("SET tenant_id = :tenantId")
-                    .expressionAttributeValues(Stream
-                            .of(new AbstractMap.SimpleEntry<String, AttributeValue>(":tenantId", AttributeValue.builder().s(tenantId).build()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .expressionAttributeValues(
+                            Collections.singletonMap(":tenantId", AttributeValue.builder().s(tenantId).build())
                     )
                     .conditionExpression("attribute_not_exists(tenant_id)")
                     .returnValues(ReturnValue.ALL_NEW)
@@ -286,11 +329,58 @@ public class OnboardingServiceDAL {
         if (onboarding.getTenantId() != null) {
             item.put("tenant_id", AttributeValue.builder().s(onboarding.getTenantId().toString()).build());
         }
-        if (Utils.isNotBlank(onboarding.getTenantName())) {
-            item.put("tenant_name", AttributeValue.builder().s(onboarding.getTenantName()).build());
+        if (onboarding.getZipFile() != null) {
+            item.put("zip_file", AttributeValue.builder().s(onboarding.getZipFile()).build());
         }
-        if (Utils.isNotBlank(onboarding.getStackId())) {
-            item.put("stack_id", AttributeValue.builder().s(onboarding.getStackId()).build());
+        if (onboarding.getRequest() != null) {
+            OnboardingRequest request = onboarding.getRequest();
+            Map<String, AttributeValue> requestMap = new HashMap<>();
+            if (Utils.isNotBlank(request.getName())) {
+                requestMap.put("name", AttributeValue.builder().s(request.getName()).build());
+            }
+            if (Utils.isNotBlank(request.getTier())) {
+                requestMap.put("tier", AttributeValue.builder().s(request.getTier()).build());
+            }
+            if (Utils.isNotBlank(request.getSubdomain())) {
+                requestMap.put("subdomain", AttributeValue.builder().s(request.getSubdomain()).build());
+            }
+            if (request.getAttributes() != null && !request.getAttributes().isEmpty()) {
+                requestMap.put("attributes", AttributeValue.builder().m(request.getAttributes().entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> AttributeValue.builder().s(entry.getValue()).build())
+                        )
+                ).build());
+            }
+            item.put("request", AttributeValue.builder().m(requestMap).build());
+        }
+        if (!onboarding.getStacks().isEmpty()) {
+            item.put("stacks", AttributeValue.builder().l(onboarding.getStacks()
+                    .stream()
+                    .map(stack -> {
+                        Map<String, AttributeValue> stackItem = new HashMap<>();
+                        if (stack.getName() != null) {
+                            stackItem.put("name", AttributeValue.builder().s(stack.getName()).build());
+                        }
+                        if (stack.getArn() != null) {
+                            stackItem.put("arn", AttributeValue.builder().s(stack.getArn()).build());
+                        }
+                        stackItem.put("baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build());
+                        if (stack.getStatus() != null) {
+                            stackItem.put("status", AttributeValue.builder().s(stack.getStatus()).build());
+                        }
+                        if (stack.getPipeline() != null) {
+                            stackItem.put("pipeline", AttributeValue.builder().s(stack.getPipeline()).build());
+                        }
+                        if (stack.getPipelineStatus() != null) {
+                            stackItem.put("pipelineStatus", AttributeValue.builder().s(stack.getPipelineStatus()).build());
+                        }
+                        return AttributeValue.builder().m(stackItem).build();
+                    })
+                    .collect(Collectors.toList())
+                    ).build()
+            );
         }
         return item;
     }
@@ -341,11 +431,46 @@ public class OnboardingServiceDAL {
                     LOGGER.error(Utils.getFullStackTrace(e));
                 }
             }
-            if (item.containsKey("tenant_name")) {
-                onboarding.setTenantName(item.get("tenant_name").s());
+            if (item.containsKey("zip_file")) {
+                onboarding.setZipFile(item.get("zip_file").s());
             }
-            if (item.containsKey("stack_id")) {
-                onboarding.setStackId(item.get("stack_id").s());
+            if (item.containsKey("request")) {
+                Map<String, AttributeValue> requestMap = item.get("request").m();
+                OnboardingRequest request = new OnboardingRequest(requestMap.get("name").s());
+                if (requestMap.containsKey("tier")) {
+                    request.setTier(requestMap.get("tier").s());
+                }
+                if (requestMap.containsKey("subdomain")) {
+                    request.setSubdomain(requestMap.get("subdomain").s());
+                }
+                if (requestMap.containsKey("attributes")) {
+                    request.setAttributes(requestMap.get("attributes").m().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey,
+                                    entry -> entry.getValue().s(),
+                                    (valForKey, valForDupKey) -> valForKey,
+                                    LinkedHashMap::new
+                            ))
+                    );
+                }
+                onboarding.setRequest(request);
+            }
+            if (item.containsKey("stacks")) {
+                onboarding.setStacks(item.get("stacks").l()
+                        .stream()
+                        .map(stackItem -> {
+                            Map<String, AttributeValue> stack = stackItem.m();
+                            return OnboardingStack.builder()
+                                    .name(stack.containsKey("name") ? stack.get("name").s() : null)
+                                    .arn(stack.containsKey("arn") ? stack.get("arn").s() : null)
+                                    .baseStack(stack.containsKey("baseStack") ? stack.get("baseStack").bool() : false)
+                                    .status(stack.containsKey("status") ? stack.get("status").s() : null)
+                                    .pipeline(stack.containsKey("pipeline") ? stack.get("pipeline").s() : null)
+                                    .pipelineStatus(stack.containsKey("pipelineStatus") ? stack.get("pipelineStatus").s() : null)
+                                    .build();
+                        })
+                        .collect(Collectors.toList())
+                );
             }
         }
         return onboarding;

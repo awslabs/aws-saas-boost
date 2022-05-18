@@ -14,88 +14,76 @@
  * limitations under the License.
  */
 
-import {
-  createAsyncThunk,
-  createSlice,
-  createEntityAdapter,
-} from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, createEntityAdapter } from '@reduxjs/toolkit'
 
-import { normalize, schema } from "normalizr";
+import { normalize, schema } from 'normalizr'
 
-import billingAPI from "../api";
+import billingAPI from '../api'
 
-const planSchema = new schema.Entity(
-  "billingPlans",
-  {},
-  { idAttribute: "planId" }
-);
-const planListSchema = [planSchema];
+const planSchema = new schema.Entity('billingPlans', {}, { idAttribute: 'planId' })
+const planListSchema = [planSchema]
 
 const planAdapter = createEntityAdapter({
   selectId: (entity) => entity.planId,
-});
+})
 
-export const fetchPlans = createAsyncThunk(
-  "billingPlans/fetchAll",
-  async (...[, thunkAPI]) => {
-    const { signal } = thunkAPI;
-    try {
-      const response = await billingAPI.fetchPlans({ signal });
-      const normalized = normalize(response, planListSchema);
-      return normalized.entities;
-    } catch (err) {
-      if (billingAPI.isCancel(err)) {
-        return;
-      } else {
-        console.error(err);
-        return thunkAPI.rejectWithValue(err.message);
-      }
+export const fetchPlans = createAsyncThunk('billingPlans/fetchAll', async (...[, thunkAPI]) => {
+  const { signal } = thunkAPI
+  try {
+    const response = await billingAPI.fetchPlans({ signal })
+    const normalized = normalize(response, planListSchema)
+    return normalized.entities
+  } catch (err) {
+    if (billingAPI.isCancel(err)) {
+      return
+    } else {
+      console.error(err)
+      return thunkAPI.rejectWithValue(err.message)
     }
   }
-);
+})
 
 const initialState = planAdapter.getInitialState({
-  loading: "idle",
+  loading: 'idle',
   error: undefined,
-});
-const PLAN_SLICE_NAME = "billingPlans";
+})
+const PLAN_SLICE_NAME = 'billingPlans'
 const planSlice = createSlice({
   name: PLAN_SLICE_NAME,
   initialState,
   reducers: {},
   extraReducers: {
     RESET: (state) => {
-      return initialState;
+      return initialState
     },
     [fetchPlans.fulfilled]: (state, action) => {
       if (action.payload !== undefined) {
-        const { billingPlans } = action.payload;
-        planAdapter.setAll(state, billingPlans ?? []);
+        const { billingPlans } = action.payload
+        planAdapter.setAll(state, billingPlans ?? [])
       }
-      state.loading = "idle";
-      state.error = null;
-      return state;
+      state.loading = 'idle'
+      state.error = null
+      return state
     },
     [fetchPlans.pending]: (state) => {
-      state.loading = "pending";
-      state.error = null;
-      return state;
+      state.loading = 'pending'
+      state.error = null
+      return state
     },
     [fetchPlans.rejected]: (state, action) => {
-      state.loading = "idle";
-      state.error = action.payload;
+      state.loading = 'idle'
+      state.error = action.payload
 
-      return state;
+      return state
     },
   },
-});
+})
 
-export const selectPlanLoading = (state) => state[PLAN_SLICE_NAME].loading;
-export const selectPlanError = (state) => state[PLAN_SLICE_NAME].error;
+export const selectPlanLoading = (state) => state[PLAN_SLICE_NAME].loading
+export const selectPlanError = (state) => state[PLAN_SLICE_NAME].error
 
-export const billingPlans = planSlice.reducer;
+export const billingPlans = planSlice.reducer
 
-export const {
-  selectAll: selectAllPlans,
-  selectById: selectPlanById,
-} = planAdapter.getSelectors((state) => state[PLAN_SLICE_NAME]);
+export const { selectAll: selectAllPlans, selectById: selectPlanById } = planAdapter.getSelectors(
+  (state) => state[PLAN_SLICE_NAME],
+)

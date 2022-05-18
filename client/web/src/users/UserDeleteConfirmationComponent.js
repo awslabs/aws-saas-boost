@@ -13,55 +13,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Formik, Form } from 'formik'
 
-import React from "react";
-import { Formik, Form } from "formik";
+import { Modal, ModalBody, ModalFooter, ModalHeader, Button, FormGroup } from 'reactstrap'
+import * as Yup from 'yup'
+import { SaasBoostInput } from '../components/FormComponents'
 
-import {
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  Button,
-  FormGroup,
-} from "reactstrap";
-import * as Yup from "yup";
-import { SaasBoostInput } from "../components/FormComponents";
+UserDeleteConfirmationComponent.propTypes = {
+  username: PropTypes.string,
+  showModal: PropTypes.bool,
+  toggleModal: PropTypes.func,
+  deleteUser: PropTypes.func,
+  resetForm: PropTypes.func,
+  isValid: PropTypes.bool,
+  dirty: PropTypes.bool,
+  isSubmitting: PropTypes.bool,
+}
 
 export default function UserDeleteConfirmationComponent(props) {
-  const { username, showModal, toggleModal, deleteUser } = props;
+  const { username, showModal, toggleModal, deleteUser } = props
 
   const initialValues = {
-    confirmText: "",
-  };
+    confirmText: '',
+  }
   const validation = Yup.object({
     confirmText: Yup.string()
-      .required("Required")
-      .matches(/^delete$/, "Please type 'delete' to confirm"),
-  });
+      .required('Required')
+      .matches(/^delete$/, 'Please type "delete" to confirm'),
+  })
 
   const resetAndClose = (resetForm) => {
-    resetForm();
-    toggleModal();
-  };
+    resetForm()
+    toggleModal()
+  }
 
   const handleSubmit = async (values, { setSubmitting }) => {
-    await deleteUser(username, setSubmitting, toggleModal);
-  };
+    await deleteUser(username, setSubmitting, toggleModal)
+  }
 
   return (
-    <Formik
-      initialValues={initialValues}
-      validationSchema={validation}
-      onSubmit={handleSubmit}
-    >
+    <Formik initialValues={initialValues} validationSchema={validation} onSubmit={handleSubmit}>
       {(props) => (
-        <Modal isOpen={showModal} className={"modal-danger"}>
+        <Modal isOpen={showModal} className="modal-danger">
           <Form>
             <ModalHeader>Delete User</ModalHeader>
             <ModalBody>
-              <p>Are you sure you want to delete the user '{username}'?</p>
-              <p>Type 'delete' to confirm:</p>
+              <p>Are you sure you want to delete the user &apos;{username}&apos;?</p>
+              <p>Type &apos;delete&apos; to confirm:</p>
               <FormGroup>
                 <SaasBoostInput type="text" name="confirmText" tabIndex="1" />
               </FormGroup>
@@ -81,12 +81,12 @@ export default function UserDeleteConfirmationComponent(props) {
                 disabled={!(props.isValid && props.dirty) || props.isSubmitting}
                 tabIndex="2"
               >
-                {props.isSubmitting ? "Deleting..." : "Delete"}
+                {props.isSubmitting ? 'Deleting...' : 'Delete'}
               </Button>
             </ModalFooter>
           </Form>
         </Modal>
       )}
     </Formik>
-  );
+  )
 }

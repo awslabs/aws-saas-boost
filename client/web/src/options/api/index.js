@@ -14,30 +14,29 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import appConfig from "../../config/appConfig";
-import { Aborted, getApiServer } from "../../api/common";
+import axios from 'axios'
+import appConfig from '../../config/appConfig'
+import { Aborted, getApiServer } from '../../api/common'
 
-const { apiUri } = appConfig;
-const apiServer = getApiServer("/settings");
+const apiServer = getApiServer('/settings')
 
 const optionsAPI = {
   fetchOptions: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
     try {
       const response = await apiServer.get(`/options`, {
         signal,
-      });
-      return response.data;
+      })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error(`Unable to get DB Options`);
+        console.error(err)
+        throw Error('Unable to get DB Options')
       }
     }
   },
-};
+}
 
-export default optionsAPI;
+export default optionsAPI

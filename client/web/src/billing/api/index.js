@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-import axios from "axios";
-import { getApiServer, Aborted, isCancel } from "../../api/common";
+import axios from 'axios'
+import { getApiServer, Aborted, isCancel } from '../../api/common'
 
-const apiServer = getApiServer("billing");
+const apiServer = getApiServer('billing')
 
 const billingAPI = {
   fetchPlans: async (ops) => {
-    const { signal } = ops;
+    const { signal } = ops
 
     try {
-      const response = await apiServer("/plans", { signal });
-      return response.data;
+      const response = await apiServer('/plans', { signal })
+      return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
-        throw new Aborted("Call aborted", err);
+        throw new Aborted('Call aborted', err)
       } else {
-        console.error(err);
-        throw Error("Unable to fetch billing plans");
+        console.error(err)
+        throw Error('Unable to fetch billing plans')
       }
     }
   },
   isCancel: isCancel,
-};
+}
 
-export default billingAPI;
+export default billingAPI

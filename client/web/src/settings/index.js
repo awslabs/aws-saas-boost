@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import React from "react";
+import React from 'react'
 
-const SettingsContainer = React.lazy(() => import("./SettingsContainer"));
-const ApplicationContainer = React.lazy(() => import("./ApplicationContainer"));
-export { default as FetchSettings } from "./FetchSettings";
-export * from "./common";
+const SettingsContainer = React.lazy(() => import('./SettingsContainer'))
+const ApplicationContainer = React.lazy(() => import('./ApplicationContainer'))
+export { default as FetchSettings } from './FetchSettings'
+export * from './common'
 
 export const SettingsRoutes = [
   {
-    path: "/settings",
-    name: "Settings",
+    path: '/settings',
+    name: 'Settings',
     component: SettingsContainer,
   },
   {
-    path: "/application",
-    name: "Application",
+    path: '/application',
+    name: 'Application',
     component: ApplicationContainer,
   },
-];
+]

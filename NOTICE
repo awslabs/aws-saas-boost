@@ -1,2 +1,5 @@
 AWS SaaS Boost
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+The admin UI application (in `client/web`) was built based on the CoreUI Free React Admin Template: https://github.com/coreui/coreui-free-react-admin-template , which is licensed under the MIT
+license, copied in THIRD-PARTY-LICENSES.txt.

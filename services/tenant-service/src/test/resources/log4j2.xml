@@ -14,20 +14,37 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-<Configuration status="TRACE">
-    <Appenders>
-        <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
-        </Console>
-    </Appenders>
-    <Loggers>
-        <Root level="TRACE">
-            <AppenderRef ref="Console"/>
-        </Root>
-        <Logger name="software.amazon.awssdk" level="INFO"/>
-        <Logger name="software.amazon.awssdk.request" level="TRACE"/>
-        <Logger name="com.amazon.aws.partners.saasfactory" level="DEBUG"/>
-        <Logger name="org.apache.http.wire" level="DEBUG"/>
-        <Logger name="org.apache.http.headers" level="DEBUG"/>
-    </Loggers>
+<!--<Configuration status="TRACE">-->
+<!--    <Appenders>-->
+<!--        <Console name="Console" target="SYSTEM_OUT">-->
+<!--            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>-->
+<!--        </Console>-->
+<!--    </Appenders>-->
+<!--    <Loggers>-->
+<!--        <Root level="TRACE">-->
+<!--            <AppenderRef ref="Console"/>-->
+<!--        </Root>-->
+<!--        <Logger name="software.amazon.awssdk" level="INFO"/>-->
+<!--        <Logger name="software.amazon.awssdk.request" level="TRACE"/>-->
+<!--        <Logger name="com.amazon.aws.partners.saasfactory" level="DEBUG"/>-->
+<!--        <Logger name="org.apache.http.wire" level="DEBUG"/>-->
+<!--        <Logger name="org.apache.http.headers" level="DEBUG"/>-->
+<!--    </Loggers>-->
+<!--</Configuration>-->
+<Configuration status="WARN">
+<Appenders>
+    <Lambda name="Lambda">
+        <PatternLayout>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %X{AWSRequestId} %-5p %C{1} - %m%n</pattern>
+        </PatternLayout>
+    </Lambda>
+</Appenders>
+<Loggers>
+    <Root level="INFO">
+        <AppenderRef ref="Lambda"/>
+    </Root>
+    <Logger name="software.amazon.awssdk" level="WARN"/>
+    <Logger name="software.amazon.awssdk.request" level="INFO"/>
+    <Logger name="com.amazon.aws.partners.saasfactory" level="DEBUG"/>
+</Loggers>
 </Configuration>

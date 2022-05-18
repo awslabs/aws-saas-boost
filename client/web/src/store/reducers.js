@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-import tenants from "../tenant/ducks/index";
-import users from "../users/ducks";
-import onboardings from "../onboarding/ducks";
-import settings from "../settings/ducks";
-import metrics from "../metrics/ducks";
-import { billingPlans } from "../billing/ducks";
-import accessLogMetrics from "../metrics/ducks/accessLogMetrics";
-import options from "../options/ducks";
+import tenants from '../tenant/ducks/index'
+import users from '../users/ducks'
+import onboardings from '../onboarding/ducks'
+import settings from '../settings/ducks'
+import metrics from '../metrics/ducks'
+import { billingPlans } from '../billing/ducks'
+import accessLogMetrics from '../metrics/ducks/accessLogMetrics'
+import options from '../options/ducks'
+import tiers from '../tier/ducks'
 
 export default {
   tenants,
+  tiers,
   users,
   onboardings,
   settings,
@@ -32,4 +34,4 @@ export default {
   billingPlans,
   accessLogMetrics,
   options,
-};
+}

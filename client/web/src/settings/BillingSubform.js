@@ -13,19 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Row, Col, Card, CardHeader, CardBody } from 'reactstrap'
+import { SaasBoostInput, SaasBoostCheckbox } from '../components/FormComponents'
 
-import React from "react";
-import { Row, Col, Card, CardHeader, CardBody } from "reactstrap";
-import {
-  SaasBoostInput,
-  SaasBoostCheckbox,
-} from "../components/FormComponents";
+BillingSubform.propTypes = {
+  provisionBilling: PropTypes.bool,
+}
 
 export default function BillingSubform(props) {
-  const { provisionBilling = false } = props;
+  const { provisionBilling = false } = props
   return (
     <>
-      <Row>
+      <Row className="mb-3">
         <Col xs={12}>
           <Card>
             <CardHeader>Billing</CardHeader>
@@ -44,6 +45,7 @@ export default function BillingSubform(props) {
                       label="Please enter your Stripe Secret API Key"
                       name="billing.apiKey"
                       type="password"
+                      value=""
                     />
                   </Col>
                 </Row>
@@ -53,5 +55,5 @@ export default function BillingSubform(props) {
         </Col>
       </Row>
     </>
-  );
+  )
 }

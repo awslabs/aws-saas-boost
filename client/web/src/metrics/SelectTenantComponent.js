@@ -13,41 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { Input, Label, FormGroup } from 'reactstrap'
 
-import React from "react";
-import { Input, Label, Row, Col, FormGroup } from "reactstrap";
+SelectTenantComponent.propTypes = {
+  tenants: PropTypes.array,
+  selectedTenant: PropTypes.object,
+  selectTenant: PropTypes.func,
+}
+
 export default function SelectTenantComponent(props) {
-  const { tenants, selectedTenant, selectTenant } = props;
+  const { tenants, selectedTenant, selectTenant } = props
   const _selectTenant = (e) => {
     if (e.target.value !== selectedTenant) {
-      selectTenant(e.target.value);
+      selectTenant(e.target.value)
     }
-  };
-  let tenantOptions = [];
+  }
+  let tenantOptions = []
   tenants.forEach((t) => {
     tenantOptions.push(
       <option value={t.id} key={t.id}>
         {t.name}
-      </option>
-    );
-  });
+      </option>,
+    )
+  })
   return (
     <FormGroup className="form-inline mb-0">
-      <Label htmlFor="stpcTimePeriod" className="mr-2">
-        Tenant:
-      </Label>
+      <Label htmlFor="stpcTenant" className="mr-2">Tenant: </Label>
       <div>
         <Input
           type="select"
-          name="stpcTimePeriod"
-          id="stpcTimePeriod"
+          name="stpcTenant"
+          id="stpcTenant"
           onChange={_selectTenant}
-          defaultValue="DAY_7"
+          defaultValue=""
         >
           <option value="">-- All Tenants --</option>
           {tenantOptions}
         </Input>
       </div>
     </FormGroup>
-  );
+  )
 }

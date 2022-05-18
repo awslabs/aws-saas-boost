@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-export { SaasBoostInput } from "./SaasBoostInput";
-export { SaasBoostSwitch } from "./SaasBoostSwitch";
-export { SaasBoostCheckbox } from "./SaasBoostCheckbox";
-export { SaasBoostSelect } from "./SaasBoostSelect";
-export { SaasBoostFileUpload } from "./SaasBoostFileUpload";
+export { SaasBoostInput } from './SaasBoostInput'
+export { SaasBoostCheckbox } from './SaasBoostCheckbox'
+export { SaasBoostSelect } from './SaasBoostSelect'
+export { SaasBoostFileUpload } from './SaasBoostFileUpload'
+export { SaasBoostTextarea } from './SaasBoostTextarea'

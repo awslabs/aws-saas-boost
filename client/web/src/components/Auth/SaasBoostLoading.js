@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import React, { Fragment } from "react";
-import { Loading } from "aws-amplify-react";
-import { RingLoader } from "react-spinners";
+import React, { Fragment } from 'react'
+import { Loading } from 'aws-amplify-react'
+import { RingLoader } from 'react-spinners'
 
 export default class SaasBoostLoading extends Loading {
   showComponent() {
@@ -31,6 +31,6 @@ export default class SaasBoostLoading extends Loading {
           <h1 className="text-warning">Authenticating...</h1>
         </div>
       </Fragment>
-    );
+    )
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+ 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -27,8 +28,8 @@ import java.util.stream.Stream;
 
 public class QuotasService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(QuotasService.class);
-    private final static Map<String, String> CORS = Stream
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuotasService.class);
+    private static final Map<String, String> CORS = Stream
             .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     private final QuotasServiceDAL dal;

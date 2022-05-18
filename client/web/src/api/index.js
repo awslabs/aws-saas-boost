@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-export { handleErrorResponse } from "./common.js";
-export { handleErrorNoResponse } from "./common.js";
-export { fetchAccessToken } from "./common.js";
+export { handleErrorResponse } from './common.js'
+export { handleErrorNoResponse } from './common.js'
+export { fetchAccessToken } from './common.js'

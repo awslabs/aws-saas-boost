@@ -13,28 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import { NavLink } from 'reactstrap'
 
-import React from "react";
-import { NavLink } from "reactstrap";
-import { isEmpty } from "lodash";
+OnboardingTenantLink.propTypes = {
+  tenantName: PropTypes.string,
+  tenantId: PropTypes.string,
+  clickTenantDetails: PropTypes.func,
+}
 
+//TODO Revisit this when the onboarding service is done. Seems the return shape/vals changed
 export function OnboardingTenantLink({
   tenantName,
   tenantId,
   clickTenantDetails,
 }) {
-  if (isEmpty(tenantName)) {
-    tenantName = tenantId.substring(0, 7);
-  }
   return !!tenantId ? (
     <NavLink
       href="#"
       className="pl-0 pt-0"
       onClick={() => clickTenantDetails(tenantId)}
     >
-      {tenantName}
+      {tenantName || 'Unknown'}
     </NavLink>
   ) : (
-    <span>{tenantName}</span>
-  );
+    <span>{tenantName || 'Unknown'}</span>
+  )
 }

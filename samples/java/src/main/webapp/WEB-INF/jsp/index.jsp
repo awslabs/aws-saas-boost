@@ -18,23 +18,31 @@ limitations under the License.
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt"%>
 <html lang="en">
+
 <head>
-<title>Home Page</title>
-<link href="webjars/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
+  <title>Home Page</title>
+  <link href="webjars/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body>
-<div class="container pt-3">
-<p>Hello Tenant ${tenantId}</p>
-<c:set var="now" value="<%= new java.util.Date()%>"/>
-<p><fmt:formatDate type="both" timeStyle="medium" dateStyle="long" value="${now}"></fmt:formatDate></p>
-<ul>
-<li><a href="load.html">Artificial CPU load</a></li>
-<li><a href="metric.html?type=storage&tier=basic">Artificial Metric for Storage</a></li>
-<li><a href="meter.html?count=10&productCode=product_requests">Artificial Meter Event for Billing</a></li>
-<li><a href="categories">Categories</a></li>
-<li><a href="products">Products</a></li>
-<li>Orders</li>
-</ul>
-</div>
+  <div class="container pt-3">
+    <p>Hello Tenant ${tenantId}</p>
+
+    <c:set var="now" value="<%= new java.util.Date()%>" />
+    <p><fmt:formatDate type="both" timeStyle="medium" dateStyle="long" value="${now}"></fmt:formatDate></p>
+
+    <ul>
+      <li><a href="categories">Categories</a></li>
+      <li><a href="products">Products</a></li>
+      <li>Orders</li>
+    </ul>
+    <p></p>
+    <ul>
+      <li><a href="load.html">Artificial CPU load</a></li>
+      <li><a href="metric.html?type=storage&tier=basic">Artificial Metric for Storage</a></li>
+      <li><a href="meter.html?count=10&productCode=product_requests">Artificial Meter Event for Billing</a></li>
+    </ul>
+  </div>
 </body>
+
 </html>

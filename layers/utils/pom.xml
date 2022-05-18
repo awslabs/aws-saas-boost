@@ -21,7 +21,6 @@ limitations under the License.
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
         <artifactId>saasboost-layers</artifactId>
         <version>1.0.0</version>
-        <relativePath>../</relativePath>
     </parent>
     <artifactId>Utils</artifactId>
     <version>1.0.0</version>
@@ -34,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>334</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>5</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -79,12 +78,18 @@ limitations under the License.
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>aws-core</artifactId>
-            <version>2.13.76</version>
+            <version>${aws.java.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>url-connection-client</artifactId>
-            <version>2.13.76</version>
+            <version>${aws.java.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>eventbridge</artifactId>
+            <version>${aws.java.sdk.version}</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

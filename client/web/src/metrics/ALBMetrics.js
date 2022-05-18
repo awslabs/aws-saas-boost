@@ -14,61 +14,62 @@
  * limitations under the License.
  */
 
-import React, { lazy, useEffect, useState } from "react";
-import { Row, Col, Card, CardBody } from "reactstrap";
+import React, { lazy, useEffect, useState } from 'react'
+import { Row, Col, Card, CardBody } from 'reactstrap'
 import {
   dismissError,
   fetchTenantsThunk,
   selectAllTenants,
-} from "../tenant/ducks";
-import { useDispatch, useSelector } from "react-redux";
+} from '../tenant/ducks'
+import { useDispatch, useSelector } from 'react-redux'
 
-const RequestCountContainer = lazy(() => import("./RequestCountContainer"));
+const RequestCountContainer = lazy(() => import('./RequestCountContainer'))
 
 const RequestCountFailuresContainer = lazy(() =>
-  import("./RequestCountFailuresContainer")
-);
+  import('./RequestCountFailuresContainer')
+)
 const RequestCountFailures5XXContainer = lazy(() =>
-  import("./RequestCountFailures5XXContainer")
-);
+  import('./RequestCountFailures5XXContainer')
+)
 const SelectTimePeriodComponent = lazy(() =>
-  import("./SelectTimePeriodComponent")
-);
+  import('./SelectTimePeriodComponent')
+)
 
 const MetricTopTenantsContainer = lazy(() =>
-  import("./MetricTopTenantsContainer")
-);
-const SelectTenantComponent = lazy(() => import("./SelectTenantComponent"));
+  import('./MetricTopTenantsContainer')
+)
+const SelectTenantComponent = lazy(() => import('./SelectTenantComponent'))
 
-const TenantGraphContainer = lazy(() => import("./TenantGraphContainer"));
+const TenantGraphContainer = lazy(() => import('./TenantGraphContainer'))
 
 export default function ALBMetricsContainer(props) {
-  const dispatch = useDispatch();
-  const tenants = useSelector(selectAllTenants);
+  const dispatch = useDispatch()
+  const tenants = useSelector(selectAllTenants)
+  const activeTenants = tenants.filter((t) => t.active)
 
   //  "DAY_7";
-  const [selectedTimePeriod, setSelectedTimePeriod] = useState("DAY_7");
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState('DAY_7')
   const selectTimePeriod = (period) => {
-    setSelectedTimePeriod(period);
-  };
+    setSelectedTimePeriod(period)
+  }
 
-  const [selectedTenant, setSelectedTenant] = useState(null);
+  const [selectedTenant, setSelectedTenant] = useState(null)
   const selectTenant = (tenant) => {
-    if (tenant === "") {
-      setSelectedTenant(null);
+    if (tenant === '') {
+      setSelectedTenant(null)
     } else {
-      setSelectedTenant(tenant);
+      setSelectedTenant(tenant)
     }
-  };
+  }
   useEffect(() => {
-    const fetchTenants = dispatch(fetchTenantsThunk());
+    const fetchTenants = dispatch(fetchTenantsThunk())
     return () => {
-      if (fetchTenants.PromiseStatus === "pending") {
-        fetchTenants.abort();
+      if (fetchTenants.PromiseStatus === 'pending') {
+        fetchTenants.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]); //TODO: Follow up on the use of this dispatch function.
+      dispatch(dismissError())
+    }
+  }, [dispatch]) //TODO: Follow up on the use of this dispatch function.
 
   return (
     <div className="animated fadeIn">
@@ -77,14 +78,14 @@ export default function ALBMetricsContainer(props) {
           <Card>
             <CardBody className="py-3">
               <Row>
-                <Col lg={6} sm={6}>
+                <Col sm={3}>
                   <SelectTenantComponent
-                    tenants={tenants}
+                    tenants={activeTenants}
                     selectTenant={selectTenant}
                     selectedTenant={selectedTenant}
                   />
                 </Col>
-                <Col lg={5} sm={5}>
+                <Col sm={8}>
                   <SelectTimePeriodComponent
                     selectTimePeriod={selectTimePeriod}
                   />
@@ -106,7 +107,7 @@ export default function ALBMetricsContainer(props) {
           <>
             <RequestCountContainer
               selectedTimePeriod={selectedTimePeriod}
-              tenants={tenants}
+              tenants={activeTenants}
               {...props}
             />
             <MetricTopTenantsContainer
@@ -114,7 +115,7 @@ export default function ALBMetricsContainer(props) {
               timePeriodName={selectedTimePeriod}
               metric="RequestCount"
               name="Requests - Top Tenants"
-              tenants={tenants}
+              tenants={activeTenants}
             />
           </>
         )}
@@ -128,7 +129,7 @@ export default function ALBMetricsContainer(props) {
             name="Request Count"
             statsMap={false}
             tenant={selectedTenant}
-            tenants={tenants}
+            tenants={activeTenants}
           />
         )}
       </Row>
@@ -138,14 +139,14 @@ export default function ALBMetricsContainer(props) {
             <RequestCountFailuresContainer
               selectedTimePeriod={selectedTimePeriod}
               {...props}
-              tenants={tenants}
+              tenants={activeTenants}
             />
             <MetricTopTenantsContainer
               id="albstats.HTTPCode_Target_4XX_Count"
               timePeriodName={selectedTimePeriod}
               metric="HTTPCode_Target_4XX_Count"
               name="4XX Failures - Top Tenants"
-              tenants={tenants}
+              tenants={activeTenants}
             />
           </>
         )}
@@ -159,7 +160,7 @@ export default function ALBMetricsContainer(props) {
             name="4XX Responses Count"
             statsMap={false}
             tenant={selectedTenant}
-            tenants={tenants}
+            tenants={activeTenants}
           />
         )}
       </Row>
@@ -168,7 +169,7 @@ export default function ALBMetricsContainer(props) {
           <>
             <RequestCountFailures5XXContainer
               selectedTimePeriod={selectedTimePeriod}
-              tenants={tenants}
+              tenants={activeTenants}
               {...props}
             />
             <MetricTopTenantsContainer
@@ -176,7 +177,7 @@ export default function ALBMetricsContainer(props) {
               timePeriodName={selectedTimePeriod}
               metric="HTTPCode_Target_5XX_Count"
               name="5XX Failures - Top Tenants"
-              tenants={tenants}
+              tenants={activeTenants}
             />
           </>
         )}
@@ -189,11 +190,11 @@ export default function ALBMetricsContainer(props) {
             nameSpace="AWS/ApplicationELB"
             name="5XX Responses Count"
             statsMap={false}
-            tenants={tenants}
+            tenants={activeTenants}
             tenant={selectedTenant}
           />
         )}
       </Row>
     </div>
-  );
+  )
 }

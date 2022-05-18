@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import React from "react";
-import Moment from "react-moment";
+import { PropTypes } from 'prop-types'
+import React from 'react'
+import Moment from 'react-moment'
 
 export const SBMoment = (props) => {
-  const { instant } = props;
-  const value = instant.seconds * 1000 + instant.nanos / 1000;
-  return <Moment date={value} format="LLL" />;
-};
+  const { instant } = props
+  const value = instant.seconds * 1000 + instant.nanos / 1000
+  return <Moment date={value} format="LLL" />
+}
+
+SBMoment.propTypes = {
+  instant: PropTypes.string,
+}

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -20,42 +21,31 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
-import software.amazon.awssdk.services.eventbridge.model.PutEventsResultEntry;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class TenantService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(TenantService.class);
-    private final static Map<String, String> CORS = Stream
-            .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    private static final Logger LOGGER = LoggerFactory.getLogger(TenantService.class);
+    private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
-    private static final String TENANT_STATUS_CHANGE_DETAIL_TYPE = "Tenant Status Update";
     private static final String EVENT_SOURCE = "saas-boost";
     private final TenantServiceDAL dal;
     private final EventBridgeClient eventBridge;
 
     public TenantService() {
-        long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing required environment variable TENANTS_TABLE");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.dal = new TenantServiceDAL();
         this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
-	public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
         //logRequestEvent(event);
         return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
     }
@@ -66,10 +56,20 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getTenants");
         //Utils.logRequestEvent(event);
-        List<Tenant> tenants = dal.getOnboardedTenants();
+        List<Tenant> tenants = new ArrayList<>();
+        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
+        if (queryParams != null && queryParams.containsKey("status")) {
+            if ("provisioned".equalsIgnoreCase(queryParams.get("status"))) {
+                tenants.addAll(dal.getProvisionedTenants());
+            } else if ("onboarded".equalsIgnoreCase(queryParams.get("status"))) {
+                tenants.addAll(dal.getOnboardedTenants());
+            }
+        } else {
+            tenants.addAll(dal.getAllTenants());
+        }
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
                 .withHeaders(CORS)
@@ -79,40 +79,13 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
-    public APIGatewayProxyResponseEvent getProvisionedTenants(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("TenantService::getProvisionedTenants");
-        //Utils.logRequestEvent(event);
-
-        List<Tenant> tenants;
-        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
-        if (queryParams != null && queryParams.containsKey("overrideDefaults")) {
-            Boolean customizedTenants = Boolean.valueOf(queryParams.get("overrideDefaults"));
-            tenants = dal.getProvisionedTenants(customizedTenants);
-        } else {
-            tenants = dal.getProvisionedTenants();
-        }
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
-                .withHeaders(CORS)
-                .withBody(Utils.toJson(tenants));
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TenantService::getProvisionedTenants exec {}", totalTimeMillis);
-        return response;
-    }
-
     public APIGatewayProxyResponseEvent getTenant(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::getTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -138,7 +111,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::updateTenant");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -161,11 +134,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
                 if (existing.isProvisioned()) {
                     // Need to trigger an update for this tenant's provisioned resources
                     LOGGER.info("Triggering provisioned tenant update for {}", tenantId);
-                    Map<String, Object> systemApiRequest = new HashMap<>();
-                    systemApiRequest.put("resource", "onboarding/update/tenant");
-                    systemApiRequest.put("method", "PUT");
-                    systemApiRequest.put("body", Utils.toJson(tenant));
-                    fireEvent(SYSTEM_API_CALL_DETAIL_TYPE, systemApiRequest);
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Updated",
+                            Map.of("tenantId", tenant.getId()));
                 }
 
                 response = new APIGatewayProxyResponseEvent()
@@ -179,54 +149,13 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
-    public APIGatewayProxyResponseEvent updateTenantOnboarding(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("TenantService::updateTenantOnboarding");
-        //Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, String> params = (Map) event.get("pathParameters");
-        String tenantId = params.get("id");
-        Tenant tenant = Utils.fromJson((String) event.get("body"), Tenant.class);
-        if (tenant == null) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
-                    .withHeaders(CORS);
-        } else {
-            if (tenant.getId() == null || !tenant.getId().toString().equals(tenantId)) {
-                LOGGER.error("Can't update onboarding status for tenant {} at resource {}", tenant.getId(), tenantId);
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(400)
-                        .withHeaders(CORS);
-            } else if (tenant.getOnboardingStatus() == null || tenant.getOnboardingStatus().isEmpty()) {
-                LOGGER.error("Missing onboarding status for tenant {}", tenant.getId());
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(400)
-                        .withHeaders(CORS);
-            } else {
-                tenant = dal.updateTenantOnboarding(tenant.getId(), tenant.getOnboardingStatus());
-                response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withHeaders(CORS)
-                        .withBody(Utils.toJson(tenant));
-            }
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TenantService::updateTenantOnboarding exec " + totalTimeMillis);
-        return response;
-    }
-
     public APIGatewayProxyResponseEvent enableTenant(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::enableTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -238,12 +167,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         } else {
             Tenant tenant = dal.enableTenant(tenantId);
 
-            // Send EventBridge message so we can take action on enable/disable
-            Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenantId);
-            tenantStatusChangeDetails.put("status", Boolean.TRUE);
-            LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
-            fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Enabled",
+                    Map.of("tenantId", tenantId));
 
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -261,7 +186,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::disableTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -273,12 +198,8 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         } else {
             Tenant tenant = dal.disableTenant(tenantId);
 
-            // Send EventBridge message so we can take action on enable/disable
-            Map<String, Object> tenantStatusChangeDetails = new HashMap<>();
-            tenantStatusChangeDetails.put("tenantId", tenantId);
-            tenantStatusChangeDetails.put("status", Boolean.FALSE);
-            LOGGER.info("Publishing tenant status change event for {} to {}", tenantStatusChangeDetails.get("tenantId"), tenantStatusChangeDetails.get("status"));
-            fireEvent(TENANT_STATUS_CHANGE_DETAIL_TYPE, tenantStatusChangeDetails);
+            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE, "Tenant Disabled",
+                    Map.of("tenantId", tenantId));
 
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -296,7 +217,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::insertTenant");
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -305,62 +226,12 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         // Were we called from Step Functions or API Gateway?
         if (event.containsKey("body")) {
             tenant = Utils.fromJson((String) event.get("body"), Tenant.class);
-            if (null == tenant) {
-                throw new RuntimeException("Body is not a valid tenant json");
-            }
-        } else if (event.containsKey("tenant")) {
-            // It's already been deserialized to a Map by Lambda so we'd have
-            // to serialize to a string and then back out to a Tenant object
-            // if we wanted to use Jackson...
-            Map<String, Object> input = (Map<String, Object>) event.get("tenant");
-            tenant = new Tenant();
-            tenant.setName((String) input.get("name"));
-            tenant.setActive((Boolean) input.get("active"));
-            tenant.setOnboardingStatus((String) input.get("onboardingStatus"));
-            tenant.setSubdomain((String) input.get("subdomain"));
-            tenant.setPlanId((String) input.get("planId"));
-            tenant.setOverrideDefaults((Boolean) input.get("overrideDefaults"));
-            if (tenant.getOverrideDefaults()) {
-                tenant.setComputeSize((String) input.get("computeSize"));
-                if (input.get("memory") != null) {
-                    try {
-                        tenant.setMemory((Integer) input.get("memory"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set memory to value {}", input.get("memory"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("cpu") != null) {
-                    try {
-                        tenant.setCpu((Integer) input.get("cpu"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set CPU to value {}", input.get("cpu"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("minCount") != null) {
-                    try {
-                        tenant.setMinCount((Integer) input.get("minCount"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set min task count to value {}", input.get("minCount"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-                if (input.get("maxCount") != null) {
-                    try {
-                        tenant.setMaxCount((Integer) input.get("maxCount"));
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Can't set max task count to value {}", input.get("maxCount"));
-                        LOGGER.error(Utils.getFullStackTrace(nfe));
-                    }
-                }
-            }
         }
-
         if (tenant == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
-                    .withHeaders(CORS);
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Invalid request body\"}");
         } else {
             // Create a new Tenant record in the database
             tenant = dal.insertTenant(tenant);
@@ -382,7 +253,7 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantService::deleteTenant");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -392,27 +263,25 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         if (tenant == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
-                    .withHeaders(CORS);
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Invalid request body\"}");
         } else {
             if (tenant.getId() == null || !tenant.getId().toString().equals(tenantId)) {
                 LOGGER.error("Can't delete tenant {} at resource {}", tenant.getId(), tenantId);
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(400)
-                        .withHeaders(CORS);
+                        .withHeaders(CORS)
+                        .withBody("{\"message\": \"Invalid request for specified resource\"}");
             } else {
-
-                //fire event to onboarding service to delete the stack
-                LOGGER.info("Triggering tenant stack delete event");
-                Map<String, Object> deleteTenantEventDetail = new HashMap<>();
-                deleteTenantEventDetail.put("tenantId", tenantId);
-                publishEvent(deleteTenantEventDetail, "Delete Tenant");
-
-                //**TODO set status to deleting or disable?
                 dal.disableTenant(tenantId);
                 //dal.deleteTenant(tenantId);
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
                         .withStatusCode(200);
+
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        TenantEvent.TENANT_DELETED.detailType(),
+                        Map.of("tenantId", tenantId));
             }
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -420,94 +289,124 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
         return response;
     }
 
-    private void publishEvent(Map<String, Object> eventBridgeDetail, String detailType) {
-        try {
-            PutEventsRequestEntry systemEvent = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .detailType(detailType)
-                    .source(EVENT_SOURCE)
-                    .detail(Utils.toJson(eventBridgeDetail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(r -> r
-                    .entries(systemEvent)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), systemEvent.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
+    public void handleTenantEvent(Map<String, Object> event, Context context) {
+        if ("saas-boost".equals(event.get("source"))) {
+            TenantEvent tenantEvent = TenantEvent.fromDetailType((String) event.get("detail-type"));
+            if (tenantEvent != null) {
+                switch (tenantEvent) {
+                    case TENANT_HOSTNAME_CHANGED:
+                        LOGGER.info("Handling Tenant Hostname Changed");
+                        handleTenantHostnameChanged(event, context);
+                        break;
+                    case TENANT_ONBOARDING_STATUS_CHANGED:
+                        LOGGER.info("Handling Tenant Onboarding Status Changed");
+                        handleTenantOnboardingStatusChanged(event, context);
+                        break;
+                    case TENANT_RESOURCES_CHANGED:
+                        LOGGER.info("Handling Tenant Resources Changed");
+                        handleTenantResourcesChanged(event, context);
+                        break;
                 }
+            } else {
+                LOGGER.error("Can't find tenant event for detail-type {}", event.get("detail-type"));
+                // TODO Throw here? Would end up in DLQ.
             }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents", eventBridgeError);
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
+        } else {
+            LOGGER.error("Unknown event source " + event.get("source"));
+            // TODO Throw here? Would end up in DLQ.
         }
     }
 
-    //handles the event for 'Tenant Update Resources'
-    public Object updateTenantResources(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("TenantService::updateTenantResources");
+    protected void handleTenantOnboardingStatusChanged(Map<String, Object> event, Context context) {
         //Utils.logRequestEvent(event);
-        Tenant tenant = parseTenantUpdateResourcesEvent(event);
-        //load current tenant record and update the resources field
-        Tenant currentTenant = dal.getTenant(tenant.getId());
-        currentTenant.setResources(tenant.getResources());
-        dal.updateTenant(currentTenant);
-        LOGGER.info("TenantService::updateTenantResources - Updated resources for tenant: {}", tenant.getId());
+        if (TenantEvent.validate(event, "onboardingStatus")) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+            String tenantId = (String) detail.get("tenantId");
+            String onboardingStatus = (String) detail.get("onboardingStatus");
+            Tenant tenant = dal.getTenant(tenantId);
+            if (tenant != null) {
+                LOGGER.info("Updating tenant {} onboarding status from {} to {}", tenantId,
+                        tenant.getOnboardingStatus(), onboardingStatus);
+                dal.updateTenantOnboardingStatus(tenant.getId(), onboardingStatus);
+            } else {
+                // Can't find an tenant record for this id
+                LOGGER.error("Can't find tenant record for {}", tenantId);
+                // TODO Throw here? Would end up in DLQ.
+            }
+        } else {
+            LOGGER.error("Missing tenantId or onboardingStatus in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected void handleTenantHostnameChanged(Map<String, Object> event, Context context) {
+        //Utils.logRequestEvent(event);
+        if (TenantEvent.validate(event, "hostname")) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+            String tenantId = (String) detail.get("tenantId");
+            String hostname = (String) detail.get("hostname");
+            Tenant tenant = dal.getTenant(tenantId);
+            if (tenant != null) {
+                LOGGER.info("Updating tenant {} hostname to {}", tenantId, hostname);
+                tenant.setHostname(hostname);
+                dal.updateTenant(tenant);
+            } else {
+                // Can't find an tenant record for this id
+                LOGGER.error("Can't find tenant record for {}", tenantId);
+                // TODO Throw here? Would end up in DLQ.
+            }
+        } else {
+            LOGGER.error("Missing tenantId or onboardingStatus in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected void handleTenantResourcesChanged(Map<String, Object> event, Context context) {
+        //Utils.logRequestEvent(event);
+        if (TenantEvent.validate(event, "resources")) {
+            Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+            String tenantId = (String) detail.get("tenantId");
+            Tenant tenant = dal.getTenant(tenantId);
+            if (tenant != null) {
+                Map<String, Tenant.Resource> updatedResources = fromTenantResourcesChangedEvent(event);
+                if (updatedResources != null) {
+                    Map<String, Tenant.Resource> tenantResources = tenant.getResources();
+                    // Merge the updated resources with the existing ones. This helps the calling code not have to
+                    // pull the current tenant before invoking this method. If you want to replace/delete resources
+                    // from a tenant, you'll have to build the resources map you want and call updateTenant.
+                    tenantResources.putAll(updatedResources);
+                    tenant.setResources(tenantResources);
+                    dal.updateTenant(tenant);
+                    LOGGER.info("Resources updated for tenant: {}", tenantId);
+                }
+            } else {
+                // Can't find an tenant record for this id
+                LOGGER.error("Can't find tenant record for {}", tenantId);
+                // TODO Throw here? Would end up in DLQ.
+            }
+        } else {
+            LOGGER.error("Missing tenantId or resources in event detail {}", Utils.toJson(event.get("detail")));
+            // TODO Throw here? Would end up in DLQ.
+        }
+    }
+
+    protected static Map<String, Tenant.Resource> fromTenantResourcesChangedEvent(Map<String, Object> event) {
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        Map<String, Object> resources = Utils.fromJson((String) detail.get("resources"), LinkedHashMap.class);
+        if (resources != null) {
+            return resources.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            entry -> entry.getKey(),
+                            entry -> {
+                                Map<String, String> res = (Map<String, String>) entry.getValue();
+                                return new Tenant.Resource(res.get("name"), res.get("arn"),
+                                        res.get("consoleUrl"));
+                            }
+                    ));
+        } else {
+            LOGGER.error("Resources is invalid Json");
+        }
         return null;
     }
 
-    static Tenant parseTenantUpdateResourcesEvent(Map<String, Object> event) {
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        LOGGER.info("Processing Tenant Update Resources event for tenant {}", tenantId);
-        if (Utils.isBlank(tenantId)) {
-            LOGGER.error("Event detail is missing tenantId attribute");
-            throw new RuntimeException(new IllegalArgumentException("Event detail is missing tenantId attribute"));
-        }
-        if (!detail.containsKey("resources")) {
-            LOGGER.error("Event detail is missing resources attribute");
-            throw new RuntimeException(new IllegalArgumentException("Event detail is missing resources attribute"));
-        }
-        Tenant tenant = new Tenant();
-        tenant.setId(UUID.fromString(tenantId));
-        Map<String, String> resourcesMap = Utils.fromJson((String) detail.get("resources"), HashMap.class);
-        if (null == resourcesMap) {
-            throw new RuntimeException("Resources is invalid Json");
-        }
-        tenant.setResources(resourcesMap);
-        return tenant;
-    }
-
-    private void fireEvent(String type, Map<String, Object> detail) {
-        try {
-            PutEventsRequestEntry event = PutEventsRequestEntry.builder()
-                    .eventBusName(SAAS_BOOST_EVENT_BUS)
-                    .source("saas-boost")
-                    .detailType(type)
-                    .detail(Utils.toJson(detail))
-                    .build();
-            PutEventsResponse eventBridgeResponse = eventBridge.putEvents(request -> request
-                    .entries(event)
-            );
-            for (PutEventsResultEntry entry : eventBridgeResponse.entries()) {
-                if (entry.eventId() != null && !entry.eventId().isEmpty()) {
-                    LOGGER.info("Put event success {} {}", entry.toString(), event.toString());
-                } else {
-                    LOGGER.error("Put event failed {}", entry.toString());
-                }
-            }
-        } catch (SdkServiceException eventBridgeError) {
-            LOGGER.error("events::PutEvents");
-            LOGGER.error(Utils.getFullStackTrace(eventBridgeError));
-            throw eventBridgeError;
-        }
-    }
 }

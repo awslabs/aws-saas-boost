@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import React, { useEffect } from "react";
-import { Switch, Route } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import React, { useEffect } from 'react'
+import { Switch, Route } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 
 import {
   fetchSettings,
@@ -24,31 +24,31 @@ import {
   selectAllSettings,
   dismissError,
   selectLoading,
-} from "./ducks";
+} from './ducks'
 
-import { SettingsFormComponent } from "./SettingsFormComponent";
+import { SettingsFormComponent } from './SettingsFormComponent'
 
 export function SettingsContainer(props) {
-  const dispatch = useDispatch();
-  const settings = useSelector(selectAllSettings);
-  const loading = useSelector(selectLoading);
+  const dispatch = useDispatch()
+  const settings = useSelector(selectAllSettings)
+  const loading = useSelector(selectLoading)
 
   useEffect(() => {
-    const settingsResponse = dispatch(fetchSettings());
+    const settingsResponse = dispatch(fetchSettings())
     return () => {
-      if (settingsResponse.PromiseStatus === "pending") {
-        settingsResponse.abort();
+      if (settingsResponse.PromiseStatus === 'pending') {
+        settingsResponse.abort()
       }
-      dispatch(dismissError());
-    };
-  }, [dispatch]);
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   const updateSettings = async (values, formikBag) => {
-    const { resetForm } = formikBag;
-    await dispatch(apiUpddateSettings(values));
-    resetForm({ values });
-    return;
-  };
+    const { resetForm } = formikBag
+    await dispatch(apiUpddateSettings(values))
+    resetForm({ values })
+    return
+  }
 
   return (
     <Switch>
@@ -66,7 +66,7 @@ export function SettingsContainer(props) {
         )}
       />
     </Switch>
-  );
+  )
 }
 
-export default SettingsContainer;
+export default SettingsContainer

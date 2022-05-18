@@ -13,34 +13,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
-echo "AWS Region = $MY_AWS_REGION"
-
-if [ "X$1" = "X" ]; then
-    echo "usage: $0 <Environment>"
+if [ -z $1 ]; then
+    echo "Usage: $0 <Environment> [Lambda Folder]"
     exit 2
 fi
 
+MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
+echo "AWS Region = $MY_AWS_REGION"
+
 ENVIRONMENT=$1
+LAMBDA_STAGE_FOLDER=$2
+if [ -z $LAMBDA_STAGE_FOLDER ]; then
+	LAMBDA_STAGE_FOLDER="lambdas"
+fi
 LAMBDA_CODE=QuotasService-lambda.zip
-LAMBDA_STAGE_FOLDER=lambdas
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
 
-SAAS_BOOST_BUCKET=$(aws ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query "Parameter.Value" --output text)
+SAAS_BOOST_BUCKET=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query 'Parameter.Value' --output text)
 echo "SaaS Boost Bucket = $SAAS_BOOST_BUCKET"
-if [ "X$SAAS_BOOST_BUCKET" = "X" ]; then
-    echo "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET SSM parameter not read from AWS env"
+if [ -z $SAAS_BOOST_BUCKET ]; then
+    echo "Can't find SAAS_BOOST_BUCKET in Parameter Store"
     exit 1
 fi
 
-# Do a fresh build of the micro service
+# Do a fresh build of the project
 mvn
 if [ $? -ne 0 ]; then
     echo "Error building project"
     exit 1
 fi
+
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
