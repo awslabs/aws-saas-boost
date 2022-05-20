@@ -104,8 +104,6 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     }
 
     List<Deployment> getDeployments(Map<String, Object> event, Context context) {
-        List<Deployment> deployments = new ArrayList<>();
-
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         String repo = (String) detail.get("repository-name");
         String tag = (String) detail.get("image-tag");
@@ -127,6 +125,8 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
                 }
             }
         }
+
+        List<Deployment> deployments = new ArrayList<>();
         if (serviceName == null) {
             LOGGER.error("Can't find event repository in appConfig {}", repo);
         } else {
@@ -144,9 +144,9 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
                 for (Map<String, Object> tenant : tenants) {
                     String tenantId = (String) tenant.get("id");
                     String pipelineKey = "SERVICE_" + Utils.toUpperSnakeCase(serviceName) + "_CODE_PIPELINE";
-                    Map<String, Object> tenantResources = (Map<String, Object>) tenant.get("resources");
-                    if (tenantResources.containsKey(pipelineKey)) {
-                        Map<String, String> codePipelineResource = (Map<String, String>) tenantResources.get(pipelineKey);
+                    Map<String, Object> resources = (Map<String, Object>) tenant.get("resources");
+                    if (resources.containsKey(pipelineKey)) {
+                        Map<String, String> codePipelineResource = (Map<String, String>) resources.get(pipelineKey);
                         String imageName = imageName(tenantId, serviceName);
                         String imageUri = imageUri(event);
                         String pipeline = codePipelineResource.get("name");
@@ -234,6 +234,8 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
 
     protected static String imageName(String tenantId, String serviceName) {
         // Must match the name in the Task Definition for this imageUri
+        // In CloudFormation we manipulate the service name to conform to rules on resource names
+        serviceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
         return "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantId.substring(0, tenantId.indexOf("-")) + "-" + serviceName;
     }
 
