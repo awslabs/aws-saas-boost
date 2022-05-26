@@ -32,7 +32,6 @@ import {
   // Thunks
   export const fetchTiersThunk = createAsyncThunk('tiers/fetchAll', async (...[, thunkAPI]) => {
     const { signal } = thunkAPI
-    //since no value is passed to this async fn()
     try {
       const response = await tierAPI.fetchAll({ signal })
       // Normalize the data so reducers can load a predicatable payload, like:
@@ -79,11 +78,11 @@ import {
   
   export const updateTierThunk = createAsyncThunk(
     'tiers/update', 
-    async (tierData, thunkAPI) => {
+    async ({ values }, thunkAPI) => {
       const { signal } = thunkAPI
   
       try {
-        return await tierAPI.update(tierData, { signal })
+        return await tierAPI.update(values, { signal })
       } catch (err) {
         if (tierAPI.isCancel(err)) {
           console.log('api cancelled request')
@@ -98,11 +97,11 @@ import {
   
   export const deleteTierThunk = createAsyncThunk(
     'tiers/delete', 
-    async (tierId, thunkAPI) => {
+    async (values, thunkAPI) => {
       const { signal } = thunkAPI
   
       try {
-        return await tierAPI.delete(tierId, { signal })
+        return await tierAPI.delete(values, { signal })
       } catch (err) {
         if (tierAPI.isCancel(err)) {
           console.log('api cancelled request')
@@ -209,7 +208,6 @@ import {
 
       [deleteTierThunk.fulfilled]: (state, action) => {
         console.log(action)
-        tiersAdapter.upsertOne(state, action.payload)
         state.loading = 'idle'
         state.error = null
         return state
