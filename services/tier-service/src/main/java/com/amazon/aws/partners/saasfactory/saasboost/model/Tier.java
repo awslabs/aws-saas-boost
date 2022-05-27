@@ -1,3 +1,19 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.amazon.aws.partners.saasfactory.saasboost.model;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
@@ -12,11 +28,13 @@ public final class Tier {
     private final String id;
     private final String name;
     private final String description;
+    private final Boolean defaultTier;
 
     private Tier(Tier.Builder builder) {
         this.id = builder.id;
         this.name = builder.name;
         this.description = builder.description;
+        this.defaultTier = builder.defaultTier;
     }
 
     public String getId() {
@@ -31,6 +49,10 @@ public final class Tier {
         return this.description;
     }
 
+    public Boolean defaultTier() {
+        return this.defaultTier;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof Tier)) {
@@ -39,7 +61,8 @@ public final class Tier {
         Tier otherTier = (Tier)other;
         return this.getId().equals(otherTier.getId())
                 && this.getName().equals(otherTier.getName())
-                && this.getDescription().equals(otherTier.getDescription());
+                && this.getDescription().equals(otherTier.getDescription())
+                && this.defaultTier().equals(otherTier.defaultTier());
     }
 
     @Override
@@ -51,7 +74,8 @@ public final class Tier {
         return builder()
                 .id(tier.getId())
                 .description(tier.getDescription())
-                .name(tier.getName());
+                .name(tier.getName())
+                .defaultTier(tier.defaultTier());
     }
 
     public static Tier.Builder builder() {
@@ -63,6 +87,7 @@ public final class Tier {
         private String id;
         private String name;
         private String description;
+        private Boolean defaultTier = false;
 
         private Builder() {
 
@@ -80,6 +105,11 @@ public final class Tier {
 
         public Builder description(String description) {
             this.description = description;
+            return this;
+        }
+
+        public Builder defaultTier(Boolean defaultTier) {
+            this.defaultTier = defaultTier;
             return this;
         }
 

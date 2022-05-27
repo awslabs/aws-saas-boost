@@ -168,6 +168,17 @@ function TierViewComponent(props) {
                     sm={4}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
+                    <dt>Default</dt>
+                    <dd>
+                      {!!tier && tier.defaultTier
+                        ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
+                        : (<CIcon icon={cilXCircle} className="text-danger"/>)}
+                    </dd>
+                  </Col>
+                  <Col
+                    sm={2}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
                     <dt>Name</dt>
                     <dd>
                       <Display>{!!tier && tier.name}</Display>

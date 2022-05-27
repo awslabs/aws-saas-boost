@@ -1,3 +1,19 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.amazon.aws.partners.saasfactory.saasboost.dal.ddb;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
@@ -15,7 +31,10 @@ public enum TierAttribute {
             (tierBuilder, attributeValue) -> tierBuilder.name(attributeValue.s())),
     description(tier -> AttributeValue.builder().s(tier.getDescription()).build(),
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
-            (tierBuilder, attributeValue) -> tierBuilder.description(attributeValue.s()));
+            (tierBuilder, attributeValue) -> tierBuilder.description(attributeValue.s())),
+    defaultTier(tier -> AttributeValue.builder().bool(tier.defaultTier()).build(),
+            attributeValue -> true,
+            (tierBuilder, attributeValue) -> tierBuilder.defaultTier(attributeValue.bool()));
 
     // used to convert the Attribute from a Tier to a DDB AttributeValue
     private final Function<Tier, AttributeValue> fromTierFunction;

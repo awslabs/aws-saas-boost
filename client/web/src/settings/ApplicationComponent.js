@@ -61,36 +61,84 @@ export function ApplicationComponent(props) {
   const FSX = 'FSX'
   const EFS = 'EFS'
 
-  const getParts = (dateTime) => {
-    const parts = dateTime.split(':')
-    const day = parts[0]
-    const times = parts.slice(1)
-    const timeStr = times.join(':')
-    return [day, timeStr]
-  }
-
   const updateConfig = (values) => {
     updateConfiguration(values)
     window.scrollTo(0, 0)
   }
 
-  const getFsx = (fsx) => {
-    if (!fsx) {
-      return {
-        storageGb: 32,
-        throughputMbs: 8,
-        backupRetentionDays: 7,
-        dailyBackupTime: '01:00',
-        weeklyMaintenanceTime: '07:01:00',
-        weeklyMaintenanceDay: '1',
-        windowsMountDrive: 'G:',
+  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, fileSystemType) => {
+    let tierValuesCopy = Object.assign({}, tierValues)
+    let defaults = Object.assign({
+      min: 1,
+      max: 1,
+      computeSize: '',
+      filesystem: {
+        fileSystemType: fileSystemType,
+        mountPoint: '',
+        efs: {
+          lifecycle: '0',
+          encryptAtRest: '',
+        },
+        fsx: {
+          storageGb: 32,
+          throughputMbs: 8,
+          backupRetentionDays: 7,
+          dailyBackupTime: '01:00',
+          weeklyMaintenanceTime: '07:01:00',
+          weeklyMaintenanceDay: '1',
+          windowsMountDrive: 'G:',
+        }
+      },
+      database: {
+        engine: '',
+        family: '',
+        version: '',
+        instance: '',
+        username: '',
+        password: '',
+        hasEncryptedPassword: false,
+        encryptedPassword: '',
+        database: '',
+        bootstrapFilename: '',
       }
-    }
-    const [day, time] = getParts(fsx.weeklyMaintenanceTime)
+    }, defaultValues)
+    let uncleanedInitialTierValues = Object.assign({}, defaults, tierValuesCopy)
     return {
-      ...fsx,
-      weeklyMaintenanceTime: time,
-      weeklyMaintenanceDay: day,
+      ...uncleanedInitialTierValues,
+      provisionDb: !!uncleanedInitialTierValues.database,
+      database: !!uncleanedInitialTierValues.database ? {
+        ...uncleanedInitialTierValues.database,
+        //This is frail, but try to see if the incoming password is base64d
+        //If so, assume it's encrypted
+        //Also store a copy in the encryptedPassword field
+        hasEncryptedPassword: uncleanedInitialTierValues?.database?.password.match(
+          /^[A-Za-z0-9=+/\s ]+$/
+        ),
+        encryptedPassword: uncleanedInitialTierValues?.database?.password,
+      } : defaults.database,
+      provisionFS: !!uncleanedInitialTierValues.filesystem,
+      filesystem: !!uncleanedInitialTierValues.filesystem ? {
+        ...uncleanedInitialTierValues.filesystem,
+        fsx: !!getFsx(uncleanedInitialTierValues?.filesystem?.fsx) || defaults.filesystem.fsx
+      } : defaults.filesystem,
+    }
+  }
+
+  const getFsx = (fsx) => {
+    if (!!fsx) {
+      const getParts = (dateTime) => {
+        const parts = dateTime.split(':')
+        const day = parts[0]
+        const times = parts.slice(1)
+        const timeStr = times.join(':')
+        return [day, timeStr]
+      }
+      const [day, time] = getParts(fsx.weeklyMaintenanceTime)
+      return {
+        ...fsx,
+        weeklyMaintenanceTime: time,
+        weeklyMaintenanceDay: day,
+      }
     }
   }
 
@@ -103,57 +151,12 @@ export function ApplicationComponent(props) {
       : ''
     const fileSystemType = (os !== LINUX ? FSX : EFS)
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
+    let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
+    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, fileSystemType)
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-      let thisTier = thisService?.tiers[tierName] || {
-        min: 1,
-        max: 1,
-        computeSize: '',
-      }
-      const filesystem = {
-        ...thisTier.filesystem,
-        mountPoint: thisTier.filesystem?.mountPoint || '',
-        // Start off with FSX if Windows and EFS if Linux
-        fileSystemType:
-          thisTier.filesystem?.fileSystemType || fileSystemType,
-        efs: thisTier.filesystem?.efs || {
-          lifecycle: '0',
-          encryptAtRest: '',
-        },
-        fsx: getFsx(thisTier.filesystem?.fsx),
-      }
-      const db = !!thisTier.database
-        ? {
-            ...thisTier.database,
-            //This is frail, but try to see if the incoming password is base64d
-            //If so, assume it's encrypted
-            //Also store a copy in the encryptedPassword field
-            hasEncryptedPassword: !!thisTier.database.password.match(
-              /^[A-Za-z0-9=+/\s ]+$/
-            ),
-            encryptedPassword: thisTier.database.password,
-          }
-        : {
-            engine: '',
-            family: '',
-            version: '',
-            instance: '',
-            username: '',
-            password: '',
-            hasEncryptedPassword: false,
-            encryptedPassword: '',
-            database: '',
-            bootstrapFilename: '',
-          }
-      initialTierValues[tierName] = {
-        ...thisTier,
-        filesystem: filesystem,
-        database: db,
-        provisionDb: !!thisTier?.database || false,
-        provisionFS: !!thisTier?.filesystem || false,
-      }
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(thisService?.tiers[tierName], defaultTierValues, fileSystemType)
     }
     return {
       ...thisService,

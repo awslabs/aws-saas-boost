@@ -18,12 +18,13 @@ import React from 'react'
 import { Formik, Form } from 'formik'
 import * as Yup from 'yup'
 import { Row, Col, Card, Button, Alert } from 'react-bootstrap'
-import { SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
+import { SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
 
 const initialTier = {
   id: null,
   name: '',
   description: '',
+  defaultTier: false,
 }
 
 const TierForm = (props) => {
@@ -63,7 +64,8 @@ const TierForm = (props) => {
         name: Yup.string()
           .max(100, 'Must be 100 characters or less.')
           .required('Required'),
-        description: Yup.string().max(100, 'Must be 100 characters or less.')
+        description: Yup.string().max(100, 'Must be 100 characters or less.'),
+        defaultTier: Yup.boolean().required()
       })}
       onSubmit={handleSubmit}
     >
@@ -86,6 +88,7 @@ const TierForm = (props) => {
                   <Card.Body>
                     <SaasBoostInput label="Name" name="name" type="text" />
                     <SaasBoostTextarea label="Description" name="description" type="text" />
+                    <SaasBoostCheckbox label="Mark as Default" name="defaultTier" tooltip="If a non-default tier is missing any required application configuration, the default tier's application configuration will be used." />
                   </Card.Body>
                   <Card.Footer>
                     <Button variant="danger" onClick={handleCancel}>

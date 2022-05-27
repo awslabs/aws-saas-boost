@@ -1,3 +1,19 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.amazon.aws.partners.saasfactory.saasboost.dal.ddb;
 
 import com.amazon.aws.partners.saasfactory.saasboost.dal.TierDataStore;
@@ -74,7 +90,7 @@ public class DynamoTierDataStore implements TierDataStore {
     }
 
     @Override
-    public void updateTier(Tier tier) throws TierNotFoundException {
+    public Tier updateTier(Tier tier) throws TierNotFoundException {
         // TODO this doesn't do any ddb error checking
         DynamoTier dynamoTier = DynamoTier.fromTier(tier);
 
@@ -85,8 +101,10 @@ public class DynamoTierDataStore implements TierDataStore {
                 .updateExpression(dynamoTier.updateExpression())
                 .expressionAttributeValues(dynamoTier.updateAttributes())
                 .expressionAttributeNames(dynamoTier.updateAttributeNames())
+                .returnValues(ReturnValue.ALL_OLD)
                 .build();
         LOGGER.debug("{}", updateItemRequest);
-        ddb.updateItem(updateItemRequest);
+        UpdateItemResponse updateItemResponse = ddb.updateItem(updateItemRequest);
+        return DynamoTier.fromAttributes(updateItemResponse.attributes());
     }
 }
