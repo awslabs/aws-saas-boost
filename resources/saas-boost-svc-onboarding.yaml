@@ -86,10 +86,14 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt OnboardingValidationDLQ.Arn
         maxReceiveCount: 10
+      KmsMasterKeyId: alias/aws/sqs
+      KmsDataKeyReusePeriodSeconds: 86400
   OnboardingValidationDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub sb-${Environment}-onboarding-validation-dlq
+      KmsMasterKeyId: alias/aws/sqs
+      KmsDataKeyReusePeriodSeconds: 86400
   OnboardingTenantConfigQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -98,10 +102,14 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt OnboardingTenantConfigDLQ.Arn
         maxReceiveCount: 10
+      KmsMasterKeyId: alias/aws/sqs
+      KmsDataKeyReusePeriodSeconds: 86400
   OnboardingTenantConfigDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub sb-${Environment}-onboarding-tenant-config-dlq
+      KmsMasterKeyId: alias/aws/sqs
+      KmsDataKeyReusePeriodSeconds: 86400
   OnboardingTenantConfigQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
