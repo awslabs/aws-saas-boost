@@ -34,6 +34,7 @@ ApplicationComponent.propTypes = {
   dbOptions: PropTypes.array,
   hasTenants: PropTypes.bool,
   loading: PropTypes.string,
+  certOptions: PropTypes.array,
   error: PropTypes.bool,
   message: PropTypes.string,
   osOptions: PropTypes.object,
@@ -50,6 +51,7 @@ export function ApplicationComponent(props) {
     hasTenants,
     loading,
     error,
+    certOptions,
     message,
     osOptions,
     updateConfiguration,
@@ -461,6 +463,7 @@ export function ApplicationComponent(props) {
                 <Form>
                   <AppSettingsSubform
                     isLocked={hasTenants}
+                    certOptions={certOptions}
                   ></AppSettingsSubform>
                   <ServicesComponent
                     formik={formik}

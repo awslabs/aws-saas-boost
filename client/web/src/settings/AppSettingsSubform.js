@@ -17,9 +17,15 @@ import { PropTypes } from 'prop-types'
 import React, { Fragment } from 'react'
 import { Row, Col, Card, CardBody, CardHeader } from 'reactstrap'
 
-import { SaasBoostInput } from '../components/FormComponents'
+import { SaasBoostInput, SaasBoostSelect } from '../components/FormComponents'
 
 export default class AppSettingsSubform extends React.Component {
+
+  certificateIdFromArn(arn) {
+    let arnParts = arn.split('/')
+    return arnParts[arnParts.length - 1]
+  }
+
   render() {
     return (
       <Fragment>
@@ -45,13 +51,24 @@ export default class AppSettingsSubform extends React.Component {
                       type="text"
                       disabled={this.props.isLocked}
                     />
-                    <SaasBoostInput
-                      key="sslCertificate"
-                      label="SSL Certificate ARN"
+                    <SaasBoostSelect
+                      type="select"
                       name="sslCertificate"
-                      type="text"
-                      disabled={this.props.isLocked}
-                    />
+                      id="sslCertificate"
+                      label="ACM SSL Certificate"
+                      key="sslCertificate"
+                      disabled={this.props.isLocked || this.props.options?.length == 0}
+                    >
+                      <option value="">{this.props.certOptions?.length == 0 ? "No Certificates in ACM!" : "Select One..."}</option>
+                      {this.props.certOptions?.map((option) => (
+                        <option
+                          value={option.certificateArn}
+                          key={option.certificateArn}
+                        >
+                          {option.domainName} (ACM id: {this.certificateIdFromArn(option.certificateArn)})
+                        </option>
+                      ))}
+                    </SaasBoostSelect>
                   </Col>
                 </Row>
               </CardBody>
@@ -65,4 +82,5 @@ export default class AppSettingsSubform extends React.Component {
 
 AppSettingsSubform.propTypes = {
   isLocked: PropTypes.bool,
+  certOptions: PropTypes.array,
 }
