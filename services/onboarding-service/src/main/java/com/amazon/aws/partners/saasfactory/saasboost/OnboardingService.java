@@ -725,6 +725,9 @@ public class OnboardingService {
         if (Utils.isBlank(RESOURCES_BUCKET)) {
             throw new IllegalStateException("Missing required environment variable RESOURCES_BUCKET");
         }
+        if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
+            throw new IllegalStateException("Missing required enviornment variable SAAS_BOOST_EVENT_BUS");
+        }
 
         //Utils.logRequestEvent(event);
         if (OnboardingEvent.validate(event)) {
@@ -741,217 +744,34 @@ public class OnboardingService {
                         // TODO retry?
                     }
 
-                    String applicationName = (String) appConfig.get("name");
-                    String vpc;
-                    String privateSubnetA;
-                    String privateSubnetB;
-                    String ecsSecurityGroup;
-                    String loadBalancerArn;
-                    String httpListenerArn;
-                    String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
-                    String ecsCluster;
-                    Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
+                    TenantAppStackUtils tenantAppStackUtils = null;
                     try {
-                        vpc = tenantResources.get("VPC").get("name");
-                        privateSubnetA = tenantResources.get("PRIVATE_SUBNET_A").get("name");
-                        privateSubnetB = tenantResources.get("PRIVATE_SUBNET_B").get("name");
-                        ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
-                        ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
-                        loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
-                        // Depending on the SSL certificate configuration, one of these 2 listeners must exist
-                        if (tenantResources.containsKey("HTTP_LISTENER")) {
-                            httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
-                        } else {
-                            httpListenerArn = "";
-                        }
-                        if (tenantResources.containsKey("HTTPS_LISTENER")) {
-                            httpsListenerArn = Objects.toString(tenantResources.get("HTTPS_LISTENER").get("arn"), "");
-                        } else {
-                            httpsListenerArn = "";
-                        }
-                        if (Utils.isBlank(vpc) || Utils.isBlank(privateSubnetA) || Utils.isBlank(privateSubnetB)
-                                || Utils.isBlank(ecsCluster) || Utils.isBlank(ecsSecurityGroup)
-                                || Utils.isBlank(loadBalancerArn)
-                                || (Utils.isBlank(httpListenerArn) && Utils.isBlank(httpsListenerArn))) {
-                            LOGGER.error("Missing required tenant environment resources");
-                            failOnboarding(onboarding.getId(), "Missing required tenant environment resources");
-                            return;
-                        }
-                    } catch (Exception e) {
-                        LOGGER.error("Error parsing tenant resources", e);
-                        LOGGER.error(Utils.getFullStackTrace(e));
-                        failOnboarding(onboarding.getId(), "Error parsing resources for tenant " + tenantId);
-                        return;
+                        tenantAppStackUtils = TenantAppStackUtils.builder()
+                            .withTenant(tenant)
+                            .withAppConfig(appConfig)
+                            .withEnvironment(SAAS_BOOST_ENV)
+                            .withEventBus(SAAS_BOOST_EVENT_BUS)
+                            .build();
+                    } catch (IllegalArgumentException iae) {
+                        LOGGER.error("Failed to build tenant app stack parameters from tenant: " + iae.getMessage());
+                        failOnboarding(onboarding.getId(), iae.getMessage());
                     }
-
-                    String tier = (String) tenant.get("tier");
-                    if (Utils.isBlank(tier)) {
-                        LOGGER.error("Tenant is missing tier");
-                        failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
-                        return;
-                    }
-
-                    Map<String, Integer> pathPriority = getPathPriority(appConfig);
-                    Properties serviceDiscovery = new Properties();
 
                     Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
-                    for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
-                        String serviceName = serviceConfig.getKey();
+                    for (Map.Entry<String, Object> service : services.entrySet()) {
+                        String serviceName = service.getKey();
+                        Map<String, Object> serviceConfig = (Map<String, Object>) service.getValue();
                         // CloudFormation resource names can only contain alpha numeric characters or a dash
                         String serviceResourceName = serviceName.replaceAll("[^0-9A-Za-z-]", "").toLowerCase();
-                        Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
-                        Boolean isPublic = (Boolean) service.get("public");
-                        String pathPart = (isPublic) ? (String) service.get("path") : "";
-                        Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
-                        String healthCheck = (String) service.get("healthCheckUrl");
 
-                        // CloudFormation won't let you use dashes or underscores in Mapping second level key names
-                        // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
-                        // parameter before we send it in.
-                        String clusterOS = ((String) service.getOrDefault("operatingSystem", ""))
-                                .replace("_", "");
-
-                        Integer containerPort = (Integer) service.get("containerPort");
-                        String containerRepo = (String) service.get("containerRepo");
-                        String imageTag = (String) service.getOrDefault("containerTag", "latest");
-
-                        // If there are any private services, we will create an environment variables called
-                        // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
-                        String serviceEnvName = Utils.toUpperSnakeCase(serviceName);
-                        String serviceHost = "SERVICE_" + serviceEnvName + "_HOST";
-                        String servicePort = "SERVICE_" + serviceEnvName + "_PORT";
-                        if (!isPublic) {
-                            LOGGER.debug("Creating service discovery environment variables {}, {}", serviceHost, servicePort);
-                            serviceDiscovery.put(serviceHost, serviceResourceName + ".local");
-                            serviceDiscovery.put(servicePort, Objects.toString(containerPort));
+                        List<Parameter> templateParameters = null;
+                        try {
+                            templateParameters = tenantAppStackUtils.getParametersForService(serviceConfig);
+                        } catch (IllegalArgumentException iae) {
+                            LOGGER.error("Failed to build tenant app stack parameters for service: " + serviceName);
+                            failOnboarding(onboarding.getId(), iae.getMessage());
                         }
 
-                        Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
-                        if (!tiers.containsKey(tier)) {
-                            LOGGER.error("Missing tier '{}' definition for tenant {}", tier, tenantId);
-                            failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
-                            return;
-                        }
-
-                        Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
-                        String clusterInstanceType = (String) tierConfig.get("instanceType");
-                        // TODO Update App Config to capture what launch type to use
-                        String launchType = "LINUX".equals(clusterOS) ? "FARGATE" : "EC2";
-                        Integer taskMemory = (Integer) tierConfig.get("memory");
-                        Integer taskCpu = (Integer) tierConfig.get("cpu");
-                        Integer minCount = (Integer) tierConfig.get("min");
-                        Integer maxCount = (Integer) tierConfig.get("max");
-
-                        // Does this service use a shared filesystem?
-                        Boolean enableEfs = Boolean.FALSE;
-                        Boolean enableFSx = Boolean.FALSE;
-                        String mountPoint = "";
-                        Boolean encryptFilesystem = Boolean.FALSE;
-                        String filesystemLifecycle = "NEVER";
-                        String fileSystemType = "";
-                        Integer fsxStorageGb = 0;
-                        Integer fsxThroughputMbs = 0;
-                        Integer fsxBackupRetentionDays = 7;
-                        String fsxDailyBackupTime = "";
-                        String fsxWeeklyMaintenanceTime = "";
-                        String fsxWindowsMountDrive = "";
-                        Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
-                        if (filesystem != null && !filesystem.isEmpty()) {
-                            fileSystemType = (String) filesystem.get("fileSystemType");
-                            mountPoint = (String) filesystem.get("mountPoint");
-                            if ("EFS".equals(fileSystemType)) {
-                                enableEfs = Boolean.TRUE;
-                                Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
-                                encryptFilesystem = (Boolean) efsConfig.get("encryptAtRest");
-                                filesystemLifecycle = (String) efsConfig.get("filesystemLifecycle");
-                            } else if ("FSX".equals(fileSystemType)) {
-                                enableFSx = Boolean.TRUE;
-                                Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
-                                fsxStorageGb = (Integer) fsxConfig.get("storageGb"); // GB 32 to 65,536
-                                fsxThroughputMbs = (Integer) fsxConfig.get("throughputMbs"); // MB/s
-                                fsxBackupRetentionDays = (Integer) fsxConfig.get("backupRetentionDays"); // 7 to 35
-                                fsxDailyBackupTime = (String) fsxConfig.get("dailyBackupTime"); //HH:MM in UTC
-                                fsxWeeklyMaintenanceTime = (String) fsxConfig.get("weeklyMaintenanceTime");//d:HH:MM in UTC
-                                fsxWindowsMountDrive = (String) fsxConfig.get("windowsMountDrive");
-                            }
-                        }
-
-                        // Does this service use a relational database?
-                        Boolean enableDatabase = Boolean.FALSE;
-                        String dbInstanceClass = "";
-                        String dbEngine = "";
-                        String dbVersion = "";
-                        String dbFamily = "";
-                        String dbUsername = "";
-                        String dbPasswordRef = "";
-                        Integer dbPort = -1;
-                        String dbDatabase = "";
-                        String dbBootstrap = "";
-                        Map<String, Object> database = (Map<String, Object>) tierConfig.get("database");
-                        if (database != null && !database.isEmpty()) {
-                            enableDatabase = Boolean.TRUE;
-                            dbEngine = (String) database.get("engineName");
-                            dbVersion = (String) database.get("version");
-                            dbFamily = (String) database.get("family");
-                            dbInstanceClass = (String) database.get("instanceClass");
-                            dbDatabase = Objects.toString(database.get("database"), "");
-                            dbUsername = (String) database.get("username");
-                            dbPort = (Integer) database.get("port");
-                            dbBootstrap = Objects.toString(database.get("bootstrapFilename"), "");
-                            dbPasswordRef = (String) database.get("passwordParam");
-                        }
-
-                        List<Parameter> templateParameters = new ArrayList<>();
-                        templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
-                        templateParameters.add(Parameter.builder().parameterKey("TenantId").parameterValue(tenantId).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ServiceName").parameterValue(serviceName).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ServiceResourceName").parameterValue(serviceResourceName).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
-                        templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
-                        templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancer").parameterValue(loadBalancerArn).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpListener").parameterValue(httpListenerArn).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpsListener").parameterValue(httpsListenerArn).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ContainerOS").parameterValue(clusterOS).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ClusterInstanceType").parameterValue(clusterInstanceType).build());
-                        templateParameters.add(Parameter.builder().parameterKey("TaskLaunchType").parameterValue(launchType).build());
-                        templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("MinTaskCount").parameterValue(minCount.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ContainerPort").parameterValue(containerPort.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ContainerHealthCheckPath").parameterValue(healthCheck).build());
-                        templateParameters.add(Parameter.builder().parameterKey("UseEFS").parameterValue(enableEfs.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("MountPoint").parameterValue(mountPoint).build());
-                        templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
-                        templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
-                        templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSEngine").parameterValue(dbEngine).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSEngineVersion").parameterValue(dbVersion).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSParameterGroupFamily").parameterValue(dbFamily).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSUsername").parameterValue(dbUsername).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSPasswordParam").parameterValue(dbPasswordRef).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
-                        templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
-                        // TODO rework these last 2?
-                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
-                        templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
                         for (Parameter p : templateParameters) {
                             //LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
                             if (p.parameterValue() == null) {
@@ -1008,7 +828,8 @@ public class OnboardingService {
                     try (Writer writer = new BufferedWriter(new OutputStreamWriter(
                             environmentFileContents, StandardCharsets.UTF_8)
                     )) {
-                        serviceDiscovery.store(writer, null);
+                        // the service discovery properties are automatically added to as we use the manager
+                        tenantAppStackUtils.getServiceDiscoveryProperties().store(writer, null);
                         s3.putObject(request -> request
                                         .bucket(RESOURCES_BUCKET)
                                         .key(environmentFile)

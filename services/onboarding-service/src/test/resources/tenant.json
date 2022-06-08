@@ -1,0 +1,71 @@
+{
+    "id": "cc8466ac-2ed7-4a2a-8a31-88d49c140f73",
+    "created": "2022-06-02T23:50:10.643889",
+    "modified": "2022-06-06T22:08:48.059142",
+    "active": false,
+    "tier": "default",
+    "onboardingStatus": "deleted",
+    "name": "linux-on-ec2",
+    "subdomain": null,
+    "hostname": "sb-test-tenant-cc8466ac-989688686.us-west-2.elb.amazonaws.com",
+    "billingPlan": null,
+    "attributes": {},
+    "resources": {
+        "HTTP_LISTENER": {
+            "name": "arn:aws:elasticloadbalancing:us-west-2:786938756705:listener/app/sb-test-tenant-cc8466ac/2dc084b7607603ca/d6318c4fc742db42",
+            "arn": "arn:aws:elasticloadbalancing:us-west-2:786938756705:listener/app/sb-test-tenant-cc8466ac/2dc084b7607603ca/d6318c4fc742db42",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/ec2/v2/home?region=us-west-2#LoadBalancers:search=sb-test-tenant-cc8466ac"
+        },
+        "HTTPS_LISTENER": {
+            "name": "arn:aws:elasticloadbalancing:us-west-2:786938756705:listener/app/sb-test-tenant-cc8466ac/2dc084b7607603ca/076b23efa4e07223b",
+            "arn": "arn:aws:elasticloadbalancing:us-west-2:786938756705:listener/app/sb-test-tenant-cc8466ac/2dc084b7607603ca/076b23efa4e07223b",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/ec2/v2/home?region=us-west-2#LoadBalancers:search=sb-test-tenant-cc8466ac"
+        },
+        "ECS_CLUSTER": {
+            "name": "sb-test-tenant-cc8466ac",
+            "arn": "arn:aws:ecs:us-west-2:786938756705:cluster/sb-test-tenant-cc8466ac",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/ecs/home#/clusters/sb-test-tenant-cc8466ac"
+        },
+        "SERVICE_S1_CODE_PIPELINE": {
+            "name": "sb-test-tenant-cc8466ac-s1",
+            "arn": "arn:aws:codepipeline:us-west-2:786938756705:sb-test-tenant-cc8466ac-s1",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/codesuite/codepipeline/pipelines/sb-test-tenant-cc8466ac-s1/view"
+        },
+        "LOAD_BALANCER": {
+            "name": "app/sb-test-tenant-cc8466ac/2dc084b7607603ca",
+            "arn": "arn:aws:elasticloadbalancing:us-west-2:786938756705:loadbalancer/app/sb-test-tenant-cc8466ac/2dc084b7607603ca",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/ec2/v2/home?region=us-west-2#LoadBalancers:search=sb-test-tenant-cc8466ac"
+        },
+        "VPC": {
+            "name": "vpc-0447741bc053b66df",
+            "arn": "arn:aws:ec2:us-west-2:786938756705:vpc/vpc-0447741bc053b66df",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#vpcs:search=vpc-0447741bc053b66df"
+        },
+        "PRIVATE_SUBNET_B": {
+            "name": "subnet-076b23efa4e07223b",
+            "arn": "arn:aws:ec2:us-west-2:786938756705:subnet/subnet-076b23efa4e07223b",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-076b23efa4e07223b"
+        },
+        "CLOUDFORMATION": {
+            "name": "sb-test-tenant-cc8466ac",
+            "arn": "arn:aws:cloudformation:us-west-2:786938756705:stack/sb-test-tenant-cc8466ac/c01d5190-e2ce-11ec-83d8-061b5853727d",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?filteringStatus=active&viewNested=true&hideStacks=false&stackId=arn:aws:cloudformation:us-west-2:786938756705:stack/sb-test-tenant-cc8466ac/c01d5190-e2ce-11ec-83d8-061b5853727d"
+        },
+        "SERVICE_S1_DB_HOST": {
+            "name": "sb-test-tenant-cc8466ac",
+            "arn": "arn:aws:rds:us-west-2:786938756705:db:sb-test-tenant-cc8466ac",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/rds/home?region=us-west-2#dbinstance:id=sb-test-tenant-cc8466ac"
+        },
+        "ECS_SECURITY_GROUP": {
+            "name": "sg-00b9f81512ae5d3ee",
+            "arn": "arn:aws:ec2:us-west-2:786938756705:security-group/sg-00b9f81512ae5d3ee",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/ec2/v2/home?region=us-west-2#SecurityGroup:groupId=sg-00b9f81512ae5d3ee"
+        },
+        "PRIVATE_SUBNET_A": {
+            "name": "subnet-08bdc60b36637d352",
+            "arn": "arn:aws:ec2:us-west-2:786938756705:subnet/subnet-08bdc60b36637d352",
+            "consoleUrl": "https://us-west-2.console.aws.amazon.com/vpc/home?region=us-west-2#SubnetDetails:subnetId=subnet-08bdc60b36637d352"
+        }
+    },
+    "provisioned": false
+}

@@ -67,6 +67,49 @@ const ServiceSettingsSubform = (props) => {
    props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', fileSystemType)
  }
 
+ const getLaunchTypeOptions = (serviceIndex) => {
+   return formikService?.operatingSystem === 'LINUX' && (
+    <FormGroup>
+      <div className="mb-2">Container OS</div>
+      <FormGroup check inline>
+        <Field
+          className="form-check-input"
+          type="radio"
+          id={"launchtype-ec2-" + serviceIndex}
+          name={"services[" + serviceIndex + "].ecsLaunchType"}
+          value="EC2"
+          disabled={isLocked}
+        />
+        <Label className="form-check-label" check htmlFor={"launchtype-ec2-" + serviceIndex}>
+          EC2
+        </Label>
+      </FormGroup>
+      <FormGroup check inline>
+        <Field
+          className="form-check-input"
+          type="radio"
+          id={"launchtype-fargate-" + serviceIndex}
+          name={"services[" + serviceIndex + "].ecsLaunchType"}
+          value="FARGATE"
+          disabled={isLocked}
+        />
+        <Label className="form-check-label" check htmlFor={"launchtype-fargate-" + serviceIndex}>
+          Fargate
+        </Label>
+      </FormGroup>
+      <FormFeedback
+        invalid={
+          formikErrors.ecsLaunchType
+            ? formikErrors.ecsLaunchType
+            : undefined
+        }
+      >
+        {formikErrors.ecsLaunchType}
+      </FormFeedback>
+    </FormGroup>
+   )
+ }
+
   return (
     <>
       <Row>
@@ -149,6 +192,7 @@ const ServiceSettingsSubform = (props) => {
                       {formikErrors.operatingSystem}
                     </FormFeedback>
                   </FormGroup>
+                  {getLaunchTypeOptions(serviceIndex)}
                   {getWinServerOptions(serviceIndex)}
                 </Col>
                 <Col xs={6}>

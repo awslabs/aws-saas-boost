@@ -5,8 +5,8 @@
   "sslCertificate": "",
   "billing": null,
   "services": {
-    "main": {
-      "name": "main",
+    "main_service": {
+      "name": "main_service",
       "description": "Main Service",
       "public": true,
       "path": "/*",
@@ -20,8 +20,8 @@
           "instanceType": "t3.medium",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
+          "min": 1,
+          "max": 2,
           "database": {
             "engine": "MARIADB",
             "instance": "T3_MICRO",
@@ -50,8 +50,8 @@
           "instanceType": "m5.xlarge",
           "cpu": 2048,
           "memory": 4096,
-          "minCount": 2,
-          "maxCount": 6,
+          "min": 2,
+          "max": 6,
           "database": {
             "engine": "MARIADB",
             "instance": "T3_LARGE",
@@ -93,8 +93,8 @@
           "instanceType": "t3.micro",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
+          "min": 1,
+          "max": 2,
           "database": null,
           "filesystem": null
         },
@@ -102,8 +102,8 @@
           "instanceType": "m5.medium",
           "cpu": 1024,
           "memory": 2048,
-          "minCount": 2,
-          "maxCount": 4,
+          "min": 2,
+          "max": 4,
           "database": null,
           "filesystem": null
         }
@@ -124,8 +124,8 @@
           "instanceType": "t3.micro",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
+          "min": 1,
+          "max": 2,
           "database": null,
           "filesystem": null
         },
@@ -133,8 +133,8 @@
           "instanceType": "m5.medium",
           "cpu": 1024,
           "memory": 2048,
-          "minCount": 2,
-          "maxCount": 4,
+          "min": 2,
+          "max": 4,
           "database": null,
           "filesystem": null
         }
