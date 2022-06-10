@@ -31,6 +31,7 @@ import {
   Row,
 } from 'react-bootstrap'
 import Display from '../components/Display'
+import Moment from 'react-moment'
 import { MoonLoader } from 'react-spinners'
 
 TierViewComponent.propTypes = {
@@ -165,50 +166,50 @@ function TierViewComponent(props) {
               <Card.Body>
                 <Row className="pt-3">
                   <Col
-                    sm={1}
+                    sm={4}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Default</dt>
                     <dd>
-                      {!!tier && tier.defaultTier
-                        ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
-                        : (<CIcon icon={cilXCircle} className="text-danger"/>)}
+                      <Display condition={!!tier}>
+                        {!!tier && tier.defaultTier
+                          ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
+                          : (<CIcon icon={cilXCircle} className="text-danger"/>)}
+                      </Display>
                     </dd>
-                  </Col>
-                  <Col
-                    sm={1}
-                    className="border border border-top-0 border-bottom-0 border-left-0"
-                  >
                     <dt>Name</dt>
                     <dd>
-                      <Display>{!!tier && tier.name}</Display>
+                      <Display condition={!!tier}>{!!tier && tier.name}</Display>
                     </dd>
                   </Col>
                   <Col
-                    sm={2}
+                    sm={4}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Created</dt>
                     <dd>
-                      <Display>{!!tier && tier.created}</Display>
+                      <Display condition={!!tier}>
+                        <Moment format="LLL">
+                          {!!tier && new Date(tier.created)}
+                        </Moment>
+                      </Display>
                     </dd>
-                  </Col>
-                  <Col
-                    sm={2}
-                    className="border border border-top-0 border-bottom-0 border-left-0"
-                  >
                     <dt>Modified</dt>
                     <dd>
-                      <Display>{!!tier && tier.modified}</Display>
+                      <Display condition={!!tier}>
+                        <Moment format="LLL">
+                          {!!tier && new Date(tier.modified)}
+                        </Moment>
+                      </Display>
                     </dd>
                   </Col>
                   <Col
-                    sm={6}
+                    sm={4}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Description</dt>
                     <dd>
-                      <Display>{!!tier && tier?.description}</Display>
+                      <Display condition={!!tier}>{!!tier && tier?.description}</Display>
                     </dd>
                   </Col>
                 </Row>

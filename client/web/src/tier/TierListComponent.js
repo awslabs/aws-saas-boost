@@ -30,6 +30,8 @@ import {
   Badge,
   NavLink,
 } from 'reactstrap'
+import Moment from 'react-moment'
+import Display from '../components/Display'
 
 TierListItem.propTypes = {
   tier: PropTypes.object,
@@ -61,6 +63,20 @@ function TierListItem({ tier, handleTierClick }) {
         {!!tier && tier.defaultTier
           ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
           : (<CIcon icon={cilXCircle} className="text-danger"/>)}
+      </td>
+      <td>
+        <Display condition={!!tier}>
+          <Moment format="LLL">
+            {!!tier && new Date(tier.created)}
+          </Moment>
+        </Display>
+      </td>
+      <td>
+        <Display condition={!!tier}>
+          <Moment format="LLL">
+            {!!tier && new Date(tier.modified)}
+          </Moment>
+        </Display>
       </td>
       <td>{tier.description}</td>
     </tr>
@@ -100,9 +116,11 @@ function TierList({
     <Table responsive striped>
       <thead>
         <tr>
-          <th width="15%">Name</th>
-          <th width="10%">Default</th>
-          <th width="75%">Description</th>
+          <th width="10%">Name</th>
+          <th width="5%">Default</th>
+          <th width="10%">Created</th>
+          <th width="10%">Modified</th>
+          <th width="65%">Description</th>
         </tr>
       </thead>
       <tbody>

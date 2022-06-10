@@ -52,7 +52,7 @@ public class DynamoTierDataStoreGetTierTest {
             .build();
     private static final ArgumentMatcher<GetItemRequest> VALID_REQUEST =
             getItemRequest -> getItemRequest != null && getItemRequest.hasKey()
-                    && VALID_ID.equals(getItemRequest.key().get(TierAttribute.id.name()).s());
+                    && VALID_ID.equals(getItemRequest.key().get(DynamoTierAttribute.id.name()).s());
     private static final ArgumentMatcher<GetItemRequest> INVALID_REQUEST =
             getItemRequest -> !VALID_REQUEST.matches(getItemRequest);
 
@@ -65,12 +65,12 @@ public class DynamoTierDataStoreGetTierTest {
         mockDdb = mock(DynamoDbClient.class);
         final GetItemResponse validResponse = GetItemResponse.builder()
                 .item(Map.of(
-                        TierAttribute.id.name(), AttributeValue.builder().s(VALID_ID).build(),
-                        TierAttribute.created.name(), AttributeValue.builder().s(VALID_TIME).build(),
-                        TierAttribute.modified.name(), AttributeValue.builder().s(VALID_TIME).build(),
-                        TierAttribute.description.name(), AttributeValue.builder().s(VALID_DESC).build(),
-                        TierAttribute.name.name(), AttributeValue.builder().s(VALID_NAME).build(),
-                        TierAttribute.default_tier.name(), AttributeValue.builder().bool(false).build()))
+                        DynamoTierAttribute.id.name(), AttributeValue.builder().s(VALID_ID).build(),
+                        DynamoTierAttribute.created.name(), AttributeValue.builder().s(VALID_TIME).build(),
+                        DynamoTierAttribute.modified.name(), AttributeValue.builder().s(VALID_TIME).build(),
+                        DynamoTierAttribute.description.name(), AttributeValue.builder().s(VALID_DESC).build(),
+                        DynamoTierAttribute.name.name(), AttributeValue.builder().s(VALID_NAME).build(),
+                        DynamoTierAttribute.default_tier.name(), AttributeValue.builder().bool(false).build()))
                 .build();
         final GetItemResponse invalidResponse = GetItemResponse.builder().build();
         when(mockDdb.getItem(ArgumentMatchers.argThat(VALID_REQUEST))).thenReturn(validResponse);
@@ -89,7 +89,7 @@ public class DynamoTierDataStoreGetTierTest {
                 TABLE_NAME, capturedRequest.tableName());
         assertTrue(capturedRequest.hasKey());
         assertEquals("Requested primary key should be id:configuredId.",
-                Map.of(TierAttribute.id.name(), AttributeValue.builder().s(expectedId).build()),
+                Map.of(DynamoTierAttribute.id.name(), AttributeValue.builder().s(expectedId).build()),
                 capturedRequest.key());
         assertTrue("GetItem should use Consistent Reads", capturedRequest.consistentRead());
     }

@@ -160,6 +160,7 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
         Tier updatedTier = providedTier;
         try {
             Tier oldTier = store.getTier(providedTier.getId());
+            // TODO validate that user isn't trying to update fields that should not be updated, e.g. created, id
             updatedTier = store.updateTier(providedTier);
             // handling default cases:
             //   - we are now default

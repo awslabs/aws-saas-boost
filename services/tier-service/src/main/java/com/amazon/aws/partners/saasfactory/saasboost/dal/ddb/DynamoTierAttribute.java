@@ -18,13 +18,16 @@ package com.amazon.aws.partners.saasfactory.saasboost.dal.ddb;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Tier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.function.*;
 
-public enum TierAttribute {
+public enum DynamoTierAttribute {    
     id(tier -> AttributeValue.builder().s(tier.getId()).build(),
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
             (tierBuilder, attributeValue) -> tierBuilder.id(attributeValue.s())),
@@ -42,11 +45,13 @@ public enum TierAttribute {
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
             (tierBuilder, attributeValue) -> tierBuilder.name(attributeValue.s())),
     description(tier -> AttributeValue.builder().s(tier.getDescription()).build(),
-            attributeValue -> !Utils.isEmpty(attributeValue.s()),
+            attributeValue -> attributeValue.s() != null, // descriptions are allowed to be empty
             (tierBuilder, attributeValue) -> tierBuilder.description(attributeValue.s())),
     default_tier(tier -> AttributeValue.builder().bool(tier.defaultTier()).build(),
-            attributeValue -> true,
+            attributeValue -> attributeValue.bool() != null,
             (tierBuilder, attributeValue) -> tierBuilder.defaultTier(attributeValue.bool()));
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DynamoTierAttribute.class);
 
     // used to convert the Attribute from a Tier to a DDB AttributeValue
     private final Function<Tier, AttributeValue> fromTierFunction;
@@ -55,7 +60,7 @@ public enum TierAttribute {
     // takes an existing Tier.Builder and adds this Attribute to it
     private final BiConsumer<Tier.Builder, AttributeValue> addToTierBuilderFunction;
 
-    TierAttribute(
+    DynamoTierAttribute(
             Function<Tier, AttributeValue> fromTierFunction,
             Predicate<AttributeValue> validAttributeValueFunction,
             BiConsumer<Tier.Builder, AttributeValue> addToTierBuilderFunction) {
@@ -65,13 +70,25 @@ public enum TierAttribute {
     }
 
     public AttributeValue fromTier(Tier tier) {
+        // if Tier.created or Tier.modified is null, this might throw a NullPointer
         return fromTierFunction.apply(tier);
     }
 
     public void toTier(Tier.Builder tierBuilderInProgress, AttributeValue attributeValue) {
         if (!validAttributeValueFunction.test(attributeValue)) {
-            throw new IllegalArgumentException(attributeValue.toString() + " is not applicable to " + this);
+            // most of our validity checks above are "if null" or "if empty"
+            throw new IllegalArgumentException("AttributeValue for " + this + " is invalid: \"" 
+                    + attributeValue.toString() + "\"");
         }
-        addToTierBuilderFunction.accept(tierBuilderInProgress, attributeValue);
+        try {
+            addToTierBuilderFunction.accept(tierBuilderInProgress, attributeValue);
+        } catch (DateTimeParseException dtpe) {
+            LOGGER.error("Failed to parse TierAttribute: " + this + " from database value: " + attributeValue);
+            LOGGER.error(Utils.getFullStackTrace(dtpe));
+        } catch (Exception e) {
+            LOGGER.error("Unexpected exception parsing TierAttribute: " + this 
+                    + " from database value: " + attributeValue);
+            LOGGER.error(Utils.getFullStackTrace(e));
+        }
     }
 }

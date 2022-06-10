@@ -29,12 +29,12 @@ import java.util.Map;
 
 public class DynamoTier {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamoTier.class);
-    private static final TierAttribute PRIMARY_KEY = TierAttribute.id;
+    private static final DynamoTierAttribute PRIMARY_KEY = DynamoTierAttribute.id;
     public final Map<String, AttributeValue> attributes;
 
     private DynamoTier(Tier tier) {
         attributes = new HashMap<>();
-        for (TierAttribute tierAttribute : TierAttribute.values()) {
+        for (DynamoTierAttribute tierAttribute : DynamoTierAttribute.values()) {
             attributes.put(tierAttribute.name(), tierAttribute.fromTier(tier));
         }
         LOGGER.debug("Created DynamoTier: {}", attributes);
@@ -87,7 +87,7 @@ public class DynamoTier {
 
     public static Tier fromAttributes(Map<String, AttributeValue> attributes) {
         Tier.Builder tierBuilderInProgress = Tier.builder();
-        for (TierAttribute tierAttribute : TierAttribute.values()) {
+        for (DynamoTierAttribute tierAttribute : DynamoTierAttribute.values()) {
             tierAttribute.toTier(tierBuilderInProgress, attributes.get(tierAttribute.name()));
         }
         return tierBuilderInProgress.build();

@@ -107,6 +107,9 @@ public class DynamoTierDataStore implements TierDataStore {
 
     @Override
     public Tier updateTier(Tier tier) {
+        // updating the Tier modifies it, so update the modified field
+        tier = Tier.builder(tier).modified(LocalDateTime.now()).build();
+
         // TODO this doesn't do any ddb error checking
         DynamoTier dynamoTier = DynamoTier.fromTier(tier);
 
