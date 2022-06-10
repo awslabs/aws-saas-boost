@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,11 +78,11 @@ public class DynamoTier {
     }
 
     public Map<String, AttributeValue> primaryKey() {
-        return Map.of(PRIMARY_KEY.name(), attributes.get(PRIMARY_KEY.name()));
+        return Collections.singletonMap(PRIMARY_KEY.name(), attributes.get(PRIMARY_KEY.name()));
     }
 
     public static Map<String, AttributeValue> primaryKey(String id) {
-        return Map.of(PRIMARY_KEY.name(), AttributeValue.builder().s(id).build());
+        return Collections.singletonMap(PRIMARY_KEY.name(), AttributeValue.builder().s(id).build());
     }
 
     public static Tier fromAttributes(Map<String, AttributeValue> attributes) {

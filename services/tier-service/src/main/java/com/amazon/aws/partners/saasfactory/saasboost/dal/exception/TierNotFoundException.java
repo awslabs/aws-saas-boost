@@ -16,7 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.dal.exception;
 
-public class TierNotFoundException extends Exception {
+public class TierNotFoundException extends RuntimeException {
     public TierNotFoundException(String message) {
         super(message);
     }

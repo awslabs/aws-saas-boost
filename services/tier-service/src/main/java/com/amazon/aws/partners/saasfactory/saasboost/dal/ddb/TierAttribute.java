@@ -20,19 +20,31 @@ import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Tier;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.function.*;
 
 public enum TierAttribute {
     id(tier -> AttributeValue.builder().s(tier.getId()).build(),
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
             (tierBuilder, attributeValue) -> tierBuilder.id(attributeValue.s())),
+    created(tier -> AttributeValue.builder().s(
+            tier.getCreated().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build(),
+            attributeValue -> !Utils.isEmpty(attributeValue.s()),
+            (tierBuilder, attributeValue) -> tierBuilder.created(
+                LocalDateTime.parse(attributeValue.s(), DateTimeFormatter.ISO_DATE_TIME))),
+    modified(tier -> AttributeValue.builder().s(
+            tier.getModified().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build(),
+            attributeValue -> !Utils.isEmpty(attributeValue.s()),
+            (tierBuilder, attributeValue) -> tierBuilder.modified(
+                LocalDateTime.parse(attributeValue.s(), DateTimeFormatter.ISO_DATE_TIME))),
     name(tier -> AttributeValue.builder().s(tier.getName()).build(),
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
             (tierBuilder, attributeValue) -> tierBuilder.name(attributeValue.s())),
     description(tier -> AttributeValue.builder().s(tier.getDescription()).build(),
             attributeValue -> !Utils.isEmpty(attributeValue.s()),
             (tierBuilder, attributeValue) -> tierBuilder.description(attributeValue.s())),
-    defaultTier(tier -> AttributeValue.builder().bool(tier.defaultTier()).build(),
+    default_tier(tier -> AttributeValue.builder().bool(tier.defaultTier()).build(),
             attributeValue -> true,
             (tierBuilder, attributeValue) -> tierBuilder.defaultTier(attributeValue.bool()));
 

@@ -29,20 +29,20 @@ import java.util.List;
  * convert between the model definition of {@link Tier} and the datastore required definition.
  */
 public interface TierDataStore {
-    Tier getTier(String id) throws TierNotFoundException;
+    Tier getTier(String id);
 
     List<Tier> listTiers();
 
     Tier createTier(Tier tier);
 
-    void deleteTier(String id) throws TierNotFoundException;
+    void deleteTier(String id);
 
     /**
      * Updates the {@link Tier} with the same id as the provided Tier.
      *
      * @param newTier the Tier to update and the new data to supplant the old data
-     * @returns the Tier as it was before being updated
+     * @returns the updated Tier
      * @throws TierNotFoundException if there is no Tier with that id
      */
-    Tier updateTier(Tier newTier) throws TierNotFoundException;
+    Tier updateTier(Tier newTier);
 }

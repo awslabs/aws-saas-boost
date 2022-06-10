@@ -33,21 +33,21 @@ import java.util.stream.Collectors;
 
 public class TierService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(TierService.class);
-    private static final String TABLE_NAME = System.getenv("TABLE_NAME");
+    private static final String TIERS_TABLE = System.getenv("TIERS_TABLE");
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
 
     private final TierDataStore store;
 
     public TierService() {
         final long startTimeMillis = System.currentTimeMillis();
-        if (Utils.isEmpty(TABLE_NAME)) {
+        if (Utils.isEmpty(TIERS_TABLE)) {
             throw new IllegalStateException("Missing environment variable TIERS_TABLE");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
 
         this.store = new DynamoTierDataStore(
                 Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
-                TABLE_NAME);
+                TIERS_TABLE);
 
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
@@ -142,8 +142,8 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
 
         final long startTimeMillis = System.currentTimeMillis();
         Utils.logRequestEvent(event);
-        Tier updatedTier = Utils.fromJson((String) event.get("body"), Tier.class);
-        if (updatedTier == null) {
+        Tier providedTier = Utils.fromJson((String) event.get("body"), Tier.class);
+        if (providedTier == null) {
             // Utils.fromJson swallows and logs any exceptions coming from deserialization attempts
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
@@ -151,14 +151,16 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
                     .withBody("{\"message\":\"Body should represent a Tier.\"}");
         }
         Map<String, String> pathParams = (Map<String, String>) event.get("pathParameters");
-        if (!pathParams.get("id").equals(updatedTier.getId())) {
+        if (!pathParams.get("id").equals(providedTier.getId())) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
                     .withBody("{\"message\":\"Tier IDs are immutable: body Tier ID must match path parameter.\"}");
         }
+        Tier updatedTier = providedTier;
         try {
-            Tier oldTier = store.updateTier(updatedTier);
+            Tier oldTier = store.getTier(providedTier.getId());
+            updatedTier = store.updateTier(providedTier);
             // handling default cases:
             //   - we are now default
             //     | because we enforce only one default, we must unset all other default tiers

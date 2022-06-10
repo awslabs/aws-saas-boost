@@ -20,18 +20,22 @@ import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.UUID;
 
 @JsonDeserialize(builder = Tier.Builder.class)
 public final class Tier {
     private final String id;
+    private final LocalDateTime created;
+    private final LocalDateTime modified;
     private final String name;
     private final String description;
     private final Boolean defaultTier;
 
     private Tier(Tier.Builder builder) {
         this.id = builder.id;
+        this.created = builder.created;
+        this.modified = builder.modified;
         this.name = builder.name;
         this.description = builder.description;
         this.defaultTier = builder.defaultTier;
@@ -39,6 +43,14 @@ public final class Tier {
 
     public String getId() {
         return this.id;
+    }
+
+    public LocalDateTime getCreated() {
+        return this.created;
+    }
+
+    public LocalDateTime getModified() {
+        return this.modified;
     }
 
     public String getName() {
@@ -60,6 +72,8 @@ public final class Tier {
         }
         Tier otherTier = (Tier)other;
         return this.getId().equals(otherTier.getId())
+                && this.getCreated().equals(otherTier.getCreated())
+                && this.getModified().equals(otherTier.getModified())
                 && this.getName().equals(otherTier.getName())
                 && this.getDescription().equals(otherTier.getDescription())
                 && this.defaultTier().equals(otherTier.defaultTier());
@@ -67,12 +81,14 @@ public final class Tier {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, description);
+        return Objects.hash(id, created, modified, name, description, defaultTier);
     }
 
     public static Tier.Builder builder(Tier tier) {
         return builder()
                 .id(tier.getId())
+                .created(tier.getCreated())
+                .modified(tier.getModified())
                 .description(tier.getDescription())
                 .name(tier.getName())
                 .defaultTier(tier.defaultTier());
@@ -85,6 +101,8 @@ public final class Tier {
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {
         private String id;
+        private LocalDateTime created;
+        private LocalDateTime modified;
         private String name;
         private String description;
         private Boolean defaultTier = false;
@@ -95,6 +113,16 @@ public final class Tier {
 
         public Builder id(String id) {
             this.id = id;
+            return this;
+        }
+
+        public Builder created(LocalDateTime created) {
+            this.created = created;
+            return this;
+        }
+
+        public Builder modified(LocalDateTime modified) {
+            this.modified = modified;
             return this;
         }
 
@@ -116,10 +144,6 @@ public final class Tier {
         public Tier build() {
             if (Utils.isEmpty(name)) {
                 throw new IllegalArgumentException("Tier must include a non-null, non-empty name.");
-            }
-            if (Utils.isEmpty(id)) {
-                // if no ID was supplied, generate a new one.
-                id = UUID.randomUUID().toString();
             }
             return new Tier(this);
         }

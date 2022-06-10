@@ -28,6 +28,8 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 import static org.junit.Assert.*;
@@ -38,8 +40,16 @@ public class DynamoTierDataStoreGetTierTest {
     private static final String VALID_ID = "abc-123-id-456";
     private static final String VALID_DESC = "gold tier description\n123";
     private static final String VALID_NAME = "gold-tier";
+    private static final LocalDateTime VALID_DATETIME = LocalDateTime.now();
+    private static final String VALID_TIME = VALID_DATETIME.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     private static final Tier VALID_TIER = Tier.builder()
-            .name(VALID_NAME).id(VALID_ID).description(VALID_DESC).defaultTier(false).build();
+            .name(VALID_NAME)
+            .created(VALID_DATETIME)
+            .modified(VALID_DATETIME)
+            .id(VALID_ID)
+            .description(VALID_DESC)
+            .defaultTier(false)
+            .build();
     private static final ArgumentMatcher<GetItemRequest> VALID_REQUEST =
             getItemRequest -> getItemRequest != null && getItemRequest.hasKey()
                     && VALID_ID.equals(getItemRequest.key().get(TierAttribute.id.name()).s());
@@ -56,9 +66,11 @@ public class DynamoTierDataStoreGetTierTest {
         final GetItemResponse validResponse = GetItemResponse.builder()
                 .item(Map.of(
                         TierAttribute.id.name(), AttributeValue.builder().s(VALID_ID).build(),
+                        TierAttribute.created.name(), AttributeValue.builder().s(VALID_TIME).build(),
+                        TierAttribute.modified.name(), AttributeValue.builder().s(VALID_TIME).build(),
                         TierAttribute.description.name(), AttributeValue.builder().s(VALID_DESC).build(),
                         TierAttribute.name.name(), AttributeValue.builder().s(VALID_NAME).build(),
-                        TierAttribute.defaultTier.name(), AttributeValue.builder().bool(false).build()))
+                        TierAttribute.default_tier.name(), AttributeValue.builder().bool(false).build()))
                 .build();
         final GetItemResponse invalidResponse = GetItemResponse.builder().build();
         when(mockDdb.getItem(ArgumentMatchers.argThat(VALID_REQUEST))).thenReturn(validResponse);
@@ -83,7 +95,7 @@ public class DynamoTierDataStoreGetTierTest {
     }
 
     @Test
-    public void validId() throws TierNotFoundException {
+    public void validId() {
         Tier retrievedTier = dynamoTierDataStore.getTier(VALID_ID);
         verifyGetItemRequest(VALID_ID);
         // assert the retrievedTier matches expectations
@@ -91,7 +103,7 @@ public class DynamoTierDataStoreGetTierTest {
     }
 
     @Test(expected = TierNotFoundException.class)
-    public void getTierTest_nullId() throws TierNotFoundException {
+    public void getTierTest_nullId() {
         dynamoTierDataStore.getTier(null);
     }
 

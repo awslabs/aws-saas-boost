@@ -165,7 +165,7 @@ function TierViewComponent(props) {
               <Card.Body>
                 <Row className="pt-3">
                   <Col
-                    sm={4}
+                    sm={1}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Default</dt>
@@ -176,7 +176,7 @@ function TierViewComponent(props) {
                     </dd>
                   </Col>
                   <Col
-                    sm={2}
+                    sm={1}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Name</dt>
@@ -185,7 +185,25 @@ function TierViewComponent(props) {
                     </dd>
                   </Col>
                   <Col
-                    sm={8}
+                    sm={2}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
+                    <dt>Created</dt>
+                    <dd>
+                      <Display>{!!tier && tier.created}</Display>
+                    </dd>
+                  </Col>
+                  <Col
+                    sm={2}
+                    className="border border border-top-0 border-bottom-0 border-left-0"
+                  >
+                    <dt>Modified</dt>
+                    <dd>
+                      <Display>{!!tier && tier.modified}</Display>
+                    </dd>
+                  </Col>
+                  <Col
+                    sm={6}
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Description</dt>

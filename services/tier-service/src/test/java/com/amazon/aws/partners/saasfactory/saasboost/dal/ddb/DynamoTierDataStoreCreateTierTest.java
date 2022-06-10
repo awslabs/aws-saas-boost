@@ -64,10 +64,24 @@ public class DynamoTierDataStoreCreateTierTest {
         assertTrue(capturedRequest.hasItem());
         assertTrue("Put item attributes must contain ID.",
                 capturedRequest.item().containsKey(TierAttribute.id.name()));
+        assertTrue("Put item attributes must contain Created.",
+                capturedRequest.item().containsKey(TierAttribute.created.name()));
+        assertTrue("Put item attributes must contain Modified.",
+                capturedRequest.item().containsKey(TierAttribute.modified.name()));
+
+        // we might need to modify expectedAttributes, and it might be unmodifiable. so make a quick copy.
+        expectedAttributes = new HashMap<>(expectedAttributes);
         if (!expectedAttributes.containsKey(TierAttribute.id.name())) {
             // we aren't expecting any ID in particular, so just set the expected ID to be the actual
-            expectedAttributes = new HashMap<>(expectedAttributes);
             expectedAttributes.put(TierAttribute.id.name(), capturedRequest.item().get(TierAttribute.id.name()));
+        }
+        if (!expectedAttributes.containsKey(TierAttribute.created.name())) {
+            // it's unreasonable to expect an exact create time, so just set the expected to be the actual
+            expectedAttributes.put(TierAttribute.created.name(), capturedRequest.item().get(TierAttribute.created.name()));
+        }
+        if (!expectedAttributes.containsKey(TierAttribute.modified.name())) {
+            // it's unreasonable to expect an exact modified time, so just set the expected to be the actual
+            expectedAttributes.put(TierAttribute.modified.name(), capturedRequest.item().get(TierAttribute.modified.name()));
         }
         assertEquals("Put item attributes should match expected.",
                 expectedAttributes,
@@ -80,7 +94,7 @@ public class DynamoTierDataStoreCreateTierTest {
         verifyPutItemRequest(Map.of(
                 TierAttribute.description.name(), AttributeValue.builder().s(VALID_DESC).build(),
                 TierAttribute.name.name(), AttributeValue.builder().s(VALID_NAME).build(),
-                TierAttribute.defaultTier.name(), AttributeValue.builder().bool(false).build()
+                TierAttribute.default_tier.name(), AttributeValue.builder().bool(false).build()
         ));
     }
 
@@ -91,7 +105,7 @@ public class DynamoTierDataStoreCreateTierTest {
                 TierAttribute.description.name(), AttributeValue.builder().s(VALID_DESC).build(),
                 TierAttribute.name.name(), AttributeValue.builder().s(VALID_NAME).build(),
                 TierAttribute.id.name(), AttributeValue.builder().s(VALID_ID).build(),
-                TierAttribute.defaultTier.name(), AttributeValue.builder().bool(false).build()
+                TierAttribute.default_tier.name(), AttributeValue.builder().bool(false).build()
         ));
     }
 

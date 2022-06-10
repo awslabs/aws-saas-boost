@@ -105,7 +105,7 @@ export function ApplicationComponent(props) {
     let uncleanedInitialTierValues = Object.assign({}, defaults, tierValuesCopy)
     return {
       ...uncleanedInitialTierValues,
-      provisionDb: !!uncleanedInitialTierValues.database,
+      provisionDb: !!tierValuesCopy.database,
       database: !!uncleanedInitialTierValues.database ? {
         ...uncleanedInitialTierValues.database,
         //This is frail, but try to see if the incoming password is base64d
@@ -116,10 +116,10 @@ export function ApplicationComponent(props) {
         ),
         encryptedPassword: uncleanedInitialTierValues?.database?.password,
       } : defaults.database,
-      provisionFS: !!uncleanedInitialTierValues.filesystem,
+      provisionFS: !!tierValuesCopy.filesystem,
       filesystem: !!uncleanedInitialTierValues.filesystem ? {
         ...uncleanedInitialTierValues.filesystem,
-        fsx: !!getFsx(uncleanedInitialTierValues?.filesystem?.fsx) || defaults.filesystem.fsx
+        fsx: getFsx(uncleanedInitialTierValues?.filesystem?.fsx) || defaults.filesystem.fsx
       } : defaults.filesystem,
     }
   }
@@ -156,13 +156,13 @@ export function ApplicationComponent(props) {
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(thisService?.tiers[tierName], defaultTierValues, fileSystemType)
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), defaultTierValues, fileSystemType)
     }
     return {
       ...thisService,
       name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
-      public: thisService?.public || false,
+      public: thisService?.public || true,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
