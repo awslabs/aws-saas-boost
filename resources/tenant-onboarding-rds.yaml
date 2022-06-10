@@ -24,6 +24,9 @@ Parameters:
   TenantId:
     Description: The GUID for the tenant
     Type: String
+  ServiceResourceName:
+    Description: CloudFormation friendly version of the service name
+    Type: String
   VPC:
     Description: VPC id for this tenant
     Type: AWS::EC2::VPC::Id
@@ -91,9 +94,9 @@ Resources:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       DBSubnetGroupName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       SubnetIds:
         - !Ref PrivateSubnetA
         - !Ref PrivateSubnetB
@@ -101,7 +104,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       GroupDescription: RDS Security Group
       VpcId: !Ref VPC
   RDSSecurityGroupIngressECS:
@@ -117,7 +120,7 @@ Resources:
     Condition: BootstrapDatabase
     Properties:
       GroupName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       GroupDescription: RDS Security Group
       VpcId: !Ref VPC
       SecurityGroupEgress:
@@ -129,7 +132,7 @@ Resources:
     Properties:
       KeyPolicy:
         Version: 2012-10-17
-        Id: !Sub sb-${Environment}-rds-key-${TenantId}
+        Id: !Sub sb-${Environment}-rds-key-${TenantId}-${ServiceResourceName}
         Statement:
           - Effect: Allow
             Principal:
@@ -156,14 +159,15 @@ Resources:
       Tags:
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
   EncryptionKeyAlias:
     Condition: SupportsEncryption
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/sb-${Environment}-rds-${TenantId}
+      AliasName:
+        Fn::Join: ['', ['alias/sb-', !Ref Environment, '-rds-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       TargetKeyId: !Ref EncryptionKey
   RDSSecurityGroupIngressBootstrap:
     Type: AWS::EC2::SecurityGroupIngress
@@ -180,7 +184,7 @@ Resources:
     DependsOn: RDSSecurityGroup
     Properties:
       DBClusterIdentifier:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref RDSSubnetGroup
@@ -218,7 +222,7 @@ Resources:
     DependsOn: RDSSecurityGroup
     Properties:
       DBInstanceIdentifier:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       DBInstanceClass: !Ref RDSInstanceClass
       VPCSecurityGroups:
         - !Ref RDSSecurityGroup
@@ -255,14 +259,7 @@ Resources:
     Condition: BootstrapDatabase
     Properties:
       RoleName:
-        Fn::Join:
-          - ''
-          - - 'sb-'
-            - !Ref Environment
-            - '-rds-bootstrap-tenant-'
-            - !Select [0, !Split ['-', !Ref TenantId]]
-            - '-'
-            - !Ref AWS::Region
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName, '-', !Ref AWS::Region]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -275,14 +272,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join:
-              - ''
-              - - 'sb-'
-                - !Ref Environment
-                - '-rds-bootstrap-tenant-'
-                - !Select [0, !Split ['-', !Ref TenantId]]
-                - '-'
-                - !Ref AWS::Region
+            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName, '-', !Ref AWS::Region]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -327,7 +317,7 @@ Resources:
     Condition: BootstrapDatabase
     Properties:
       LogGroupName:
-        Fn::Join: ['', ['/aws/lambda/sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['/aws/lambda/sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       RetentionInDays: 30
   RDSBootstrapDatabase:
     Type: AWS::Lambda::Function
@@ -336,7 +326,7 @@ Resources:
       - RDSBootstrapDatabaseLogs
     Properties:
       FunctionName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       Role: !GetAtt RDSBootstrapDatabaseRole.Arn
       Runtime: java11
       Timeout: 870

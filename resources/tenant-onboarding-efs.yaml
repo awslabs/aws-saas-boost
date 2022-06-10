@@ -21,6 +21,9 @@ Parameters:
   TenantId:
     Description: The GUID for the tenant
     Type: String
+  ServiceResourceName:
+    Description: CloudFormation friendly version of the service name
+    Type: String
   VPC:
     Description: VPC id for this tenant
     Type: AWS::EC2::VPC::Id
@@ -56,7 +59,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-efs-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-efs-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       GroupDescription: EFS mount point Security Group
       VpcId: !Ref VPC
   EFSSecurityGroupIngressECS:
@@ -81,7 +84,7 @@ Resources:
       FileSystemTags:
         - Key: Name
           Value:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
   MountTargetA:

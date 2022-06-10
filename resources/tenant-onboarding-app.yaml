@@ -1094,6 +1094,7 @@ Resources:
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
+        ServiceResourceName: !Ref ServiceResourceName
         ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID}}'
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
@@ -1113,6 +1114,7 @@ Resources:
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
+        ServiceResourceName: !Ref ServiceResourceName
         VPC: !Ref VPC
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
@@ -1128,6 +1130,7 @@ Resources:
         Environment: !Ref Environment
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
         TenantId: !Ref TenantId
+        ServiceResourceName: !Ref ServiceResourceName
         VPC: !Ref VPC
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
