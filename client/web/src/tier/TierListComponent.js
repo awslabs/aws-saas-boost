@@ -48,6 +48,11 @@ function TierListItem({ tier, handleTierClick }) {
       className="pointer"
     >
       <td>
+        {!!tier && tier.defaultTier
+          ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
+          : (<CIcon icon={cilXCircle} className="text-danger"/>)}
+      </td>
+      <td>
         <NavLink
           href="#"
           onClick={() => {
@@ -59,11 +64,7 @@ function TierListItem({ tier, handleTierClick }) {
           {tier.name}
         </NavLink>
       </td>
-      <td>
-        {!!tier && tier.defaultTier
-          ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
-          : (<CIcon icon={cilXCircle} className="text-danger"/>)}
-      </td>
+      <td>{tier.description}</td>
       <td>
         <Display condition={!!tier}>
           <Moment format="LLL">
@@ -78,7 +79,6 @@ function TierListItem({ tier, handleTierClick }) {
           </Moment>
         </Display>
       </td>
-      <td>{tier.description}</td>
     </tr>
   )
 }
@@ -116,11 +116,11 @@ function TierList({
     <Table responsive striped>
       <thead>
         <tr>
-          <th width="10%">Name</th>
           <th width="5%">Default</th>
-          <th width="10%">Created</th>
-          <th width="10%">Modified</th>
-          <th width="65%">Description</th>
+          <th width="20%">Name</th>
+          <th width="40%">Description</th>
+          <th width="17.5%">Created</th>
+          <th width="17.5%">Modified</th>
         </tr>
       </thead>
       <tbody>
