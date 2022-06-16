@@ -22,7 +22,7 @@ import { PropTypes } from 'prop-types'
 import * as Yup from 'yup'
 import { Button, Row, Col, Card, Alert } from 'react-bootstrap'
 import LoadingOverlay from '@ronchalant/react-loading-overlay'
-
+import globalConfig from '../config/appConfig'
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
@@ -62,6 +62,8 @@ export function ApplicationComponent(props) {
   const WINDOWS = 'WINDOWS'
   const FSX = 'FSX'
   const EFS = 'EFS'
+  const awsRegion = globalConfig.region
+  const acmConsoleLink = `https://${awsRegion}.console.aws.amazon.com/acm/home?region=${awsRegion}#/certificates/list`
 
   const updateConfig = (values) => {
     updateConfiguration(values)
@@ -464,6 +466,7 @@ export function ApplicationComponent(props) {
                   <AppSettingsSubform
                     isLocked={hasTenants}
                     certOptions={certOptions}
+                    acmConsoleLink={acmConsoleLink}
                   ></AppSettingsSubform>
                   <ServicesComponent
                     formik={formik}

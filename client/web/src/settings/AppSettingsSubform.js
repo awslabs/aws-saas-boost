@@ -55,11 +55,11 @@ export default class AppSettingsSubform extends React.Component {
                       type="select"
                       name="sslCertificate"
                       id="sslCertificate"
-                      label="ACM SSL Certificate"
+                      label={(<a href={this.props.acmConsoleLink} target="new">SSL Certificate</a>)}
                       key="sslCertificate"
                       disabled={this.props.isLocked || this.props.options?.length == 0}
                     >
-                      <option value="">{this.props.certOptions?.length == 0 ? "No Certificates in ACM!" : "Select One..."}</option>
+                      <option value="">{this.props.certOptions?.length == 0 ? "No Valid Certificates" : "Select One..."}</option>
                       {this.props.certOptions?.map((option) => (
                         <option
                           value={option.certificateArn}
