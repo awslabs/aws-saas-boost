@@ -83,6 +83,7 @@ export default function OnboardingFormComponent(props) {
   }
 
   const getTiers = (tiers) => {
+    const defaultTier = tiers.filter((tier) => tier.defaultTier)[0]
     const options = tiers.map((tier) => {
       return (
         <option value={tier.name} key={tier.id}>
@@ -91,7 +92,7 @@ export default function OnboardingFormComponent(props) {
       )
     })
     return (
-      <SaasBoostSelect type="select" name="tier" label="Select Tier">
+      <SaasBoostSelect type="select" name="tier" label="Select Tier" value={defaultTier?.name}>
         {options}
       </SaasBoostSelect>
     )

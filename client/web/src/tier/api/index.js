@@ -15,7 +15,7 @@
  */
 
 import axios from 'axios'
-import { fetchAccessToken, handleErrorResponse } from '../../api'
+import { fetchAccessToken, handleErrorResponse, handleErrorNoResponse } from '../../api'
 import appConfig from '../../config/appConfig'
 const { apiUri } = appConfig
 
@@ -76,9 +76,19 @@ const tierAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.post('/', tierData, { signal })
-      const responseJSON = await handleErrorResponse(response)
-      return responseJSON
+      const authorizationToken = await fetchAccessToken()
+      const response = await fetch(`${apiUri}/tiers/`, {
+        method: 'POST',
+        mode: 'cors',
+        body: JSON.stringify({
+          ...tierData,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorizationToken,
+        },
+      })
+      return await handleErrorResponse(response)
     } catch (err) {
       console.error(err)
       throw Error('Unable to create tier')
@@ -88,33 +98,49 @@ const tierAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.put(`/${tierData.id}`, tierData, {
-        signal,
+      const authorizationToken = await fetchAccessToken()
+      const response = await fetch(`${apiUri}/tiers/${tierData.id}`, {
+        method: 'PUT',
+        mode: 'cors',
+        body: JSON.stringify({
+          ...tierData,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorizationToken,
+        },
       })
-      const responseJSON = await handleErrorResponse(response)
-      return responseJSON
+      console.log('tier api update response', response)
+      return await handleErrorResponse(response)
     } catch (err) {
       console.error(err)
       throw Error('Unable to edit tier.')
     }
   },
-  fetch: async (tierId, ops) => {
+  fetchTier: async (tierId, ops) => {
     const { signal } = ops
 
     try {
-      const response = await fetch(`/${tierId}`, { signal })
-      const responseJSON = await handleErrorResponse(response)
-      return responseJSON
+      const authorizationToken = await fetchAccessToken()
+      const response = await fetch(`${apiUri}/tiers/${tierId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorizationToken,
+        },
+      })
+      return await handleErrorResponse(response)
     } catch (err) {
       console.error(err)
       throw Error(`Unable to fetch tier: ${tierId}`)
     }
   },
-  delete: async (tierId, ops) => {
+  delete: async (values, ops) => {
     const { signal } = ops
+    const { tierId, history } = values
 
     try {
       const response = await apiServer.delete(`/${tierId}`, { signal })
+      history.push('/tiers')
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {

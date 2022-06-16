@@ -199,7 +199,7 @@ export const DashboardComponent = (props) => {
                 <Col xs={12} md={6} lg={6}>
                   <strong className="h4 mb-1">Tiers</strong>
                   {tiers.map((tier) => (
-                    <dl key={tier}>
+                    <dl key={tier.id}>
                       <dt className="mb-1">{tier.name}</dt>
                       <dd className="mb-3">
                         {isEmpty(tier.description)

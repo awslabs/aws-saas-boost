@@ -29,60 +29,36 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TierService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(TierService.class);
-    private static final String TABLE_NAME = System.getenv("TABLE_NAME");
+    private static final String TIERS_TABLE = System.getenv("TIERS_TABLE");
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
-    // private static final String DATASTORE_IMPL = System.getenv("DATASTORE_IMPL");
-
-    // private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    // private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    // private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
-    // private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
-    // private static final String SYSTEM_API_CALL_SOURCE = "saas-boost";
 
     private final TierDataStore store;
 
-    // TODO EventBridge will eventually be needed to send tier definition change events
-    // private final EventBridgeClient eventBridge;
-
-    /*
-     * getTiers, getTier, createTier, updateTier, deleteTier
-     * each requires access to the backing DDB datastore
-     *
-     * DDB table needs to be passed as environment variable
-     *
-     * getTiers, getTier, createTier, updateTier, deleteTier
-     * are all kind of ONLY DDB datastore actions
-     * except maybe update.
-     * either way, we should have a Tier object. JSON serializable. and DDB serializable.
-     */
     public TierService() {
         final long startTimeMillis = System.currentTimeMillis();
-        if (Utils.isEmpty(TABLE_NAME)) {
+        if (Utils.isEmpty(TIERS_TABLE)) {
             throw new IllegalStateException("Missing environment variable TIERS_TABLE");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
 
-        // this.store = TierDataStoreFactory.getInstance(DATASTORE_IMPL); // creates required clients in factory method
         this.store = new DynamoTierDataStore(
                 Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
-                TABLE_NAME);
+                TIERS_TABLE);
 
-        // this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
-        //Utils.logRequestEvent(event);
         return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
     }
 
     public APIGatewayProxyResponseEvent getTiers(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
@@ -91,7 +67,14 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
         List<Tier> tiers = store.listTiers();
         if (tiers.isEmpty()) {
             // we want to ensure there is always at least a default tier.
-            tiers.add(store.createTier(Tier.builder().name("default").description("Default Tier").build()));
+            tiers.add(
+                    store.createTier(Tier.builder()
+                            .name("default")
+                            .description("Default Tier")
+                            .defaultTier(true)
+                            .build()
+                    )
+            );
         }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TierService::getTiers exec " + totalTimeMillis);
@@ -103,7 +86,6 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
 
     public APIGatewayProxyResponseEvent getTier(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
@@ -160,8 +142,8 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
 
         final long startTimeMillis = System.currentTimeMillis();
         Utils.logRequestEvent(event);
-        Tier updatedTier = Utils.fromJson((String) event.get("body"), Tier.class);
-        if (updatedTier == null) {
+        Tier providedTier = Utils.fromJson((String) event.get("body"), Tier.class);
+        if (providedTier == null) {
             // Utils.fromJson swallows and logs any exceptions coming from deserialization attempts
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
@@ -169,14 +151,43 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
                     .withBody("{\"message\":\"Body should represent a Tier.\"}");
         }
         Map<String, String> pathParams = (Map<String, String>) event.get("pathParameters");
-        if (!pathParams.get("id").equals(updatedTier.getId())) {
+        if (!pathParams.get("id").equals(providedTier.getId())) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
                     .withStatusCode(400)
                     .withBody("{\"message\":\"Tier IDs are immutable: body Tier ID must match path parameter.\"}");
         }
+        Tier updatedTier = providedTier;
         try {
-            store.updateTier(updatedTier);
+            Tier oldTier = store.getTier(providedTier.getId());
+            // TODO validate that user isn't trying to update fields that should not be updated, e.g. created, id
+            updatedTier = store.updateTier(providedTier);
+            // handling default cases:
+            //   - we are now default
+            //     | because we enforce only one default, we must unset all other default tiers
+            //   - we are no longer default
+            //     | if we enforce there is always a default Tier we need to decide
+            //     | which is now default. otherwise we have no extra action to take
+            //   - default didn't change (no action)
+            if (!oldTier.defaultTier() && updatedTier.defaultTier()) {
+                // we weren't default but now we are, this means all other default
+                // Tiers should be updated to no longer be default,
+                // as we need to enforce only one default Tier at a given time
+                List<Tier> defaultTiers = store.listTiers().stream()
+                        .filter(tier -> tier.defaultTier())
+                        .collect(Collectors.toList());
+                for (Tier t : defaultTiers) {
+                    if (!t.getId().equals(updatedTier.getId())) {
+                        try {
+                            store.updateTier(Tier.builder(t).defaultTier(false).build());
+                        } catch (TierNotFoundException tnfe) {
+                            // race condition between the list we just pulled and the update
+                            LOGGER.error("Could not enforce a single default tier."
+                                    + " Found {} default tiers but {} does not exist.", defaultTiers, t);
+                        }
+                    }
+                }
+            }
         } catch (TierNotFoundException tnfe) {
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
@@ -187,7 +198,8 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
         LOGGER.info("TierService::updateTier exec " + totalTimeMillis);
         return new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
-                .withStatusCode(200);
+                .withStatusCode(200)
+                .withBody(Utils.toJson(updatedTier));
     }
 
     public APIGatewayProxyResponseEvent deleteTier(Map<String, Object> event, Context context) {

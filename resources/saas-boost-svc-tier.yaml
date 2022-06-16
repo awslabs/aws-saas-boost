@@ -104,7 +104,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          TABLE_NAME: !Ref TiersTable
+          TIERS_TABLE: !Ref TiersTable
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
@@ -134,7 +134,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          TABLE_NAME: !Ref TiersTable
+          TIERS_TABLE: !Ref TiersTable
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
@@ -164,7 +164,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          TABLE_NAME: !Ref TiersTable
+          TIERS_TABLE: !Ref TiersTable
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
@@ -194,7 +194,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          TABLE_NAME: !Ref TiersTable
+          TIERS_TABLE: !Ref TiersTable
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
@@ -224,7 +224,7 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
-          TABLE_NAME: !Ref TiersTable
+          TIERS_TABLE: !Ref TiersTable
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"

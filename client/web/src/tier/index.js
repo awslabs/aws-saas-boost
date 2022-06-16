@@ -16,20 +16,27 @@
 
 import React from 'react'
 
-// const TierListContainer = React.lazy(() => import('./TierListContainer'))
-// const TierViewContainer = React.lazy(() => import('./TierViewContainer'))
+const TierListContainer = React.lazy(() => import('./TierListContainer'))
+const TierViewContainer = React.lazy(() => import('./TierViewContainer'))
+const TierCreateContainer = React.lazy(() => import('./TierCreateContainer'))
 
-// export const TierRoutes = [
-//   {
-//     path: '/tiers',
-//     exact: true,
-//     name: 'Tiers',
-//     component: TierListContainer,
-//   },
-//   {
-//     path: '/tiers/:tierId',
-//     exact: true,
-//     name: 'Tier Detail',
-//     component: TierViewContainer,
-//   },
-// ]
+export const TierRoutes = [
+  {
+    path: '/tiers',
+    exact: true,
+    name: 'Tiers',
+    component: TierListContainer,
+  },
+  {
+    path: '/tiers/create',
+    exact: true,
+    name: 'Create a new Tier',
+    component: TierCreateContainer,
+  },
+  {
+    path: '/tiers/:tierId',
+    exact: true,
+    name: 'Tier Detail',
+    component: TierViewContainer,
+  },
+]

@@ -16,6 +16,7 @@
 
 import React from 'react'
 import { TenantRoutes } from './tenant'
+import { TierRoutes } from './tier'
 import { UserRoutes } from './users'
 import { OnboardingRoutes } from './onboarding'
 import { SettingsRoutes } from './settings'
@@ -26,6 +27,6 @@ const routes = [
   { path: '/', exact: true, name: 'Home' },
   { path: '/dashboard', exact: true, name: 'Dashboard', component: Dashboard },
   { path: '/summary', exact: true, name: 'Dashboard', component: Dashboard },
-].concat(TenantRoutes, UserRoutes, OnboardingRoutes, SettingsRoutes, MetricsRoutes)
+].concat(TenantRoutes, TierRoutes, UserRoutes, OnboardingRoutes, SettingsRoutes, MetricsRoutes)
 
 export default routes
