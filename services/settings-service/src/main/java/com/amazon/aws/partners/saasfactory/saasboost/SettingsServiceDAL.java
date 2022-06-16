@@ -173,17 +173,26 @@ public class SettingsServiceDAL {
     }
 
     public List<CertificateSummary> acmCertificateOptions() {
-        try {
-            // only list certificates that aren't expired, invalid, revoked, or otherwise unusable
-            ListCertificatesResponse response = acm.listCertificates(ListCertificatesRequest.builder()
-                    .certificateStatuses(List.of(CertificateStatus.PENDING_VALIDATION, CertificateStatus.ISSUED))
-                    .build());
-            LOGGER.info("ACM PENDING_VALIDATION and ISSUED certs: {}", response);
-            return response.certificateSummaryList();
-        } catch (InvalidArgsException iae) {
-            LOGGER.error("Error retrieving certificates", iae);
-        }
-        return List.of();
+        List<CertificateSummary> certificateSummaries = new ArrayList<>();
+        String nextToken = null;
+        do {
+            try {
+                // only list certificates that aren't expired, invalid, revoked, or otherwise unusable
+                ListCertificatesResponse response = acm.listCertificates(ListCertificatesRequest.builder()
+                        .certificateStatuses(List.of(CertificateStatus.PENDING_VALIDATION, CertificateStatus.ISSUED))
+                        .nextToken(nextToken)
+                        .build());
+                LOGGER.info("ACM PENDING_VALIDATION and ISSUED certs: {}", response);
+                // documentation says the SDK will never return a null collection, but just in case
+                if (response.certificateSummaryList() != null) {
+                    certificateSummaries.addAll(response.certificateSummaryList());
+                }
+                nextToken = response.nextToken();
+            } catch (InvalidArgsException iae) {
+                LOGGER.error("Error retrieving certificates", iae);
+            }
+        } while (nextToken != null);
+        return certificateSummaries;
     }
 
     private static final Comparator<Map<String, Object>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
