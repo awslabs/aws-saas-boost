@@ -199,6 +199,10 @@ Resources:
                 Action:
                   - sts:AssumeRole
                 Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+              - Effect: Allow
+                Action:
+                  - acm:ListCertificates
+                Resource: '*'
   SettingsServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:

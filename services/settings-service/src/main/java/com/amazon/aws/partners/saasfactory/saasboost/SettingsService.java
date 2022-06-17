@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
@@ -293,6 +294,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         Collectors.toMap(OperatingSystem::name, OperatingSystem::getDescription)
                 ));
         options.put("dbOptions", dal.rdsOptions());
+        options.put("acmOptions", dal.acmCertificateOptions());
 
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)

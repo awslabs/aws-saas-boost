@@ -71,6 +71,8 @@ export const selectDbOptions = (state) => state.options?.data?.dbOptions
 
 export const selectOsOptions = (state) => state.options?.data?.osOptions
 
+export const selectCertOptions = (state) => state.options?.data?.acmOptions
+
 export const selectOSLabel = (state, os) => {
   return isEmpty(os) || isEmpty(state.options?.data?.osOptions)
     ? ''

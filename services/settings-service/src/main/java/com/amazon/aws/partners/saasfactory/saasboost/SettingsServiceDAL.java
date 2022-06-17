@@ -19,6 +19,12 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.acm.AcmClient;
+import software.amazon.awssdk.services.acm.model.CertificateStatus;
+import software.amazon.awssdk.services.acm.model.CertificateSummary;
+import software.amazon.awssdk.services.acm.model.InvalidArgsException;
+import software.amazon.awssdk.services.acm.model.ListCertificatesRequest;
+import software.amazon.awssdk.services.acm.model.ListCertificatesResponse;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -48,6 +54,7 @@ public class SettingsServiceDAL {
     static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + APP_BASE_PATH + "(.+)$");
 
     private final ParameterStoreFacade parameterStore;
+    private AcmClient acm;
     private DynamoDbClient ddb;
 
     public SettingsServiceDAL() {
@@ -68,6 +75,7 @@ public class SettingsServiceDAL {
             // Cold start performance hack -- take the TLS hit for the client in the constructor
             this.ddb.describeTable(request -> request.tableName(OPTIONS_TABLE));
         }
+        this.acm = Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME);
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
@@ -162,6 +170,29 @@ public class SettingsServiceDAL {
                 orderableOptionsByRegion.add(fromAttributeValueMap(item))
         );
         return orderableOptionsByRegion;
+    }
+
+    public List<CertificateSummary> acmCertificateOptions() {
+        List<CertificateSummary> certificateSummaries = new ArrayList<>();
+        String nextToken = null;
+        do {
+            try {
+                // only list certificates that aren't expired, invalid, revoked, or otherwise unusable
+                ListCertificatesResponse response = acm.listCertificates(ListCertificatesRequest.builder()
+                        .certificateStatuses(List.of(CertificateStatus.PENDING_VALIDATION, CertificateStatus.ISSUED))
+                        .nextToken(nextToken)
+                        .build());
+                LOGGER.info("ACM PENDING_VALIDATION and ISSUED certs: {}", response);
+                // documentation says the SDK will never return a null collection, but just in case
+                if (response.certificateSummaryList() != null) {
+                    certificateSummaries.addAll(response.certificateSummaryList());
+                }
+                nextToken = response.nextToken();
+            } catch (InvalidArgsException iae) {
+                LOGGER.error("Error retrieving certificates", iae);
+            }
+        } while (nextToken != null);
+        return certificateSummaries;
     }
 
     private static final Comparator<Map<String, Object>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
