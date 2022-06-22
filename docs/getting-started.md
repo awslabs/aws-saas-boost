@@ -5,9 +5,9 @@
 [The Target Experience](#the-target-experience)\
 [Step 1 - Set Up Tooling](#step-1---set-up-tooling)\
 [Step 2 - Clone the AWS SaaS Boost Repository](#step-2---clone-the-aws-saas-boost-repository)\
-[Step 3 - Provision AWS SaaS Boost](#step-3---provision-aws-saas-boost)\
+[Step 3 - Provision AWS SaaS Boost into your AWS Account](#step-3---provision-aws-saas-boost-into-your-aws-account)\
 [Step 4 - Login to AWS SaaS Boost](#step-4---login-to-aws-saas-boost)\
-[Step 5 - Configure Application Settings](#step-5---configure-application-settings)\
+[Step 5 - Configure Tiers and Application Settings](#step-5---configure-tiers-and-application-settings)\
 [Step 6 - Upload Your Application Services](#step-6---upload-your-application-services)\
 [Step 7 - (Optional) Deploy the Sample Application](#step-7---optional-deploy-the-sample-application)\
 [Mapping Your Application to AWS SaaS Boost](#mapping-your-application-to-aws-saas-boost)
