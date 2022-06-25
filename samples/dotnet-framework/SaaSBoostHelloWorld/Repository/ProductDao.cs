@@ -28,8 +28,8 @@ namespace SaaSBoostHelloWorld.Repository
 
         private static readonly string DB_HOST = Environment.GetEnvironmentVariable("DB_HOST");
         private static readonly string DB_NAME = Environment.GetEnvironmentVariable("DB_NAME");
-        private static readonly string DB_USER = Environment.GetEnvironmentVariable("DB_MASTER_USERNAME");
-        private static readonly string DB_PASS = Environment.GetEnvironmentVariable("DB_MASTER_PASSWORD");
+        private static readonly string DB_USER = Environment.GetEnvironmentVariable("DB_USER");
+        private static readonly string DB_PASS = Environment.GetEnvironmentVariable("DB_PASSWORD");
         private static readonly string CONNECTION_STRING = $"Data Source={DB_HOST};Initial Catalog={DB_NAME};User id={DB_USER};Password={DB_PASS};";
 
         public Product GetProduct(int productId)
