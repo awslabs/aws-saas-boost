@@ -18,24 +18,31 @@ $VS_PATH = Get-VSSetupInstance | Select-Object -ExpandProperty InstallationPath
 $MS_BUILD_PATH = "$VS_PATH\MSBuild\Current\Bin"
 $Env:Path += ";$MS_BUILD_PATH"
 
-# Set AWS CLI profile, region and SaaS Boost environment
-#Set-AWSCredentials -ProfileName default
-Set-DefaultAWSRegion -Region us-east-1
-$SAAS_BOOST_ENV = "windows"
+$SAAS_BOOST_ENV = Read-Host -Prompt 'Please enter your AWS SaaS Boost Environment label'
+$APP_NAME = Read-Host -Prompt 'Please enter the application service name to build'
 
-$AWS_ACCOUNT_ID = (Get-StsCallerIdentity).Account
-$AWS_REGION = (Get-DefaultAWSRegion).Region
+$AWS_ACCOUNT_ID = (aws sts get-caller-identity | ConvertFrom-Json).Account
+#Write-Output "Using AWS Account ID $AWS_ACCOUNT_ID"
 
-$ECR_REPO = (Get-SSMParameterValue -Name /saas-boost/$SAAS_BOOST_ENV/ECR_REPO).Parameters[0].Value
+$AWS_REGION = (aws configure list | Select-String -Pattern "region" | Out-String).Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[2]
+#Write-Output "Using AWS Region $AWS_REGION"
+
+$SERVICE_JSON = (aws ssm get-parameter --name "/saas-boost/$SAAS_BOOST_ENV/app/$APP_NAME/SERVICE_JSON" | ConvertFrom-Json).Parameter.Value
+#Write-Output $SERVICE_JSON
+
+$ECR_REPO = ($SERVICE_JSON | ConvertFrom-Json).containerRepo
+$TAG = ($SERVICE_JSON | ConvertFrom-Json).containerTag
+
 $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
-$DOCKER_TAG = "{0}:latest" -f $DOCKER_REPO
+$DOCKER_TAG = "{0}:{1}" -f $DOCKER_REPO, $TAG
 
-Write-Output "repo = $DOCKER_REPO"
+#Write-Output $DOCKER_TAG
 
 MSBuild .\SaaSBoostHelloWorld\SaaSBoostHelloWorld.csproj /t:ContainerBuild /p:Configuration=Release
 aws ecr --region $AWS_REGION get-login-password | docker login --username AWS --password-stdin $DOCKER_REPO
 
 # The docker image is built as part of MSBuild
 #docker image build -t saasboosthelloworld -f Dockerfile .
+
 docker tag saasboosthelloworld $DOCKER_TAG
 docker push $DOCKER_TAG
