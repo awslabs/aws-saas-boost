@@ -14,6 +14,7 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
@@ -21,7 +22,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": null,
           "filesystem": null
         }
       }
@@ -36,6 +36,7 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
@@ -43,7 +44,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": null,
           "filesystem": null
         }
       }
@@ -58,6 +58,7 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
@@ -65,7 +66,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": null,
           "filesystem": null
         }
       }

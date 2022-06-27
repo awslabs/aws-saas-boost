@@ -19,7 +19,7 @@ import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
 import FileSystemSubform from './FileSystemSubform'
-import DatabaseSubform from './DatabaseSubform'
+import DatabaseTierSubform from './DatabaseTierSubform'
 
 const TierServiceSettingsSubform = (props) => {
   const {
@@ -36,10 +36,6 @@ const TierServiceSettingsSubform = (props) => {
     !!tiers && !!tiers[0] ? tiers[0].name : ''
   )
 
-  // TODO we have a tierNames list we get from the tier service?
-  // TODO does that need to be controlled by the ApplicationContainer.. wherever the initialValues are set?
-  // TODO I think we can override initialValues as we go along
-  // TODO the only important thing is that it's set going back
   return (
     <>
       <Row>
@@ -149,18 +145,14 @@ const TierServiceSettingsSubform = (props) => {
                     containerOs={serviceValues?.operatingSystem}
                     setFieldValue={props.setFieldValue}
                   ></FileSystemSubform>
-                  <DatabaseSubform
-                    isLocked={isLocked}
-                    formikTierPrefix={
-                      formikServicePrefix + '.tiers[' + selectedTier + ']'
-                    }
+                  <DatabaseTierSubform
+                    serviceValues={serviceValues?.database}
+                    tierValues={serviceValues?.database?.tiers[selectedTier]}
+                    provisionDb={serviceValues?.provisionDb}
                     dbOptions={dbOptions}
-                    provisionDb={
-                      serviceValues?.tiers[selectedTier]?.provisionDb
-                    }
-                    values={serviceValues?.tiers[selectedTier]?.database}
-                    onFileSelected={(file) => onFileSelected(serviceName, file)}
-                  ></DatabaseSubform>
+                    formikDatabaseTierPrefix={formikServicePrefix + '.database.tiers[' + selectedTier + ']'}
+                    isLocked={isLocked}
+                  ></DatabaseTierSubform>
                 </Col>
               </Row>
             </Card.Body>

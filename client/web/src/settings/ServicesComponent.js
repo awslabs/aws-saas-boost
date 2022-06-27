@@ -31,6 +31,7 @@ const ServicesComponent = (props) => {
     onFileSelected,
     tiers,
     initService,
+    setFieldValue
   } = props
 
   const [services, setServices] = useState(formik.values.services)
@@ -44,6 +45,7 @@ const ServicesComponent = (props) => {
     let newService = initService(serviceName)
     formik.values.services.push(newService)
     setServices([...formik.values.services])
+    formik.validateForm()
   }
 
   const deleteService = (index) => {
@@ -77,10 +79,14 @@ const ServicesComponent = (props) => {
                       <ServiceSettingsSubform
                         formik={formik}
                         isLocked={hasTenants}
-                        formikService={formik.values.services[index]}
+                        serviceValues={formik.values.services[index]}
                         formikErrors={formikErrors}
                         osOptions={osOptions}
+                        dbOptions={dbOptions}
+                        onFileSelected={onFileSelected}
+                        serviceName={service.name}
                         serviceIndex={index}
+                        setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                       ></ServiceSettingsSubform>
                       <TierServiceSettingsSubform
                         tiers={tiers}
@@ -88,8 +94,8 @@ const ServicesComponent = (props) => {
                         serviceName={service.name}
                         serviceValues={formik.values.services[index]}
                         dbOptions={dbOptions}
-                        onFileSelected={onFileSelected}
                         formikServicePrefix={'services[' + index + ']'}
+                        setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                       ></TierServiceSettingsSubform>
                       <Container className="mt-3">
                         <Row>
