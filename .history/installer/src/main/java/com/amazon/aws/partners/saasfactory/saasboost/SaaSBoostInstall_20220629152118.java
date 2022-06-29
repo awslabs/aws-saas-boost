@@ -240,12 +240,12 @@ public class SaaSBoostInstall {
         }
 
         while (true) {
-            System.out.print("Enter name of the AWS SaaS Boost environment to deploy. WARN: DO NOT USE '-' OR ANY OTHER SPECIAL CHARACTER. ONLY USE ALPHANUMERIC CHARACTER (Ex. dev, test, uat, prod, etc.): ");
+            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
             this.envName = Keyboard.readString();
             if (validateEnvironmentName(this.envName)) {
                 break;
             } else {
-                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric and NON-SPECIAL characters, please try again.");
+                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
             }
         }
 
@@ -1253,8 +1253,8 @@ public class SaaSBoostInstall {
     protected static boolean validateEnvironmentName(String envName) {
         boolean valid = false;
         if (envName != null) {
-            // Only allows alphanumeric chracters starting with alphabets but limits to 10 characters
-            valid = envName.matches("^[a-zA-Z](?:[a-zA-Z0-9]){0,9}$");
+            // Follows CloudFormation stack name rules but limits to 10 characters
+            valid = envName.matches("^[a-zA-Z](?:[a-zA-Z0-9-]){0,9}$");
         }
         return valid;
     }
