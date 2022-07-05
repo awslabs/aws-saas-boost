@@ -99,6 +99,7 @@ ENTRYPOINT ["C:\\LogMonitor\\LogMonitor.exe", "C:\\ServiceMonitor.exe", "w3svc"]
 ARG source
 WORKDIR /inetpub/wwwroot
 COPY ${source:-obj/Docker/publish} .
+COPY LogMonitorConfig.json .
 
 # Use our LogMonitor configuration
-RUN move C:\inetpub\wwwroot\LogMonitorConfig.json c:\LogMonitor\
+RUN move C:\inetpub\wwwroot\LogMonitorConfig.json C:\LogMonitor\
