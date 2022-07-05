@@ -70,7 +70,7 @@ Resources:
     Properties:
       Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
       Type: String
-      Value: !Sub ${Environment}.${AWS::Region}.saasboost.com\admin
+      Value: admin
   SSMParamDirectoryId:
     Type: AWS::SSM::Parameter
     Properties:

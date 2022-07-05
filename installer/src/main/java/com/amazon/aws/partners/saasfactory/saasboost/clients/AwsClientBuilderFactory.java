@@ -37,6 +37,8 @@ import software.amazon.awssdk.services.quicksight.QuickSightClient;
 import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClientBuilder;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.SsmClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -113,6 +115,10 @@ public class AwsClientBuilderFactory {
 
     public StsClientBuilder stsBuilder() {
         return decorateBuilderWithDefaults(StsClient.builder());
+    }
+
+    public SecretsManagerClientBuilder secretsManagerBuilder() {
+        return decorateBuilderWithDefaults(SecretsManagerClient.builder());
     }
 
     public static Builder builder() {
