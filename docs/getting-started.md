@@ -95,7 +95,7 @@ AWS SaaS Boost supports configuring your application settings based on _tiers_. 
 
 ![Application Setup](images/gs-tiers.png?raw=true "Tiers")
 
-Click on the **Create Tier** button to make new tiers or click on the tier name in the table listing to edit existing tiers.
+Click on the **Create Tier** button to make new tiers or click on the tier name in the table listing to edit existing tiers. For convienience, newly created tiers will initially inherit the settings of the __default__ tier. Refer to the User Guide for more details on how you can leverage tiers to optimize your SaaS application delivery.
 
 Now that your tiers are defined, you need to configure the settings for your application and its services. Select **Application** from the navigation on the left side of the screen. A page appears similar to the following:
 
@@ -103,7 +103,7 @@ Now that your tiers are defined, you need to configure the settings for your app
 
 Start by giving your application a friendly **Name**. You do not need to fill out the **Domain Name** or **SSL Certificate** entries for testing. In production, make sure you have a certificate defined in [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/) for the domain name you will host your SaaS application at. Note that [registering a domain name](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) and [setting up SSL certificates](https://docs.aws.amazon.com/acm/latest/userguide/gs.html) must be done prior to configuring AWS SaaS Boost.
 
-AWS SaaS Boost lets you configure as many "services" as necessary to support your workload. You provide a separate Docker image for each of your services. These services can be public or private and are configured independently of each other. Services do not share resources like file systems or databases, but they can communicate with each other inside the provisioned VPC network.
+AWS SaaS Boost lets you configure as many "services" as necessary to support your workload. You provide a separate Docker image for each of your services. These services can be public or private and are configured independently of each other. Services do not share resources like file systems or databases, but they can communicate with each other inside the provisioned VPC network. Publically accessible services are exposed via the Application Load Balancer and reachable via DNS over the Internet. Private services are not reachable from the Internet. Refer to the Developer and User Guides for a deeper dive on how to use services to best represent your SaaS application.
 
 Create your first service by click on the **New Service** button. A popup dialog similar to the following will appear:
 

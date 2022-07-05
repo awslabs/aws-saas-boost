@@ -39,7 +39,7 @@ Jump to the [Getting Started Guide](./docs/getting-started.md) to start working 
 | resources/custom-resources/app-services-ecr-macro | CloudFormation Macro to dynamically generate ECR repositories and supporting infrastructure for each defined application service |
 | resources/custom-resources/cidr-dynamodb | Populates a DynamoDB table with the available CIDR blocks for tenant VPCs |
 | resources/custom-resources/clear-s3-bucket | Deletes all versions of all files and delete markers from S3 buckets so CloudFormation can remove the bucket on stack delete |
-| resources/custom-resources/fsx-dns-name | Retreives the DNS entry for the hosted FSx file system |
+| resources/custom-resources/fsx-dns-name | Retrieves the DNS entry for the hosted FSx file system |
 | resources/custom-resources/rds-bootstrap | Executes your SQL file to bootstrap empty databases during tenant onboarding |
 | resources/custom-resources/rds-options | Caches the available RDS engines, versions, and instance types for the current region and account |
 | resources/custom-resources/redshift-table | Bootstraps the RedShift database for the optional analytics module |
@@ -48,12 +48,12 @@ Jump to the [Getting Started Guide](./docs/getting-started.md) to start working 
 | samples/java | Linux example monolithic app using Java Spring Framework Web MVC |
 | samples/dotnet-framework | Windows OS example monolithic app using .Net Framework 4.x ASP.NET MVC (not .NET Core) 
 | services | SaaS Boost micro services |
-| services/metric-service | Metrics Service supporting the operational insights dashboards in the admin web app |
+| services/metric-service | Metrics Service supports the operational insights dashboards in the admin web app |
 | services/onboarding-service | Onboarding Service orchestrates tenant creation, infrastructure provisioning, workload deployment and billing setup |
 | services/quotas-service | Quotas Service checks AWS Account service quotas before onboarding new tenants |
-| services/settings-service | Settings Service maintains SaaS Boost environment configuration your application configuration |
+| services/settings-service | Settings Service maintains SaaS Boost environment configuration and your application configuration |
 | services/tenant-service | Tenant Service manages your tenants and their unique attributes |
-| services/tier-service | Tier Service manages tiers for packaging your offering. You can choose different application configurations for each tier. |
+| services/tier-service | Tier Service manages tiers for packaging your offering. You can define application configurations per tier. |
 | services/user-service | User Service manages system users (users of the admin web app, not users of your application) |
 
 ## Cost
