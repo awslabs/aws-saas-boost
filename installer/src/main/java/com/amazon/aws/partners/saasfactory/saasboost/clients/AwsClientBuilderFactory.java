@@ -92,6 +92,9 @@ public class AwsClientBuilderFactory {
     public IamClientBuilder iamBuilder() {
         // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
         // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+        if (this.awsRegion.toString().startsWith("cn-")){
+            return decorateBuilderWithDefaults(IamClient.builder());
+        }
         return decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
     }
 

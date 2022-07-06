@@ -303,7 +303,7 @@ Resources:
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
+      ServiceToken: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
       AutoScalingGroup: !Ref ECSAutoScalingGroup
       Enable: 'false'
   ECSTaskExecutionRole:
@@ -331,19 +331,19 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ecr:BatchCheckLayerAvailability
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -352,22 +352,22 @@ Resources:
                 Action:
                   - ssm:GetParameters
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - Effect: Allow
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+                  - !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
               - Effect: Allow
                 Action:
                   - s3:GetBucketLocation
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
               - Effect: Allow
                 Action:
                   - fsx:DescribeFileSystems
                 Resource:
-                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:${AWS::Partition}:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -400,19 +400,19 @@ Resources:
                   - firehose:PutRecord
                   - firehose:PutRecordBatch
                 Resource:
-                  - !Sub arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
+                  - !Sub arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
+                  - !Sub arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
               - Effect: Allow
                 Action:
                   - ssmmessages:CreateControlChannel
@@ -493,7 +493,7 @@ Resources:
                   Value: !Ref MetricsStream
           EnvironmentFiles:
             - Type: s3
-              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+              Value: !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
           MountPoints:
             !If
               - ProvisionEFS
@@ -513,7 +513,7 @@ Resources:
             Fn::If:
               - ProvisionRDS
               - - Name: DB_PASSWORD
-                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
+                  ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
       Volumes:
         !If
@@ -656,12 +656,12 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:DescribeTags
@@ -673,7 +673,7 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -686,17 +686,17 @@ Resources:
                   - ecs:SubmitContainerStateChange
                   - ecs:SubmitTaskStateChange
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
               - Effect: Allow
                 Action:
                   - ecs:Poll
                   - ecs:StartTelemetrySession
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
               - Effect: Allow
                 Action:
                   - ecs:DiscoverPollEndpoint
@@ -707,10 +707,10 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
               - Effect: Allow
                 Action:
                   - ds:CreateComputer
@@ -719,7 +719,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - kms:Decrypt
-                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Condition: Ec2LaunchType
@@ -1055,7 +1055,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
       ResourceId: !Sub service/${ECSCluster}/${ECSService.Name}
-      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      RoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
       ServiceNamespace: ecs
       ScalableDimension: ecs:service:DesiredCount
       MaxCapacity: !Ref MaxTaskCount

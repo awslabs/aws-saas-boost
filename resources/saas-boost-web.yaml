@@ -27,6 +27,19 @@ Parameters:
   WebS3Bucket:
     Description: S3 Bucket to host the Admin Console web app
     Type: String
+  AuthMethod:
+    Description: Authentication method
+    Type: String
+    Default: CognitoUserPool
+    AllowedValues:
+      - CognitoUserPool
+      - OIDC
+
+Conditions:
+  CreateCognitoResources: !Equals
+    - !Ref AuthMethod
+    - CognitoUserPool
+
 Resources:
   ConsoleOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -78,6 +91,7 @@ Resources:
           CloudFrontDefaultCertificate: true
   ConsoleUserPool:
     Type: AWS::Cognito::UserPool
+    Condition: CreateCognitoResources
     DependsOn: ConsoleCloudFrontDistribution
     Properties:
       UserPoolName: !Sub sb-${Environment}-users
@@ -109,6 +123,7 @@ Resources:
           Mutable: false
   ConsoleUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    Condition: CreateCognitoResources
     Properties:
       ClientName: !Sub sb-${Environment}-client-app
       UserPoolId: !Ref ConsoleUserPool
@@ -122,16 +137,18 @@ Resources:
       GenerateSecret: false
   ConsoleIdentityPool:
     Type: AWS::Cognito::IdentityPool
+    Condition: CreateCognitoResources
     Properties:
       IdentityPoolName: !Sub sb-${Environment}-identities
       AllowClassicFlow: true
       AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
         - ClientId: !Ref ConsoleUserPoolClient
-          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${ConsoleUserPool}
+          ProviderName: !Sub cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${ConsoleUserPool}
           ServerSideTokenCheck: true
   ConsoleIdentityPoolAuthRole:
     Type: AWS::IAM::Role
+    Condition: CreateCognitoResources
     Properties:
       RoleName: !Sub sb-${Environment}-cognito-auth-role-${AWS::Region}
       Path: '/'
@@ -149,6 +166,7 @@ Resources:
               ForAnyValue:StringLike: {"cognito-identity.amazonaws.com:amr": authenticated}
   ConsoleIdentityPoolRoleAttachment:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Condition: CreateCognitoResources
     Properties:
       IdentityPoolId: !Ref ConsoleIdentityPool
       Roles:
@@ -156,6 +174,7 @@ Resources:
   # Create the initial admin user
   ConsoleAdminUser:
     Type: AWS::Cognito::UserPoolUser
+    Condition: CreateCognitoResources
     Properties:
       DesiredDeliveryMediums:
         - EMAIL
@@ -182,27 +201,30 @@ Resources:
               CanonicalUser:
                 !GetAtt ConsoleOriginAccessIdentity.S3CanonicalUserId
             Action: s3:GetObject
-            Resource: !Sub arn:aws:s3:::${WebS3Bucket}/*
+            Resource: !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}/*
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${WebS3Bucket}/*
-              - !Sub arn:aws:s3:::${WebS3Bucket}
+              - !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}/*
+              - !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}
             Condition:
               Bool: {'aws:SecureTransport': false}
 Outputs:
   SBUserPool:
+    Condition: CreateCognitoResources
     Description: SaaS Boost User Pool Id
     Value: !Ref ConsoleUserPool
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolId
   SBUserPoolClient:
+    Condition: CreateCognitoResources
     Description: SaaS Boost User Pool Client id
     Value: !Ref ConsoleUserPoolClient
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolClientId
   SBIdentityPool:
+    Condition: CreateCognitoResources
     Description: SaaS Boost Identity Pool Id
     Value: !Ref ConsoleIdentityPool
     Export:
@@ -213,6 +235,7 @@ Outputs:
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:webUrl
   CognitoSignOnBaseUri:
+    Condition: CreateCognitoResources
     Description: URL for Cognito Hosted signon base URI
     Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
     Export:

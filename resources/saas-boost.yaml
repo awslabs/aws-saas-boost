@@ -64,8 +64,21 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  AuthMethod:
+    Description: Authentication method
+    Type: String
+    Default: OIDC
+    AllowedValues:
+      - CognitoUserPool
+      - OIDC
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
+  CreateCognitoResources: !Equals
+    - !Ref AuthMethod
+    - CognitoUserPool
+  IsCNRegion: !Or
+    - !Equals [ !Sub '${AWS::Region}', 'cn-north-1']
+    - !Equals [ !Sub '${AWS::Region}', 'cn-northwest-1']
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -120,8 +133,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${Logging}/*
-              - !Sub arn:aws:s3:::${Logging}
+              - !Sub arn:${AWS::Partition}:s3:::${Logging}/*
+              - !Sub arn:${AWS::Partition}:s3:::${Logging}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket needed for CodePipeline to drive tenant deployment workflow
@@ -156,8 +169,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${Pipelines}/*
-              - !Sub arn:aws:s3:::${Pipelines}
+              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}/*
+              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket for Access Logs for ALBs for Tenants
@@ -220,8 +233,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${AthenaOutput}/*
-              - !Sub arn:aws:s3:::${AthenaOutput}
+              - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket to host the admin console web application
@@ -319,13 +332,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -334,13 +347,13 @@ Resources:
                 # We know all S3 buckets will have auto-generated names that are prefixed with the stack name
                 # Using this wildcard instead of Fn::Ref to the bucket resources avoids circular dependencies
                 Resource:
-                  - !Sub arn:aws:s3:::${AWS::StackName}-*
+                  - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-*
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::${AWS::StackName}-*/*
+                  - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-*/*
   ClearBucketLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -405,7 +418,7 @@ Resources:
     DependsOn:
       - ApplicationServicesMacroLogs
     Properties:
-      RoleName: saas-boost-app-services-macro
+      RoleName: !Sub saas-boost-app-services-macro-${AWS::Region}-${Environment}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -417,20 +430,20 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: saas-boost-app-services-macro
+        - PolicyName: !Sub saas-boost-app-services-macro-${AWS::Region}-${Environment}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   ApplicationServicesMacroLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -440,7 +453,7 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: ApplicationServicesMacroLogs
     Properties:
-      FunctionName: saas-boost-app-services-macro
+      FunctionName: !Sub saas-boost-app-services-macro-${Environment}
       Role: !GetAtt ApplicationServicesMacroExecutionRole.Arn
       Runtime: java11
       Timeout: 900
@@ -498,29 +511,29 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
                   - cloudformation:ListStackResources
                 Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
               - Effect: Allow
                 Action:
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
               - Effect: Allow
                 Action:
                   - ecr:ListTagsForResource
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
   CoreStackListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -574,14 +587,22 @@ Resources:
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-network.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-network.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
         Environment: !Ref Environment
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-managed-ad.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
       Parameters:
         Environment: !Ref Environment
         Subnets:
@@ -598,18 +619,27 @@ Resources:
     # delete the bucket
     DependsOn: InvokeClearLoggingBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-web.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-web.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
         AdminEmailAddress: !Ref AdminEmailAddress
         WebS3Bucket: !Ref AdminWeb
+        AuthMethod: !Ref AuthMethod
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
       - ApplicationServicesMacro
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-core.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-core.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -630,7 +660,11 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-billing.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -641,7 +675,11 @@ Resources:
   metering:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-metering-billing.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -659,7 +697,11 @@ Resources:
       - InvokeClearAthenaBucket
       - InvokeClearAccessLogsBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-metrics.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -673,7 +715,11 @@ Resources:
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-onboarding.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -689,7 +735,11 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-quota.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -699,7 +749,11 @@ Resources:
   settings:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-settings.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -713,7 +767,11 @@ Resources:
   tenant:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tenant.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -725,7 +783,11 @@ Resources:
   tier:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tier.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -734,26 +796,43 @@ Resources:
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
   user:
     Type: AWS::CloudFormation::Stack
+    Condition: CreateCognitoResources
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-user.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-user.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-public-api.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-public-api-oidc.yaml
+          - 'Fn::If':
+              - CreateCognitoResources
+              - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api.yaml
+              - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api-oidc.yaml
       Parameters:
         Environment: !Ref Environment
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        CognitoUserPoolId:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt web.Outputs.SBUserPool
+            - ''
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -777,18 +856,54 @@ Resources:
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
         TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
-        UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
-        UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
-        UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
-        UserServiceUpdate: !GetAtt user.Outputs.UserServiceUpdateArn
-        UserServiceDelete: !GetAtt user.Outputs.UserServiceDeleteArn
-        UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
-        UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
-        UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        UserServiceGetAll:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceGetAllArn
+            - ''
+        UserServiceInsert:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceInsertArn
+            - ''
+        UserServiceById:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceByIdArn
+            - ''
+        UserServiceUpdate:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceUpdateArn
+            - ''
+        UserServiceDelete:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceDeleteArn
+            - ''
+        UserServiceEnable:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceEnableArn
+            - ''
+        UserServiceDisable:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceDisableArn
+            - ''
+        UserServiceToken:
+          'Fn::If':
+            - CreateCognitoResources
+            - !GetAtt user.Outputs.UserServiceTokenArn
+            - ''
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-private-api.yaml
+      TemplateURL:
+        'Fn::If':
+          - IsCNRegion
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-private-api.yaml
+          - !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-private-api.yaml
       Parameters:
         Environment: !Ref Environment
         PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi

@@ -144,7 +144,6 @@ public class SaaSBoostInstall {
 
         accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
     }
-
     public static void main(String[] args) {
         SaaSBoostInstall installer = new SaaSBoostInstall();
         try {
@@ -1439,7 +1438,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
             for (Path sourceDirectory : sourceDirectories) {
                 if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
-                    executeCommand("mvn", null, sourceDirectory.toFile());
+                    // executeCommand("mvn", null, sourceDirectory.toFile());
                     final Path targetDir = sourceDirectory.resolve("target");
                     try (Stream<Path> stream = Files.list(targetDir)) {
                         Set<Path> lambdaSourcePackage = stream
@@ -1473,6 +1472,7 @@ public class SaaSBoostInstall {
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
+        LOGGER.info("createSaaSBoostStack::templateURL " + saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml");
         String stackId = null;
         try {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -2112,5 +2112,12 @@ public class SaaSBoostInstall {
             password.append(chars[characterBucket][random.nextInt(chars[characterBucket].length)]);
         }
         return password.toString();
+    }
+
+    public static String getAWSPartition() {
+        if (AWS_REGION.toString().startsWith("cn-")){
+            return "aws-cn";
+        }
+        return "aws";
     }
 }
