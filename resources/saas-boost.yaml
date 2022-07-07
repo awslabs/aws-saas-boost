@@ -418,7 +418,7 @@ Resources:
     DependsOn:
       - ApplicationServicesMacroLogs
     Properties:
-      RoleName: !Sub saas-boost-app-services-macro-${AWS::Region}-${Environment}
+      RoleName: saas-boost-app-services-macro
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -430,7 +430,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub saas-boost-app-services-macro-${AWS::Region}-${Environment}
+        - PolicyName: saas-boost-app-services-macro
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -453,7 +453,7 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: ApplicationServicesMacroLogs
     Properties:
-      FunctionName: !Sub saas-boost-app-services-macro-${Environment}
+      FunctionName: saas-boost-app-services-macro
       Role: !GetAtt ApplicationServicesMacroExecutionRole.Arn
       Runtime: java11
       Timeout: 900

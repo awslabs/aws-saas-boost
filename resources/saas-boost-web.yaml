@@ -39,6 +39,9 @@ Conditions:
   CreateCognitoResources: !Equals
     - !Ref AuthMethod
     - CognitoUserPool
+  IsCNRegion: !Or
+    - !Equals [ !Sub '${AWS::Region}', 'cn-north-1' ]
+    - !Equals [ !Sub '${AWS::Region}', 'cn-northwest-1' ]
 
 Resources:
   ConsoleOriginAccessIdentity:
@@ -56,7 +59,7 @@ Resources:
         IPV6Enabled: false
         HttpVersion: http2
         Origins:
-          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
+          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.${AWS::URLSuffix}
             Id: !Sub sb-${Environment}-s3-website
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
@@ -81,10 +84,25 @@ Resources:
           TargetOriginId: !Sub sb-${Environment}-s3-website
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
+          ForwardedValues:
+            'Fn::If':
+              - IsCNRegion
+              -  QueryString: true
+                 Cookies:
+                   Forward: none
+              - !Ref AWS::NoValue
           # CachingOptimized managed cache policy
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          CachePolicyId:
+             'Fn::If':
+               - IsCNRegion
+               - !Ref AWS::NoValue
+               - 658327ea-f89d-4fab-a63d-7e88639e58f6
           # CORS-S3Origin managed origin request policy
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          OriginRequestPolicyId:
+            'Fn::If':
+              - IsCNRegion
+              - !Ref AWS::NoValue
+              - 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
           # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
           ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
