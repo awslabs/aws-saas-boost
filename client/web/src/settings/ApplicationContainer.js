@@ -39,10 +39,9 @@ import { ConfirmModal } from './ConfirmModal'
 import { selectDbOptions, selectOsOptions, selectCertOptions } from '../options/ducks'
 import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
 import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
+import { FILESYSTEM_TYPES } from './components/filesystem'
 
 export function ApplicationContainer(props) {
-  const EFS = 'EFS'
-  const FSX = 'FSX'
   const LINUX = 'LINUX'
 
   const dispatch = useDispatch()
@@ -156,6 +155,29 @@ export function ApplicationContainer(props) {
     return parts.join(':')
   }
 
+  const cleanFilesystemForSubmittal = (provisionFS, filesystemType, filesystem) => {
+    if (provisionFS) {
+      let {
+        weeklyMaintenanceDay,
+        weeklyMaintenanceTime,
+        ...cleanedFs
+      } = filesystem
+      cleanedFs.type = filesystemType
+      if (weeklyMaintenanceDay && weeklyMaintenanceTime) {
+        cleanedFs.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${getFormattedTime(weeklyMaintenanceTime)}`
+      }
+      let wantedKeys = Object.keys(FILESYSTEM_TYPES[cleanedFs.type].defaults)
+      Object.keys(cleanedFs).forEach(k => {
+        if (!wantedKeys.includes(k) && k !== 'type') {
+          delete cleanedFs[k]
+        }
+      })
+      return cleanedFs
+    } else {
+      return null
+    }
+  }
+
   const updateConfiguration = async (values) => {
     const isMatch = (pw, encryptedPw) => {
       return encryptedPw.substring(0, 8) === pw
@@ -176,25 +198,9 @@ export function ApplicationContainer(props) {
             database,
             provisionDb,
             provisionFS,
+            filesystemType,
             ...rest
           } = thisService.tiers[tierName]
-          let { filesystemLifecycle, ...cleanedFs } = filesystem
-          let {
-            weeklyMaintenanceDay,
-            weeklyMaintenanceTime: time,
-            ...cleanedFsx
-          } = cleanedFs.fsx
-          const weeklyTime = getFormattedTime(time)
-          const fsx = {
-            ...cleanedFsx,
-            weeklyMaintenanceTime: `${weeklyMaintenanceDay}:${weeklyTime}`,
-          }
-          cleanedFs = {
-            ...cleanedFs,
-            efs: thisService.filesystem?.fileSystemType === EFS ? cleanedFs.efs : null,
-            fsx: thisService.filesystem?.fileSystemType === FSX ? fsx : null,
-            fileSystemType: thisService.filesystem?.fileSystemType,
-          }
           const {
             port,
             hasEncryptedPassword,
@@ -214,7 +220,7 @@ export function ApplicationContainer(props) {
           }
           cleanedTiersMap[tierName] = {
             ...rest,
-            filesystem: provisionFS ? cleanedFs : null,
+            filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
             database: provisionDb ? cleanedDb : null,
           }
         }

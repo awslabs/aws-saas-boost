@@ -90,6 +90,7 @@ const ServicesComponent = (props) => {
                         dbOptions={dbOptions}
                         onFileSelected={onFileSelected}
                         formikServicePrefix={'services[' + index + ']'}
+                        setFieldValue={props.setFieldValue}
                       ></TierServiceSettingsSubform>
                       <Container className="mt-3">
                         <Row>
