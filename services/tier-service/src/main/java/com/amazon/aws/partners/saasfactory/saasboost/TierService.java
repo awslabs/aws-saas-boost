@@ -126,6 +126,9 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
             return response.withStatusCode(400).withBody("{\"message\":\"Body should represent a Tier.\"}");
         }
         Tier createdTier = store.createTier(newTier);
+        if (createdTier.defaultTier()) {
+            enforceSingleDefaultTier(createdTier);
+        }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("TierService::createTier exec " + totalTimeMillis);
         return new APIGatewayProxyResponseEvent()
@@ -162,31 +165,11 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
             Tier oldTier = store.getTier(providedTier.getId());
             // TODO validate that user isn't trying to update fields that should not be updated, e.g. created, id
             updatedTier = store.updateTier(providedTier);
-            // handling default cases:
-            //   - we are now default
-            //     | because we enforce only one default, we must unset all other default tiers
-            //   - we are no longer default
-            //     | if we enforce there is always a default Tier we need to decide
-            //     | which is now default. otherwise we have no extra action to take
-            //   - default didn't change (no action)
             if (!oldTier.defaultTier() && updatedTier.defaultTier()) {
                 // we weren't default but now we are, this means all other default
                 // Tiers should be updated to no longer be default,
                 // as we need to enforce only one default Tier at a given time
-                List<Tier> defaultTiers = store.listTiers().stream()
-                        .filter(tier -> tier.defaultTier())
-                        .collect(Collectors.toList());
-                for (Tier t : defaultTiers) {
-                    if (!t.getId().equals(updatedTier.getId())) {
-                        try {
-                            store.updateTier(Tier.builder(t).defaultTier(false).build());
-                        } catch (TierNotFoundException tnfe) {
-                            // race condition between the list we just pulled and the update
-                            LOGGER.error("Could not enforce a single default tier."
-                                    + " Found {} default tiers but {} does not exist.", defaultTiers, t);
-                        }
-                    }
-                }
+                enforceSingleDefaultTier(updatedTier);
             }
         } catch (TierNotFoundException tnfe) {
             return new APIGatewayProxyResponseEvent()
@@ -224,5 +207,22 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
         return new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
                 .withStatusCode(200);
+    }
+
+    public void enforceSingleDefaultTier(Tier defaultTier) {
+        List<Tier> defaultTiers = store.listTiers().stream()
+                .filter(tier -> tier.defaultTier())
+                .collect(Collectors.toList());
+        for (Tier t : defaultTiers) {
+            if (!t.getId().equals(defaultTier.getId())) {
+                try {
+                    store.updateTier(Tier.builder(t).defaultTier(false).build());
+                } catch (TierNotFoundException tnfe) {
+                    // race condition between the list we just pulled and the update
+                    LOGGER.error("Could not enforce a single default tier."
+                            + " Found {} default tiers but {} does not exist.", defaultTiers, t);
+                }
+            }
+        }
     }
 }
