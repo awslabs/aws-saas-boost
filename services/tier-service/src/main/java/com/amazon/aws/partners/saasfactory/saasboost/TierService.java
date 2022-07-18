@@ -216,6 +216,8 @@ public class TierService implements RequestHandler<Map<String, Object>, APIGatew
         for (Tier t : defaultTiers) {
             if (!t.getId().equals(defaultTier.getId())) {
                 try {
+                    // TODO in the event that multiple users try to update tiers at the same time, different
+                    // TODO lambda invocations may step on each other. to get around this use DDB TransactWriteItems
                     store.updateTier(Tier.builder(t).defaultTier(false).build());
                 } catch (TierNotFoundException tnfe) {
                     // race condition between the list we just pulled and the update
