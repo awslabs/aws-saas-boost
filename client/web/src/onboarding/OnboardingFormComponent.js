@@ -75,15 +75,18 @@ export default function OnboardingFormComponent(props) {
 
   const initialValues = {
     name: '',
-    tier: tier || 'default',
+    tier: tiers?.filter((tier) => tier.defaultTier)[0].name || '',
     subdomain: '',
     billingPlan: '',
     hasBilling: hasBilling,
     hasDomain: hasDomain,
   }
 
-  const getTiers = (tiers) => {
-    const defaultTier = tiers.filter((tier) => tier.defaultTier)[0]
+  const getTiers = (tiers, selectedTier) => {
+    const defaultTier = tiers.filter((tier) => tier.defaultTier)[0].name
+    if (!selectedTier) {
+      selectedTier = defaultTier
+    }
     const options = tiers.map((tier) => {
       return (
         <option value={tier.name} key={tier.id}>
@@ -92,7 +95,10 @@ export default function OnboardingFormComponent(props) {
       )
     })
     return (
-      <SaasBoostSelect type="select" name="tier" label="Select Tier" value={defaultTier?.name}>
+      <SaasBoostSelect type="select" name="tier" label="Select Tier" value={selectedTier}>
+        <option value='' key=''>
+          Select a Tier..
+        </option>
         {options}
       </SaasBoostSelect>
     )
@@ -149,8 +155,7 @@ export default function OnboardingFormComponent(props) {
     ) : null
   }
 
-  let validationSchema
-  validationSchema = Yup.object({
+  let validationSchema = Yup.object({
     name: Yup.string()
       .max(100, 'Must be 100 characters or less.')
       .required('Required'),
@@ -197,7 +202,7 @@ export default function OnboardingFormComponent(props) {
                       type="text"
                       maxLength={100}
                     />
-                    {getTiers(tiers)}
+                    {getTiers(tiers, formik.values.tier)}
                     {getDomainUi(domainName, hasDomain)}
                     {getBillingUi(billingPlans, hasBilling)}
                     <SaasBoostFileUpload
