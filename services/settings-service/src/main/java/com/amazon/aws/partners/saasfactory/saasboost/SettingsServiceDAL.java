@@ -352,7 +352,7 @@ public class SettingsServiceDAL {
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
-            // e.g. /app/service_001/DB_MASTER_PASSWORD
+            // e.g. /app/service_001/DB_PASSWORD
             //      /app/service_001/SERVICE_JSON
             if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
                 ServiceConfig existingServiceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
@@ -361,7 +361,7 @@ public class SettingsServiceDAL {
                 ServiceConfig.Builder editedServiceConfigBuilder = ServiceConfig.builder(existingServiceConfig);
                 if (existingServiceConfig.hasDatabase()) {
                     Database.Builder editedDatabaseBuilder = Database.builder(existingServiceConfig.getDatabase());
-                    Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/DB_MASTER_PASSWORD", false);
+                    Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/DB_PASSWORD", false);
                     if (dbMasterPasswordSetting != null) {
                         editedDatabaseBuilder.password(dbMasterPasswordSetting.getValue());
                     }
@@ -510,8 +510,8 @@ public class SettingsServiceDAL {
 
     public List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
         List<Setting> settings = new ArrayList<>();
-        // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
-        // but that means we need to create the DB_MASTER_PASSWORD for each Service
+        // we're keeping the DB_PASSWORD separate so we have an accessible form *somewhere*
+        // but that means we need to create the DB_PASSWORD for each Service
 
         // editedServiceConfig so that we can replace the password in all databases in tiers to have empty passwords
         // that way we aren't storing actual passwords.
@@ -521,7 +521,7 @@ public class SettingsServiceDAL {
             dbPasswordSettingValue = serviceConfig.getDatabase().getPassword();
 
             Setting dbPasswordSetting = Setting.builder()
-                    .name(APP_BASE_PATH + serviceConfig.getName() + "/DB_MASTER_PASSWORD")
+                    .name(APP_BASE_PATH + serviceConfig.getName() + "/DB_PASSWORD")
                     .value(dbPasswordSettingValue)
                     .secure(true).readOnly(false).build();
             settings.add(dbPasswordSetting);
@@ -529,7 +529,7 @@ public class SettingsServiceDAL {
             // place the passwordParam so appConfig holders can find the password if they need it
             // and override password
             // passwordParam should be an arn of the form
-            // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
+            // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PASSWORD
             editedServiceConfigBuilder.database(Database.builder(serviceConfig.getDatabase())
                     .password("**encrypted**")
                     .passwordParam(toParameterStore(dbPasswordSetting).name())

@@ -73,8 +73,8 @@ export function ApplicationComponent(props) {
   const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, fileSystemType) => {
     let tierValuesCopy = Object.assign({}, tierValues)
     let defaults = Object.assign({
-      min: 1,
-      max: 1,
+      min: 0,
+      max: 0,
       computeSize: '',
       filesystem: {
         fileSystemType: fileSystemType,

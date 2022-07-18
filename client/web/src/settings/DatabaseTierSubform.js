@@ -43,6 +43,12 @@ export default class DatabaseTierSubform extends React.Component {
   }
 
   render() {
+
+    if (this.props.provisionDb && !!!this.props.tierValues?.instance && !!this.props.defaultTierValues?.instance) {
+      // set instance to default if it doesn't exist already
+      this.props.setFieldValue(this.props.formikDatabaseTierPrefix + '.instance', this.props.defaultTierValues?.instance)
+    }
+
     return (
       <Fragment>
         {this.props.provisionDb && (
@@ -62,7 +68,6 @@ export default class DatabaseTierSubform extends React.Component {
                           this.props.formikDatabaseTierPrefix + '.instance'
                         }
                         id={this.props.formikDatabaseTierPrefix + '.instance'}
-                        value={this.props.tierValues?.instance}
                       >
                         <option value="">Please select</option>
                         {this.getInstanceOptions()}
@@ -85,4 +90,5 @@ DatabaseTierSubform.propTypes = {
   values: PropTypes.object,
   provisionDb: PropTypes.bool,
   isLocked: PropTypes.bool,
+  setFieldValue: PropTypes.func,
 }

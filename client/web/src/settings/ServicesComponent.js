@@ -30,8 +30,7 @@ const ServicesComponent = (props) => {
     dbOptions,
     onFileSelected,
     tiers,
-    initService,
-    setFieldValue
+    initService
   } = props
 
   const [services, setServices] = useState(formik.values.services)
@@ -55,6 +54,11 @@ const ServicesComponent = (props) => {
     // kick off validation so the schema recognizes the tombstone and clears any pending errors
     formik.validateForm()
   }
+
+  const defaultTier = () => {
+    return tiers.filter(t => t.defaultTier)[0].name
+  }
+
   return (
     <>
       <Card className="mb-3">
@@ -90,6 +94,7 @@ const ServicesComponent = (props) => {
                       ></ServiceSettingsSubform>
                       <TierServiceSettingsSubform
                         tiers={tiers}
+                        defaultTier={defaultTier()}
                         isLocked={hasTenants}
                         serviceName={service.name}
                         serviceValues={formik.values.services[index]}

@@ -77,7 +77,7 @@ export default class DatabaseSubform extends React.Component {
                   name={this.props.formikServicePrefix + '.provisionDb'}
                   id={this.props.formikServicePrefix + '.provisionDb'}
                   value={!!this.props?.provisionDb ? true : false}
-                  label="Provision a database for the application"
+                  label="Provision a database for this service"
                 />
                 {this.props.provisionDb && (
                   <Row>

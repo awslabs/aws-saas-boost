@@ -58,7 +58,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "SERVICE_NAME", "IS_PUBLIC", "PATH", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK",
                     "FILE_SYSTEM_MOUNT_POINT", "FILE_SYSTEM_ENCRYPT", "FILE_SYSTEM_LIFECYCLE", "MIN_COUNT", "MAX_COUNT", "DB_ENGINE",
                     "DB_VERSION", "DB_PARAM_FAMILY", "DB_INSTANCE_TYPE", "DB_NAME", "DB_HOST", "DB_PORT", "DB_MASTER_USERNAME",
-                    "DB_MASTER_PASSWORD", "DB_BOOTSTRAP_FILE", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
+                    "DB_PASSWORD", "DB_BOOTSTRAP_FILE", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
                     //Added for FSX
                     "FILE_SYSTEM_TYPE", // EFS or FSX
                     "FSX_STORAGE_GB", // GB 32 to 65,536
