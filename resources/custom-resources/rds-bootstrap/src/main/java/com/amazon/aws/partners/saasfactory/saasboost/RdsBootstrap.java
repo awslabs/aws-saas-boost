@@ -30,11 +30,13 @@ import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.regex.Pattern;
 
 public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RdsBootstrap.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
+    static final String SQL_STATEMENT_DELIMITER = ";\r?\n";
     private final S3Client s3;
     private final SsmClient ssm;
 
@@ -127,7 +129,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                                     Statement sql = conn.createStatement()) {
                                 conn.setAutoCommit(false);
                                 Scanner sqlScanner = new Scanner(bootstrapSql, StandardCharsets.UTF_8);
-                                sqlScanner.useDelimiter(";");
+                                sqlScanner.useDelimiter(Pattern.compile(SQL_STATEMENT_DELIMITER));
                                 while (sqlScanner.hasNext()) {
                                     String ddl = sqlScanner.next().trim();
                                     if (!ddl.isEmpty()) {
@@ -178,31 +180,45 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         return null;
     }
 
-    private static boolean databaseExists(Connection conn, String engine, String database) throws SQLException {
+    static boolean databaseExists(Connection conn, String engine, String database) throws SQLException {
         boolean databaseExists = false;
-        ResultSet rs;
-        if ("postgresql".equals(engine)) {
-            // Postgres doesn't support multiple databases (catalogs) per connection, so we can't use the JDBC
-            // metadata to get a list of all the databases on the host like you can with MySQL/MariaDB
-            try (Statement sql = conn.createStatement()) {
+        Statement sql = null;
+        ResultSet rs = null;
+        try {
+            if ("postgresql".equals(engine)) {
+                // Postgres doesn't support multiple databases (catalogs) per connection, so we can't use the JDBC
+                // metadata to get a list of all the databases on the host like you can with MySQL/MariaDB
+                sql = conn.createStatement();
                 rs = sql.executeQuery("SELECT datname AS TABLE_CAT FROM pg_database WHERE datistemplate = false");
+            } else {
+                DatabaseMetaData dbMetaData = conn.getMetaData();
+                rs = dbMetaData.getCatalogs();
             }
-        } else {
-            DatabaseMetaData dbMetaData = conn.getMetaData();
-            rs = dbMetaData.getCatalogs();
-        }
-        while (rs.next()) {
-            LOGGER.info("Database exists check: TABLE_CAT = {}", rs.getString("TABLE_CAT"));
-            if (rs.getString("TABLE_CAT").equals(database)) {
-                databaseExists = true;
-                break;
+            if (rs != null) {
+                while (rs.next()) {
+                    LOGGER.info("Database exists check: TABLE_CAT = {}", rs.getString("TABLE_CAT"));
+                    if (rs.getString("TABLE_CAT").equals(database)) {
+                        databaseExists = true;
+                        break;
+                    }
+                }
+            } else {
+                LOGGER.error("No database catalog result set!");
             }
+        } catch (SQLException e) {
+            LOGGER.error("Error checking if database exists", e);
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw e;
+        } finally {
+            // Do our own resource cleanup instead of using try...with resources because in the PostgreSQL
+            // branch the Statement object will close out our ResultSet before we can loop over it.
+            closeQuietly(rs);
+            closeQuietly(sql);
         }
-        rs.close();
         return databaseExists;
     }
 
-    public static void createdb(Connection conn, String engine, String database) throws SQLException {
+    static void createdb(Connection conn, String engine, String database) throws SQLException {
         LOGGER.info("Creating {} database {}", engine, database);
         try (Statement create = conn.createStatement()) {
             if (engine.contains("postgresql")) {
@@ -224,7 +240,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         }
     }
 
-    private static String jdbcUrl(String type, String driverClassName, String host, String port, String database) {
+    static String jdbcUrl(String type, String driverClassName, String host, String port, String database) {
         StringBuilder url = new StringBuilder("jdbc:");
         url.append(type);
         if (!"oracle.jdbc.driver.OracleDriver".equals(driverClassName)) {
@@ -247,7 +263,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         return url.toString();
     }
 
-    private static String typeFromPort(String port) {
+    static String typeFromPort(String port) {
         String type;
         switch (port) {
             case "5432":
@@ -268,7 +284,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
         return type;
     }
 
-    private static String driverClassNameFromPort(String port) {
+    static String driverClassNameFromPort(String port) {
         String driverClassName;
         switch (port) {
             case "5432":
@@ -287,5 +303,15 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                 driverClassName = null;
         }
         return driverClassName;
+    }
+
+    static void closeQuietly(AutoCloseable resource) {
+        if (resource != null) {
+            try {
+                resource.close();
+            } catch (Exception e) {
+                LOGGER.warn("Resource close failed", e);
+            }
+        }
     }
 }

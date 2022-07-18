@@ -22,16 +22,17 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.*;
 
 public class RdsBootstrapTest {
 
     @Test
-    public void testSqlScanner() throws Exception {
+    public void testSqlScanner() {
         InputStream bootstrapSQL = Thread.currentThread().getContextClassLoader().getResourceAsStream("bootstrap.sql");
         Scanner sqlScanner = new Scanner(bootstrapSQL, "UTF-8");
-        sqlScanner.useDelimiter(";");
+        sqlScanner.useDelimiter(Pattern.compile(RdsBootstrap.SQL_STATEMENT_DELIMITER));
         List<String> sql = new ArrayList<>();
         while (sqlScanner.hasNext()) {
             String ddl = sqlScanner.next().trim();
