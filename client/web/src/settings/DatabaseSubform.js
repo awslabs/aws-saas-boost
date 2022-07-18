@@ -144,10 +144,7 @@ export default class DatabaseSubform extends React.Component {
                           />
                           <SaasBoostFileUpload
                             fileMask=".sql"
-                            disabled={
-                              !this.props.values?.database ||
-                              this.props.isLocked
-                            }
+                            disabled={!this.props.values || this.props.isLocked}
                             label="Please select or drop a .sql file that will be used to initialize your database"
                             onFileSelected={this.props.onFileSelected}
                             fname={this.props.values?.bootstrapFilename}
