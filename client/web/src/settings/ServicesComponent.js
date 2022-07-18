@@ -56,7 +56,7 @@ const ServicesComponent = (props) => {
   }
 
   const defaultTier = () => {
-    return tiers.filter(t => t.defaultTier)[0].name
+    return tiers?.filter(t => t.defaultTier)[0].name
   }
 
   return (
