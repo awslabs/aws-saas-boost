@@ -53,7 +53,7 @@ const ServiceSettingsSubform = (props) => {
     ) : null
   }
 
-  const operatingSystemFeedback = !!formikErrors.services ? formikErrors.services[serviceIndex].operatingSystem : undefined
+  const operatingSystemFeedback = !!formikErrors.services ? formikErrors.services[serviceIndex]?.operatingSystem : undefined
 
   return (
     <>

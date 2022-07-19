@@ -56,7 +56,10 @@ const ServicesComponent = (props) => {
   }
 
   const defaultTier = () => {
-    return tiers?.filter(t => t.defaultTier)[0].name
+    let filteredTiers = tiers?.filter(t => t.defaultTier)
+    if (!!filteredTiers && filteredTiers.length > 0) {
+      return filteredTiers[0].name
+    }
   }
 
   return (
