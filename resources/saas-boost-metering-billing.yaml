@@ -447,7 +447,7 @@ Resources:
           DYNAMODB_TABLE_NAME: !Ref MeteringBillingTable
           DYNAMODB_CONFIG_INDEX_NAME: !Ref TenantConfigurationIndexName
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
@@ -511,7 +511,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -589,7 +589,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
@@ -639,13 +639,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
@@ -653,9 +653,9 @@ Resources:
                   - events:EnableRule
                   - events:DisableRule
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/sb-${Environment}-bill-publish-event
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/sb-${Environment}-bill-publish-event
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -695,7 +695,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
@@ -745,20 +745,20 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                   - logs:CreateLogGroup
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -797,7 +797,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::disableTenantBillingListener
@@ -846,19 +846,19 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole

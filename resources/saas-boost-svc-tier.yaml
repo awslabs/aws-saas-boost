@@ -66,13 +66,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
@@ -82,7 +82,7 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:UpdateItem
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TiersTable}
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TiersTable}
   TierServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:
