@@ -911,13 +911,15 @@ public class OnboardingService {
                         Integer dbPort = -1;
                         String dbDatabase = "";
                         String dbBootstrap = "";
-                        Map<String, Object> database = (Map<String, Object>) tierConfig.get("database");
+                        Map<String, Object> database = (Map<String, Object>) service.get("database");
                         if (database != null && !database.isEmpty()) {
                             enableDatabase = Boolean.TRUE;
                             dbEngine = (String) database.get("engineName");
                             dbVersion = (String) database.get("version");
                             dbFamily = (String) database.get("family");
-                            dbInstanceClass = (String) database.get("instanceClass");
+                            Map<String, Object> databaseTiers = (Map<String, Object>) database.get("tiers");
+                            Map<String, Object> databaseTierConfig = (Map<String, Object>) databaseTiers.get(tier);
+                            dbInstanceClass = (String) databaseTierConfig.get("instanceClass");
                             dbDatabase = Objects.toString(database.get("database"), "");
                             dbUsername = (String) database.get("username");
                             dbPort = (Integer) database.get("port");

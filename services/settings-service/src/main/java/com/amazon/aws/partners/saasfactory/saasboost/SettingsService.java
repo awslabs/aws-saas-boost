@@ -58,7 +58,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     "SERVICE_NAME", "IS_PUBLIC", "PATH", "COMPUTE_SIZE", "TASK_CPU", "TASK_MEMORY", "CONTAINER_PORT", "HEALTH_CHECK",
                     "FILE_SYSTEM_MOUNT_POINT", "FILE_SYSTEM_ENCRYPT", "FILE_SYSTEM_LIFECYCLE", "MIN_COUNT", "MAX_COUNT", "DB_ENGINE",
                     "DB_VERSION", "DB_PARAM_FAMILY", "DB_INSTANCE_TYPE", "DB_NAME", "DB_HOST", "DB_PORT", "DB_MASTER_USERNAME",
-                    "DB_MASTER_PASSWORD", "DB_BOOTSTRAP_FILE", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
+                    "DB_PASSWORD", "DB_BOOTSTRAP_FILE", "CLUSTER_OS", "CLUSTER_INSTANCE_TYPE",
                     //Added for FSX
                     "FILE_SYSTEM_TYPE", // EFS or FSX
                     "FSX_STORAGE_GB", // GB 32 to 65,536
@@ -607,11 +607,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
             if (serviceName.equals(serviceConfig.getKey())) {
                 ServiceConfig service = serviceConfig.getValue();
-                for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
-                    ServiceTierConfig tier = tierConfig.getValue();
-                    LOGGER.info("Saving bootstrap.sql file for {} {} tier", service.getName(), tierConfig.getKey());
-                    tier.getDatabase().setBootstrapFilename(key);
-                }
+                LOGGER.info("Saving bootstrap.sql file for {}", service.getName());
+                service.getDatabase().setBootstrapFilename(key);
                 dal.setServiceConfig(service);
                 break;
             }
@@ -678,29 +675,24 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         for (Map.Entry<String, ServiceConfig> serviceConfig : appConfig.getServices().entrySet()) {
             String serviceName = serviceConfig.getKey();
             ServiceConfig service = serviceConfig.getValue();
-            for (Map.Entry<String, ServiceTierConfig> tierConfig : service.getTiers().entrySet()) {
-                ServiceTierConfig tier = tierConfig.getValue();
-                if (tier.hasDatabase() && Utils.isBlank(tier.getDatabase().getBootstrapFilename())) {
-                    try {
-                        // Create a presigned S3 URL to upload the database bootstrap file to
-                        LOGGER.info("Generating S3 presigned URL for service {}", serviceName);
-                        final String key = "services/" + serviceName + "/bootstrap.sql";
-                        final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
-                        PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
-                                .signatureDuration(expires)
-                                .putObjectRequest(PutObjectRequest.builder()
-                                        .bucket(RESOURCES_BUCKET)
-                                        .key(key)
-                                        .build()
-                                )
-                                .build()
-                        );
-                        tier.getDatabase().setBootstrapFilename(presignedObject.url().toString());
-                    } catch (S3Exception s3Error) {
-                        LOGGER.error("s3 presign url failed", s3Error);
-                        LOGGER.error(Utils.getFullStackTrace(s3Error));
-                        throw s3Error;
-                    }
+            if (service.hasDatabase() && Utils.isBlank(service.getDatabase().getBootstrapFilename())) {
+                try {
+                    // Create a presigned S3 URL to upload the database bootstrap file to
+                    final String key = "services/" + serviceName + "/bootstrap.sql";
+                    final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
+                    PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
+                            .signatureDuration(expires)
+                            .putObjectRequest(PutObjectRequest.builder()
+                                    .bucket(RESOURCES_BUCKET)
+                                    .key(key)
+                                    .build()
+                            ).build()
+                    );
+                    service.getDatabase().setBootstrapFilename(presignedObject.url().toString());
+                } catch (S3Exception s3Error) {
+                    LOGGER.error("s3 presign url failed", s3Error);
+                    LOGGER.error(Utils.getFullStackTrace(s3Error));
+                    throw s3Error;
                 }
             }
         }

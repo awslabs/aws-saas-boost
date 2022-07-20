@@ -190,38 +190,17 @@ export function ApplicationContainer(props) {
         let thisService = services[serviceIndex]
         if (thisService.tombstone) continue
         // update the tier config
-        // TODO: validate tiers against Tier Service
         let cleanedTiersMap = {}
         for (var tierName in thisService.tiers) {
           const {
             filesystem,
-            database,
-            provisionDb,
             provisionFS,
             filesystemType,
             ...rest
           } = thisService.tiers[tierName]
-          const {
-            port,
-            hasEncryptedPassword,
-            encryptedPassword,
-            bootstrapFilename,
-            ...restDb
-          } = database
-          // If we detected an encrypted password coming in, and it looks like they haven't changed it
-          // then send the encrypted password back to the server. Otherwise send what they changed.
-          const cleanedDb = {
-            ...restDb,
-            password:
-              hasEncryptedPassword &&
-              isMatch(restDb.password, encryptedPassword)
-                ? encryptedPassword
-                : restDb.password,
-          }
           cleanedTiersMap[tierName] = {
             ...rest,
             filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
-            database: provisionDb ? cleanedDb : null,
           }
         }
         // update the service config
@@ -229,14 +208,33 @@ export function ApplicationContainer(props) {
           name,
           windowsVersion,
           operatingSystem,
-          filesystem,
+          provisionDb,
           tombstone,
+          database,
           ...rest
         } = thisService
+        const {
+          port,
+          hasEncryptedPassword,
+          encryptedPassword,
+          bootstrapFilename,
+          ...restDb
+        } = database
+        // If we detected an encrypted password coming in, and it looks like they haven't changed it
+        // then send the encrypted password back to the server. Otherwise send what they changed.
+        const cleanedDb = {
+          ...restDb,
+          password:
+            hasEncryptedPassword &&
+            isMatch(restDb.password, encryptedPassword)
+              ? encryptedPassword
+              : restDb.password,
+        }
         cleanedServicesMap[name] = {
           ...rest,
           name,
           operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+          database: provisionDb ? cleanedDb : null,
           tiers: cleanedTiersMap,
         }
       }

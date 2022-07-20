@@ -30,7 +30,7 @@ const ServicesComponent = (props) => {
     dbOptions,
     onFileSelected,
     tiers,
-    initService,
+    initService
   } = props
 
   const [services, setServices] = useState(formik.values.services)
@@ -44,6 +44,7 @@ const ServicesComponent = (props) => {
     let newService = initService(serviceName)
     formik.values.services.push(newService)
     setServices([...formik.values.services])
+    formik.validateForm()
   }
 
   const deleteService = (index) => {
@@ -53,6 +54,14 @@ const ServicesComponent = (props) => {
     // kick off validation so the schema recognizes the tombstone and clears any pending errors
     formik.validateForm()
   }
+
+  const defaultTier = () => {
+    let filteredTiers = tiers?.filter(t => t.defaultTier)
+    if (!!filteredTiers && filteredTiers.length > 0) {
+      return filteredTiers[0].name
+    }
+  }
+
   return (
     <>
       <Card className="mb-3">
@@ -77,20 +86,24 @@ const ServicesComponent = (props) => {
                       <ServiceSettingsSubform
                         formik={formik}
                         isLocked={hasTenants}
-                        formikService={formik.values.services[index]}
+                        serviceValues={formik.values.services[index]}
                         formikErrors={formikErrors}
                         osOptions={osOptions}
+                        dbOptions={dbOptions}
+                        onFileSelected={onFileSelected}
+                        serviceName={service.name}
                         serviceIndex={index}
+                        setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                       ></ServiceSettingsSubform>
                       <TierServiceSettingsSubform
                         tiers={tiers}
+                        defaultTier={defaultTier()}
                         isLocked={hasTenants}
                         serviceName={service.name}
                         serviceValues={formik.values.services[index]}
                         dbOptions={dbOptions}
-                        onFileSelected={onFileSelected}
                         formikServicePrefix={'services[' + index + ']'}
-                        setFieldValue={props.setFieldValue}
+                        setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                       ></TierServiceSettingsSubform>
                       <Container className="mt-3">
                         <Row>
