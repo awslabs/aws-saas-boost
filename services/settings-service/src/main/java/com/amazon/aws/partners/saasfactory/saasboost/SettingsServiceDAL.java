@@ -195,11 +195,11 @@ public class SettingsServiceDAL {
         return certificateSummaries;
     }
 
-    private static final Comparator<Map<String, Object>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
+    private static final Comparator<Map<String, String>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
         // T's before M's before R's
         int compare = 0;
-        char type1 = ((String) instance1.get("instance")).charAt(0);
-        char type2 = ((String) instance2.get("instance")).charAt(0);
+        char type1 = instance1.get("instance").charAt(0);
+        char type2 = instance2.get("instance").charAt(0);
         if (type1 != type2) {
             if ('T' == type1) {
                 compare = -1;
@@ -214,15 +214,15 @@ public class SettingsServiceDAL {
         return compare;
     });
 
-    private static final Comparator<Map<String, Object>> INSTANCE_GENERATION_COMPARATOR = ((instance1, instance2) -> {
-        Integer gen1 = Integer.valueOf(((String) instance1.get("instance")).substring(1, 2));
-        Integer gen2 = Integer.valueOf(((String) instance2.get("instance")).substring(1, 2));
+    private static final Comparator<Map<String, String>> INSTANCE_GENERATION_COMPARATOR = ((instance1, instance2) -> {
+        Integer gen1 = Integer.valueOf(instance1.get("instance").substring(1, 2));
+        Integer gen2 = Integer.valueOf(instance2.get("instance").substring(1, 2));
         return gen1.compareTo(gen2);
     });
 
-    private static final Comparator<Map<String, Object>> INSTANCE_SIZE_COMPARATOR = ((instance1, instance2) -> {
-        String size1 = ((String) instance1.get("instance")).substring(3);
-        String size2 = ((String) instance2.get("instance")).substring(3);
+    private static final Comparator<Map<String, String>> INSTANCE_SIZE_COMPARATOR = ((instance1, instance2) -> {
+        String size1 = instance1.get("instance").substring(3);
+        String size2 = instance2.get("instance").substring(3);
         List<String> sizes = Arrays.asList(
                 "MICRO",
                 "SMALL",
@@ -237,7 +237,7 @@ public class SettingsServiceDAL {
         return Integer.compare(sizes.indexOf(size1), sizes.indexOf(size2));
     });
 
-    public static final Comparator<Map<String, Object>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR
+    public static final Comparator<Map<String, String>> RDS_INSTANCE_COMPARATOR = INSTANCE_TYPE_COMPARATOR
             .thenComparing(INSTANCE_GENERATION_COMPARATOR)
             .thenComparing(INSTANCE_SIZE_COMPARATOR);
 
@@ -249,32 +249,29 @@ public class SettingsServiceDAL {
         option.put("name", optionAttributes.get("name").s());
         option.put("description", optionAttributes.get("description").s());
 
-        List<Map<String, Object>> instances = new ArrayList<>();
-        for (Map.Entry<String, AttributeValue> optionAttribute : optionAttributes.get("instances").m().entrySet()) {
-            //build the instance entry
-            Map<String, Object> instance = new LinkedHashMap<>(); // Used a linked map so we can sort stuff
-            Map<String, AttributeValue> instanceAttributes = optionAttribute.getValue().m();
-            instance.put("instance",optionAttribute.getKey());
-            instance.put("class",instanceAttributes.get("class").s());
-            instance.put("description",instanceAttributes.get("description").s());
+        List<Map<String, Object>> versions = new ArrayList<>();
+        for (AttributeValue versionAttribute : optionAttributes.get("versions").l()) {
+            // build the version entry
+            Map<String, AttributeValue> versionAttributeMap = versionAttribute.m();
+            Map<String, Object> version = new LinkedHashMap<>(); // use a linked map so we can sort
+            version.put("description", versionAttributeMap.get("description").s());
+            version.put("family", versionAttributeMap.get("family").s());
+            version.put("version", versionAttributeMap.get("version").s());
 
-            List<Map<String, String>> versions = new ArrayList<>();
-            List<AttributeValue> versionAttributes = instanceAttributes.get("versions").l();
-            for (AttributeValue versionAttribute : versionAttributes) {
-                versions.add(
-                        versionAttribute.m().entrySet().stream()
-                                .collect(Collectors.toMap(
-                                        entry -> entry.getKey(),
-                                        entry -> entry.getValue().s()
-                                ))
-                );
+            List<Map<String, String>> instances = new ArrayList<>();
+            Map<String, AttributeValue> instancesAttributeMap = versionAttributeMap.get("instances").m();
+            for (Map.Entry<String, AttributeValue> instanceAttribute : instancesAttributeMap.entrySet()) {
+                Map<String, String> instance = new LinkedHashMap<>(); // use a linked map so we can sort
+                instance.put("instance", instanceAttribute.getKey());
+                instance.put("class", instanceAttribute.getValue().m().get("class").s());
+                instance.put("description", instanceAttribute.getValue().m().get("description").s());
+                instances.add(instance);
             }
-
-            instance.put("versions", versions);
-            instances.add(instance);
+            Collections.sort(instances, RDS_INSTANCE_COMPARATOR);
+            version.put("instances", instances);
+            versions.add(version);
         }
-        Collections.sort(instances, RDS_INSTANCE_COMPARATOR);
-        option.put("instances", instances);
+        option.put("versions", versions);
 
         return option;
     }
@@ -355,29 +352,22 @@ public class SettingsServiceDAL {
 
         for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
             // every key that contains a "/" is necessarily nested under app
-            // e.g. /app/service_001/DB_MASTER_PASSWORD
+            // e.g. /app/service_001/DB_PASSWORD
             //      /app/service_001/SERVICE_JSON
             if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
                 ServiceConfig existingServiceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
-                ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(existingServiceConfig);
-                Map<String, ServiceTierConfig> newTiers = new HashMap<>();
-                for (Map.Entry<String, ServiceTierConfig> nameAndTier : existingServiceConfig.getTiers().entrySet()) {
-                    String name = nameAndTier.getKey();
-                    ServiceTierConfig tier = nameAndTier.getValue();
-                    ServiceTierConfig.Builder editedTier = ServiceTierConfig.builder(tier);
-                    if (tier.hasDatabase()) {
-                        // if this tier has a database, override the password with the encrypted version
-                        Database.Builder editedDatabase = Database.builder(tier.getDatabase());
-                        Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/" + name + "/DB_MASTER_PASSWORD", false);
-                        if (dbMasterPasswordSetting != null) {
-                            editedDatabase.password(dbMasterPasswordSetting.getValue());
-                        }
-                        editedTier.database(editedDatabase.build());
+
+                // if this serviceConfig has a database, override the password with the encrypted version
+                ServiceConfig.Builder editedServiceConfigBuilder = ServiceConfig.builder(existingServiceConfig);
+                if (existingServiceConfig.hasDatabase()) {
+                    Database.Builder editedDatabaseBuilder = Database.builder(existingServiceConfig.getDatabase());
+                    Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/DB_PASSWORD", false);
+                    if (dbMasterPasswordSetting != null) {
+                        editedDatabaseBuilder.password(dbMasterPasswordSetting.getValue());
                     }
-                    newTiers.put(name, editedTier.build());
+                    editedServiceConfigBuilder.database(editedDatabaseBuilder.build());
                 }
-                editedServiceConfig.tiers(newTiers);
-                appConfigBuilder.serviceConfig(editedServiceConfig.build());
+                appConfigBuilder.serviceConfig(editedServiceConfigBuilder.build());
             }
         }
 
@@ -520,55 +510,35 @@ public class SettingsServiceDAL {
 
     public List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
         List<Setting> settings = new ArrayList<>();
-        // we're keeping the DB_MASTER_PASSWORD separate so we have an accessible form *somewhere*
-        // but that means we need to create the DB_MASTER_PASSWORD for each Service
+        // we're keeping the DB_PASSWORD separate so we have an accessible form *somewhere*
+        // but that means we need to create the DB_PASSWORD for each Service
 
         // editedServiceConfig so that we can replace the password in all databases in tiers to have empty passwords
         // that way we aren't storing actual passwords.
-        ServiceConfig.Builder editedServiceConfig = ServiceConfig.builder(serviceConfig);
-        Map<String, ServiceTierConfig> editedTiers = new HashMap<>();
-        for (Map.Entry<String, ServiceTierConfig> nameAndTierConfig : serviceConfig.getTiers().entrySet()) {
-            String dbPasswordSettingValue = null;
-            if (nameAndTierConfig.getValue().hasDatabase()) {
-                dbPasswordSettingValue = nameAndTierConfig.getValue().getDatabase().getPassword();
+        ServiceConfig.Builder editedServiceConfigBuilder = ServiceConfig.builder(serviceConfig);
+        String dbPasswordSettingValue = null;
+        if (serviceConfig.hasDatabase()) {
+            dbPasswordSettingValue = serviceConfig.getDatabase().getPassword();
 
-                // tiers are /saas-boost/env/app/serviceName/tierName/
-                // but we're setting db password at service level
-                Setting dbPasswordSetting = Setting.builder()
-                        .name(APP_BASE_PATH + serviceConfig.getName() + "/" + nameAndTierConfig.getKey() + "/DB_MASTER_PASSWORD")
-                        .value(dbPasswordSettingValue)
-                        .secure(true).readOnly(false).build();
-                settings.add(dbPasswordSetting);
+            Setting dbPasswordSetting = Setting.builder()
+                    .name(APP_BASE_PATH + serviceConfig.getName() + "/DB_PASSWORD")
+                    .value(dbPasswordSettingValue)
+                    .secure(true).readOnly(false).build();
+            settings.add(dbPasswordSetting);
 
-                // place the passwordParam so appConfig holders can find the password if they need it
-                // and override password
-                // passwordParam should be an arn of the form
-                // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_MASTER_PASSWORD
-                ServiceTierConfig.Builder editedTierConfig = ServiceTierConfig.builder(nameAndTierConfig.getValue());
-                editedTierConfig.database(
-                    Database.builder(nameAndTierConfig.getValue().getDatabase())
-                        .password("**encrypted**")
-                        .passwordParam(toParameterStore(dbPasswordSetting).name())
-                        .build());
-                editedTiers.put(nameAndTierConfig.getKey(), editedTierConfig.build());
-            } else {
-                editedTiers.put(nameAndTierConfig.getKey(), nameAndTierConfig.getValue());
-            }
+            // place the passwordParam so appConfig holders can find the password if they need it
+            // and override password
+            // passwordParam should be an arn of the form
+            // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PASSWORD
+            editedServiceConfigBuilder.database(Database.builder(serviceConfig.getDatabase())
+                    .password("**encrypted**")
+                    .passwordParam(toParameterStore(dbPasswordSetting).name())
+                    .build());
         }
 
-        editedServiceConfig.tiers(editedTiers);
-        // if we don't remove the password from the database object in serviceConfig we'll end up storing it
-        // we can't @Ignore password because we're expecting to send it back
-        // the UI could have two defaults: '' means no database already configured, just the value of param otherwise
-        // we have this logic in the settings service to check if it's the same as the encrypted value though
-        // and we do that with the billing api key. it makes more sense to do the same with the database.
-        // which means we should return the encrypted password
-        // which means we can't ignore the password
-        // which means when we store this password in this serviceConfig we need to obfuscate.
-        // but that's what I'm saying.. it doesn't matter what I store, as long as it isn't the plaintext.
         settings.add(Setting.builder()
                 .name(APP_BASE_PATH + serviceConfig.getName() + "/SERVICE_JSON")
-                .value(Utils.toJson(editedServiceConfig.build()))
+                .value(Utils.toJson(editedServiceConfigBuilder.build()))
                 .readOnly(false).build());
 
         return settings;

@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Database.RdsInstance;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -24,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.model.*;
 
@@ -38,18 +39,13 @@ import java.util.stream.Collectors;
 
 public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(RdsOptions.class);
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
-//    private final static Region[] SAAS_BOOST_REGIONS = new Region[] {Region.US_EAST_1, Region.US_EAST_2, Region.US_WEST_1,
-//            Region.US_WEST_2, Region.CA_CENTRAL_1, Region.EU_WEST_1, Region.EU_WEST_2, Region.EU_WEST_3, Region.EU_CENTRAL_1,
-//            Region.EU_NORTH_1, Region.AP_SOUTH_1, Region.AP_NORTHEAST_1, Region.AP_NORTHEAST_2, Region.AP_SOUTHEAST_1,
-//            Region.AP_SOUTHEAST_2, Region.SA_EAST_1
-//    };
+    private static final Logger LOGGER = LoggerFactory.getLogger(RdsOptions.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
     private RdsClient rds;
     private DynamoDbClient ddb;
 
     public RdsOptions() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -76,165 +72,132 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
 
                     // The same RDS engine version will be available for multiple EC2 instance types so we'll
                     // keep a working set of them to limit the number of describeDBEngineVersions calls
-
-
                     LOGGER.info("Building options for {}", AWS_REGION);
+                    List<Object> engines = new ArrayList();
 
                     // For every RDS engine
-                    for (Database.RDS_ENGINE engine : Database.RDS_ENGINE.values()) {
-                        Map<String, Map<String, Object>> engineVersionCache = new HashMap<>();
-                    //for (Database.RDS_ENGINE engine : new Database.RDS_ENGINE[] {Database.RDS_ENGINE.AURORA_PG}) {
+                    for (Database.RdsEngine engine : Database.RdsEngine.values()) {
                         LOGGER.info("RDS engine {}", engine.name());
+                        List<Object> versions = new ArrayList();
+                        Set<String> seenVersions = new HashSet<>();
 
-                        // Each engine needs its own copy of the list of instance types because
-                        // they can be different by engine by region
-                        EnumMap<Database.RDS_INSTANCE, Map<String, Object>> instanceMap = new EnumMap<>(Database.RDS_INSTANCE.class);
-                        for (Database.RDS_INSTANCE inst : Database.RDS_INSTANCE.values()) {
-                        //for (Database.RDS_INSTANCE inst : new Database.RDS_INSTANCE[] {Database.RDS_INSTANCE.T3_MEDIUM}) {
-                            Map<String, Object> instanceDetails = new HashMap<>();
-                            instanceDetails.put("class", inst.getInstanceClass());
-                            instanceDetails.put("description", inst.getDescription());
-                            instanceDetails.put("versions", new ArrayList<Map<String, Object>>());
-                            instanceMap.put(inst, instanceDetails);
+                        // load the versions
+                        DescribeDbEngineVersionsResponse versionsResponse = null;
+                        try {
+                            versionsResponse = rds.describeDBEngineVersions(DescribeDbEngineVersionsRequest.builder()
+                                    .engine(engine.getEngine())
+                                    .build());
+                        } catch (RdsException rdsException) {
+                            if (rdsException.getMessage().contains("Unrecognized engine name")) {
+                                LOGGER.info("{} is unrecognized when getting engine versions, skipping", engine);
+                                continue;
+                            }
+                            LOGGER.error("rds:DescribeDbEngineVersions error {}", rdsException.getMessage());
+                            String stackTrace = Utils.getFullStackTrace(rdsException);
+                            LOGGER.error(stackTrace);
+                            responseData.put("Reason", stackTrace);
+                            sendResponse(event, "FAILED", responseData);
                         }
 
-                        Map<String, Object> engineDetails = new HashMap<>();
-                        engineDetails.put("name", engine.getEngine());
-                        engineDetails.put("description", engine.getDescription());
-                        engineDetails.put("instances", instanceMap);
-
-                        // For every RDS database instance type
-                        for (Map.Entry<Database.RDS_INSTANCE, Map<String, Object>> instance : instanceMap.entrySet()) {
-                            String instanceClass = (String) instance.getValue().get("class");
-                            LOGGER.info("RDS instance class {}", instanceClass);
-
-                            List<Map<String, Object>> versions = new ArrayList<>();
+                        // for each version, find instances
+                        for (DBEngineVersion dbVersion : versionsResponse.dbEngineVersions()) {
+                            if (seenVersions.contains(dbVersion.engineVersion())) {
+                                LOGGER.info("Skipping version we've already seen: {} {}", engine, dbVersion.engineVersion());
+                                continue;
+                            }
+                            EnumMap<Database.RdsInstance, Map<String, String>> instanceMap = new EnumMap(Database.RdsInstance.class);
                             Integer maxRecords = 100;
                             String marker = null;
+                            int requestNumber = 1;
                             do {
+                                DescribeOrderableDbInstanceOptionsResponse orderableResponse = null;
                                 try {
-                                    DescribeOrderableDbInstanceOptionsResponse orderableResponse = rds.describeOrderableDBInstanceOptions(DescribeOrderableDbInstanceOptionsRequest.builder()
+                                    LOGGER.info("orderableOptions request {} for {} {}", requestNumber, engine.getEngine(), dbVersion.engineVersion());
+                                    orderableResponse = rds.describeOrderableDBInstanceOptions(DescribeOrderableDbInstanceOptionsRequest.builder()
                                             .engine(engine.getEngine())
-                                            .dbInstanceClass(instanceClass)
+                                            .engineVersion(dbVersion.engineVersion())
                                             .vpc(Boolean.TRUE)
                                             .marker(marker)
                                             .maxRecords(maxRecords)
                                             .build()
                                     );
-                                    LOGGER.info("{} {} {} has {} orderable instance options", AWS_REGION.toString(), engine.getEngine(), instanceClass, orderableResponse.orderableDBInstanceOptions().size());
-                                    marker = orderableResponse.marker();
-
-                                    // We can get more orderable instances than versions due to storage, IOPs,
-                                    // security, networking, and other options. We are just interested in the
-                                    // unique set of engine versions per instance type.
-                                    //LOGGER.info("Processing {} instance options", orderableResponse.orderableDBInstanceOptions().size());
-                                    for (OrderableDBInstanceOption orderable : orderableResponse.orderableDBInstanceOptions()) {
-                                        String orderableVersion = orderable.engineVersion();
-
-                                        // Have we already seen this version for this instance type?
-                                        boolean newVersion = versions.stream()
-                                                .filter(m -> orderableVersion.equals(m.get("version")))
-                                                .collect(Collectors.toList())
-                                                .isEmpty();
-
-                                        // If we haven't seen this version yet for this instance type
-                                        if (newVersion) {
-                                            // Maybe we've seen this same version for other instance types
-                                            boolean cachedVersion = engineVersionCache.containsKey(orderableVersion);
-
-                                            if (!cachedVersion) {
-                                                // Nope... make the call to get the details for this version
-                                                //LOGGER.info("Engine version {}", orderableVersion);
-                                                DescribeDbEngineVersionsResponse versionsResponse = rds.describeDBEngineVersions(DescribeDbEngineVersionsRequest.builder()
-                                                        .engine(engine.getEngine())
-                                                        .engineVersion(orderableVersion)
-                                                        .build()
-                                                );
-                                                //LOGGER.info("Processing {} engine versions", versionsResponse.dbEngineVersions().size());
-                                                for (DBEngineVersion dbVersion : versionsResponse.dbEngineVersions()) {
-                                                    // describeDBEngineVersions brings back multiple results with the same
-                                                    // version for at least db.t3.medium aurora-postgresql (bug?)
-                                                    boolean uniqueVersionResponse = versions.stream()
-                                                            .filter(m -> dbVersion.engineVersion().equals(m.get("version")))
-                                                            .collect(Collectors.toList())
-                                                            .isEmpty();
-                                                    if (uniqueVersionResponse) {
-                                                        Map<String, Object> version = new HashMap<>();
-                                                        version.put("version", dbVersion.engineVersion());
-                                                        version.put("description", dbVersion.dbEngineVersionDescription());
-                                                        version.put("family", dbVersion.dbParameterGroupFamily());
-                                                        //LOGGER.info("Adding version {}", version.toString());
-                                                        versions.add(version);
-
-                                                        // Be sure to cache the results
-                                                        //LOGGER.info("Caching version {}", dbVersion.engineVersion());
-                                                        engineVersionCache.put(dbVersion.engineVersion(), version);
-                                                    } else {
-                                                        //LOGGER.info("Skipping duplicate db version response");
-                                                    }
-                                                }
-                                            } else {
-                                                // We haven't seen this version for this instance type, but we have for
-                                                // other instance types for this RDS engine, so we can use our cached copy
-                                                // of the version response.
-                                                //LOGGER.info("Engine version {} (cached)", orderableVersion);
-                                                versions.add(engineVersionCache.get(orderableVersion));
-                                            }
-                                        }
-                                    }
-                                } catch (SdkServiceException rdsError) {
-                                    LOGGER.error("rds:describeOrderableDBInstanceOptions | rds:DescribeDbEngineVersions error {}", rdsError.getMessage());
-                                    String stackTrace = Utils.getFullStackTrace(rdsError);
+                                } catch (RdsException rdsException) {
+                                    LOGGER.error("rds:DescribeOrderableDBInstanceOptions error {}", rdsException.getMessage());
+                                    String stackTrace = Utils.getFullStackTrace(rdsException);
                                     LOGGER.error(stackTrace);
                                     responseData.put("Reason", stackTrace);
-                                    sendResponse(event, context, "FAILED", responseData);
+                                    sendResponse(event, "FAILED", responseData);
                                 }
+                                LOGGER.info("{} {} {} has {} orderable instance options", AWS_REGION, engine.getEngine(), dbVersion.engineVersion(), orderableResponse.orderableDBInstanceOptions().size());
+                                marker = orderableResponse.marker();
+
+                                for (OrderableDBInstanceOption option : orderableResponse.orderableDBInstanceOptions()) {
+                                    RdsInstance validInstance = RdsInstance.ofInstanceClass(option.dbInstanceClass());
+                                    if (validInstance != null) {
+                                        LOGGER.info("found {} instance option for {} {} ({})", validInstance, engine, dbVersion.engineVersion(), AWS_REGION);
+                                        Map<String, String> instanceDetails = new HashMap<>();
+                                        instanceDetails.put("class", validInstance.getInstanceClass());
+                                        instanceDetails.put("description", validInstance.getDescription());
+                                        instanceMap.put(validInstance, instanceDetails);
+                                    } else {
+                                        LOGGER.info("skipping option that doesn't match enum of instance types: {}", option);
+                                    }
+                                }
+                                requestNumber++;
                             } while (marker != null && !marker.isEmpty());
 
-                            // Now we have all the unique versions for this instance type
-                            LOGGER.info("{} {} {} has {} available versions", AWS_REGION.toString(), engine.getEngine(), instanceClass, versions.size());
-                            instanceMap.get(instance.getKey()).put("versions", versions);
-                        }
-
-                        // Remove instances that don't have any orderable versions
-                        for (Database.RDS_INSTANCE instance : instanceMap.keySet()) {
-                            if (((List) instanceMap.get(instance).get("versions")).isEmpty()) {
-                                LOGGER.info("Removing unavailable instance class {} for {} in {}", instance.getInstanceClass(), engine.getEngine(), AWS_REGION.toString());
-                                instanceMap.remove(instance);
+                            if (!instanceMap.isEmpty()) {
+                                Map<String, Object> versionDetails = new HashMap();
+                                versionDetails.put("version", dbVersion.engineVersion());
+                                versionDetails.put("description", dbVersion.dbEngineVersionDescription());
+                                versionDetails.put("family", dbVersion.dbParameterGroupFamily());
+                                versionDetails.put("instances", instanceMap);
+                                LOGGER.info("Adding version {}", versionDetails.toString());
+                                versions.add(versionDetails);
+                                seenVersions.add(dbVersion.engineVersion());
+                            } else {
+                                LOGGER.info("Skipping version {} ({}) with no instances", dbVersion.engineVersion(), AWS_REGION);
                             }
                         }
 
-                        if (((Map) engineDetails.get("instances")).isEmpty()) {
-                            LOGGER.info("Removing unavailable engine {} in {}", engine.getEngine(), AWS_REGION.toString());
-                        } else {
+                        if (!versions.isEmpty()) {
+                            Map<String, Object> engineDetails = new HashMap<>();
+                            engineDetails.put("name", engine.getEngine());
+                            engineDetails.put("description", engine.getDescription());
+                            engineDetails.put("versions", versions);
+                            LOGGER.info("Adding engine {}", engineDetails);
+                            engines.add(engineDetails);
+
                             // Save this engine's options for this region to our database for fast lookup
                             try {
                                 Map<String, AttributeValue> item = new HashMap<>();
                                 item.put("region", AttributeValue.builder().s(AWS_REGION).build());
                                 item.put("engine", AttributeValue.builder().s(engine.name()).build());
                                 item.put("options", AttributeValue.builder().m(toAttributeValueMap(engineDetails)).build());
-                                PutItemResponse response = ddb.putItem(request -> request.tableName(table).item(item));
+                                ddb.putItem(request -> request.tableName(table).item(item));
                             } catch(SdkServiceException ddbError) {
                                 LOGGER.error("dynamodb:putItem error {}", ddbError.getMessage());
                                 String stackTrace = Utils.getFullStackTrace(ddbError);
                                 LOGGER.error(stackTrace);
                                 responseData.put("Reason", stackTrace);
-                                sendResponse(event, context, "FAILED", responseData);
+                                sendResponse(event, "FAILED", responseData);
                             }
+                        } else {
+                            LOGGER.info("Skipping engine {} ({}) with no valid versions", engine.getEngine(), AWS_REGION);
                         }
                     }
                     // Tell CloudFormation we're done
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    sendResponse(event, "SUCCESS", responseData);
                 } else if ("Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("UPDATE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    sendResponse(event, "SUCCESS", responseData);
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
-                    sendResponse(event, context, "SUCCESS", responseData);
+                    sendResponse(event, "SUCCESS", responseData);
                 } else {
                     LOGGER.error("FAILED unknown requestType " + requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
-                    sendResponse(event, context, "FAILED", responseData);
+                    sendResponse(event, "FAILED", responseData);
                 }
             };
             Future<?> f = service.submit(r);
@@ -245,7 +208,7 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
             String stackTrace = Utils.getFullStackTrace(e);
             LOGGER.error(stackTrace);
             responseData.put("Reason", stackTrace);
-            sendResponse(event, context, "FAILED", responseData);
+            sendResponse(event, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
@@ -256,12 +219,10 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
      * Send a response to CloudFormation regarding progress in creating resource.
      *
      * @param event
-     * @param context
      * @param responseStatus
      * @param responseData
-     * @return
      */
-    public final Object sendResponse(final Map<String, Object> event, final Context context, final String responseStatus, ObjectNode responseData) {
+    public final void sendResponse(final Map<String, Object> event, final String responseStatus, ObjectNode responseData) {
         String responseUrl = (String) event.get("ResponseURL");
         LOGGER.info("ResponseURL: " + responseUrl + "\n");
 
@@ -299,8 +260,6 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
             LOGGER.error("Failed to open connection to CFN response URL");
             LOGGER.error(Utils.getFullStackTrace(e));
         }
-
-        return null;
     }
 
     // Convert our data to DynamoDB attribute values
@@ -309,31 +268,33 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
         options.put("name", AttributeValue.builder().s((String) engineDetails.get("name")).build());
         options.put("description", AttributeValue.builder().s((String) engineDetails.get("description")).build());
 
-        Map<String, AttributeValue> instances = new HashMap<>();
-        for (Map.Entry<Database.RDS_INSTANCE, Map<String, Object>> instance : ((EnumMap<Database.RDS_INSTANCE, Map<String, Object>>) engineDetails.get("instances")).entrySet()) {
-            Map<String, Object> instanceDetails = instance.getValue();
+        LOGGER.info("attempting to convert {} to ddb attribute value map", engineDetails);
 
-            Map<String, AttributeValue> versions = new HashMap<>();
-            versions.put("class", AttributeValue.builder().s((String) instanceDetails.get("class")).build());
-            versions.put("description", AttributeValue.builder().s((String) instanceDetails.get("description")).build());
+        List<AttributeValue> versions = new ArrayList<>();
+        for (Map<String, Object> version : (List<Map<String, Object>>) engineDetails.get("versions")) {
+            Map<String, AttributeValue> versionAttributeValue = new HashMap<>();
+            versionAttributeValue.put("version", AttributeValue.builder().s((String) version.get("version")).build());
+            versionAttributeValue.put("description", AttributeValue.builder().s((String) version.get("description")).build());
+            versionAttributeValue.put("family", AttributeValue.builder().s((String) version.get("family")).build());
 
-            List<AttributeValue> instanceVersions = new ArrayList<>();
-            for (Map<String, String> instanceVersion : (List<Map<String, String>>) instanceDetails.get("versions")) {
-                instanceVersions.add(AttributeValue.builder().m(
-                        instanceVersion.entrySet()
-                                .stream()
-                                .collect(Collectors.toMap(
-                                        entry -> entry.getKey(),
-                                        entry -> AttributeValue.builder().s(entry.getValue()).build()
-                                ))
-                    ).build()
-                );
+            Map<String, AttributeValue> instancesMap = new HashMap<>();
+            // instances for the version AttributeValue is a map of RdsInstance -> map of String, String
+            for (Map.Entry<RdsInstance, Map<String, String>> instanceEntry : ((EnumMap<RdsInstance, Map<String, String>>) version.get("instances")).entrySet()) {
+                AttributeValue instanceDetails = AttributeValue.builder().m(
+                        instanceEntry.getValue().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                entry -> entry.getKey(),
+                                entry -> AttributeValue.builder().s(entry.getValue()).build())))
+                        .build();
+                instancesMap.put(instanceEntry.getKey().toString(), instanceDetails);
             }
-            versions.put("versions", AttributeValue.builder().l(instanceVersions).build());
 
-            instances.put(instance.getKey().name(), AttributeValue.builder().m(versions).build());
+            versionAttributeValue.put("instances", AttributeValue.builder().m(instancesMap).build());
+            versions.add(AttributeValue.builder().m(versionAttributeValue).build());
         }
-        options.put("instances", AttributeValue.builder().m(instances).build());
+        options.put("versions", AttributeValue.builder().l(versions).build());
+
+        LOGGER.debug("created AttributeValue map for {}: {}", engineDetails, options);
 
         return options;
     }

@@ -308,7 +308,7 @@ export const selectServiceToS3BucketMap = (state) => {
       const map = {
         ...prev,
         [curr]:
-          appConfig?.services[curr].tiers?.default?.database?.bootstrapFilename,
+          appConfig?.services[curr].database?.bootstrapFilename,
       }
       return map
     }, {})

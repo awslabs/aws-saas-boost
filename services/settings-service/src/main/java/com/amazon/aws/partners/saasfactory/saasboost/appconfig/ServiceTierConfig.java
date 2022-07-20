@@ -31,7 +31,6 @@ public class ServiceTierConfig {
     private final Integer memory;
     private final String instanceType;
     private final SharedFilesystem filesystem;
-    private final Database database;
 
     private ServiceTierConfig(Builder builder) {
         this.min = builder.min;
@@ -41,7 +40,6 @@ public class ServiceTierConfig {
         this.memory = builder.memory;
         this.instanceType = builder.instanceType;
         this.filesystem = builder.filesystem;
-        this.database = builder.database;
     }
 
     public static ServiceTierConfig.Builder builder() {
@@ -56,8 +54,7 @@ public class ServiceTierConfig {
             .cpu(other.getCpu())
             .memory(other.getMemory())
             .instanceType(other.getInstanceType())
-            .filesystem(other.getFilesystem())
-            .database(other.getDatabase());
+            .filesystem(other.getFilesystem());
     }
 
     public Integer getMin() {
@@ -97,14 +94,6 @@ public class ServiceTierConfig {
         return filesystem;
     }
 
-    public Database getDatabase() {
-        return database;
-    }
-
-    public boolean hasDatabase() {
-        return database != null;
-    }
-
     @Override
     public String toString() {
         return Utils.toJson(this);
@@ -130,15 +119,15 @@ public class ServiceTierConfig {
                 && ((computeSize == null && other.computeSize == null) || (computeSize == other.computeSize))
                 && ((cpu == null && other.cpu == null) || (cpu != null && cpu.equals(other.cpu)))
                 && ((memory == null && other.memory == null) || (memory != null && memory.equals(other.memory)))
-                && ((instanceType == null && other.instanceType == null) || (instanceType != null && instanceType.equals(other.instanceType)))
-                && ((filesystem == null && other.filesystem == null) || (filesystem != null && filesystem.equals(other.filesystem)))
-                && ((database == null && other.database == null) || (database != null && database.equals(other.database)))
-        );
+                && ((instanceType == null && other.instanceType == null)
+                    || (instanceType != null && instanceType.equals(other.instanceType)))
+                && ((filesystem == null && other.filesystem == null)
+                    || (filesystem != null && filesystem.equals(other.filesystem))));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(min, max, computeSize, cpu, memory, instanceType, filesystem, database);
+        return Objects.hash(min, max, computeSize, cpu, memory, instanceType, filesystem);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -150,7 +139,6 @@ public class ServiceTierConfig {
         private Integer memory;
         private String instanceType;
         private SharedFilesystem filesystem;
-        private Database database;
 
         private Builder() {
         }
@@ -218,11 +206,6 @@ public class ServiceTierConfig {
 
         public Builder filesystem(SharedFilesystem filesystem) {
             this.filesystem = filesystem;
-            return this;
-        }
-
-        public Builder database(Database database) {
-            this.database = database;
             return this;
         }
 
