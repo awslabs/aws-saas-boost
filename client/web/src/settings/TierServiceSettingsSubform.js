@@ -19,7 +19,7 @@ import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
 import FileSystemSubform from './components/filesystem/FileSystemSubform'
-import DatabaseSubform from './DatabaseTierSubform'
+import DatabaseTierSubform from './DatabaseTierSubform'
 
 const TierServiceSettingsSubform = (props) => {
   const {
