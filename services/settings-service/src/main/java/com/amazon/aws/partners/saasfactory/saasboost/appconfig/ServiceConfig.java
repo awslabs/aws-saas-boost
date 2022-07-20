@@ -41,6 +41,7 @@ public class ServiceConfig {
     private final String healthCheckUrl;
     private final OperatingSystem operatingSystem;
     private final Database database;
+    private final EcsLaunchType ecsLaunchType;
 
     private ServiceConfig(Builder builder) {
         this.publiclyAddressable = builder.publiclyAddressable;
@@ -52,6 +53,7 @@ public class ServiceConfig {
         this.containerTag = builder.containerTag;
         this.healthCheckUrl = builder.healthCheckUrl;
         this.operatingSystem = builder.operatingSystem;
+        this.ecsLaunchType = builder.ecsLaunchType;
         this.tiers = builder.tiers;
         this.database = builder.database;
     }
@@ -72,7 +74,8 @@ public class ServiceConfig {
                 .containerTag(other.getContainerTag())
                 .healthCheckUrl(other.getHealthCheckUrl())
                 .operatingSystem(other.getOperatingSystem())
-                .database(other.getDatabase());
+                .database(other.getDatabase())
+                .ecsLaunchType(other.getEcsLaunchType());
     }
 
     public Boolean isPublic() {
@@ -109,6 +112,10 @@ public class ServiceConfig {
 
     public OperatingSystem getOperatingSystem() {
         return operatingSystem;
+    }
+
+    public EcsLaunchType getEcsLaunchType() {
+        return ecsLaunchType;
     }
 
     public Map<String, ServiceTierConfig> getTiers() {
@@ -168,6 +175,7 @@ public class ServiceConfig {
                 && ((healthCheckUrl == null && other.healthCheckUrl == null)
                     || (healthCheckUrl != null && healthCheckUrl.equals(other.healthCheckUrl)))
                 && (operatingSystem == other.operatingSystem)
+                && (ecsLaunchType == other.ecsLaunchType)
                 && ((tiers == null && other.tiers == null) || tiersEqual)
                 && ((database == null && other.database == null)
                     || (database != null && database.equals(other.database))));
@@ -176,7 +184,7 @@ public class ServiceConfig {
     @Override
     public int hashCode() {
         return Objects.hash(name, description, path, publiclyAddressable, containerPort, containerRepo, containerTag,
-                healthCheckUrl, operatingSystem, database)
+                healthCheckUrl, operatingSystem, database, ecsLaunchType)
                 + Arrays.hashCode(tiers != null ? tiers.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(tiers != null ? tiers.values().toArray(new Object[0]) : null);
     }
@@ -194,6 +202,7 @@ public class ServiceConfig {
         private String containerTag;
         private String healthCheckUrl;
         private OperatingSystem operatingSystem;
+        private EcsLaunchType ecsLaunchType;
         private Map<String, ServiceTierConfig> tiers = new HashMap<>();
         private Database database;
 
@@ -264,6 +273,24 @@ public class ServiceConfig {
 
         public Builder operatingSystem(OperatingSystem operatingSystem) {
             this.operatingSystem = operatingSystem;
+            return this;
+        }
+
+        public Builder ecsLaunchType(String ecsLaunchType) {
+            if (ecsLaunchType != null) {
+                try {
+                    this.ecsLaunchType = EcsLaunchType.valueOf(ecsLaunchType);
+                } catch (IllegalArgumentException e) {
+                    throw new RuntimeException(
+                        new IllegalArgumentException("Can't find EcsLaunchType for value " + ecsLaunchType)
+                    );
+                }
+            }
+            return this;
+        }
+
+        public Builder ecsLaunchType(EcsLaunchType ecsLaunchType) {
+            this.ecsLaunchType = ecsLaunchType;
             return this;
         }
 

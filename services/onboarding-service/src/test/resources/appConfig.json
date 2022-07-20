@@ -5,8 +5,8 @@
   "sslCertificate": "",
   "billing": null,
   "services": {
-    "main": {
-      "name": "main",
+    "main_service": {
+      "name": "main_service",
       "description": "Main Service",
       "public": true,
       "path": "/*",
@@ -15,26 +15,34 @@
       "containerPort": 80,
       "containerRepo": "",
       "containerTag": "latest",
+      "database": {
+        "engine": "MARIADB",
+        "version": "10.5.12",
+        "family": "mariadb10.5",
+        "database": "boost",
+        "username": "boost",
+        "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
+        "bootstrapFilename": "",
+        "port": 3306,
+        "tiers": {
+          "default": {
+            "instance": "T3_MICRO",
+            "instanceClass": "db.t3.micro"
+          },
+          "premium": {
+            "instance": "T3_LARGE",
+            "instanceClass": "db.t3.large"
+          }
+        },
+        "engineName": "mariadb"
+      },
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
-          "database": {
-            "engine": "MARIADB",
-            "instance": "T3_MICRO",
-            "version": "10.5.12",
-            "family": "mariadb10.5",
-            "database": "boost",
-            "username": "boost",
-            "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
-            "bootstrapFilename": "",
-            "port": 3306,
-            "engineName": "mariadb",
-            "instanceClass": "db.t3.micro"
-          },
+          "min": 1,
+          "max": 2,
           "filesystem": {
             "fileSystemType": "EFS",
             "mountPoint": "/mnt",
@@ -50,21 +58,8 @@
           "instanceType": "m5.xlarge",
           "cpu": 2048,
           "memory": 4096,
-          "minCount": 2,
-          "maxCount": 6,
-          "database": {
-            "engine": "MARIADB",
-            "instance": "T3_LARGE",
-            "version": "10.5.12",
-            "family": "mariadb10.5",
-            "database": "boost",
-            "username": "boost",
-            "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
-            "bootstrapFilename": "",
-            "port": 3306,
-            "engineName": "mariadb",
-            "instanceClass": "db.t3.large"
-          },
+          "min": 2,
+          "max": 6,
           "filesystem": {
             "fileSystemType": "EFS",
             "mountPoint": "/mnt",
@@ -88,23 +83,22 @@
       "containerPort": 80,
       "containerRepo": "sb-mc-core-1dpih9lvcvyuf-internal-r1sjma8wjygs",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.micro",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
-          "database": null,
+          "min": 1,
+          "max": 2,
           "filesystem": null
         },
         "premium": {
           "instanceType": "m5.medium",
           "cpu": 1024,
           "memory": 2048,
-          "minCount": 2,
-          "maxCount": 4,
-          "database": null,
+          "min": 2,
+          "max": 4,
           "filesystem": null
         }
       }
@@ -119,23 +113,22 @@
       "containerPort": 80,
       "containerRepo": "sb-mc-core-1dpih9lvcvyuf-feature-yudogr4llitc",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.micro",
           "cpu": 512,
           "memory": 1024,
-          "minCount": 1,
-          "maxCount": 2,
-          "database": null,
+          "min": 1,
+          "max": 2,
           "filesystem": null
         },
         "premium": {
           "instanceType": "m5.medium",
           "cpu": 1024,
           "memory": 2048,
-          "minCount": 2,
-          "maxCount": 4,
-          "database": null,
+          "min": 2,
+          "max": 4,
           "filesystem": null
         }
       }
