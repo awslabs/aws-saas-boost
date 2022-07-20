@@ -73,8 +73,8 @@ export function ApplicationComponent(props) {
   const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, fileSystemType) => {
     let tierValuesCopy = Object.assign({}, tierValues)
     let defaults = Object.assign({
-      min: 1,
-      max: 1,
+      min: 0,
+      max: 0,
       computeSize: '',
       filesystem: {
         fileSystemType: fileSystemType,
@@ -92,34 +92,11 @@ export function ApplicationComponent(props) {
           weeklyMaintenanceDay: '1',
           windowsMountDrive: 'G:',
         }
-      },
-      database: {
-        engine: '',
-        family: '',
-        version: '',
-        instance: '',
-        username: '',
-        password: '',
-        hasEncryptedPassword: false,
-        encryptedPassword: '',
-        database: '',
-        bootstrapFilename: '',
       }
     }, defaultValues)
     let uncleanedInitialTierValues = Object.assign({}, defaults, tierValuesCopy)
     return {
       ...uncleanedInitialTierValues,
-      provisionDb: !!tierValuesCopy.database,
-      database: !!uncleanedInitialTierValues.database ? {
-        ...uncleanedInitialTierValues.database,
-        //This is frail, but try to see if the incoming password is base64d
-        //If so, assume it's encrypted
-        //Also store a copy in the encryptedPassword field
-        hasEncryptedPassword: uncleanedInitialTierValues?.database?.password.match(
-          /^[A-Za-z0-9=+/\s ]+$/
-        ),
-        encryptedPassword: uncleanedInitialTierValues?.database?.password,
-      } : defaults.database,
       provisionFS: !!tierValuesCopy.filesystem,
       filesystem: !!uncleanedInitialTierValues.filesystem ? {
         ...uncleanedInitialTierValues.filesystem,
@@ -154,6 +131,29 @@ export function ApplicationComponent(props) {
         : WINDOWS
       : ''
     const fileSystemType = (os !== LINUX ? FSX : EFS)
+    const db = !!thisService?.database
+        ? {
+            ...thisService.database,
+            //This is frail, but try to see if the incoming password is base64d
+            //If so, assume it's encrypted
+            //Also store a copy in the encryptedPassword field
+            hasEncryptedPassword: !!thisService.database.password.match(
+              /^[A-Za-z0-9=+/\s ]+$/
+            ),
+            encryptedPassword: thisService.database.password,
+          }
+        : {
+            engine: '',
+            family: '',
+            version: '',
+            username: '',
+            password: '',
+            hasEncryptedPassword: false,
+            encryptedPassword: '',
+            database: '',
+            bootstrapFilename: '',
+            tiers: {},
+          }
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
     let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, fileSystemType)
@@ -172,7 +172,8 @@ export function ApplicationComponent(props) {
       containerTag: thisService?.containerTag || 'latest',
       description: thisService?.description || '',
       operatingSystem: os,
-      filesystem: { fileSystemType: fileSystemType },
+      database: db,
+      provisionDb: !!thisService?.database,
       windowsVersion: windowsVersion,
       tiers: initialTierValues,
       tombstone: false,
@@ -277,28 +278,6 @@ export function ApplicationComponent(props) {
         Yup.string(),
         'Compute size is a required field.'
       ),
-      database: Yup.object().when('provisionDb', {
-        is: true,
-        then: Yup.object({
-          engine: Yup.string().required('Engine is required'),
-          version: Yup.string().required('Version is required'),
-          instance: Yup.string().required('Instance is required'),
-          username: Yup.string()
-            .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
-            .required('Username is required'),
-          password: Yup.string()
-            .when('hasEncryptedPassword', {
-              is: false,
-              then: Yup.string().matches(
-                '^[a-zA-Z0-9/@"\' ]{8,}$',
-                'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces'
-              ),
-            })
-            .required('Password is required'),
-          database: Yup.string(),
-        }),
-        otherwise: Yup.object(),
-      }),
       filesystem: Yup.object().when('provisionFS', {
         is: true,
         then: filesystemSpec,
@@ -312,6 +291,21 @@ export function ApplicationComponent(props) {
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
       allTiers[tierName] = singleTierValidationSpec(tombstone, operatingSystem)
+    }
+    return Yup.object(allTiers)
+  }
+
+  const allTiersDatabaseValidationSpec = (tombstone) => {
+    let allTiers = {}
+    for (var i = 0; i < tiers.length; i++) {
+      var tierName = tiers[i].name
+      allTiers[tierName] = Yup.object({
+        instance: requiredIfNotTombstoned(
+          tombstone,
+          Yup.string(),
+          'Database instance is required.'
+        )
+      })
     }
     return Yup.object(allTiers)
   }
@@ -376,6 +370,30 @@ export function ApplicationComponent(props) {
           otherwise: Yup.string().nullable(),
         }),
         provisionDb: Yup.boolean(),
+        database: Yup.object().when('provisionDb', {
+          is: true,
+          then: Yup.object({
+            engine: Yup.string().required('Engine is required'),
+            version: Yup.string().required('Version is required'),
+            tiers: Yup.object().when('tombstone', (tombstone, schema) => {
+              return allTiersDatabaseValidationSpec(tombstone)
+            }),
+            username: Yup.string()
+              .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
+              .required('Username is required'),
+            password: Yup.string()
+              .when('hasEncryptedPassword', {
+                is: false,
+                then: Yup.string().matches(
+                  '^[a-zA-Z0-9/@"\' ]{8,}$',
+                  'Password must be longer than 8 characters and can only contain alphanumberic characters or / @ " \' and spaces'
+                ),
+              })
+              .required('Password is required'),
+            database: Yup.string(),
+          }),
+          otherwise: Yup.object(),
+        }),
         provisionFS: Yup.boolean(),
         tiers: Yup.object().when(
           ['tombstone', 'operatingSystem'],

@@ -40,6 +40,7 @@ public class ServiceConfig {
     private final String containerTag;
     private final String healthCheckUrl;
     private final OperatingSystem operatingSystem;
+    private final Database database;
     private final EcsLaunchType ecsLaunchType;
 
     private ServiceConfig(Builder builder) {
@@ -54,6 +55,7 @@ public class ServiceConfig {
         this.operatingSystem = builder.operatingSystem;
         this.ecsLaunchType = builder.ecsLaunchType;
         this.tiers = builder.tiers;
+        this.database = builder.database;
     }
 
     public static Builder builder() {
@@ -72,6 +74,7 @@ public class ServiceConfig {
                 .containerTag(other.getContainerTag())
                 .healthCheckUrl(other.getHealthCheckUrl())
                 .operatingSystem(other.getOperatingSystem())
+                .database(other.getDatabase());
                 .ecsLaunchType(other.getEcsLaunchType());
     }
 
@@ -119,6 +122,14 @@ public class ServiceConfig {
         return tiers != null ? Map.copyOf(tiers) : null;
     }
 
+    public Database getDatabase() {
+        return database;
+    }
+
+    public boolean hasDatabase() {
+        return database != null;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -150,23 +161,30 @@ public class ServiceConfig {
 
         return (
                 ((name == null && other.name == null) || (name != null && name.equals(other.name)))
-                && ((description == null && other.description == null) || (description != null && description.equals(other.description)))
+                && ((description == null && other.description == null)
+                    || (description != null && description.equals(other.description)))
                 && ((path == null && other.path == null) || (path != null && path.equals(other.path)))
-                && ((publiclyAddressable == null && other.publiclyAddressable == null) || (publiclyAddressable != null && publiclyAddressable.equals(other.publiclyAddressable)))
-                && ((containerPort == null && other.containerPort == null) || (containerPort != null && containerPort.equals(other.containerPort)))
-                && ((containerRepo == null && other.containerRepo == null) || (containerRepo != null && containerRepo.equals(other.containerRepo)))
-                && ((containerTag == null && other.containerTag == null) || (containerTag != null && containerTag.equals(other.containerTag)))
-                && ((healthCheckUrl == null && other.healthCheckUrl == null) || (healthCheckUrl != null && healthCheckUrl.equals(other.healthCheckUrl)))
+                && ((publiclyAddressable == null && other.publiclyAddressable == null)
+                    || (publiclyAddressable != null && publiclyAddressable.equals(other.publiclyAddressable)))
+                && ((containerPort == null && other.containerPort == null)
+                    || (containerPort != null && containerPort.equals(other.containerPort)))
+                && ((containerRepo == null && other.containerRepo == null)
+                    || (containerRepo != null && containerRepo.equals(other.containerRepo)))
+                && ((containerTag == null && other.containerTag == null)
+                    || (containerTag != null && containerTag.equals(other.containerTag)))
+                && ((healthCheckUrl == null && other.healthCheckUrl == null)
+                    || (healthCheckUrl != null && healthCheckUrl.equals(other.healthCheckUrl)))
                 && (operatingSystem == other.operatingSystem)
                 && (ecsLaunchType == other.ecsLaunchType)
                 && ((tiers == null && other.tiers == null) || tiersEqual)
-        );
+                && ((database == null && other.database == null)
+                    || (database != null && database.equals(other.database))));
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, description, path, publiclyAddressable, containerPort, containerRepo, containerTag,
-                healthCheckUrl, operatingSystem, ecsLaunchType)
+                healthCheckUrl, operatingSystem, database, ecsLaunchType)
                 + Arrays.hashCode(tiers != null ? tiers.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(tiers != null ? tiers.values().toArray(new Object[0]) : null);
     }
@@ -186,6 +204,7 @@ public class ServiceConfig {
         private OperatingSystem operatingSystem;
         private EcsLaunchType ecsLaunchType;
         private Map<String, ServiceTierConfig> tiers = new HashMap<>();
+        private Database database;
 
         private Builder() {
         }
@@ -277,6 +296,11 @@ public class ServiceConfig {
 
         public Builder tiers(Map<String, ServiceTierConfig> tiers) {
             this.tiers = tiers != null ? tiers : new HashMap<>();
+            return this;
+        }
+
+        public Builder database(Database database) {
+            this.database = database;
             return this;
         }
 
