@@ -200,7 +200,7 @@ public class TenantAppStackUtilsTest {
     public void getDatabaseParameters_nullAndEmptyDatabaseReturnsDefaults() {
         Map<String, Object> databaseConfig = null;
         Map<TenantAppStackParameter, String> databaseParameters = 
-                TenantAppStackUtils.getDatabaseParameters(databaseConfig);
+                TenantAppStackUtils.getDatabaseParameters(databaseConfig, "");
         assertNotNull(databaseParameters);
         assertParameterInMapIs(databaseParameters, TenantAppStackParameter.USE_RDS, Boolean.FALSE.toString());
         assertParameterInMapIs(databaseParameters, TenantAppStackParameter.RDS_INSTANCE_CLASS, "");
@@ -214,7 +214,7 @@ public class TenantAppStackUtilsTest {
         assertParameterInMapIs(databaseParameters, TenantAppStackParameter.RDS_BOOTSTRAP, "");
 
         databaseConfig = Map.of();
-        databaseParameters = TenantAppStackUtils.getDatabaseParameters(databaseConfig);
+        databaseParameters = TenantAppStackUtils.getDatabaseParameters(databaseConfig, "");
         assertNotNull(databaseParameters);
         assertParameterInMapIs(databaseParameters, TenantAppStackParameter.USE_RDS, Boolean.FALSE.toString());
         assertParameterInMapIs(databaseParameters, TenantAppStackParameter.RDS_INSTANCE_CLASS, "");
@@ -230,14 +230,16 @@ public class TenantAppStackUtilsTest {
 
     @Test
     public void getDatabaseParameters_valid() {
-        Map<String, Object> databaseConfig = (Map<String, Object>) validTierConfig.get("database");
+        Map<String, Object> databaseConfig = (Map<String, Object>) validServiceConfig.get("database");
+        Map<String, Object> databaseTiers = (Map<String, Object>) databaseConfig.get("tiers");
+        Map<String, Object> databaseTierConfigDefault = (Map<String, Object>) databaseTiers.get("default");
         Map<TenantAppStackParameter, String> databaseParameters = 
-                TenantAppStackUtils.getDatabaseParameters(databaseConfig);
+                TenantAppStackUtils.getDatabaseParameters(databaseConfig, "default");
         assertNotNull(databaseParameters);
         assertParameterInMapIs(databaseParameters, 
                 TenantAppStackParameter.USE_RDS, Boolean.TRUE.toString());
         assertParameterInMapIs(databaseParameters, 
-                TenantAppStackParameter.RDS_INSTANCE_CLASS, (String) databaseConfig.get("instanceClass"));
+                TenantAppStackParameter.RDS_INSTANCE_CLASS, (String) databaseTierConfigDefault.get("instanceClass"));
         assertParameterInMapIs(databaseParameters, 
                 TenantAppStackParameter.RDS_ENGINE, (String) databaseConfig.get("engineName"));
         assertParameterInMapIs(databaseParameters, 

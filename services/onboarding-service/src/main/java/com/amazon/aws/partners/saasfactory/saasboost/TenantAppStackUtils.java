@@ -214,7 +214,7 @@ public class TenantAppStackUtils {
         parameters.put(TenantAppStackParameter.CONTAINER_HEALTH_CHECK_PATH, healthCheckUrl);
 
         parameters.putAll(getFilesystemParameters((Map<String, Object>)tierConfig.get("filesystem")));
-        parameters.putAll(getDatabaseParameters((Map<String, Object>)tierConfig.get("database")));
+        parameters.putAll(getDatabaseParameters((Map<String, Object>)serviceConfig.get("database"), tier));
 
         return parameters;
     }
@@ -272,7 +272,7 @@ public class TenantAppStackUtils {
     }
 
     // VisibleForTesting
-    protected static Map<TenantAppStackParameter, String> getDatabaseParameters(Map<String, Object> database) {
+    protected static Map<TenantAppStackParameter, String> getDatabaseParameters(Map<String, Object> database, String tier) {
         Map<TenantAppStackParameter, String> parameters = new HashMap<>();
 
         Boolean enableDatabase = Boolean.FALSE;
@@ -290,7 +290,9 @@ public class TenantAppStackUtils {
             dbEngine = (String) database.get("engineName");
             dbVersion = (String) database.get("version");
             dbFamily = (String) database.get("family");
-            dbInstanceClass = (String) database.get("instanceClass");
+            Map<String, Object> databaseTiers = (Map<String, Object>)database.get("tiers");
+            Map<String, Object> databaseTierConfig = (Map<String, Object>)databaseTiers.get(tier);
+            dbInstanceClass = (String) databaseTierConfig.get("instanceClass");
             dbDatabase = Objects.toString(database.get("database"), "");
             dbUsername = (String) database.get("username");
             dbPort = (Integer) database.get("port");

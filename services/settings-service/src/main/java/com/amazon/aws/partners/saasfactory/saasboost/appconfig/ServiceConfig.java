@@ -74,7 +74,7 @@ public class ServiceConfig {
                 .containerTag(other.getContainerTag())
                 .healthCheckUrl(other.getHealthCheckUrl())
                 .operatingSystem(other.getOperatingSystem())
-                .database(other.getDatabase());
+                .database(other.getDatabase())
                 .ecsLaunchType(other.getEcsLaunchType());
     }
 

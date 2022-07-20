@@ -56,7 +56,7 @@ const ServiceSettingsSubform = (props) => {
   const operatingSystemFeedback = !!formikErrors.services ? formikErrors.services[serviceIndex]?.operatingSystem : undefined
 
  const getLaunchTypeOptions = (serviceIndex) => {
-   return formikService?.operatingSystem === 'LINUX' && (
+   return serviceValues?.operatingSystem === 'LINUX' && (
     <FormGroup>
       <div className="mb-2">Container OS</div>
       <FormGroup check inline>

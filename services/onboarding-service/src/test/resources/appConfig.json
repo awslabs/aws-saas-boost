@@ -15,6 +15,27 @@
       "containerPort": 80,
       "containerRepo": "",
       "containerTag": "latest",
+      "database": {
+        "engine": "MARIADB",
+        "version": "10.5.12",
+        "family": "mariadb10.5",
+        "database": "boost",
+        "username": "boost",
+        "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
+        "bootstrapFilename": "",
+        "port": 3306,
+        "tiers": {
+          "default": {
+            "instance": "T3_MICRO",
+            "instanceClass": "db.t3.micro"
+          },
+          "premium": {
+            "instance": "T3_LARGE",
+            "instanceClass": "db.t3.large"
+          }
+        },
+        "engineName": "mariadb"
+      },
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
@@ -22,19 +43,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": {
-            "engine": "MARIADB",
-            "instance": "T3_MICRO",
-            "version": "10.5.12",
-            "family": "mariadb10.5",
-            "database": "boost",
-            "username": "boost",
-            "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
-            "bootstrapFilename": "",
-            "port": 3306,
-            "engineName": "mariadb",
-            "instanceClass": "db.t3.micro"
-          },
           "filesystem": {
             "fileSystemType": "EFS",
             "mountPoint": "/mnt",
@@ -52,19 +60,6 @@
           "memory": 4096,
           "min": 2,
           "max": 6,
-          "database": {
-            "engine": "MARIADB",
-            "instance": "T3_LARGE",
-            "version": "10.5.12",
-            "family": "mariadb10.5",
-            "database": "boost",
-            "username": "boost",
-            "password": "/saas-boost/mc/DB_MASTER_PASSWORD",
-            "bootstrapFilename": "",
-            "port": 3306,
-            "engineName": "mariadb",
-            "instanceClass": "db.t3.large"
-          },
           "filesystem": {
             "fileSystemType": "EFS",
             "mountPoint": "/mnt",
@@ -88,6 +83,7 @@
       "containerPort": 80,
       "containerRepo": "sb-mc-core-1dpih9lvcvyuf-internal-r1sjma8wjygs",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.micro",
@@ -95,7 +91,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": null,
           "filesystem": null
         },
         "premium": {
@@ -104,7 +99,6 @@
           "memory": 2048,
           "min": 2,
           "max": 4,
-          "database": null,
           "filesystem": null
         }
       }
@@ -119,6 +113,7 @@
       "containerPort": 80,
       "containerRepo": "sb-mc-core-1dpih9lvcvyuf-feature-yudogr4llitc",
       "containerTag": "latest",
+      "database": null,
       "tiers": {
         "default": {
           "instanceType": "t3.micro",
@@ -126,7 +121,6 @@
           "memory": 1024,
           "min": 1,
           "max": 2,
-          "database": null,
           "filesystem": null
         },
         "premium": {
@@ -135,7 +129,6 @@
           "memory": 2048,
           "min": 2,
           "max": 4,
-          "database": null,
           "filesystem": null
         }
       }
