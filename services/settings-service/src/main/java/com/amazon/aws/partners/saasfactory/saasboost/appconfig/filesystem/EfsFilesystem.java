@@ -75,15 +75,15 @@ public class EfsFilesystem extends AbstractFilesystem {
             try {
                 this.lifecycle = EfsLifecycle.valueOf(lifecycle);
             } catch (IllegalArgumentException e) {
-                this.lifecycle = EfsLifecycle.NEVER;
-            }
-            return this;
-        }
-
-        public Builder lifecycle(int lifecycleDays) {
-            this.lifecycle = EfsLifecycle.ofDays(lifecycleDays);
-            if (this.lifecycle == null) {
-                this.lifecycle = EfsLifecycle.NEVER;
+                try {
+                    Integer days = Integer.parseInt(lifecycle);
+                    this.lifecycle = EfsLifecycle.ofDays(days);
+                    if (this.lifecycle == null) {
+                        this.lifecycle = EfsLifecycle.NEVER;
+                    }
+                } catch (NumberFormatException nfe) {
+                    this.lifecycle = EfsLifecycle.NEVER;
+                }
             }
             return this;
         }
