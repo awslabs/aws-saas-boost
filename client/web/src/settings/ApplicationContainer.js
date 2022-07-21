@@ -195,6 +195,7 @@ export function ApplicationContainer(props) {
           const {
             filesystem,
             provisionFS,
+            provisionDb,
             filesystemType,
             ...rest
           } = thisService.tiers[tierName]

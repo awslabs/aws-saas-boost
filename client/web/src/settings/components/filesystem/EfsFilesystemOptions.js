@@ -39,12 +39,12 @@ const EfsFilesystemOptions = (props) => {
                 name={props.formikTierPrefix + '.filesystem.lifecycle'}
                 value={props.filesystem?.lifecycle}
             >
-                <option value="0">Never</option>
-                <option value="7">7 Days</option>
-                <option value="14">14 Days</option>
-                <option value="30">30 Days</option>
-                <option value="60">60 Days</option>
-                <option value="90">90 Days</option>
+                <option value="NEVER">Never</option>
+                <option value="AFTER_7_DAYS">7 Days</option>
+                <option value="AFTER_14_DAYS">14 Days</option>
+                <option value="AFTER_30_DAYS">30 Days</option>
+                <option value="AFTER_60_DAYS">60 Days</option>
+                <option value="AFTER_90_DAYS">90 Days</option>
             </SaasBoostSelect>
             <SaasBoostCheckbox
                 id={props.formikTierPrefix + '.filesystem.encrypt'}

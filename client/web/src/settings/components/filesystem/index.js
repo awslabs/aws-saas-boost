@@ -27,7 +27,7 @@ export const FILESYSTEM_TYPES = {
         "component": EfsFilesystemOptions,
         "defaults": {
             mountPoint: '',
-            lifecycle: '0',
+            lifecycle: 'NEVER',
             encrypt: '',
         },
         "validationSchema": Yup.object({
@@ -41,7 +41,7 @@ export const FILESYSTEM_TYPES = {
                 )
                 .required(),
             encrypt: Yup.bool(),
-            lifecycle: Yup.number().required('Lifecycle is required'),
+            lifecycle: Yup.string().required('Lifecycle is required'),
         })
     },
     "FSX_WINDOWS": {
