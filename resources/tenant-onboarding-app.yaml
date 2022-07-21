@@ -260,6 +260,10 @@ Conditions:
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
   IsWin2016Full: !Equals [WIN2016FULL, !Ref ContainerOS]
   IsWin20H2Core: !Equals [WIN20H2CORE, !Ref ContainerOS]
+  IsCNRegion: !Or
+      - !Equals [ !Sub '${AWS::Region}', 'cn-north-1' ]
+      - !Equals [ !Sub '${AWS::Region}', 'cn-northwest-1' ]
+
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -780,70 +784,77 @@ Resources:
         SecurityGroupIds:
           - !Ref ECSSecurityGroup
         UserData:
-          Fn::Base64: !Sub |
-            <powershell>
-            Start-Transcript -Path "C:\UserData.log" -Append
-            Write-Output ("Download and install the CloudWatch agent")
-            Invoke-WebRequest https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+          Fn::Base64: !Sub
+           - |
+              <powershell>
+              Start-Transcript -Path "C:\UserData.log" -Append
+              Write-Output ("Download and install the CloudWatch agent")
+              Invoke-WebRequest ${AMAZON_CLOUDWATCH_AGENT_S3_PATH} -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+                                
+              Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+             
+              Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+              cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+              .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+             
+              # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+              Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+              Import-Module ECSTools
+              Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+             
+              # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+              [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+              Restart-Service AmazonECS
+             
+              Write-Output ("UseFsx value is ${UseFSx}")
+              If ('${UseFSx}' -eq 'true')  {
+                  Write-Output ("Getting SSM Parameters for the Active Directory domain")
+                  $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
+                  $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
+                  $credential = New-Object System.Management.Automation.PSCredential($username,$password)
+                  $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
+                  $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+                  $ips = $ipdns.Split(",")
+             
+                  Write-Output ("Reading the existing VPC DNS Server IP")
+                  # Get the VPC DNS server.
+                  $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
+             
+                  # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
+                  # VPC DNS server is the last one in the list.
+                  $vpcdns = $dnsclient.ServerAddresses | select -last 1
+             
+                  # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
+                  $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
+                  Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
+                  Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
+             
+                  # Join the domain
+                  Write-Output ("Joining domain $directoryName")
+                  Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
+             
+                  Write-Output ("Setting FSx File Server remote path")
+                  $fileserverpath = "\\{0}\share" -f "${fsx.Outputs.WindowsFSxDnsName}"
+             
+                  # Map the share to local drive letter
+                  Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
+                  New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
+              }  # end if for UseFsx
+             
+              Write-Output ("CloudFormation signal completion")
+              # Signal CloudFormation that we're done setting up
+              cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+              cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+             
+              Stop-Transcript
+              </powershell>
+              <persist>true</persist>
+           - AMAZON_CLOUDWATCH_AGENT_S3_PATH:
+               'Fn::If':
+                - IsCNRegion
+                - 'https://s3.cn-north-1.amazonaws.com.cn/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi'
+                - !Sub 'https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi'
 
-            Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
-
-            Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
-            cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
-            .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
-
-            # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
-            Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
-            Import-Module ECSTools
-            Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
-
-            # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
-            [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
-            Restart-Service AmazonECS
-
-            Write-Output ("UseFsx value is ${UseFSx}")
-            If ('${UseFSx}' -eq 'true')  {
-                Write-Output ("Getting SSM Parameters for the Active Directory domain")
-                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
-                $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
-                $credential = New-Object System.Management.Automation.PSCredential($username,$password)
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
-                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
-                $ips = $ipdns.Split(",")
-
-                Write-Output ("Reading the existing VPC DNS Server IP")
-                # Get the VPC DNS server.
-                $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
-
-                # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
-                # VPC DNS server is the last one in the list.
-                $vpcdns = $dnsclient.ServerAddresses | select -last 1
-
-                # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
-                $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
-                Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
-                Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
-
-                # Join the domain
-                Write-Output ("Joining domain $directoryName")
-                Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
-
-                Write-Output ("Setting FSx File Server remote path")
-                $fileserverpath = "\\{0}\share" -f "${fsx.Outputs.WindowsFSxDnsName}"
-
-                # Map the share to local drive letter
-                Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
-                New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
-            }  # end if for UseFsx
-
-            Write-Output ("CloudFormation signal completion")
-            # Signal CloudFormation that we're done setting up
-            cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
-            cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
-
-            Stop-Transcript
-            </powershell>
-            <persist>true</persist>
         TagSpecifications:
           - ResourceType: instance
             Tags:
