@@ -43,7 +43,7 @@ Resources:
         IPV6Enabled: false
         HttpVersion: http2
         Origins:
-          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.amazonaws.com
+          - DomainName: !Sub ${WebS3Bucket}.s3.${AWS::Region}.${AWS::URLSuffix}
             Id: !Sub sb-${Environment}-s3-website
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${ConsoleOriginAccessIdentity}
@@ -182,13 +182,13 @@ Resources:
               CanonicalUser:
                 !GetAtt ConsoleOriginAccessIdentity.S3CanonicalUserId
             Action: s3:GetObject
-            Resource: !Sub arn:aws:s3:::${WebS3Bucket}/*
+            Resource: !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}/*
           - Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${WebS3Bucket}/*
-              - !Sub arn:aws:s3:::${WebS3Bucket}
+              - !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}/*
+              - !Sub arn:${AWS::Partition}:s3:::${WebS3Bucket}
             Condition:
               Bool: {'aws:SecureTransport': false}
 Outputs:

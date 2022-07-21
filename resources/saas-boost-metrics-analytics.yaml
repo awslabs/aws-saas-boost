@@ -287,7 +287,7 @@ Resources:
               AWS:
                 - !Join
                   - ''
-                  - - 'arn:aws:iam::'
+                  - - !Sub 'arn:${AWS::Partition}:iam::'
                     - !Ref 'AWS::AccountId'
                     - :root
             Action: kms:*
@@ -298,7 +298,7 @@ Resources:
               AWS:
                 - !Join
                   - ''
-                  - - 'arn:aws:iam::'
+                  - - !Sub 'arn:${AWS::Partition}:iam::'
                     - !Ref 'AWS::AccountId'
                     - :root
             Action:
@@ -321,7 +321,7 @@ Resources:
               AWS:
                 - !Join
                   - ''
-                  - - 'arn:aws:iam::'
+                  - - !Sub 'arn:${AWS::Partition}:iam::'
                     - !Ref 'AWS::AccountId'
                     - :root
             Action:
@@ -337,7 +337,7 @@ Resources:
               AWS:
                 - !Join
                   - ''
-                  - - 'arn:aws:iam::'
+                  - - !Sub 'arn:${AWS::Partition}:iam::'
                     - !Ref 'AWS::AccountId'
                     - :root
             Action:
@@ -381,8 +381,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${MetricsBucket}/*
-              - !Sub arn:aws:s3:::${MetricsBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/*
+              - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   RedshiftCluster:
@@ -499,8 +499,8 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:ListAllMyBuckets
                 Resource:
-                  - !Sub arn:aws:s3:::${MetricsBucket}
-                  - !Sub arn:aws:s3:::${MetricsBucket}/*
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/*
   FirehoseDeliveryRole:
     Type: AWS::IAM::Role
     Properties:
@@ -536,11 +536,11 @@ Resources:
                 Resource:
                   - !Join
                     - ''
-                    - - 'arn:aws:s3:::'
+                    - - !Sub 'arn:${AWS::Partition}:s3:::'
                       - !Ref 'MetricsBucket'
                   - !Join
                     - ''
-                    - - 'arn:aws:s3:::'
+                    - - !Sub 'arn:${AWS::Partition}:s3:::'
                       - !Ref 'MetricsBucket'
                       - /*
               - Sid: ''
@@ -553,7 +553,7 @@ Resources:
                     - NoEncryption
                     - !Join
                       - ''
-                      - - 'arn:aws:kms:'
+                      - - !Sub 'arn:${AWS::Partition}:kms:'
                         - !Ref 'AWS::Region'
                         - ':'
                         - !Ref 'AWS::AccountId'
@@ -565,11 +565,11 @@ Resources:
                       - ''
                       - - s3.
                         - !Ref 'AWS::Region'
-                        - .amazonaws.com
+                        - !Sub .${AWS::URLSuffix}
                   StringLike:
                     kms:EncryptionContext:aws:s3:arn: !Join
                       - ''
-                      - - 'arn:aws:s3:::'
+                      - - !Sub 'arn:${AWS::Partition}:s3:::'
                         - !Ref 'MetricsBucket'
                         - /RedshiftDelivery/*
               - Sid: ''
@@ -618,7 +618,7 @@ Resources:
         S3Configuration:
           BucketARN: !Join
             - ''
-            - - 'arn:aws:s3:::'
+            - - !Sub 'arn:${AWS::Partition}:s3:::'
               - !Ref 'MetricsBucket'
           RoleARN: !GetAtt 'FirehoseDeliveryRole.Arn'
           BufferingHints:
@@ -675,14 +675,14 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface
@@ -692,7 +692,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
-                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD
   LambdaSG:
     Type: AWS::EC2::SecurityGroup
     Properties:

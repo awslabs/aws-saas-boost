@@ -83,14 +83,14 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
@@ -98,7 +98,7 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:UpdateItem
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RdsOptionsTable}
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RdsOptionsTable}
               - Effect: Allow
                 Action:
                   - rds:DescribeOrderableDBInstanceOptions
@@ -160,13 +160,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -176,7 +176,7 @@ Resources:
                   - ssm:DeleteParameter
                   - ssm:DeleteParameters
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
@@ -184,17 +184,17 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:Query
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RdsOptionsTable}
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RdsOptionsTable}
               - Effect: Allow
                 Action:
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
               - Effect: Allow
                 Action:
                   - s3:PutObject
                 Resource:
-                  - !Sub arn:aws:s3:::${ResourcesBucket}/*
+                  - !Sub arn:${AWS::Partition}:s3:::${ResourcesBucket}/*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -348,7 +348,7 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           RESOURCES_BUCKET: !Ref ResourcesBucket
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
