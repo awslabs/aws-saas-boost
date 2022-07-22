@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -30,7 +31,7 @@ public class ServiceTierConfig {
     private final Integer cpu;
     private final Integer memory;
     private final String instanceType;
-    private final SharedFilesystem filesystem;
+    private final AbstractFilesystem filesystem;
 
     private ServiceTierConfig(Builder builder) {
         this.min = builder.min;
@@ -90,7 +91,7 @@ public class ServiceTierConfig {
         return instanceType;
     }
 
-    public SharedFilesystem getFilesystem() {
+    public AbstractFilesystem getFilesystem() {
         return filesystem;
     }
 
@@ -138,7 +139,7 @@ public class ServiceTierConfig {
         private Integer cpu;
         private Integer memory;
         private String instanceType;
-        private SharedFilesystem filesystem;
+        private AbstractFilesystem filesystem;
 
         private Builder() {
         }
@@ -204,7 +205,7 @@ public class ServiceTierConfig {
             return this;
         }
 
-        public Builder filesystem(SharedFilesystem filesystem) {
+        public Builder filesystem(AbstractFilesystem filesystem) {
             this.filesystem = filesystem;
             return this;
         }

@@ -26,6 +26,7 @@ import globalConfig from '../config/appConfig'
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
+import { FILESYSTEM_DEFAULTS, FILESYSTEM_TYPES } from './components/filesystem'
 
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
@@ -60,8 +61,6 @@ export function ApplicationComponent(props) {
 
   const LINUX = 'LINUX'
   const WINDOWS = 'WINDOWS'
-  const FSX = 'FSX'
-  const EFS = 'EFS'
   const awsRegion = globalConfig.region
   const acmConsoleLink = `https://${awsRegion}.console.aws.amazon.com/acm/home?region=${awsRegion}#/certificates/list`
 
@@ -70,43 +69,32 @@ export function ApplicationComponent(props) {
     window.scrollTo(0, 0)
   }
 
-  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, fileSystemType) => {
-    let tierValuesCopy = Object.assign({}, tierValues)
+  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues) => {
+    let filesystem = {
+      ...FILESYSTEM_DEFAULTS,
+      ...defaultValues.filesystem,
+      ...tierValues.filesystem
+    }
     let defaults = Object.assign({
       min: 0,
       max: 0,
       computeSize: '',
-      filesystem: {
-        fileSystemType: fileSystemType,
-        mountPoint: '',
-        efs: {
-          lifecycle: '0',
-          encryptAtRest: '',
-        },
-        fsx: {
-          storageGb: 32,
-          throughputMbs: 8,
-          backupRetentionDays: 7,
-          dailyBackupTime: '01:00',
-          weeklyMaintenanceTime: '07:01:00',
-          weeklyMaintenanceDay: '1',
-          windowsMountDrive: 'G:',
-        }
-      }
-    }, defaultValues)
-    let uncleanedInitialTierValues = Object.assign({}, defaults, tierValuesCopy)
+    }, defaultValues, tierValues)
+    let uncleanedInitialTierValues = {
+      ...defaults,
+      filesystem: filesystem,
+    }
     return {
       ...uncleanedInitialTierValues,
-      provisionFS: !!tierValuesCopy.filesystem,
-      filesystem: !!uncleanedInitialTierValues.filesystem ? {
-        ...uncleanedInitialTierValues.filesystem,
-        fsx: getFsx(uncleanedInitialTierValues?.filesystem?.fsx) || defaults.filesystem.fsx
-      } : defaults.filesystem,
+      provisionDb: !!tierValues.database,
+      provisionFS: !!tierValues.filesystem,
+      filesystemType: tierValues.filesystem?.type || '',
+      filesystem: splitWeeklyMaintenanceTime(uncleanedInitialTierValues.filesystem),
     }
   }
 
-  const getFsx = (fsx) => {
-    if (!!fsx) {
+  const splitWeeklyMaintenanceTime = (fsx) => {
+    if (!!fsx && !!fsx.weeklyMaintenanceTime) {
       const getParts = (dateTime) => {
         const parts = dateTime.split(':')
         const day = parts[0]
@@ -121,6 +109,7 @@ export function ApplicationComponent(props) {
         weeklyMaintenanceDay: day,
       }
     }
+    return fsx
   }
 
   const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
@@ -130,7 +119,6 @@ export function ApplicationComponent(props) {
         ? LINUX
         : WINDOWS
       : ''
-    const fileSystemType = (os !== LINUX ? FSX : EFS)
     const db = !!thisService?.database
         ? {
             ...thisService.database,
@@ -156,11 +144,11 @@ export function ApplicationComponent(props) {
           }
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
-    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, fileSystemType)
+    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {})
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), defaultTierValues, fileSystemType)
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues)
     }
     return {
       ...thisService,
@@ -204,60 +192,7 @@ export function ApplicationComponent(props) {
   }
 
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-  const singleTierValidationSpec = (tombstone, operatingSystem) => {
-    let filesystemSpec =
-      operatingSystem === LINUX
-        ? Yup.object({
-            // LINUX, so EFS
-            mountPoint: Yup.string()
-              .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
-              .max(100, "The full path can't exceed 100 characters in length")
-              .test(
-                'subdirectories',
-                'The path can only include up to four subdirectories',
-                (val) => (val?.match(/\//g) || []).length <= 4
-              )
-              .required(),
-            fsx: Yup.object().nullable(),
-            efs: Yup.object({
-              encryptAtRest: Yup.bool(),
-              lifecycle: Yup.number().required('Lifecycle is required'),
-              filesystemLifecycle: Yup.string(),
-            }),
-          })
-        : Yup.object({
-            // not LINUX, so FSX
-            mountPoint: Yup.string()
-              .matches(
-                /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
-                'Invalid path. Ex: C:\\data'
-              )
-              .required(),
-            fsx: Yup.object({
-              storageGb: Yup.number()
-                .required()
-                .min(32, 'Storage minimum is 32 GB')
-                .max(1048, 'Storage maximum is 1048 GB'),
-              throughputMbs: Yup.number()
-                .required()
-                .min(8, 'Throughput minimum is 8 MB/s')
-                .max(2048, 'Throughput maximum is 2048 MB/s'),
-              backupRetentionDays: Yup.number()
-                .required()
-                .min(7, 'Minimum retention time is 7 days')
-                .max(35, 'Maximum retention time is 35 days'),
-              dailyBackupTime: Yup.string().required(
-                'Daily backup time is required'
-              ),
-              weeklyMaintenanceTime: Yup.string().required(
-                'Weekly maintenance time is required'
-              ),
-              windowsMountDrive: Yup.string().required(
-                'Windows mount drive is required'
-              ),
-            }),
-            efs: Yup.object().nullable(),
-          })
+  const singleTierValidationSpec = (tombstone) => {
     return Yup.object({
       min: requiredIfNotTombstoned(
         tombstone,
@@ -278,19 +213,20 @@ export function ApplicationComponent(props) {
         Yup.string(),
         'Compute size is a required field.'
       ),
-      filesystem: Yup.object().when('provisionFS', {
-        is: true,
-        then: filesystemSpec,
-        otherwise: Yup.object(),
+      filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
+        if (provisionFS) {
+          return FILESYSTEM_TYPES[filesystemType]?.validationSchema || Yup.object()
+        }
+        return Yup.object()
       }),
     })
   }
 
-  const allTiersValidationSpec = (tombstone, operatingSystem) => {
+  const allTiersValidationSpec = (tombstone) => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      allTiers[tierName] = singleTierValidationSpec(tombstone, operatingSystem)
+      allTiers[tierName] = singleTierValidationSpec(tombstone)
     }
     return Yup.object(allTiers)
   }
@@ -394,13 +330,9 @@ export function ApplicationComponent(props) {
           }),
           otherwise: Yup.object(),
         }),
-        provisionFS: Yup.boolean(),
-        tiers: Yup.object().when(
-          ['tombstone', 'operatingSystem'],
-          (tombstone, operatingSystem, schema) => {
-            return allTiersValidationSpec(tombstone, operatingSystem)
-          }
-        ),
+        tiers: Yup.object().when(['tombstone'], (tombstone) => {
+          return allTiersValidationSpec(tombstone)
+        }),
         tombstone: Yup.boolean(),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
@@ -497,6 +429,7 @@ export function ApplicationComponent(props) {
                     initService={
                       generateAppConfigOrDefaultInitialValuesForService
                     }
+                    setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                   ></ServicesComponent>
                   <BillingSubform
                     provisionBilling={formik.values.provisionBilling}

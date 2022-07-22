@@ -857,22 +857,46 @@ public class OnboardingService {
                         String fsxWindowsMountDrive = "";
                         Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
-                            fileSystemType = (String) filesystem.get("fileSystemType");
+                            fileSystemType = (String) filesystem.get("type");
                             mountPoint = (String) filesystem.get("mountPoint");
                             if ("EFS".equals(fileSystemType)) {
                                 enableEfs = Boolean.TRUE;
-                                Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
-                                encryptFilesystem = (Boolean) efsConfig.get("encryptAtRest");
-                                filesystemLifecycle = (String) efsConfig.get("filesystemLifecycle");
-                            } else if ("FSX".equals(fileSystemType)) {
+                                // Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
+                                encryptFilesystem = (Boolean) filesystem.get("encrypt");
+                                if (encryptFilesystem == null) {
+                                    encryptFilesystem = Boolean.FALSE;
+                                }
+                                filesystemLifecycle = (String) filesystem.get("lifecycle");
+                                if (filesystemLifecycle == null) {
+                                    filesystemLifecycle = "NEVER";
+                                }
+                            } else if ("FSX_WINDOWS".equals(fileSystemType)) {
                                 enableFSx = Boolean.TRUE;
-                                Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
-                                fsxStorageGb = (Integer) fsxConfig.get("storageGb"); // GB 32 to 65,536
-                                fsxThroughputMbs = (Integer) fsxConfig.get("throughputMbs"); // MB/s
-                                fsxBackupRetentionDays = (Integer) fsxConfig.get("backupRetentionDays"); // 7 to 35
-                                fsxDailyBackupTime = (String) fsxConfig.get("dailyBackupTime"); //HH:MM in UTC
-                                fsxWeeklyMaintenanceTime = (String) fsxConfig.get("weeklyMaintenanceTime");//d:HH:MM in UTC
-                                fsxWindowsMountDrive = (String) fsxConfig.get("windowsMountDrive");
+                                // Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
+                                fsxStorageGb = (Integer) filesystem.get("storageGb"); // GB 32 to 65,536
+                                if (fsxStorageGb == null) {
+                                    fsxStorageGb = 0;
+                                }
+                                fsxThroughputMbs = (Integer) filesystem.get("throughputMbs"); // MB/s
+                                if (fsxThroughputMbs == null) {
+                                    fsxThroughputMbs = 0;
+                                }
+                                fsxBackupRetentionDays = (Integer) filesystem.get("backupRetentionDays"); // 7 to 35
+                                if (fsxBackupRetentionDays == null) {
+                                    fsxBackupRetentionDays = 7;
+                                }
+                                fsxDailyBackupTime = (String) filesystem.get("dailyBackupTime"); //HH:MM in UTC
+                                if (fsxDailyBackupTime == null) {
+                                    fsxDailyBackupTime = "";
+                                }
+                                fsxWeeklyMaintenanceTime = (String) filesystem.get("weeklyMaintenanceTime");//d:HH:MM in UTC
+                                if (fsxWeeklyMaintenanceTime == null) {
+                                    fsxWeeklyMaintenanceTime = "";
+                                }
+                                fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
+                                if (fsxWindowsMountDrive == null) {
+                                    fsxWindowsMountDrive = "";
+                                }
                             }
                         }
 
