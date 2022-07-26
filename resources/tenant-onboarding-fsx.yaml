@@ -114,7 +114,7 @@ Resources:
           - Effect: Allow
             Principal:
               AWS:
-                - !Sub arn:aws:iam::${AWS::AccountId}:root
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
             Action: kms:*
             Resource: '*'
           - Effect: Allow
@@ -131,7 +131,7 @@ Resources:
             Resource: '*'
             Condition:
               StringEquals:
-                kms:ViaService: !Sub fsx.${AWS::Region}.amazonaws.com
+                kms:ViaService: !Sub fsx.${AWS::Region}.${AWS::URLSuffix}
                 kms:CallerAccount: !Ref 'AWS::AccountId'
       Tags:
         - Key: Name
@@ -503,14 +503,14 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface

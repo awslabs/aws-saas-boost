@@ -270,6 +270,10 @@ Conditions:
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
   IsWin20H2Core: !Equals [WIN20H2CORE, !Ref ContainerOS]
+  IsCNRegion: !Or
+      - !Equals [ !Sub '${AWS::Region}', 'cn-north-1' ]
+      - !Equals [ !Sub '${AWS::Region}', 'cn-northwest-1' ]
+
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -313,7 +317,7 @@ Resources:
     DependsOn:
       - ECSService
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
+      ServiceToken: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
       AutoScalingGroup: !Ref ECSAutoScalingGroup
       Enable: 'false'
   ECSTaskExecutionRole:
@@ -341,19 +345,19 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ecr:BatchCheckLayerAvailability
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -362,22 +366,22 @@ Resources:
                 Action:
                   - ssm:GetParameters
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - Effect: Allow
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+                  - !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
               - Effect: Allow
                 Action:
                   - s3:GetBucketLocation
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
               - Effect: Allow
                 Action:
                   - fsx:DescribeFileSystems
                 Resource:
-                  - !Sub arn:aws:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
+                  - !Sub arn:${AWS::Partition}:fsx:${AWS::Region}:${AWS::AccountId}:file-system/*
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -410,19 +414,26 @@ Resources:
                   - firehose:PutRecord
                   - firehose:PutRecordBatch
                 Resource:
-                  - !Sub arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
+                  - !Sub arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${MetricsStream}
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
+                  - !Sub arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -460,7 +471,7 @@ Resources:
       ContainerDefinitions:
         - Name:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerRepository}:${ContainerRepositoryTag}
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.${AWS::URLSuffix}/${ContainerRepository}:${ContainerRepositoryTag}
           Cpu: !If [Ec2LaunchType, !Ref TaskCPU, !Ref 'AWS::NoValue']
           Memory: !If [Ec2LaunchType, !Ref TaskMemory, !Ref 'AWS::NoValue']
           PortMappings:
@@ -508,7 +519,7 @@ Resources:
                   Value: !Ref MetricsStream
           EnvironmentFiles:
             - Type: s3
-              Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
+              Value: !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
           MountPoints:
             Fn::If:
               - ProvisionEFS
@@ -528,7 +539,7 @@ Resources:
             Fn::If:
               - ProvisionRDS
               - - Name: DB_PASSWORD
-                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
+                  ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -662,12 +673,12 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:DescribeTags
@@ -679,7 +690,7 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ContainerRepository}
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -692,17 +703,17 @@ Resources:
                   - ecs:SubmitContainerStateChange
                   - ecs:SubmitTaskStateChange
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
               - Effect: Allow
                 Action:
                   - ecs:Poll
                   - ecs:StartTelemetrySession
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${ECSCluster}
               - Effect: Allow
                 Action:
                   - ecs:DiscoverPollEndpoint
@@ -712,14 +723,14 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
               - Effect: Allow
                 Action:
                   - kms:Decrypt
-                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/alias/aws/ssm
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Condition: Ec2LaunchType
@@ -792,102 +803,112 @@ Resources:
           Fn::If:
           - ProvisionFSx
           - Fn::Base64:
-              !Sub |
-                <powershell>
-                Start-Transcript -Path "C:\UserData.log" -Append
-                Write-Output ("Download and install the CloudWatch agent")
-                Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+            !Sub |
+              <powershell>
+              Start-Transcript -Path "C:\UserData.log" -Append
+              Write-Output ("Download and install the CloudWatch agent")
+              Invoke-WebRequest ${AMAZON_CLOUDWATCH_AGENT_S3_PATH} -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
 
-                Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+              Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
 
-                Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
-                cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
-                .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+              Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+              cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+              .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
 
-                # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
-                Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
-                Import-Module ECSTools
-                Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+              # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+              Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+              Import-Module ECSTools
+              Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
 
-                # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
-                [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
-                Restart-Service AmazonECS
+              # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+              [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+              Restart-Service AmazonECS
 
-                Write-Output ("Getting SSM Parameters for the Active Directory domain")
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
-                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
-                $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
-                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
-                $ips = $ipdns.Split(",")
+              Write-Output ("Getting SSM Parameters for the Active Directory domain")
+              $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
+              $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
+              $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
+              $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+              $ips = $ipdns.Split(",")
 
-                Write-Output ("Reading the existing VPC DNS Server IP")
-                # Get the VPC DNS server.
-                $dnsClient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
+              Write-Output ("Reading the existing VPC DNS Server IP")
+              # Get the VPC DNS server.
+              $dnsClient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
 
-                # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
-                # VPC DNS server is the last one in the list.
-                $vpcdns = $dnsClient.ServerAddresses | Select -Last 1
+              # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
+              # VPC DNS server is the last one in the list.
+              $vpcdns = $dnsClient.ServerAddresses | Select -Last 1
 
-                # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
-                $dnsServersToUpdate = $("{0},{1}" -f $ips[0], $vpcdns)
-                Write-Output ("Adding AD DNS server addresses: {0} to the IPV4 interface Index: {1}" -f $dnsServersToUpdate, $dnsClient.InterfaceIndex)
-                Set-DnsClientServerAddress -InterfaceIndex $dnsClient.InterfaceIndex -ServerAddresses $dnsServersToUpdate
+              # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
+              $dnsServersToUpdate = $("{0},{1}" -f $ips[0], $vpcdns)
+              Write-Output ("Adding AD DNS server addresses: {0} to the IPV4 interface Index: {1}" -f $dnsServersToUpdate, $dnsClient.InterfaceIndex)
+              Set-DnsClientServerAddress -InterfaceIndex $dnsClient.InterfaceIndex -ServerAddresses $dnsServersToUpdate
 
-                # Join the domain
-                Write-Output ("Joining domain $directoryName")
-                $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
-                Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
+              # Join the domain
+              Write-Output ("Joining domain $directoryName")
+              $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
+              Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                If ('${FSxFileSystemType}' -eq 'FSXO')  {
-                    $fileServerPath = "\\{0}\C$" -f "${fsx.Outputs.FSxDnsName}"
-                }
-                Else {
-                    $fileServerPath = "\\{0}\share" -f "${fsx.Outputs.FSxDnsName}"
-                }
-                Write-Output ("Setting FSx File Server remote path to $fileServerPath")
+              If ('${FSxFileSystemType}' -eq 'FSXO')  {
+                  $fileServerPath = "\\{0}\C$" -f "${fsx.Outputs.FSxDnsName}"
+              }
+              Else {
+                  $fileServerPath = "\\{0}\share" -f "${fsx.Outputs.FSxDnsName}"
+              }
+              Write-Output ("Setting FSx File Server remote path to $fileServerPath")
 
-                # Map the share to local drive letter
-                Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
-                New-SmbGlobalMapping -RemotePath $fileServerPath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
+              # Map the share to local drive letter
+              Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
+              New-SmbGlobalMapping -RemotePath $fileServerPath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
 
-                Write-Output ("CloudFormation signal completion")
-                # Signal CloudFormation that we're done setting up
-                cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
-                cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+              Write-Output ("CloudFormation signal completion")
+              # Signal CloudFormation that we're done setting up
+              cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+              cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
 
-                Stop-Transcript
-                </powershell>
-                <persist>true</persist>
+              Stop-Transcript
+              </powershell>
+              <persist>true</persist>
+            - AMAZON_CLOUDWATCH_AGENT_S3_PATH:
+                'Fn::If':
+                  - IsCNRegion
+                  - 'https://s3.cn-north-1.amazonaws.com.cn/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi'
+                  - !Sub 'https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi'
           - Fn::Base64:
-              !Sub |
-                <powershell>
-                Start-Transcript -Path "C:\UserData.log" -Append
-                Write-Output ("Download and install the CloudWatch agent")
-                Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+            !Sub |
+              <powershell>
+              Start-Transcript -Path "C:\UserData.log" -Append
+              Write-Output ("Download and install the CloudWatch agent")
+              Invoke-WebRequest ${AMAZON_CLOUDWATCH_AGENT_S3_PATH} -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
 
-                Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+              Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
 
-                Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
-                cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
-                .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+              Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+              cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+              .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
 
-                # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
-                Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
-                Import-Module ECSTools
-                Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+              # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+              Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+              Import-Module ECSTools
+              Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
 
-                # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
-                [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
-                Restart-Service AmazonECS
+              # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+              [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+              Restart-Service AmazonECS
 
-                Write-Output ("CloudFormation signal completion")
-                # Signal CloudFormation that we're done setting up
-                cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
-                cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+              Write-Output ("CloudFormation signal completion")
+              # Signal CloudFormation that we're done setting up
+              cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+              cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
 
-                Stop-Transcript
-                </powershell>
-                <persist>true</persist>
+              Stop-Transcript
+              </powershell>
+              <persist>true</persist>
+            - AMAZON_CLOUDWATCH_AGENT_S3_PATH:
+                'Fn::If':
+                  - IsCNRegion
+                  - 'https://s3.cn-north-1.amazonaws.com.cn/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi'
+                  - !Sub 'https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi'
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -1108,7 +1129,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
       ResourceId: !Sub service/${ECSCluster}/${ECSService.Name}
-      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      RoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
       ServiceNamespace: ecs
       ScalableDimension: ecs:service:DesiredCount
       MaxCapacity: !Ref MaxTaskCount
@@ -1143,7 +1164,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFSx
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-fsx.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::URLSuffix}/tenant-onboarding-fsx.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
@@ -1166,7 +1187,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-efs.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::URLSuffix}/tenant-onboarding-efs.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
@@ -1181,7 +1202,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-rds.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::URLSuffix}/tenant-onboarding-rds.yaml'
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
