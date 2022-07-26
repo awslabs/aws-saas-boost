@@ -236,8 +236,11 @@ Conditions:
   IsPrivate: !Not [Condition: IsPublic]
   HasHttpsListener: !Not [!Equals [!Ref ECSLoadBalancerHttpsListener, '']]
   IsPublicHttps: !And
-    - Condition: HasHttpsListener
     - Condition: IsPublic
+    - Condition: HasHttpsListener
+  IsPublicHttp: !And
+    - Condition: IsPublic
+    - !Not [Condition: HasHttpsListener]
   DisableAccess: !Equals [!Ref Disable, 'true']
   ProvisionEFS: !Equals [!Ref UseEFS, 'true']
   ProvisionRDS: !Equals [!Ref UseRDS, 'true']
@@ -944,7 +947,7 @@ Resources:
         - Key: Tenant
           Value: !Ref TenantId
   ALBRule:
-    Condition: IsPublic
+    Condition: IsPublicHttp
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
