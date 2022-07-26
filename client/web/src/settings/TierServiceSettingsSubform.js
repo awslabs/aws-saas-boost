@@ -18,7 +18,7 @@ import React, { useState } from 'react'
 import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
-import FileSystemSubform from './FileSystemSubform'
+import FileSystemSubform from './components/filesystem/FileSystemSubform'
 import DatabaseTierSubform from './DatabaseTierSubform'
 
 const TierServiceSettingsSubform = (props) => {
@@ -131,6 +131,7 @@ const TierServiceSettingsSubform = (props) => {
                       serviceValues?.tiers[selectedTier]?.provisionFS
                     }
                     containerOs={serviceValues?.operatingSystem}
+                    filesystemType={serviceValues?.tiers[selectedTier]?.filesystemType}
                     setFieldValue={props.setFieldValue}
                   ></FileSystemSubform>
                   <DatabaseTierSubform
