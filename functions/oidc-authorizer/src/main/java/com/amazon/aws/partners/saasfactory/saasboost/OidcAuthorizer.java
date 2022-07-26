@@ -33,7 +33,14 @@ public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, Au
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcAuthorizer.class);
     private static final String OIDC_ISSUER = System.getenv("OIDC_ISSUER");
 
-    static TokenVerifier tokenVerifier = TokenVerifier.getInstance(OIDC_ISSUER);
+    private TokenVerifier tokenVerifier;
+
+    protected TokenVerifier getTokenVerifier() {
+        if (tokenVerifier == null) {
+            this.tokenVerifier = TokenVerifier.getInstance(OIDC_ISSUER);
+        }
+        return this.tokenVerifier;
+    }
 
     @Override
     public AuthPolicy handleRequest(TokenAuthorizerContext input, Context context) {
@@ -48,44 +55,59 @@ public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, Au
         String restApiId = apiGatewayArnPartials[0];
         String stage = apiGatewayArnPartials[1];
         String httpMethod = apiGatewayArnPartials[2];
-        String resource = String.join("/", Arrays.copyOfRange(apiGatewayArnPartials, 3, apiGatewayArnPartials.length));
+        String resourcePath = String.join("/", Arrays.copyOfRange(apiGatewayArnPartials, 3, apiGatewayArnPartials.length));
+        resourcePath += "/";
 
         LOGGER.info("httpMethod: {}", httpMethod);
-        LOGGER.info("resource: {}", resource);
+        LOGGER.info("resourcePath: {}", resourcePath);
 
         String token = input.getAuthorizationToken();
         LOGGER.info(token);
         String principalId = "user";
         Claims claims = null;
         try {
-            claims = tokenVerifier.verify(token, new Resource(httpMethod, resource));
+            claims = this.getTokenVerifier().verify(token, new Resource(httpMethod, resourcePath));
         } catch (IllegalTokenException e) {
             LOGGER.error(e.getMessage());
             return new AuthPolicy(principalId,
                     AuthPolicy.PolicyDocument.getDenyAllPolicy(region, awsAccountId, restApiId, stage));
         }
-
         principalId = claims.getSubject();
         AuthPolicy authPolicy = new AuthPolicy(principalId,
-                AuthPolicy.PolicyDocument.getAllowAllPolicy(region, awsAccountId, restApiId, stage));
+                AuthPolicy.PolicyDocument.getAllowOnePolicy(
+                        region, awsAccountId,
+                        restApiId, stage,
+                        AuthPolicy.HttpMethod.valueOf(httpMethod), resourcePath));
         authPolicy.setContext(getContext(claims));
+        LOGGER.info("token Verified");
         return authPolicy;
     }
 
+    /**
+     * get the context that passed to lambda
+     *
+     * @param claims claims in access token
+     * @return context that passed to lambda
+     */
     private Map<String, String> getContext(Claims claims) {
         Map<String, String> context = new HashMap<>();
         Arrays.asList("issuer", "id", "sub", "email", "name", "scope", "scp", "groups")
                 .forEach(k -> {
                             if (claims.get(k) != null) {
-                                context.put(k, claims.get(k).toString());
                                 if (k.equals("scp")) {
                                     context.put("scope", claims.get(k).toString());
+                                } else {
+                                    context.put(k, claims.get(k).toString());
                                 }
                             }
                         }
                 );
 
-        return context;
+        if (context.entrySet().size() > 0) {
+            return context;
+        } else {
+            return null;
+        }
     }
 
 }
