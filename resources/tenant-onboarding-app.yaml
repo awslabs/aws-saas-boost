@@ -40,12 +40,12 @@ Parameters:
   PubliclyAddressable:
     Description: Is this service publicly accessible from the Internet?
     Type: String
-    AllowedValues: [true, false]
-    Default: false
+    AllowedValues: ['true', 'false']
+    Default: 'true'
   PublicPathRoute:
     Description: If this service is public, what path part routes to it?
     Type: String
-    Default: '*'
+    Default: '/*'
   PublicPathRulePriority:
     Description: The ALB listener rule priority for this path route
     Type: Number
@@ -59,8 +59,8 @@ Parameters:
   SubnetPrivateB:
     Description: Private subnet in this tenant's VPC
     Type: String
-  ECSLoadBalancer:
-    Description: The ARN of the ALB fronting the public services for this application
+  PrivateRouteTable:
+    Description: Route table for the private subnets in this tenant's VPC
     Type: String
   ECSLoadBalancerHttpListener:
     Description: The ARN of the ALB listener for HTTP traffic
@@ -109,35 +109,11 @@ Parameters:
   ContainerHealthCheckPath:
     Description: The destination on the Container for the Load Balancer to use for health checks
     Type: String
-  UseEFS:
-    Description: Deploy the EFS nested stack?
-    Type: String
-    AllowedValues: [true, false]
-    Default: false
-  MountPoint:
-    Description: Container mount point for EFS file system
-    Type: String
-  EncryptEFS:
-    Description: Turn on EFS encryption at rest?
-    Type: String
-    AllowedValues: [true, false]
-    Default: false
-  EFSLifecyclePolicy:
-    Description: Enable EFS IA lifecycle?
-    Type: String
-    AllowedValues:
-      - NEVER
-      - AFTER_7_DAYS
-      - AFTER_14_DAYS
-      - AFTER_30_DAYS
-      - AFTER_60_DAYS
-      - AFTER_90_DAYS
-    Default: NEVER
   UseRDS:
     Description: Deploy the RDS nested stack?
     Type: String
-    AllowedValues: [true, false]
-    Default: false
+    AllowedValues: ['true', 'false']
+    Default: 'false'
   RDSInstanceClass:
     Description: The compute and memory capacity of the DB instance
     Type: String
@@ -171,44 +147,76 @@ Parameters:
   EventBus:
     Description: Optional. SaaS boost Metering and Billing EventBridge bus.
     Type: String
+  FileSystemMountPoint:
+    Description: Container mount point for the file system
+    Type: String
+    Default: ''
+  UseEFS:
+    Description: Deploy the EFS nested stack?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  EncryptEFS:
+    Description: Turn on EFS encryption at rest?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+  EFSLifecyclePolicy:
+    Description: Enable EFS IA lifecycle?
+    Type: String
+    AllowedValues:
+      - NEVER
+      - AFTER_7_DAYS
+      - AFTER_14_DAYS
+      - AFTER_30_DAYS
+      - AFTER_60_DAYS
+      - AFTER_90_DAYS
+    Default: NEVER
   UseFSx:
     Description: Deploy the FSX nested stack?
     Type: String
-    AllowedValues: [true, false]
-    Default: false
-  FSxWeeklyMaintenanceTime:
-    Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
-    Default: '7:02:00'
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  FSxFileSystemType:
+    Description: Type of FSx file system to provision
     Type: String
-  FSxStorageCapacity:
+    AllowedValues: [FSX_WINDOWS, FSX_ONTAP]
+    Default: FSX_WINDOWS
+  FSxWindowsMountDrive:
+    Description: Windows drive to mount attach the file system to
+    Type: String
+    Default: 'G:'
+  FileSystemStorage:
+    Description: Storage capacity for the file system in GB
+    Type: Number
+    MinValue: 32
+    MaxValue: 65536
     Default: 32
-    Description: Specify the storage capacity of the file system being created, in gibibytes.
-      Valid values are 32 GiB - 65,536 GiB. Consider choosing a higher value for greater capacity.
+  FileSystemThroughput:
+    Description: Throughput capacity for the file system in MB/s
     Type: Number
-  FSxThroughputCapacity:
-    Default: 8
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
-      Consider choosing a higher value for better performance.
-    Type: Number
+    MinValue: 8
+    MaxValue: 2048
+    Default: 16
   FSxBackupRetention:
-    Description: Specify the number of days to retain automatic backups.
-      Setting this value to 0 disables the creation of automatic backups. The maximum retention period
-      for backups is 35 days.
-    Default: 7
+    Description: Number of days to retain automatic backups
+    MinValue: 0
+    MaxValue: 35
+    Default: 0
     Type: Number
   FSxDailyBackupTime:
-    Description: Specify the preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
+    Description: Preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
     Default: '01:00'
     Type: String
-  FSxWindowsMountDrive:
-    Description: Specify the Windows drive to mount the FSX file system in format G:, F:, etc.
-    Default: 'G:'
+  FSxWeeklyMaintenanceTime:
+    Description: Preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
+    Default: '7:02:00'
     Type: String
   Disable:
     Description: Disable the tenant's access to the application
     Type: String
-    AllowedValues: [true, false]
-    Default: false
+    AllowedValues: ['true', 'false']
+    Default: 'false'
   # These params are here to read the image values from the public SSM. Leave the defaults.
   WIN2022FULL:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -256,12 +264,11 @@ Conditions:
     - Condition: LinuxOS
   ProvisionFSx: !And
     - !Equals [!Ref UseFSx, 'true']
-    - Condition: WindowsOS
+    - Condition: Ec2LaunchType
   IsWin2019Full: !Equals [WIN2019FULL, !Ref ContainerOS]
   IsWin2019Core: !Equals [WIN2019CORE, !Ref ContainerOS]
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
-  IsWin2016Full: !Equals [WIN2016FULL, !Ref ContainerOS]
   IsWin20H2Core: !Equals [WIN20H2CORE, !Ref ContainerOS]
 Resources:
   CapacityProvider:
@@ -416,13 +423,6 @@ Resources:
                   - s3:GetObjectVersion
                 Resource:
                   - !Sub arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
-              - Effect: Allow
-                Action:
-                  - ssmmessages:CreateControlChannel
-                  - ssmmessages:CreateDataChannel
-                  - ssmmessages:OpenControlChannel
-                  - ssmmessages:OpenDataChannel
-                Resource: '*'
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -439,9 +439,21 @@ Resources:
       Cpu: !If [FargateLaunchType, !Ref TaskCPU, !Ref 'AWS::NoValue']
       NetworkMode:
         Fn::If:
-          - Ec2LaunchType
-          - !If [WindowsOS, !Ref 'AWS::NoValue', awsvpc]
+          - Ec2Windows
+          - !Ref 'AWS::NoValue'
           - awsvpc
+      Volumes:
+        Fn::If:
+          - ProvisionFSx
+          - - Name: !GetAtt fsx.Outputs.FileSystemId
+              Host:
+                SourcePath: !Sub '${FSxWindowsMountDrive}\'
+          - !If
+            - ProvisionEFS
+            - - Name: !GetAtt efs.Outputs.FileSystemId
+                EFSVolumeConfiguration:
+                  FilesystemId: !GetAtt efs.Outputs.FileSystemId
+            - !Ref 'AWS::NoValue'
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
@@ -498,13 +510,13 @@ Resources:
             - Type: s3
               Value: !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
           MountPoints:
-            !If
+            Fn::If:
               - ProvisionEFS
-              - - ContainerPath: !Ref MountPoint
+              - - ContainerPath: !Ref FileSystemMountPoint
                   SourceVolume: !GetAtt efs.Outputs.FileSystemId
               - !If
                 - ProvisionFSx
-                - - ContainerPath: !Ref MountPoint
+                - - ContainerPath: !Ref FileSystemMountPoint
                     SourceVolume: !GetAtt fsx.Outputs.FileSystemId
                 - !Ref 'AWS::NoValue'
           LinuxParameters:
@@ -518,18 +530,6 @@ Resources:
               - - Name: DB_PASSWORD
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
-      Volumes:
-        !If
-          - ProvisionEFS
-          - - Name: !GetAtt efs.Outputs.FileSystemId
-              EfsVolumeConfiguration:
-                FileSystemId: !GetAtt efs.Outputs.FileSystemId
-          - !If
-            - ProvisionFSx
-            - - Name: !GetAtt fsx.Outputs.FileSystemId
-                Host:
-                  SourcePath: !Sub ${FSxWindowsMountDrive}\
-            - !Ref 'AWS::NoValue'
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -594,7 +594,7 @@ Resources:
     Type: AWS::CloudFormation::WaitCondition
     Properties:
       Handle: !If [ProvisionFSx, !Ref FsxWaitHandle, !Ref WaitHandle]
-      Timeout: 1
+      Timeout: '1'
       Count: 0
   # We either need an Auto Scaling Group, Instance Profile, and Launch Template (Windows/EC2)
   # Or we need an Target Group (Linux/Fargate)
@@ -612,9 +612,9 @@ Resources:
         LaunchTemplateId: !If [Ec2Windows, !Ref WindowsLaunchTemplate, !Ref LinuxLaunchTemplate]
         Version: !If [Ec2Windows, !GetAtt WindowsLaunchTemplate.LatestVersionNumber, !GetAtt LinuxLaunchTemplate.LatestVersionNumber]
       NewInstancesProtectedFromScaleIn: true
-      MinSize: 0
-      MaxSize: 20
-      DesiredCapacity: 0
+      MinSize: '0'
+      MaxSize: '20'
+      DesiredCapacity: '0'
       #Cooldown:
       HealthCheckGracePeriod: 30
       #HealthCheckType:
@@ -626,7 +626,7 @@ Resources:
         #MinSuccessfulInstancesPercent: 0
         MaxBatchSize: 1
         PauseTime: PT5M
-        WaitOnResourceSignals: true
+        WaitOnResourceSignals: false
         SuspendProcesses:
           - HealthCheck
           - ReplaceUnhealthy
@@ -649,6 +649,9 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonSSMDirectoryServiceAccess
       Policies:
         - PolicyName:
             Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
@@ -704,7 +707,6 @@ Resources:
                 Action:
                   - ecs:DiscoverPollEndpoint
                 Resource: '*'
-                # Same permissions as AmazonSSMManagedInstanceCore and AmazonSSMDirectoryServiceAccess AWS policies
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
@@ -714,11 +716,6 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
-              - Effect: Allow
-                Action:
-                  - ds:CreateComputer
-                  - ds:DescribeDirectories
-                Resource: '*'
               - Effect: Allow
                 Action:
                   - kms:Decrypt
@@ -758,6 +755,15 @@ Resources:
                   - c:\\cfn\\cfn-hup.conf
                   - c:\\etc\\cfn\\hooks.d\\cfn-auto-reloader.conf
     Properties:
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value:
+                Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+            - Key: Tenant
+              Value:
+                !Ref TenantId
       LaunchTemplateData:
         ImageId:
           Fn::If:
@@ -783,76 +789,111 @@ Resources:
         SecurityGroupIds:
           - !Ref ECSSecurityGroup
         UserData:
-          Fn::Base64: !Sub |
-            <powershell>
-            Start-Transcript -Path "C:\UserData.log" -Append
-            Write-Output ("Download and install the CloudWatch agent")
-            Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+          Fn::If:
+          - ProvisionFSx
+          - Fn::Base64:
+              !Sub |
+                <powershell>
+                Start-Transcript -Path "C:\UserData.log" -Append
+                Write-Output ("Download and install the CloudWatch agent")
+                Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
 
-            Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+                Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
 
-            Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
-            cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
-            .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+                Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+                cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+                .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
 
-            # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
-            Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
-            Import-Module ECSTools
-            Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+                # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+                Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+                Import-Module ECSTools
+                Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
 
-            # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
-            [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
-            Restart-Service AmazonECS
+                # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+                [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+                Restart-Service AmazonECS
 
-            Write-Output ("UseFsx value is ${UseFSx}")
-            If ('${UseFSx}' -eq 'true')  {
                 Write-Output ("Getting SSM Parameters for the Active Directory domain")
+                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
                 $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
                 $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
-                $credential = New-Object System.Management.Automation.PSCredential($username,$password)
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
                 $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
                 $ips = $ipdns.Split(",")
 
                 Write-Output ("Reading the existing VPC DNS Server IP")
                 # Get the VPC DNS server.
-                $dnsclient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
+                $dnsClient = Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object {$_.ServerAddresses.Count -gt 0} | Select-Object -First 1
 
                 # During retry, we should avoid adding duplicate DNS servers, if it was already added in the previous attempt.
                 # VPC DNS server is the last one in the list.
-                $vpcdns = $dnsclient.ServerAddresses | select -last 1
+                $vpcdns = $dnsClient.ServerAddresses | Select -Last 1
 
                 # Set up the IPv4 address of the AD DNS server as the first DNS server on this machine
-                $dnsserverstoupdate = $("{0},{1}" -f $ips[0], $vpcdns)
-                Write-Output ("Adding AD DNS server addresses :{0} to the IPV4 interface Index:{1}." -f $dnsserverstoupdate, $dnsclient.InterfaceIndex)
-                Set-DnsClientServerAddress -InterfaceIndex $dnsclient.InterfaceIndex -ServerAddresses $dnsserverstoupdate
+                $dnsServersToUpdate = $("{0},{1}" -f $ips[0], $vpcdns)
+                Write-Output ("Adding AD DNS server addresses: {0} to the IPV4 interface Index: {1}" -f $dnsServersToUpdate, $dnsClient.InterfaceIndex)
+                Set-DnsClientServerAddress -InterfaceIndex $dnsClient.InterfaceIndex -ServerAddresses $dnsServersToUpdate
 
                 # Join the domain
                 Write-Output ("Joining domain $directoryName")
+                $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                Write-Output ("Setting FSx File Server remote path")
-                $fileserverpath = "\\{0}\share" -f "${fsx.Outputs.WindowsFSxDnsName}"
+                If ('${FSxFileSystemType}' -eq 'FSXO')  {
+                    $fileServerPath = "\\{0}\C$" -f "${fsx.Outputs.FSxDnsName}"
+                }
+                Else {
+                    $fileServerPath = "\\{0}\share" -f "${fsx.Outputs.FSxDnsName}"
+                }
+                Write-Output ("Setting FSx File Server remote path to $fileServerPath")
 
                 # Map the share to local drive letter
                 Write-Output ("Mapping $fileserverpath to ${FSxWindowsMountDrive}")
-                New-SmbGlobalMapping -RemotePath $fileserverpath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
-            }  # end if for UseFsx
+                New-SmbGlobalMapping -RemotePath $fileServerPath -Credential $credential -LocalPath ${FSxWindowsMountDrive} -RequirePrivacy $true -ErrorAction Stop
 
-            Write-Output ("CloudFormation signal completion")
-            # Signal CloudFormation that we're done setting up
-            cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
-            cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+                Write-Output ("CloudFormation signal completion")
+                # Signal CloudFormation that we're done setting up
+                cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+                cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
 
-            Stop-Transcript
-            </powershell>
-            <persist>true</persist>
+                Stop-Transcript
+                </powershell>
+                <persist>true</persist>
+          - Fn::Base64:
+              !Sub |
+                <powershell>
+                Start-Transcript -Path "C:\UserData.log" -Append
+                Write-Output ("Download and install the CloudWatch agent")
+                Invoke-WebRequest https://s3.${AWS::Region}.amazonaws.com/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+
+                Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
+
+                Write-Output ("Write a config file for the CloudWatch agent and then reload/restart the agent")
+                cd $Env:ProgramFiles\Amazon\AmazonCloudWatchAgent
+                .\amazon-cloudwatch-agent-ctl.ps1 -m ec2 -a fetch-config -s
+
+                # Setup the ECS agent to point to our cluster and enable task IAM role and the awslogs driver
+                Write-Output ("Starting up ECS Agent and joining the ${ECSCluster} cluster")
+                Import-Module ECSTools
+                Initialize-ECSAgent -Cluster ${ECSCluster} -EnableTaskIAMRole -LoggingDrivers '["json-file","awslogs"]'
+
+                # If you have task IAM roles, awslogs doesn't work unless you set this environment variable
+                [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
+                Restart-Service AmazonECS
+
+                Write-Output ("CloudFormation signal completion")
+                # Signal CloudFormation that we're done setting up
+                cfn-init.exe -v -s ${AWS::StackName} -r WindowsLaunchTemplate --region ${AWS::Region}
+                cfn-signal.exe -e %ERRORLEVEL% --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
+                Stop-Transcript
+                </powershell>
+                <persist>true</persist>
         TagSpecifications:
           - ResourceType: instance
             Tags:
               - Key: Name
                 Value:
-                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
               - Key: Tenant
                 Value:
                   !Ref TenantId
@@ -884,6 +925,15 @@ Resources:
                   - /etc/cfn/cfn-hup.conf
                   - /etc/cfn/hooks.d/cfn-auto-reloader.conf
     Properties:
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value:
+                Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+            - Key: Tenant
+              Value:
+                !Ref TenantId
       LaunchTemplateData:
         ImageId: !Ref AMZNLINUX2
         InstanceType: !Ref ClusterInstanceType
@@ -911,7 +961,7 @@ Resources:
             Tags:
               - Key: Name
                 Value:
-                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+                  Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
               - Key: Tenant
                 Value:
                   !Ref TenantId
@@ -957,7 +1007,7 @@ Resources:
             !If
               - DisableAccess
               - ContentType: text/html
-                StatusCode: 200
+                StatusCode: '200'
                 MessageBody: <html><body>Access to this application is disabled. Contact support if you have questions.</body></html>
               - !Ref 'AWS::NoValue'
       Conditions:
@@ -977,7 +1027,7 @@ Resources:
             !If
               - DisableAccess
               - ContentType: text/html
-                StatusCode: 200
+                StatusCode: '200'
                 MessageBody: <html><body>Access to this application is disabled. Contact support if you have questions.</body></html>
               - !Ref 'AWS::NoValue'
       Conditions:
@@ -1067,7 +1117,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
@@ -1080,7 +1130,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
@@ -1093,27 +1143,30 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionFSx
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-fsx.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-fsx.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
         ServiceResourceName: !Ref ServiceResourceName
         ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID}}'
+        ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS}}'
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
+        PrivateRouteTable: !Ref PrivateRouteTable
         VPC: !Ref VPC
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
+        FileSystemType: !Ref FSxFileSystemType
         BackupRetention: !Ref FSxBackupRetention
         DailyBackupTime: !Ref FSxDailyBackupTime
         WeeklyMaintenanceTime: !Ref FSxWeeklyMaintenanceTime
-        StorageCapacity: !Ref FSxStorageCapacity
-        ThroughputCapacity: !Ref FSxThroughputCapacity
+        StorageCapacity: !Ref FileSystemStorage
+        ThroughputCapacity: !Ref FileSystemThroughput
         ECSSecurityGroup: !Ref ECSSecurityGroup
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-efs.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-efs.yaml'
       Parameters:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
@@ -1128,7 +1181,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
     Properties:
-      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.amazonaws.com/tenant-onboarding-rds.yaml'
+      TemplateURL: !Sub 'https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.amazonaws.com/tenant-onboarding-rds.yaml'
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
