@@ -130,22 +130,26 @@ Parameters:
   UserServiceToken:
     Description: User Service auth token Lambda ARN
     Type: String
+  AuthMethod:
+    Description: Authentication method
+    Type: String
+    AllowedValues:
+      - CognitoUserPool
+      - OIDC
   OIDCIssuer:
     Description: OIDC Issuer
     Type: String
-    Default: ''
   OIDCPermissions:
     Description: OIDC Permissions, required claims in token, e.g, scope=saas-boost-api:admin
     Type: String
     Default: ''
 
 Conditions:
-  IsOIDCIssuerSet: !Not [!Equals [!Ref OIDCIssuer, '']]
+  AuthWithCognitoUserPool: !Equals [!Ref AuthMethod, 'CognitoUserPool']
 
 Resources:
   LambdaAuthorizerExecutionRole:
     Type: AWS::IAM::Role
-    Condition: IsOIDCIssuerSet
     Properties:
       RoleName: !Sub sb-${Environment}-oidc-authorizer-${AWS::Region}
       Path: '/'
@@ -176,7 +180,6 @@ Resources:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   LambdaAuthorizer:
     Type: AWS::Lambda::Function
-    Condition: IsOIDCIssuerSet
     Properties:
       FunctionName: !Sub sb-${Environment}-oidc-authorizer
       Role: !GetAtt LambdaAuthorizerExecutionRole.Arn
@@ -190,7 +193,10 @@ Resources:
       Environment:
         Variables:
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-          OIDC_ISSUER: !Ref OIDCIssuer
+          OIDC_ISSUER: !If
+            - AuthWithCognitoUserPool
+            - !Sub https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${CognitoUserPoolId}
+            - !Ref OIDCIssuer
           OIDC_PERMISSIONS: !Ref OIDCPermissions
       Tags:
         - Key: Application
@@ -200,14 +206,12 @@ Resources:
 
   LambdaAuthorizerLogs:
     Type: AWS::Logs::LogGroup
-    Condition: IsOIDCIssuerSet
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-oidc-authorizer
       RetentionInDays: 30
 
   OIDCAuthorizer:
     Type: AWS::ApiGateway::Authorizer
-    Condition: IsOIDCIssuerSet
     Properties:
       Name: OidcAuthorizer
       RestApiId: !Ref PublicApi
@@ -257,15 +261,7 @@ Resources:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
-  CognitoAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: CognitoAuthorizer
-      RestApiId: !Ref PublicApi
-      Type: COGNITO_USER_POOLS
-      ProviderARNs:
-        - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-      IdentitySource: method.request.header.Authorization
+
   BillingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -314,10 +310,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref BillingServicePlansResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -383,10 +377,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceQueryResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -440,10 +432,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceDatasetsResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -497,10 +487,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceAlbQueryResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
@@ -560,10 +548,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
@@ -637,10 +623,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -664,10 +648,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -721,10 +703,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -804,10 +784,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -861,10 +839,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceOptionsResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -918,10 +894,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -945,10 +919,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1002,10 +974,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1085,10 +1055,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1142,10 +1110,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1171,10 +1137,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1200,10 +1164,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1259,10 +1221,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceEnableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1318,10 +1278,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceDisableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1449,10 +1407,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1478,10 +1434,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1507,10 +1461,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1536,10 +1488,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1565,10 +1515,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1624,10 +1572,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1651,10 +1597,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1708,10 +1652,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1737,10 +1679,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1766,10 +1706,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1825,10 +1763,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceEnableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1884,10 +1820,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceDisableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref OIDCAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY

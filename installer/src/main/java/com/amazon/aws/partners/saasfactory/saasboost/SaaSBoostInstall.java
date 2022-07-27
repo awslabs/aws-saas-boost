@@ -88,8 +88,39 @@ public class SaaSBoostInstall {
     private boolean useQuickSight = false;
     private String quickSightUsername;
     private String quickSightUserArn;
-    private String oidcIssuer;
-    private String oidcPermissions;
+    private String oidcIssuer = "";
+    private String oidcPermissions = "";
+    private AUTH_METHOD authMethod;
+
+    protected enum AUTH_METHOD {
+        COGNITO_USER_POOL(1, "Cognito User Pool", "CognitoUserPool"),
+        OIDC(2, "OAuth2.0/OpenID Connect", "OIDC");
+
+        private final int choice;
+        private final String prompt;
+        private final String value;
+
+        AUTH_METHOD(int choice, String prompt, String value) {
+            this.choice = choice;
+            this.prompt = prompt;
+            this.value = value;
+        }
+
+        public String getPrompt() {
+            return String.format("%2d. %s", choice, prompt);
+        }
+
+        public static AUTH_METHOD ofChoice(int choice) {
+            AUTH_METHOD auth = null;
+            for (AUTH_METHOD a : AUTH_METHOD.values()) {
+                if (a.choice == choice) {
+                    auth = a;
+                    break;
+                }
+            }
+            return auth;
+        }
+    }
 
     protected enum ACTION {
         INSTALL(1, "New AWS SaaS Boost install.", false),
@@ -256,8 +287,27 @@ public class SaaSBoostInstall {
             }
         }
 
-        String emailAddress;
+        AUTH_METHOD authMethodChoose;
         while (true) {
+            System.out.println("Select authentication method: ");
+            for (AUTH_METHOD authMethod : AUTH_METHOD.values()) {
+                System.out.println(authMethod.getPrompt());
+            }
+            System.out.print("Please select an option to continue (1-" + AUTH_METHOD.values().length + "): ");
+            Integer option = Keyboard.readInt();
+            if (option != null) {
+                authMethodChoose = AUTH_METHOD.ofChoice(option);
+                if (authMethodChoose != null) {
+                    break;
+                }
+            } else {
+                System.out.println("Invalid option specified, try again.");
+            }
+        }
+        this.authMethod = authMethodChoose;
+
+        String emailAddress = "";
+        while (this.authMethod == AUTH_METHOD.COGNITO_USER_POOL) {
             System.out.print("Enter the email address for your AWS SaaS Boost administrator: ");
             emailAddress = Keyboard.readString();
             if (validateEmail(emailAddress)) {
@@ -273,23 +323,18 @@ public class SaaSBoostInstall {
             }
         }
 
-        boolean oidcIssuerSet = false;
-        while (true) {
-            System.out.print("Enter the OIDC issuer (enter 'none' to ignore):");
+        while (this.authMethod == AUTH_METHOD.OIDC) {
+            System.out.print("Enter the OIDC issuer:");
             String input = Keyboard.readString();
             if (input.startsWith("https://")) {
                 this.oidcIssuer = input;
-                oidcIssuerSet = true;
-                break;
-            } else if (input.equalsIgnoreCase("none")) {
-                this.oidcIssuer = "";
                 break;
             } else {
                 outputMessage("Entered value for issuer incorrect or wrong format, please try again.");
             }
         }
 
-        while (oidcIssuerSet) {
+        while (this.authMethod == AUTH_METHOD.OIDC) {
             System.out.print("Enter permissions required in token claims (enter 'none' to ignore):");
             String input = Keyboard.readString();
             if (input.contains("=")) {
@@ -326,9 +371,14 @@ public class SaaSBoostInstall {
         outputMessage("AWS Account: " + this.accountId);
         outputMessage("AWS Region: " + AWS_REGION.toString());
         outputMessage("AWS SaaS Boost Environment Name: " + this.envName);
-        outputMessage("Admin Email Address: " + emailAddress);
-        outputMessage("OIDC Issuer: " + this.oidcIssuer);
-        outputMessage("OIDC Permissions: " + this.oidcPermissions);
+        outputMessage("Authentication method: " + this.authMethod.value);
+        if (this.authMethod == AUTH_METHOD.COGNITO_USER_POOL) {
+            outputMessage("Admin Email Address: " + emailAddress);
+        }
+        if (this.authMethod == AUTH_METHOD.OIDC) {
+            outputMessage("OIDC Issuer: " + this.oidcIssuer);
+            outputMessage("OIDC Permissions: " + this.oidcPermissions);
+        }
         outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
         if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
             outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
@@ -1473,7 +1523,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
             for (Path sourceDirectory : sourceDirectories) {
                 if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
-                    executeCommand("mvn", null, sourceDirectory.toFile());
+                    //executeCommand("mvn", null, sourceDirectory.toFile());
                     final Path targetDir = sourceDirectory.resolve("target");
                     try (Stream<Path> stream = Files.list(targetDir)) {
                         Set<Path> lambdaSourcePackage = stream
@@ -1507,6 +1557,7 @@ public class SaaSBoostInstall {
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
         templateParameters.add(Parameter.builder().parameterKey("OIDCIssuer").parameterValue(this.oidcIssuer).build());
         templateParameters.add(Parameter.builder().parameterKey("OIDCPermissions").parameterValue(this.oidcPermissions).build());
+        templateParameters.add(Parameter.builder().parameterKey("AuthMethod").parameterValue(this.authMethod.value).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
         String stackId = null;
