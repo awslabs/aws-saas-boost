@@ -40,7 +40,7 @@ Parameters:
     Description: Turn on EFS encryption at rest?
     Type: String
     AllowedValues: ['true', 'false']
-    Default: 'false'
+    Default: 'true'
   EFSLifecyclePolicy:
     Description: Enable EFS IA lifecycle?
     Type: String

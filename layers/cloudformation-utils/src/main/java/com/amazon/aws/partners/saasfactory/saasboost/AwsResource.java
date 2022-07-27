@@ -8,7 +8,7 @@ import java.util.IllegalFormatException;
 public enum AwsResource {
 
     RDS_CLUSTER("https://%s.console.aws.amazon.com/rds/home#database:id=%s;is-cluster=true",
-            "",
+            "arn:%s:rds:%s:%s:cluster:%s",
             "AWS::RDS::DBCluster", false),
     RDS_INSTANCE("https://%s.console.aws.amazon.com/rds/home?region=%s#dbinstance:id=%s",
             "arn:%s:rds:%s:%s:db:%s",
@@ -28,6 +28,9 @@ public enum AwsResource {
     PRIVATE_SUBNET_B("https://%s.console.aws.amazon.com/vpc/home?region=%s#SubnetDetails:subnetId=%s",
             "arn:%s:ec2:%s:%s:subnet/%s",
             "AWS::EC2::Subnet", true),
+    PRIVATE_ROUTE_TABLE("https://%s.console.aws.amazon.com/vpc/home?region=%s#RouteTables:routeTableId=%s",
+            "arn:%s:ec2:%s:%s:route-table/%s",
+            "AWS::EC2::RouteTable", true),
     CODE_PIPELINE("https://%s.console.aws.amazon.com/codesuite/codepipeline/pipelines/%s/view",
             "arn:%s:codepipeline:%s:%s:%s",
             "AWS::CodePipeline::Pipeline", false),
@@ -35,13 +38,13 @@ public enum AwsResource {
             "arn:%s:ecr:%s:%s:repository/%s",
             "AWS::ECR::Repository", false),
     LOAD_BALANCER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
-            "",
+            "arn:%s:elasticloadbalancing:%s:%s:loadbalancer/app/%s", // ${LoadBalancerName}/${LoadBalancerId}
             "AWS::ElasticLoadBalancingV2::LoadBalancer", true),
     HTTP_LISTENER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
-            "",
+            "arn:%s:elasticloadbalancing:%s:%s:listener/app/%s", // ${LoadBalancerName}/${LoadBalancerId}/${ListenerId}
             "AWS::ElasticLoadBalancingV2::Listener", true),
     HTTPS_LISTENER("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#LoadBalancers:search=%s",
-            "",
+            "arn:%s:elasticloadbalancing:%s:%s:listener/app/%s", // ${LoadBalancerName}/${LoadBalancerId}/${ListenerId}
             "AWS::ElasticLoadBalancingV2::Listener", true),
     CLOUDFORMATION("https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
             "arn:%s:cloudformation:%s:%s:stack/%s",

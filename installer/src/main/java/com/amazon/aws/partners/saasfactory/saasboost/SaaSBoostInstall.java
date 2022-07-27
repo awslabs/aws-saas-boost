@@ -48,6 +48,9 @@ import software.amazon.awssdk.services.quicksight.model.Tag;
 import software.amazon.awssdk.services.quicksight.model.User;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.CreateSecretRequest;
+import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 
@@ -76,6 +79,7 @@ public class SaaSBoostInstall {
     private final S3Client s3;
     private final SsmClient ssm;
     private final LambdaClient lambda;
+    private final SecretsManagerClient secretsManager;
 
     private final String accountId;
     private String envName;
@@ -141,6 +145,7 @@ public class SaaSBoostInstall {
         quickSight = awsClientBuilderFactory.quickSightBuilder().build();
         s3 = awsClientBuilderFactory.s3Builder().build();
         ssm = awsClientBuilderFactory.ssmBuilder().build();
+        secretsManager = awsClientBuilderFactory.secretsManagerBuilder().build();
 
         accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
     }
@@ -355,10 +360,20 @@ public class SaaSBoostInstall {
                         .overwrite(true)
                         .build()
                 );
-            } catch (SdkServiceException ssmError) {
+                secretsManager.createSecret(CreateSecretRequest.builder()
+                        .name(activeDirectoryPasswordParameterName)
+                        .secretString(activeDirectoryPassword)
+                        .forceOverwriteReplicaSecret(true)
+                        .build()
+                );
+            } catch (SsmException ssmError) {
                 LOGGER.error("ssm:PutParameter error", ssmError);
                 LOGGER.error(getFullStackTrace(ssmError));
                 throw ssmError;
+            } catch (SecretsManagerException smError) {
+                LOGGER.error("secretsmanager:createSecret error", smError);
+                LOGGER.error(getFullStackTrace(smError));
+                throw smError;
             }
             outputMessage("Active Directory admin user password stored in secure SSM Parameter: " + activeDirectoryPasswordParameterName);
         }

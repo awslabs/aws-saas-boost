@@ -35,7 +35,6 @@ import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
 import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
-import software.amazon.awssdk.services.elasticloadbalancingv2.model.*;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.*;
@@ -51,7 +50,6 @@ import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -60,6 +58,7 @@ public class OnboardingService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingService.class);
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SYSTEM_API_CALL_DETAIL_TYPE = "System API Call";
     private static final String EVENT_SOURCE = "saas-boost";
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
@@ -580,14 +579,16 @@ public class OnboardingService {
 
                 // Now run the onboarding stack to provision the infrastructure for this tenant
                 LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
+                String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
+                        + ".amazonaws.com/tenant-onboarding.yaml";
                 String stackId;
                 try {
                     CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                             .stackName(stackName)
-                            .disableRollback(true) // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
+                            .disableRollback(false)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                             .notificationARNs(ONBOARDING_STACK_SNS)
-                            .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding.yaml")
+                            .templateURL(templateUrl)
                             .parameters(templateParameters)
                             .build()
                     );
@@ -707,6 +708,9 @@ public class OnboardingService {
     }
 
     protected void handleOnboardingBaseProvisioned(Map<String, Object> event, Context context) {
+        if (Utils.isBlank(AWS_REGION)) {
+            throw new IllegalStateException("Missing required environment variable AWS_REGION");
+        }
         if (Utils.isBlank(SAAS_BOOST_ENV)) {
             throw new IllegalStateException("Missing required environment variable SAAS_BOOST_ENV");
         }
@@ -745,6 +749,7 @@ public class OnboardingService {
                     String vpc;
                     String privateSubnetA;
                     String privateSubnetB;
+                    String privateRouteTable;
                     String ecsSecurityGroup;
                     String loadBalancerArn;
                     String httpListenerArn;
@@ -755,6 +760,7 @@ public class OnboardingService {
                         vpc = tenantResources.get("VPC").get("name");
                         privateSubnetA = tenantResources.get("PRIVATE_SUBNET_A").get("name");
                         privateSubnetB = tenantResources.get("PRIVATE_SUBNET_B").get("name");
+                        privateRouteTable = tenantResources.get("PRIVATE_ROUTE_TABLE").get("name");
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
@@ -846,15 +852,15 @@ public class OnboardingService {
                         Boolean enableEfs = Boolean.FALSE;
                         Boolean enableFSx = Boolean.FALSE;
                         String mountPoint = "";
-                        Boolean encryptFilesystem = Boolean.FALSE;
+                        Boolean encryptFilesystem = Boolean.TRUE;
                         String filesystemLifecycle = "NEVER";
-                        String fileSystemType = "";
-                        Integer fsxStorageGb = 0;
-                        Integer fsxThroughputMbs = 0;
+                        Integer fsxStorageGb = 32;
+                        Integer fsxThroughputMbs = 8;
                         Integer fsxBackupRetentionDays = 7;
                         String fsxDailyBackupTime = "";
                         String fsxWeeklyMaintenanceTime = "";
                         String fsxWindowsMountDrive = "";
+                        String fileSystemType = "";
                         Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
                             fileSystemType = (String) filesystem.get("type");
@@ -941,7 +947,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
-                        templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancer").parameterValue(loadBalancerArn).build());
+                        templateParameters.add(Parameter.builder().parameterKey("PrivateRouteTable").parameterValue(privateRouteTable).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpListener").parameterValue(httpListenerArn).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSLoadBalancerHttpsListener").parameterValue(httpsListenerArn).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSSecurityGroup").parameterValue(ecsSecurityGroup).build());
@@ -955,15 +961,16 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ContainerPort").parameterValue(containerPort.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerHealthCheckPath").parameterValue(healthCheck).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseEFS").parameterValue(enableEfs.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("MountPoint").parameterValue(mountPoint).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FileSystemMountPoint").parameterValue(mountPoint).build());
                         templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxFileSystemType").parameterValue(fileSystemType.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").parameterValue(fsxThroughputMbs.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").parameterValue(fsxStorageGb.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FileSystemThroughput").parameterValue(fsxThroughputMbs.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FileSystemStorage").parameterValue(fsxStorageGb.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
@@ -979,7 +986,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
                         templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
                         for (Parameter p : templateParameters) {
-                            //LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
+                            LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
                             if (p.parameterValue() == null) {
                                 LOGGER.error("OnboardingService::provisionTenant template parameter {} is NULL", p.parameterKey());
                                 dal.updateStatus(onboarding.getId(), OnboardingStatus.failed);
@@ -990,23 +997,23 @@ public class OnboardingService {
 
                         // Make the stack name look like what CloudFormation would have done for a nested stack
                         String tenantShortId = tenantId.substring(0, 8);
-                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
-                                + "-" + Utils.randomString(12).toUpperCase();
+                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-"
+                                + serviceResourceName + "-" + Utils.randomString(12).toUpperCase();
                         if (stackName.length() > 128) {
                             stackName = stackName.substring(0, 128);
                         }
                         // Now run the onboarding stack to provision the infrastructure for this application service
                         LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
-
+                        String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
+                                + ".amazonaws.com/tenant-onboarding-app.yaml";
                         String stackId;
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                                     .stackName(stackName)
-                                    .disableRollback(true) // For ease in debugging of failed stacks. Maybe not appropriate for "production".
-                                    //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
+                                    .disableRollback(false)
                                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                                     .notificationARNs(ONBOARDING_APP_STACK_SNS)
-                                    .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding-app.yaml")
+                                    .templateURL(templateUrl)
                                     .parameters(templateParameters)
                                     .build()
                             );
