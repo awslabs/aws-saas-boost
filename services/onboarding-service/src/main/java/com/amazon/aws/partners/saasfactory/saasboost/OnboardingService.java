@@ -579,14 +579,16 @@ public class OnboardingService {
 
                 // Now run the onboarding stack to provision the infrastructure for this tenant
                 LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
+                String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
+                        + ".amazonaws.com/tenant-onboarding.yaml";
                 String stackId;
                 try {
                     CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                             .stackName(stackName)
-                            .disableRollback(true) // This was set to DO_NOTHING to ease debugging of failed stacks. Maybe not appropriate for "production". If we change this we'll have to add a whole bunch of IAM delete permissions to the execution role.
+                            .disableRollback(false)
                             .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                             .notificationARNs(ONBOARDING_STACK_SNS)
-                            .templateURL("https://" + SAAS_BOOST_BUCKET + ".s3.amazonaws.com/tenant-onboarding.yaml")
+                            .templateURL(templateUrl)
                             .parameters(templateParameters)
                             .build()
                     );
@@ -995,37 +997,20 @@ public class OnboardingService {
 
                         // Make the stack name look like what CloudFormation would have done for a nested stack
                         String tenantShortId = tenantId.substring(0, 8);
-                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-" + serviceResourceName
-                                + "-" + Utils.randomString(12).toUpperCase();
+                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-"
+                                + serviceResourceName + "-" + Utils.randomString(12).toUpperCase();
                         if (stackName.length() > 128) {
                             stackName = stackName.substring(0, 128);
                         }
                         // Now run the onboarding stack to provision the infrastructure for this application service
                         LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
-                        String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION + ".amazonaws.com/tenant-onboarding-app.yaml";
-
-                        StringBuilder cli = new StringBuilder();
-                        cli.append("aws cloudformation create-stack --stack-name ");
-                        cli.append(stackName);
-                        cli.append(" --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --template-url ");
-                        cli.append(templateUrl);
-                        cli.append(" --notification-arns ");
-                        cli.append(ONBOARDING_APP_STACK_SNS);
-                        cli.append(" --parameters ");
-                        for (Parameter parameter : templateParameters) {
-                            cli.append("ParameterKey=");
-                            cli.append(parameter.parameterKey());
-                            cli.append(",ParameterValue=\"");
-                            cli.append(parameter.parameterValue());
-                            cli.append("\" ");
-                        }
-                        LOGGER.info(cli.toString());
+                        String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
+                                + ".amazonaws.com/tenant-onboarding-app.yaml";
                         String stackId;
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                                     .stackName(stackName)
-                                    .disableRollback(true) //TODO undo this
-                                    //.timeoutInMinutes(60) // Some resources can take a really long time to light up. Do we want to specify this?
+                                    .disableRollback(false)
                                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                                     .notificationARNs(ONBOARDING_APP_STACK_SNS)
                                     .templateURL(templateUrl)

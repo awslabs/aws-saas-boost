@@ -87,6 +87,12 @@ Parameters:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
      Type: String
      Default: '7:02:00'
+  OntapVolumeSize:
+    Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
+    Type: Number
+    Default: 40
+    MinValue: 20
+    MaxValue: 104857600
 Conditions:
   UseAWSDirectoryService: !Not [!Equals [!Ref ActiveDirectoryId, '']]
   HasKey: !Equals [!Ref FSxEncryptionKey, 'UseKey']
@@ -463,7 +469,7 @@ Resources:
       OntapConfiguration:
         JunctionPath: /vol1
         SecurityStyle: NTFS
-        SizeInMegabytes: '40' # Quoted to make cfn-lint happy
+        SizeInMegabytes: !Ref OntapVolumeSize
         StorageEfficiencyEnabled: 'false' # Quoted to make cfn-lint happy
         StorageVirtualMachineId: !Ref StorageVirtualMachine
       Tags:
