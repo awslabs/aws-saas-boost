@@ -16,6 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.impl;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Env;
 import com.amazon.aws.partners.saasfactory.saasboost.OIDCConfig;
 
 import java.util.HashMap;
@@ -23,20 +24,19 @@ import java.util.Map;
 
 public class DefaultOidcTokenVerifier extends OidcTokenVerifierBase {
     public static final String DELIMITER = ",";
-    public static final String OIDC_SCOPE_OR_GROUPS = "OIDC_SCOPE_OR_GROUPS";
     public DefaultOidcTokenVerifier(OIDCConfig config) {
         super(config);
     }
 
     /**
-     * @return Desired Claims based on env OIDC_SCOPE_OR_GROUPS, if multi-value, delimiter is ","
-     * e.g, OIDC_SCOPE_OR_GROUPS='scope=saas-boost-api:admin,groups=admin'"
+     * @return Desired Claims based on env OIDC_PERMISSIONS, if multi-value, delimiter is ","
+     * e.g, OIDC_PERMISSIONS='scope=saas-boost-api:admin,groups=admin'"
      */
     @Override
     protected Map<String, String> getDesiredClaims() {
         Map<String, String> desiredClaims = new HashMap<>();
         //scope=saas-boost-api:admin,groups=admin
-        String scopeOrGroups = System.getenv(OIDC_SCOPE_OR_GROUPS);
+        String scopeOrGroups = Env.getOidcPermissions();
         if (scopeOrGroups == null) {
             return null;
         }

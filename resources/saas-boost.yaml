@@ -64,6 +64,15 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  OIDCIssuer:
+    Description: OIDC Issuer
+    Type: String
+    Default: ''
+  OIDCPermissions:
+    Description: OIDC Permissions, required claims in token, e.g, scope=saas-boost-api:admin
+    Type: String
+    Default: ''
+
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
 Resources:
@@ -750,6 +759,8 @@ Resources:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-public-api.yaml
       Parameters:
         Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
@@ -785,6 +796,8 @@ Resources:
         UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
         UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
         UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        OIDCIssuer: !Ref OIDCIssuer
+        OIDCPermissions: !Ref OIDCPermissions
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:

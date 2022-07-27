@@ -88,6 +88,8 @@ public class SaaSBoostInstall {
     private boolean useQuickSight = false;
     private String quickSightUsername;
     private String quickSightUserArn;
+    private String oidcIssuer;
+    private String oidcPermissions;
 
     protected enum ACTION {
         INSTALL(1, "New AWS SaaS Boost install.", false),
@@ -271,6 +273,36 @@ public class SaaSBoostInstall {
             }
         }
 
+        boolean oidcIssuerSet = false;
+        while (true) {
+            System.out.print("Enter the OIDC issuer (enter 'none' to ignore):");
+            String input = Keyboard.readString();
+            if (input.startsWith("https://")) {
+                this.oidcIssuer = input;
+                oidcIssuerSet = true;
+                break;
+            } else if (input.equalsIgnoreCase("none")) {
+                this.oidcIssuer = "";
+                break;
+            } else {
+                outputMessage("Entered value for issuer incorrect or wrong format, please try again.");
+            }
+        }
+
+        while (oidcIssuerSet) {
+            System.out.print("Enter permissions required in token claims (enter 'none' to ignore):");
+            String input = Keyboard.readString();
+            if (input.contains("=")) {
+                this.oidcPermissions = input;
+                break;
+            } else if (input.equalsIgnoreCase("none")) {
+                this.oidcPermissions = "";
+                break;
+            } else {
+                outputMessage("Entered value for permissions incorrect or wrong format, please try again.");
+            }
+        }
+
         System.out.print("Would you like to install the metrics and analytics module of AWS SaaS Boost (y or n)? ");
         this.useAnalyticsModule = Keyboard.readBoolean();
 
@@ -295,6 +327,8 @@ public class SaaSBoostInstall {
         outputMessage("AWS Region: " + AWS_REGION.toString());
         outputMessage("AWS SaaS Boost Environment Name: " + this.envName);
         outputMessage("Admin Email Address: " + emailAddress);
+        outputMessage("OIDC Issuer: " + this.oidcIssuer);
+        outputMessage("OIDC Permissions: " + this.oidcPermissions);
         outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
         if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
             outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
@@ -1471,6 +1505,8 @@ public class SaaSBoostInstall {
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
+        templateParameters.add(Parameter.builder().parameterKey("OIDCIssuer").parameterValue(this.oidcIssuer).build());
+        templateParameters.add(Parameter.builder().parameterKey("OIDCPermissions").parameterValue(this.oidcPermissions).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
         String stackId = null;

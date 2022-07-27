@@ -16,10 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.impl;
 
-import com.amazon.aws.partners.saasfactory.saasboost.IllegalTokenException;
-import com.amazon.aws.partners.saasfactory.saasboost.OIDCConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.Resource;
-import com.amazon.aws.partners.saasfactory.saasboost.TokenVerifier;
+import com.amazon.aws.partners.saasfactory.saasboost.*;
 import com.auth0.jwk.Jwk;
 import com.auth0.jwk.JwkException;
 import com.auth0.jwk.JwkProvider;
@@ -44,14 +41,6 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public abstract class OidcTokenVerifierBase implements TokenVerifier {
-    private static int CLOCK_SKEW_SECONDS = 60;
-    static {
-        try {
-            CLOCK_SKEW_SECONDS = Integer.parseInt(System.getenv("CLOCK_SKEW_SECONDS"));
-        }catch (Exception e) {
-        }
-    }
-
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcTokenVerifierBase.class);
     private static Map<String, PublicKey> PUB_KEY_CACHE = new HashMap<>();
     private OIDCConfig config;
@@ -104,7 +93,7 @@ public abstract class OidcTokenVerifierBase implements TokenVerifier {
     private Claims parseToken(PublicKey pubKey, String jwtToken) {
         return Jwts.parserBuilder()
                 .setSigningKey(pubKey)
-                .setAllowedClockSkewSeconds(CLOCK_SKEW_SECONDS)
+                .setAllowedClockSkewSeconds(Env.getClockSkewSeconds())
                 .build()
                 .parseClaimsJws(jwtToken)
                 .getBody();

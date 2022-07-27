@@ -31,13 +31,12 @@ import java.util.Map;
 
 public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, AuthPolicy> {
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcAuthorizer.class);
-    private static final String OIDC_ISSUER = System.getenv("OIDC_ISSUER");
 
     private TokenVerifier tokenVerifier;
 
     protected TokenVerifier getTokenVerifier() {
         if (tokenVerifier == null) {
-            this.tokenVerifier = TokenVerifier.getInstance(OIDC_ISSUER);
+            this.tokenVerifier = TokenVerifier.getInstance(Env.getOidcIssuer());
         }
         return this.tokenVerifier;
     }
