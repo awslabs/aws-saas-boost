@@ -556,6 +556,7 @@ Resources:
               - iam:CreateRole
               - iam:DeleteRole
               - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
               - iam:GetRolePolicy
               - iam:PutRolePolicy
               - iam:DeleteRolePolicy
@@ -791,6 +792,7 @@ Resources:
               - lambda:CreateFunction
               - lambda:InvokeFunction
               - lambda:DeleteFunction
+              - lambda:TagResource
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-fsx-dns-tenant-*
           - Effect: Allow

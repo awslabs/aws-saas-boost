@@ -32,11 +32,13 @@ import java.util.Objects;
 )
 @JsonSubTypes({
     @Type(value = EfsFilesystem.class, name = AbstractFilesystem.EFS),
-    @Type(value = FsxWindowsFilesystem.class, name = AbstractFilesystem.FSXW)
+    @Type(value = FsxWindowsFilesystem.class, name = AbstractFilesystem.FSXW),
+    @Type(value = FsxOntapFilesystem.class, name = AbstractFilesystem.FSXO)
 })
 public abstract class AbstractFilesystem {
     protected static final String EFS = "EFS";
     protected static final String FSXW = "FSX_WINDOWS";
+    protected static final String FSXO = "FSX_ONTAP";
 
     private String mountPoint;
 

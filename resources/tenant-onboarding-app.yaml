@@ -212,6 +212,12 @@ Parameters:
     Description: Preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
     Default: '7:02:00'
     Type: String
+  OntapVolumeSize:
+    Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
+    Type: Number
+    Default: 40
+    MinValue: 20
+    MaxValue: 104857600
   Disable:
     Description: Disable the tenant's access to the application
     Type: String
@@ -1162,6 +1168,7 @@ Resources:
         StorageCapacity: !Ref FileSystemStorage
         ThroughputCapacity: !Ref FileSystemThroughput
         ECSSecurityGroup: !Ref ECSSecurityGroup
+        OntapVolumeSize: !Ref OntapVolumeSize
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS

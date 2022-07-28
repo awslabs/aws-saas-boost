@@ -860,7 +860,8 @@ public class OnboardingService {
                         String fsxDailyBackupTime = "";
                         String fsxWeeklyMaintenanceTime = "";
                         String fsxWindowsMountDrive = "";
-                        String fileSystemType = "";
+                        Integer ontapVolumeSize = 40;
+                        String fileSystemType = "FSX_WINDOWS";
                         Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
                             fileSystemType = (String) filesystem.get("type");
@@ -876,7 +877,7 @@ public class OnboardingService {
                                 if (filesystemLifecycle == null) {
                                     filesystemLifecycle = "NEVER";
                                 }
-                            } else if ("FSX_WINDOWS".equals(fileSystemType)) {
+                            } else if ("FSX_WINDOWS".equals(fileSystemType) || "FSX_ONTAP".equals(fileSystemType)) {
                                 enableFSx = Boolean.TRUE;
                                 // Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
                                 fsxStorageGb = (Integer) filesystem.get("storageGb"); // GB 32 to 65,536
@@ -899,10 +900,21 @@ public class OnboardingService {
                                 if (fsxWeeklyMaintenanceTime == null) {
                                     fsxWeeklyMaintenanceTime = "";
                                 }
-                                fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
-                                if (fsxWindowsMountDrive == null) {
-                                    fsxWindowsMountDrive = "";
+                                if ("FSX_WINDOWS".equals(fileSystemType)) {
+                                    fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
+                                    if (fsxWindowsMountDrive == null) {
+                                        fsxWindowsMountDrive = "";
+                                    }
                                 }
+                                if ("FSX_ONTAP".equals(fileSystemType)) {
+                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize");
+                                    if (ontapVolumeSize == null) {
+                                        ontapVolumeSize = 40;
+                                    }
+                                }
+                            }
+                            if (fileSystemType == null) {
+                                fileSystemType = "FSX_WINDOWS";
                             }
                         }
 
@@ -972,6 +984,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("FileSystemThroughput").parameterValue(fsxThroughputMbs.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("FileSystemStorage").parameterValue(fsxStorageGb.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").parameterValue(fsxWeeklyMaintenanceTime).build());
+                        templateParameters.add(Parameter.builder().parameterKey("OntapVolumeSize").parameterValue(ontapVolumeSize.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseRDS").parameterValue(enableDatabase.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSInstanceClass").parameterValue(dbInstanceClass).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSEngine").parameterValue(dbEngine).build());
