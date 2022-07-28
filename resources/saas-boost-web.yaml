@@ -148,7 +148,11 @@ Resources:
       LogoutURLs:
         - !Sub https://${ConsoleCloudFrontDistribution.DomainName}
         - http://localhost:3000
-
+  ConsoleUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub sb-${Environment}-saas-boost
+      UserPoolId: !Ref ConsoleUserPool
   ConsoleIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Condition: AuthWithCognitoUserPool

@@ -75,8 +75,44 @@ public class OidcAuthorizerTest {
         AuthPolicy policy = oidcAuthorizer.handleRequest(input, null);
         ObjectMapper objectMapper = new ObjectMapper();
         AuthPolicy expectedPolicy = new AuthPolicy("mockSub",
-                AuthPolicy.PolicyDocument.getAllowOnePolicy("cn-north-1", "111111111111",
-                        "testapi", "v1", AuthPolicy.HttpMethod.GET, "settings/"));
+                AuthPolicy.PolicyDocument.getAllowAllPolicy("cn-north-1", "111111111111",
+                        "testapi", "v1"));
+
+        Map<String, String> expectedContext = new HashMap<>();
+        for(String it : Arrays.asList("issuer", "id", "sub", "email", "name", "scope", "groups")){
+            expectedContext.put(it, it + "_test");
+        }
+        expectedPolicy.setContext(expectedContext);
+        Assert.assertEquals(objectMapper.writeValueAsString(expectedPolicy), objectMapper.writeValueAsString(policy));
+    }
+
+    @Test
+    public void handleRequestWithAllowTestWithOptions() throws JsonProcessingException {
+        OidcAuthorizer oidcAuthorizer = new OidcAuthorizer() {
+            @Override
+            protected TokenVerifier getTokenVerifier() {
+                return  new TokenVerifier() {
+                    @Override
+                    public Claims verify (String token, Resource resource) throws IllegalTokenException {
+                        return new MockClaims();
+                    }
+                };
+            }
+        };
+
+        String authorizationToken = "Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJZT0hTZ0tRdWQxX2FuVGlIcEtNOHozaUlQNXNlNlZrcWl3SHN3clNqbzhZIn0.eyJleHAiOjE2NTg4Mzg0NjIsImlhdCI6MTY1ODgwMjQ2MywiYXV0aF90aW1lIjoxNjU4ODAyNDYyLCJqdGkiOiJiYjE5NzdiNS0zMDlhLTQwMzItOGU0Yy1mYTU4OTRlZTZiZmQiLCJpc3MiOiJodHRwczovL2tleWNsb2FrLXNiLmRlbW8uc29sdXRpb25zLmF3cy5hMnoub3JnLmNuL2F1dGgvcmVhbG1zL3NhYXMtYm9vc3QtdGVzdCIsInN1YiI6ImMyYzE4ZDExLTJjNjItNGY3Zi04N2FmLWMyYWNhNjRhZjc5OCIsInR5cCI6IkJlYXJlciIsImF6cCI6InNhYXMtYm9vc3QtdGVzdC1jbGllbnQiLCJzZXNzaW9uX3N0YXRlIjoiOTAzYjdmYzctNmFmNC00MGNiLTk4NjAtMmI4YjdhOTIyOWVhIiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyJodHRwOi8vbG9jYWxob3N0OjMwMDAiXSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBzYWFzLWJvb3N0LWFwaTphZG1pbiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwicHJlZmVycmVkX3VzZXJuYW1lIjoidGVzdCIsImVtYWlsIjoidGVzdEB0ZXN0LmNvbSJ9.Z-cHW5__9OQ8jF0O-Zw3CFUY31MhEK-H4wXeGMrghMFUW3pXEX0gZ0YQS2JphikEhMzLNnA6_rl4ScYkhfVNYZwujAmxVKHw1ILb8XXLpyaUOd5L46q7PR0nxwiEs8U3WeJm1cNxihZ9LS7pveBubCXQS23sbZ_y1tANvB8Ee6Vz73ItpzJYSCISQ5KBoGpO2hVC2Y2hoe4z9XVhIrDe6qfiyT73JhL0DuQKkM3VI_8qz5_jXbp6CAEZRYzPEtmXykAL79KQukh8CzVn-Dbu73UeIXSqgQGU9KzvpXff1oC7_5XgT-IzDfZufxKDlA3IOylj6AtYQS1fJ5haNH9qgg";
+        String methodArn = "arn:aws-cn:execute-api:cn-north-1:111111111111:testapi/v1/GET/settings/options";
+
+        TokenAuthorizerContext input = new TokenAuthorizerContext(
+                "TOKEN",
+                authorizationToken,
+                methodArn
+        );
+        AuthPolicy policy = oidcAuthorizer.handleRequest(input, null);
+        ObjectMapper objectMapper = new ObjectMapper();
+        AuthPolicy expectedPolicy = new AuthPolicy("mockSub",
+                AuthPolicy.PolicyDocument.getAllowAllPolicy("cn-north-1", "111111111111",
+                        "testapi", "v1"));
 
         Map<String, String> expectedContext = new HashMap<>();
         for(String it : Arrays.asList("issuer", "id", "sub", "email", "name", "scope", "groups")){

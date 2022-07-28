@@ -55,8 +55,9 @@ public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, Au
         String stage = apiGatewayArnPartials[1];
         String httpMethod = apiGatewayArnPartials[2];
         String resourcePath = String.join("/", Arrays.copyOfRange(apiGatewayArnPartials, 3, apiGatewayArnPartials.length));
-        resourcePath += "/";
-
+        if (methodArn.endsWith("/")) {
+            resourcePath += "/";
+        }
         LOGGER.info("httpMethod: {}", httpMethod);
         LOGGER.info("resourcePath: {}", resourcePath);
 
@@ -73,12 +74,12 @@ public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, Au
         }
         principalId = claims.getSubject();
         AuthPolicy authPolicy = new AuthPolicy(principalId,
-                AuthPolicy.PolicyDocument.getAllowOnePolicy(
+                AuthPolicy.PolicyDocument.getAllowAllPolicy(
                         region, awsAccountId,
-                        restApiId, stage,
-                        AuthPolicy.HttpMethod.valueOf(httpMethod), resourcePath));
+                        restApiId, stage
+                        ));
         authPolicy.setContext(getContext(claims));
-        LOGGER.info("token Verified");
+        LOGGER.info("token verified successfully");
         return authPolicy;
     }
 

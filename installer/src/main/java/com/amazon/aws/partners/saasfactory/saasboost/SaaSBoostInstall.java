@@ -1523,7 +1523,7 @@ public class SaaSBoostInstall {
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
             for (Path sourceDirectory : sourceDirectories) {
                 if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
-                    //executeCommand("mvn", null, sourceDirectory.toFile());
+                    executeCommand("mvn", null, sourceDirectory.toFile());
                     final Path targetDir = sourceDirectory.resolve("target");
                     try (Stream<Path> stream = Files.list(targetDir)) {
                         Set<Path> lambdaSourcePackage = stream
