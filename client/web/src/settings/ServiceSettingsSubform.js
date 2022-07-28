@@ -58,7 +58,7 @@ const ServiceSettingsSubform = (props) => {
   const getLaunchTypeOptions = (serviceIndex) => {
     return serviceValues?.operatingSystem === 'LINUX' && (
      <FormGroup>
-       <div className="mb-2">Container OS</div>
+       <div className="mb-2">Container Launch Type</div>
        <FormGroup check inline>
          <Field
            className="form-check-input"
