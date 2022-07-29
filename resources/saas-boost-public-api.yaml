@@ -261,7 +261,6 @@ Resources:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
-
   BillingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
