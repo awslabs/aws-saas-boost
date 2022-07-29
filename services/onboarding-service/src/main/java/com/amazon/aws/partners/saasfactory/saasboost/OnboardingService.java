@@ -842,7 +842,7 @@ public class OnboardingService {
                         Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
                         String clusterInstanceType = (String) tierConfig.get("instanceType");
                         // TODO Update App Config to capture what launch type to use
-                        String launchType = "LINUX".equals(clusterOS) ? "FARGATE" : "EC2";
+                        String launchType = (String) service.get("ecsLaunchType");
                         Integer taskMemory = (Integer) tierConfig.get("memory");
                         Integer taskCpu = (Integer) tierConfig.get("cpu");
                         Integer minCount = (Integer) tierConfig.get("min");
