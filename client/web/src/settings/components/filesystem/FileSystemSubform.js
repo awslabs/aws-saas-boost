@@ -71,9 +71,17 @@ const FilesystemType = (props) => {
     </FormGroup>)
 }
 
+class EmptyComponent extends React.Component {
+  render() {
+    return null
+  }
+}
+
 export default class FileSystemSubform extends React.Component {
   render() {
-    var FsComponent = !!this.props.filesystemType ? FILESYSTEM_TYPES[this.props.filesystemType].component : null
+    var FsComponent = (!!this.props.filesystemType && FILESYSTEM_TYPES[this.props.filesystemType]) 
+        ? FILESYSTEM_TYPES[this.props.filesystemType].component 
+        : EmptyComponent
     return (
       <Fragment>
         <Row className="mt-3">

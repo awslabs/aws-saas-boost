@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { cibWindows, cibAmazonAws } from '@coreui/icons'
+import { cibWindows, cibAmazonAws, cilViewQuilt } from '@coreui/icons'
 import EfsFilesystemOptions from './EfsFilesystemOptions'
+import FsxOntapFilesystemOptions from './FsxOntapFilesystemOptions'
 import FsxWindowsFilesystemOptions from './FsxWindowsFilesystemOptions'
 import * as Yup from 'yup'
 
@@ -85,6 +86,53 @@ export const FILESYSTEM_TYPES = {
             windowsMountDrive: Yup.string()
                 .required('Windows mount drive is required'),
         })
+    },
+    "FSX_ONTAP": {
+        "id": "FSX_ONTAP",
+        "name": "FSX Ontap",
+        "icon": cilViewQuilt,
+        "component": FsxOntapFilesystemOptions,
+        "defaults": {
+            mountPoint: '',
+            storageGb: 1024,
+            throughputMbs: 128,
+            backupRetentionDays: 7,
+            dailyBackupTime: '01:00',
+            weeklyMaintenanceTime: '07:01:00',
+            weeklyMaintenanceDay: '1',
+            windowsMountDrive: 'G:',
+            volumeSize: 40
+        },
+        "validationSchema": Yup.object({
+            mountPoint: Yup.string()
+                .matches(
+                    /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
+                    'Invalid path. Ex: C:\\data'
+                )
+                .required(),
+            storageGb: Yup.number()
+                .required()
+                .min(1024, 'Storage minimum is 1024 GB')
+                .max(196608, 'Storage maximum is 196,608 GB'),
+            throughputMbs: Yup.number()
+                .required()
+                .min(128, 'Throughput minimum is 128 MB/s')
+                .max(2048, 'Throughput maximum is 2048 MB/s'),
+            backupRetentionDays: Yup.number()
+                .required()
+                .min(7, 'Minimum retention time is 7 days')
+                .max(35, 'Maximum retention time is 35 days'),
+            dailyBackupTime: Yup.string()
+                .required('Daily backup time is required'),
+            weeklyMaintenanceTime: Yup.string()
+                .required('Weekly maintenance time is required'),
+            windowsMountDrive: Yup.string()
+                .required('Windows mount drive is required'),
+            volumeSize: Yup.number()
+                .required()
+                .min(0, 'Volume Size must be a positive number')
+                .max(196608, 'Volume size maximum is 196.608 GB')
+        })
     }
 }
 
@@ -99,6 +147,7 @@ export const OS_TO_FS_TYPES = {
         FILESYSTEM_TYPES.EFS
     ],
     "WINDOWS": [
-        FILESYSTEM_TYPES.FSX_WINDOWS
+        FILESYSTEM_TYPES.FSX_WINDOWS,
+        FILESYSTEM_TYPES.FSX_ONTAP,
     ]
 }
