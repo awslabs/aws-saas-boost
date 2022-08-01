@@ -169,10 +169,25 @@ The following options can be configured for your file system:
 - Lifecycle - Amazon Elastic File System (Amazon EFS) lifecycle management automatically manages cost-effective file storage for your file systems. When enabled, lifecycle management migrates files that have not been accessed for a set period of time to the Infrequent Access (IA) storage class. You define that period of time by using a lifecycle policy. After lifecycle management moves a file into the IA storage class, the file remains there indefinitely. Amazon EFS lifecycle management uses an internal timer to track when a file was last accessed.
 - Encrypt at rest - Check this box if you want your files to be encrypted at rest. 
 
-If you've selected Windows as your operating system, the system will display a different set of configuration options (since Windows requires a different type of file system infrastructure). Selecting the **Provision a file system for the application** check box for a Windows operating system will show a page similar to the following:
+If you've selected Windows as your operating system, the system will display a different set of configuration options (since Windows requires a different type of file system infrastructure). Selecting the **Provision a file system for the application** check box for a Windows operating system will show a page similar to one of the following based on whether you choose "FSx ONTAP" or "FSx Windows":
 
-![Figure 11 - Configure a file system for the Windows operating system](images/ug-filesystem-fsx.png?raw=true "Figure 11 - Configure a file system for the Windows operating system")
-<p align="center">Figure 11 - Configure a file system for the Windows operating system</p>
+![Figure 11a - Configure a Netapp ONTAP FSx file system for the Windows operating system](images/ug-filesystem-fsx-ontap.png?raw=true "Figure 11a - Configure a Netapp ONTAP file system for the Windows operating system")
+<p align="center">Figure 11a - Configure a Netapp ONTAP file system for the Windows operating system</p>
+
+![Figure 11b - Configure a Windows FSx file system for the Windows operating system](images/ug-filesystem-fsx-windows.png?raw=true "Figure 11b - Configure a Windows FSx file system for the Windows operating system")
+<p align="center">Figure 11b - Configure a Windows FSx file system for the Windows operating system</p>
+
+The following options can be configured for your Netapp ONTAP FSx file system:
+- Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
+- Storage Capacity - Enter the size of the file system you want to provision.
+- Throughput - Enter the level of throughput you want to be supported by your file system.
+- Daily Backup Time - Provide the time of day the file system will be backed up each day.
+- Drive Letter Assignment - Select the logical drive letter that will be used for the file system.
+- Weekly Maintenance Day/Time - Provide the day/time when you want maintenance to be applied to your file system.
+- Backup Retention - Enter the number of days a backup will be retained.
+- Volume Size - Enter the size of the ONTAP Volume in GiB that you want to create.
+
+The following options can be configured for your Windows FSx file system:
 
 The following options can be configured for your file system:
 - Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
