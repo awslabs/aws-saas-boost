@@ -189,29 +189,31 @@ Parameters:
   FileSystemStorage:
     Description: Storage capacity for the file system in GB
     Type: Number
-    MinValue: 32
-    MaxValue: 65536
     Default: 32
   FileSystemThroughput:
     Description: Throughput capacity for the file system in MB/s
     Type: Number
-    MinValue: 8
-    MaxValue: 2048
     Default: 16
   FSxBackupRetention:
     Description: Number of days to retain automatic backups
     MinValue: 0
-    MaxValue: 35
+    MaxValue: 90
     Default: 0
     Type: Number
   FSxDailyBackupTime:
     Description: Preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
-    Default: '01:00'
+    Default: '02:00'
     Type: String
   FSxWeeklyMaintenanceTime:
     Description: Preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
-    Default: '7:02:00'
+    Default: '7:01:00'
     Type: String
+  OntapVolumeSize:
+    Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
+    Type: Number
+    Default: 40
+    MinValue: 20
+    MaxValue: 104857600
   Disable:
     Description: Disable the tenant's access to the application
     Type: String
@@ -1162,6 +1164,7 @@ Resources:
         StorageCapacity: !Ref FileSystemStorage
         ThroughputCapacity: !Ref FileSystemThroughput
         ECSSecurityGroup: !Ref ECSSecurityGroup
+        OntapVolumeSize: !Ref OntapVolumeSize
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
