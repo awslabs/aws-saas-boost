@@ -65,28 +65,25 @@ Parameters:
     Type: String
     Default: ''
   StorageCapacity:
-    Description: Specify the storage capacity of the file system being created, in gibibytes.
-      Valid values are 32 GiB - 65,536 GiB.
+    Description: Specify the storage capacity of the file system being created in GB
     Type: Number
     Default: 32
   ThroughputCapacity:
-    Description: Specify the throughput of the Amazon FSx file system. Valid values are 8 - 2048.
+    Description: Specify the throughput of the Amazon FSx file system
     Type: Number
     Default: 16
   BackupRetention:
-    Description: Number of days to retain automatic backups.
-      Setting this to 0 disables the creation of automatic backups. The maximum retention period
-      for backups is 35 days.
+    Description: Number of days to retain automatic backups
     Type: Number
     Default: 7
   DailyBackupTime:
     Description: Preferred time to take daily automatic backups, formatted HH:MM in the UTC time zone.
     Type: String
-    Default: '01:00'
+    Default: '02:00'
   WeeklyMaintenanceTime:
      Description: Specify the preferred start time to perform weekly maintenance, formatted d:HH:MM in the UTC time zone
      Type: String
-     Default: '7:02:00'
+     Default: '7:01:00'
   OntapVolumeSize:
     Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
     Type: Number

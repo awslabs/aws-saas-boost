@@ -841,7 +841,6 @@ public class OnboardingService {
 
                         Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
                         String clusterInstanceType = (String) tierConfig.get("instanceType");
-                        // TODO Update App Config to capture what launch type to use
                         String launchType = (String) service.get("ecsLaunchType");
                         Integer taskMemory = (Integer) tierConfig.get("memory");
                         Integer taskCpu = (Integer) tierConfig.get("cpu");
@@ -851,15 +850,15 @@ public class OnboardingService {
                         // Does this service use a shared filesystem?
                         Boolean enableEfs = Boolean.FALSE;
                         Boolean enableFSx = Boolean.FALSE;
-                        String mountPoint = "";
+                        String mountPoint = "/mnt";
                         Boolean encryptFilesystem = Boolean.TRUE;
                         String filesystemLifecycle = "NEVER";
                         Integer fsxStorageGb = 32;
                         Integer fsxThroughputMbs = 8;
-                        Integer fsxBackupRetentionDays = 7;
-                        String fsxDailyBackupTime = "";
-                        String fsxWeeklyMaintenanceTime = "";
-                        String fsxWindowsMountDrive = "";
+                        Integer fsxBackupRetentionDays = 0;
+                        String fsxDailyBackupTime = "02:00";
+                        String fsxWeeklyMaintenanceTime = "7:01:00";
+                        String fsxWindowsMountDrive = "G:";
                         Integer ontapVolumeSize = 40;
                         String fileSystemType = "FSX_WINDOWS";
                         Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
@@ -868,7 +867,6 @@ public class OnboardingService {
                             mountPoint = (String) filesystem.get("mountPoint");
                             if ("EFS".equals(fileSystemType)) {
                                 enableEfs = Boolean.TRUE;
-                                // Map<String, Object> efsConfig = (Map<String, Object>) filesystem.get("efs");
                                 encryptFilesystem = (Boolean) filesystem.get("encrypt");
                                 if (encryptFilesystem == null) {
                                     encryptFilesystem = Boolean.FALSE;
@@ -879,32 +877,29 @@ public class OnboardingService {
                                 }
                             } else if ("FSX_WINDOWS".equals(fileSystemType) || "FSX_ONTAP".equals(fileSystemType)) {
                                 enableFSx = Boolean.TRUE;
-                                // Map<String, Object> fsxConfig = (Map<String, Object>) filesystem.get("fsx");
-                                fsxStorageGb = (Integer) filesystem.get("storageGb"); // GB 32 to 65,536
+                                fsxStorageGb = (Integer) filesystem.get("storageGb");
                                 if (fsxStorageGb == null) {
-                                    fsxStorageGb = 0;
+                                    fsxStorageGb = "FSX_ONTAP".equals(fileSystemType) ? 1024 : 32;
                                 }
-                                fsxThroughputMbs = (Integer) filesystem.get("throughputMbs"); // MB/s
+                                fsxThroughputMbs = (Integer) filesystem.get("throughputMbs");
                                 if (fsxThroughputMbs == null) {
-                                    fsxThroughputMbs = 0;
+                                    fsxThroughputMbs = "FSX_ONTAP".equals(fileSystemType) ? 128 : 8;
                                 }
-                                fsxBackupRetentionDays = (Integer) filesystem.get("backupRetentionDays"); // 7 to 35
+                                fsxBackupRetentionDays = (Integer) filesystem.get("backupRetentionDays");
                                 if (fsxBackupRetentionDays == null) {
-                                    fsxBackupRetentionDays = 7;
+                                    fsxBackupRetentionDays = 0; // Turn off automated backups
                                 }
-                                fsxDailyBackupTime = (String) filesystem.get("dailyBackupTime"); //HH:MM in UTC
+                                fsxDailyBackupTime = (String) filesystem.get("dailyBackupTime");
                                 if (fsxDailyBackupTime == null) {
-                                    fsxDailyBackupTime = "";
+                                    fsxDailyBackupTime = "02:00"; // 2:00 AM
                                 }
-                                fsxWeeklyMaintenanceTime = (String) filesystem.get("weeklyMaintenanceTime");//d:HH:MM in UTC
+                                fsxWeeklyMaintenanceTime = (String) filesystem.get("weeklyMaintenanceTime");
                                 if (fsxWeeklyMaintenanceTime == null) {
-                                    fsxWeeklyMaintenanceTime = "";
+                                    fsxWeeklyMaintenanceTime = "7:01:00"; // Sun 1:00 AM
                                 }
-                                if ("FSX_WINDOWS".equals(fileSystemType)) {
-                                    fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
-                                    if (fsxWindowsMountDrive == null) {
-                                        fsxWindowsMountDrive = "";
-                                    }
+                                fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
+                                if (fsxWindowsMountDrive == null) {
+                                    fsxWindowsMountDrive = "G:";
                                 }
                                 if ("FSX_ONTAP".equals(fileSystemType)) {
                                     ontapVolumeSize = (Integer) filesystem.get("volumeSize");

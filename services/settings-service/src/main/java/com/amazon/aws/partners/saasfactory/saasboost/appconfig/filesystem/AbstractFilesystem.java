@@ -89,7 +89,7 @@ public abstract class AbstractFilesystem {
 
     @Override
     public int hashCode() {
-        return Objects.hash(mountPoint);
+        return Objects.hash(mountPoint, encrypt, encryptionKey);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]

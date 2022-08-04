@@ -34,7 +34,7 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
     protected AbstractFsxFilesystem(Builder b) {
         super(b);
         if (b.storageGb == null) {
-            throw new IllegalArgumentException("Cannot specify an FSX filesystem without storageGb.");
+            throw new IllegalArgumentException("Cannot specify an FSx filesystem without storageGb.");
         }
         this.storageGb = b.storageGb;
         this.windowsMountDrive = b.windowsMountDrive;
@@ -132,8 +132,8 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
             return this;
         }
 
-        public Builder throughputCapacity(Integer throughputCapacity) {
-            this.throughputMbs = throughputCapacity;
+        public Builder throughputMbs(Integer throughputMbs) {
+            this.throughputMbs = throughputMbs;
             return this;
         }
     }

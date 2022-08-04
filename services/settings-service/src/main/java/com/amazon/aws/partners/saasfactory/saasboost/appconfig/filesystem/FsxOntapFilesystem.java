@@ -19,6 +19,8 @@ package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Objects;
+
 @JsonDeserialize(builder = FsxOntapFilesystem.Builder.class)
 public class FsxOntapFilesystem extends AbstractFsxFilesystem {
 
@@ -52,7 +54,7 @@ public class FsxOntapFilesystem extends AbstractFsxFilesystem {
 
     @Override
     public int hashCode() {
-        return super.hashCode();
+        return Objects.hash(super.hashCode(), volumeSize);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
