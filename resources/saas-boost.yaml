@@ -64,8 +64,25 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  AuthMethod:
+    Description: Authentication method
+    Type: String
+    AllowedValues:
+      - CognitoUserPool
+      - OIDC
+  OIDCIssuer:
+    Description: OIDC Issuer
+    Type: String
+    Default: ''
+  OIDCPermissions:
+    Description: OIDC Permissions, required claims in token, e.g, scope=saas-boost-api:admin
+    Type: String
+    Default: ''
+
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
+  AuthWithCognitoUserPool: !Equals [!Ref AuthMethod, 'CognitoUserPool']
+
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -603,6 +620,7 @@ Resources:
         Environment: !Ref Environment
         AdminEmailAddress: !Ref AdminEmailAddress
         WebS3Bucket: !Ref AdminWeb
+        AuthMethod: !Ref AuthMethod
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -734,6 +752,7 @@ Resources:
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
   user:
     Type: AWS::CloudFormation::Stack
+    Condition: AuthWithCognitoUserPool
     DependsOn:
       - core
     Properties:
@@ -750,10 +769,15 @@ Resources:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api.yaml
       Parameters:
         Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        CognitoUserPoolId: !If
+          - AuthWithCognitoUserPool
+          - !GetAtt web.Outputs.SBUserPool
+          - ''
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -785,6 +809,10 @@ Resources:
         UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
         UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
         UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        AuthMethod: !Ref AuthMethod
+        OIDCIssuer: !Ref OIDCIssuer
+        OIDCPermissions: !Ref OIDCPermissions
+
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
