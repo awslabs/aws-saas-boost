@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-export const APP_NAME = 'APP_NAME'
-export const CLUSTER_OS = 'CLUSTER_OS'
-export const DB_ENGINE = 'DB_ENGINE'
-export const DB_VERSION = 'DB_VERSION'
-export const DOMAIN_NAME = 'DOMAIN_NAME'
-export const ECR_REPO = 'ECR_REPO'
-export const FILE_SYSTEM_MOUNT_POINT = 'FILE_SYSTEM_MOUNT_POINT'
-export const FILE_SYSTEM_ENCRYPT = 'FILE_SYSTEM_ENCRYPT'
-export const VERSION = 'VERSION'
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
+
+public enum EcsLaunchType {
+    EC2,
+    FARGATE;
+}

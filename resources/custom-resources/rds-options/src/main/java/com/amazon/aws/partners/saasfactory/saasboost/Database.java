@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 @JsonDeserialize(builder = Database.Builder.class)
 public class Database {
 
-    enum RDS_ENGINE {
+    enum RdsEngine {
         AURORA_PG("aurora-postgresql", "Amazon Aurora PostgreSQL", 5432),
         AURORA_MYSQL("aurora-mysql", "Amazon Aurora MySQL", 3306),
         MYSQL("mysql", "MySQL", 3306),
@@ -38,7 +38,7 @@ public class Database {
         private final String description;
         private final Integer port;
 
-        RDS_ENGINE(String name, String description, Integer port) {
+        RdsEngine(String name, String description, Integer port) {
             this.engine = name;
             this.description = description;
             this.port = port;
@@ -56,9 +56,9 @@ public class Database {
             return port;
         }
 
-        public static RDS_ENGINE ofEngine(String engine) {
-            RDS_ENGINE rdsEngine = null;
-            for (RDS_ENGINE e : RDS_ENGINE.values()) {
+        public static RdsEngine ofEngine(String engine) {
+            RdsEngine rdsEngine = null;
+            for (RdsEngine e : RdsEngine.values()) {
                 if (e.getEngine().equals(engine)) {
                     rdsEngine = e;
                     break;
@@ -66,9 +66,9 @@ public class Database {
             }
             return rdsEngine;
         }
-    };
+    }
 
-    enum RDS_INSTANCE {
+    enum RdsInstance {
         T3_MICRO("db.t3.micro", "2 vCPUs 1 GiB RAM"),
         T3_SMALL("db.t3.small", "2 vCPUs 2 GiB RAM"),
         T3_MEDIUM("db.t3.medium", "2 vCPUs 4 GiB RAM"),
@@ -91,7 +91,7 @@ public class Database {
         private final String instanceClass;
         private final String description;
 
-        RDS_INSTANCE(String name, String description) {
+        RdsInstance(String name, String description) {
             this.instanceClass = name;
             this.description = description;
         }
@@ -104,9 +104,9 @@ public class Database {
             return description;
         }
 
-        public static RDS_INSTANCE ofInstanceClass(String instanceClass) {
-            RDS_INSTANCE instance = null;
-            for (RDS_INSTANCE ec2 : RDS_INSTANCE.values()) {
+        public static RdsInstance ofInstanceClass(String instanceClass) {
+            RdsInstance instance = null;
+            for (RdsInstance ec2 : RdsInstance.values()) {
                 if (ec2.getInstanceClass().equals(instanceClass)) {
                     instance = ec2;
                     break;
@@ -116,8 +116,8 @@ public class Database {
         }
     }
 
-    private RDS_ENGINE engine;
-    private RDS_INSTANCE instance;
+    private RdsEngine engine;
+    private RdsInstance instance;
     private String version;
     private String family;
     private String database;
@@ -182,8 +182,8 @@ public class Database {
     @JsonIgnoreProperties(value = {"engineName", "instanceClass", "port"})
     public static final class Builder {
 
-        private RDS_ENGINE engine;
-        private RDS_INSTANCE instance;
+        private RdsEngine engine;
+        private RdsInstance instance;
         private String version;
         private String family;
         private String database;
@@ -195,18 +195,18 @@ public class Database {
 
         public Builder engine(String engine) {
             try {
-                this.engine = RDS_ENGINE.valueOf(engine);
+                this.engine = RdsEngine.valueOf(engine);
             } catch (IllegalArgumentException e) {
-                this.engine = RDS_ENGINE.ofEngine(engine);
+                this.engine = RdsEngine.ofEngine(engine);
             }
             return this;
         }
 
         public Builder instance(String instance) {
             try {
-                this.instance = RDS_INSTANCE.valueOf(instance);
+                this.instance = RdsInstance.valueOf(instance);
             } catch (IllegalArgumentException e) {
-                this.instance = RDS_INSTANCE.ofInstanceClass(instance);
+                this.instance = RdsInstance.ofInstanceClass(instance);
             }
             return this;
         }

@@ -436,7 +436,7 @@ public class SettingsServiceDALTest {
     public void testRdsOptionsSorting() throws Exception {
         try (InputStream json = Files.newInputStream(Path.of(this.getClass().getClassLoader().getResource("rdsInstancesUnsorted.json").toURI()))) {
             LinkedHashMap<String, Object> options = Utils.fromJson(json, LinkedHashMap.class);
-            ArrayList<LinkedHashMap<String, Object>> instances = (ArrayList<LinkedHashMap<String, Object>>) options.get("instances");
+            ArrayList<LinkedHashMap<String, String>> instances = (ArrayList<LinkedHashMap<String, String>>) options.get("instances");
 
             //System.out.println("Unsorted:");
             //System.out.println(Utils.toJson(instances));
@@ -474,7 +474,7 @@ public class SettingsServiceDALTest {
             int firstIndexOf24XL = -1;
 
             for (int i = instances.size(); i-- > 0;) {
-                LinkedHashMap<String, Object> instance = instances.get(i);
+                LinkedHashMap<String, String> instance = instances.get(i);
                 char type = ((String) instance.get("instance")).charAt(0);
                 Integer generation = Integer.valueOf(((String) instance.get("instance")).substring(1, 2));
                 String size = ((String) instance.get("instance")).substring(3);
@@ -522,7 +522,7 @@ public class SettingsServiceDALTest {
             }
 
             for (int i = 0; i < instances.size(); i++) {
-                LinkedHashMap<String, Object> instance = instances.get(i);
+                LinkedHashMap<String, String> instance = instances.get(i);
                 char type = ((String) instance.get("instance")).charAt(0);
                 Integer generation = Integer.valueOf(((String) instance.get("instance")).substring(1, 2));
                 String size = ((String) instance.get("instance")).substring(3);

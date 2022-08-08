@@ -22,8 +22,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.fsx.FSxClient;
 import software.amazon.awssdk.services.fsx.model.DescribeFileSystemsResponse;
+import software.amazon.awssdk.services.fsx.model.DescribeStorageVirtualMachinesResponse;
 import software.amazon.awssdk.services.fsx.model.FSxException;
-import software.amazon.awssdk.services.fsx.model.FileSystem;
+import software.amazon.awssdk.services.fsx.model.StorageVirtualMachineFilter;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -49,6 +50,7 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
         final String requestType = (String) event.get("RequestType");
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String fileSystemId = (String) resourceProperties.get("FsxFileSystemId");
+        final String storageVirtualMachineId = (String) resourceProperties.get("StorageVirtualMachineId");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -57,20 +59,47 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                 if ("Create".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE or UPDATE");
                     try {
-                        DescribeFileSystemsResponse response = fsx.describeFileSystems(request -> request
-                                .fileSystemIds(fileSystemId)
-                        );
-                        FileSystem fileSystem = response.fileSystems().get(0);
-                        LOGGER.info("File system DNS name is {}", fileSystem.dnsName());
-                        responseData.put("DnsName", fileSystem.dnsName());
+                        String fsxDns;
+                        if (Utils.isNotBlank(storageVirtualMachineId)) {
+                            LOGGER.info("Querying for Storage Virtual Machine DNS hostname");
+                            // FSx for NetApp ONTAP uses Storage Virtual Machines and the hostname the EC2
+                            // instance needs to mount is an attribute of the SMB endpoints of that SVM
+                            // not the file system itself like it is for FSx for Windows File Server
+                            DescribeStorageVirtualMachinesResponse response = fsx.describeStorageVirtualMachines(
+                                    request -> request
+                                            .storageVirtualMachineIds(List.of(storageVirtualMachineId))
+                                            .filters(StorageVirtualMachineFilter.builder()
+                                                    .name("file-system-id")
+                                                    .values(fileSystemId)
+                                                    .build()
+                                            )
+                            );
+                            LOGGER.info("SVM response: " + Objects.toString(response, "null"));
+                            fsxDns = response.storageVirtualMachines().get(0).endpoints().smb().dnsName();
+                        } else {
+                            LOGGER.info("Querying for File System DNS hostname");
+                            DescribeFileSystemsResponse response = fsx.describeFileSystems(request -> request
+                                    .fileSystemIds(fileSystemId)
+                            );
+                            LOGGER.info("File System response: " + Objects.toString(response, "null"));
+                            fsxDns = response.fileSystems().get(0).dnsName();
+                        }
+                        responseData.put("DnsName", fsxDns);
+                        LOGGER.info("responseDate: " +  Utils.toJson(responseData));
+                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                     } catch (FSxException e) {
-                        LOGGER.error("fsx:DescribeFileSystems", e);
+                        LOGGER.error(Utils.isBlank(storageVirtualMachineId)
+                                ? "fsx:DescribeFileSystems" : "fsx:DescribeStorageVirtualMachines", e);
                         LOGGER.error(Utils.getFullStackTrace(e));
                         responseData.put("Reason", e.awsErrorDetails().errorMessage());
                         CloudFormationResponse.send(event, context, "FAILED", responseData);
+                    } catch (Exception e) {
+                        LOGGER.error(Utils.isBlank(storageVirtualMachineId)
+                                ? "fsx:DescribeFileSystems" : "fsx:DescribeStorageVirtualMachines", e);
+                        LOGGER.error(Utils.getFullStackTrace(e));
+                        responseData.put("Reason", Objects.toString(e.getMessage(), e.toString()));
+                        CloudFormationResponse.send(event, context, "FAILED", responseData);
                     }
-                    LOGGER.info("responseDate: " +  Utils.toJson(responseData));
-                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
                     CloudFormationResponse.send(event, context, "SUCCESS", responseData);

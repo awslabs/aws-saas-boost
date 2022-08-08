@@ -185,6 +185,19 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                                         "consoleUrl", AwsResource.PRIVATE_SUBNET_B.formatUrl(AWS_REGION, physicalResourceId))
                                 );
                             }
+                        } else if ("AWS::EC2::RouteTable".equals(resourceType)) {
+                            // Process all of the route table resources together because we only want the route table
+                            // for the private subnets and there are other route tables in the stack which may end up
+                            // overwriting the values in the resources map depending on which order they are listed in
+                            // from the stack summary
+                            if ("RouteTablePrivate".equals(logicalId)) {
+                                LOGGER.info("Saving Private Route Table {} {}", logicalId, physicalResourceId);
+                                tenantResources.put(AwsResource.PRIVATE_ROUTE_TABLE.name(), Map.of(
+                                        "name", physicalResourceId,
+                                        "arn", AwsResource.PRIVATE_ROUTE_TABLE.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                        "consoleUrl", AwsResource.PRIVATE_ROUTE_TABLE.formatUrl(AWS_REGION, physicalResourceId))
+                                );
+                            }
                         } else {
                             // Match on the resource type and build the console url
                             for (AwsResource awsResource : AwsResource.values()) {

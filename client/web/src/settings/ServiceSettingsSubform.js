@@ -21,9 +21,10 @@ import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea }
 import { PropTypes } from 'prop-types'
 import { cibWindows, cibLinux } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
+import DatabaseSubform from './DatabaseSubform'
 
 const ServiceSettingsSubform = (props) => {
-  const { formikErrors, formikService, osOptions, isLocked, serviceIndex } = props
+  const { formikErrors, serviceValues, osOptions, dbOptions, serviceName, onFileSelected, isLocked, serviceIndex } = props
   const getWinServerOptions = (serviceIndex) => {
     if (!osOptions) {
       return null
@@ -37,7 +38,7 @@ const ServiceSettingsSubform = (props) => {
         </option>
       )
     })
-    return formikService?.operatingSystem === 'WINDOWS' && osOptions ? (
+    return serviceValues?.operatingSystem === 'WINDOWS' && osOptions ? (
       <FormGroup>
         <SaasBoostSelect
           type="select"
@@ -52,20 +53,50 @@ const ServiceSettingsSubform = (props) => {
     ) : null
   }
 
-  // Normally we'd let formik handle this, but we also need to change the filesystem type
-  // based on the container OS
- const onOperatingSystemChange = (val, serviceName) => {
-   const os = val?.target?.value
-   props.formik.setFieldValue(serviceName + '.operatingSystem', os)
-   let fileSystemType = ''
-   if (os === 'WINDOWS') {
-     fileSystemType = 'FSX'
-   }
-   if (os === 'LINUX') {
-     fileSystemType = 'EFS'
-   }
-   props.formik.setFieldValue(serviceName + '.filesystem.fileSystemType', fileSystemType)
- }
+  const operatingSystemFeedback = !!formikErrors.services ? formikErrors.services[serviceIndex]?.operatingSystem : undefined
+
+  const getLaunchTypeOptions = (serviceIndex) => {
+    return serviceValues?.operatingSystem === 'LINUX' && (
+     <FormGroup>
+       <div className="mb-2">Container Launch Type</div>
+       <FormGroup check inline>
+         <Field
+           className="form-check-input"
+           type="radio"
+           id={"launchtype-ec2-" + serviceIndex}
+           name={"services[" + serviceIndex + "].ecsLaunchType"}
+           value="EC2"
+           disabled={isLocked}
+         />
+         <Label className="form-check-label" check htmlFor={"launchtype-ec2-" + serviceIndex}>
+           EC2
+         </Label>
+       </FormGroup>
+       <FormGroup check inline>
+         <Field
+           className="form-check-input"
+           type="radio"
+           id={"launchtype-fargate-" + serviceIndex}
+           name={"services[" + serviceIndex + "].ecsLaunchType"}
+           value="FARGATE"
+           disabled={isLocked}
+         />
+         <Label className="form-check-label" check htmlFor={"launchtype-fargate-" + serviceIndex}>
+           Fargate
+         </Label>
+       </FormGroup>
+       <FormFeedback
+         invalid={
+           formikErrors.ecsLaunchType
+             ? formikErrors.ecsLaunchType
+             : undefined
+         }
+       >
+         {formikErrors.ecsLaunchType}
+       </FormFeedback>
+     </FormGroup>
+    )
+  }
 
   return (
     <>
@@ -116,7 +147,6 @@ const ServiceSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id={"os-linux-" + serviceIndex}
-                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="LINUX"
                         disabled={isLocked}
@@ -130,7 +160,6 @@ const ServiceSettingsSubform = (props) => {
                         className="form-check-input"
                         type="radio"
                         id={"os-windows-" + serviceIndex}
-                        onChange={(val) => onOperatingSystemChange(val, "services[" + serviceIndex + "]")}
                         name={"services[" + serviceIndex + "].operatingSystem"}
                         value="WINDOWS"
                         disabled={isLocked}
@@ -140,15 +169,12 @@ const ServiceSettingsSubform = (props) => {
                       </Label>
                     </FormGroup>
                     <FormFeedback
-                      invalid={
-                        formikErrors.operatingSystem
-                          ? formikErrors.operatingSystem
-                          : undefined
-                      }
+                      invalid={!!operatingSystemFeedback}
                     >
-                      {formikErrors.operatingSystem}
+                      {operatingSystemFeedback}
                     </FormFeedback>
                   </FormGroup>
+                  {getLaunchTypeOptions(serviceIndex)}
                   {getWinServerOptions(serviceIndex)}
                 </Col>
                 <Col xs={6}>
@@ -182,6 +208,21 @@ const ServiceSettingsSubform = (props) => {
                   />
                 </Col>
               </Row>
+              <Row>
+                <Col>
+                  <DatabaseSubform
+                    isLocked={isLocked}
+                    formikServicePrefix={'services[' + serviceIndex + ']'}
+                    dbOptions={dbOptions}
+                    provisionDb={
+                      serviceValues?.provisionDb
+                    }
+                    values={serviceValues?.database}
+                    onFileSelected={(file) => onFileSelected(serviceName, file)}
+                    setFieldValue={props.setFieldValue}
+                  ></DatabaseSubform>
+                </Col>
+              </Row>
             </CardBody>
           </Card>
         </Col>
@@ -193,7 +234,9 @@ const ServiceSettingsSubform = (props) => {
 ServiceSettingsSubform.propTypes = {
   osOptions: PropTypes.object,
   isLocked: PropTypes.bool,
-  formikService: PropTypes.object,
+  dbOptions: PropTypes.array,
+  onFileSelected: PropTypes.func,
+  serviceValues: PropTypes.object,
   formikErrors: PropTypes.object,
   serviceIndex: PropTypes.number,
 }
