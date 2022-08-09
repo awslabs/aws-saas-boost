@@ -1,7 +1,7 @@
 # ECS Shutdown Services
 
 ## Overview
-This function can be used to gracefully shutdown all application workloads running for your provisioned tenants. It does this by setting the `desiredCount` attribute of the ECS service for each tenant to zero (0). [Watch a detailed walkthru](https://www.twitch.tv/videos/1065389231) of building this solution during our [Office Hours](https://github.com/awslabs/aws-saas-boost/discussions/106).
+This function can be used to gracefully shutdown all application workloads running for your provisioned tenants. It does this by setting the `desiredCount` attribute of each of your ECS services for each tenant to zero (0). [Watch a detailed walkthru](https://www.twitch.tv/videos/1065389231) of building this solution during our [Office Hours](https://github.com/awslabs/aws-saas-boost/discussions/106).
 
 ## Why would you turn off your SaaS application?
 Excellent question! You should **not** use this function for your production environments. Your SaaS customers expect your service to be available at all times. However, for development and other non-production environments, it may be useful to temporarily shutdown your application tasks as a way to save operational costs. ECS tasks that run on Fargate are only billed when they are running. If you are running your tasks on EC2, the ECS capacity provider will shutdown the EC2 instances in your ECS cluster.
