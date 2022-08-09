@@ -649,11 +649,12 @@ Resources:
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -726,11 +727,12 @@ Resources:
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                Resource: !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/tenant*
+                Resource:
+                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/tenant*
+                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole

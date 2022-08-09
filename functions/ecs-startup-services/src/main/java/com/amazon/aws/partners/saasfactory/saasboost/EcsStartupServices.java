@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -24,23 +25,23 @@ import software.amazon.awssdk.services.ecs.EcsClient;
 import software.amazon.awssdk.services.ecs.model.DescribeServicesResponse;
 import software.amazon.awssdk.services.ecs.model.Service;
 import software.amazon.awssdk.services.ecs.model.UpdateServiceRequest;
-import software.amazon.awssdk.services.ecs.model.UpdateServiceResponse;
 
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class EcsStartupServices implements RequestHandler<Map<String, Object>, Object> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(EcsStartupServices.class);
-    private final static String AWS_REGION = System.getenv("AWS_REGION");
-    private final static String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
-    private final static String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private final static String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private final static String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final Logger LOGGER = LoggerFactory.getLogger(EcsStartupServices.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
+    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
+    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
+    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private final EcsClient ecs;
     
     public EcsStartupServices() {
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -64,57 +65,73 @@ public class EcsStartupServices implements RequestHandler<Map<String, Object>, O
     }
 
     @Override
-	public Object handleRequest(Map<String, Object> event, Context context) {
+    public Object handleRequest(Map<String, Object> event, Context context) {
         Utils.logRequestEvent(event);
 
-        Integer defaultMinCount = getDefaultMinCount(context);
-        ArrayList<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
+        List<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
         if (provisionedTenants != null) {
             LOGGER.info("{} provisioned tenants to process", provisionedTenants.size());
-            for (Map<String, Object> tenant : provisionedTenants) {
-                // The ECS Cluster and Service for each tenant is named with their short id
-                // We could save this info in parameter store with the other tenant infra
-                // pieces so we're not relying on naming convention
-                String cluster = "tenant-" + ((String) tenant.get("id")).substring(0, 8);
-                String service = cluster;
-                Integer count = null;
-                if (Boolean.TRUE.equals(tenant.get("overrideDefaults")) && tenant.containsKey("minCount") && tenant.get("minCount") != null) {
-                    try {
-                        count = (Integer) tenant.get("minCount");
-                    } catch (NumberFormatException nfe) {
-                        LOGGER.error("Error parsing minCount from tenant {}", tenant.get("id"));
-                        count = defaultMinCount;
-                    }
-                } else {
-                    count = defaultMinCount;
-                }
 
-                try {
-                    DescribeServicesResponse existingServiceSettings = ecs.describeServices(r -> r
-                            .cluster(cluster)
-                            .services(service)
-                    );
-                    for (Service ecsService : existingServiceSettings.services()) {
-                        if (ecsService.desiredCount() < count) {
-                            LOGGER.info("Updating desired count for service {} from {} to {}", service, ecsService.desiredCount(), count);
-                            try {
-                                UpdateServiceResponse updateServiceResponse = ecs.updateService(UpdateServiceRequest.builder()
-                                        .cluster(cluster)
-                                        .service(service)
-                                        .desiredCount(count)
-                                        .build()
-                                );
-                            } catch (SdkServiceException ecsError) {
-                                LOGGER.error("ecs::UpdateService", ecsError);
-                                LOGGER.error(Utils.getFullStackTrace(ecsError));
-                                throw ecsError;
+            // Fetch the app config and make a list of all the configured services
+            Map<String, Object> appConfig = getAppConfig(context);
+            Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+            List<String> serviceNames = new ArrayList<>(services.keySet());
+
+            // Batch the list of services into slices of 10 to deal with the limitations of the
+            // describeServices SDK call
+            final int maxDescribeServices = 10;
+            final AtomicInteger batch = new AtomicInteger(0);
+            Collection<List<String>> describeServiceBatches = serviceNames
+                    .stream()
+                    .collect(
+                            Collectors.groupingBy(slice -> (batch.getAndIncrement() / maxDescribeServices))
+                    )
+                    .values();
+
+            for (Map<String, Object> tenant : provisionedTenants) {
+                Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
+                String cluster = tenantResources.get("ECS_CLUSTER").get("name");
+                LOGGER.info("Starting up services in cluster {}", cluster);
+                String tier = (String) tenant.get("tier");
+
+                // For each batch of services (will only be 1 batch unless there are more than 10 services
+                // in the app config), update each service's desired count to the minimum for the tier that
+                // the tenant is in.
+                for (List<String> describeServiceBatch : describeServiceBatches) {
+                    try {
+                        DescribeServicesResponse existingServiceSettings = ecs.describeServices(request -> request
+                                .cluster(cluster)
+                                .services(describeServiceBatch)
+                        );
+                        for (Service ecsService : existingServiceSettings.services()) {
+                            Map<String, Object> service = (Map<String, Object>) services.get(ecsService.serviceName());
+                            Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
+                            Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
+                            Integer count = (Integer) tierConfig.get("min");
+                            if (ecsService.desiredCount() < count) {
+                                LOGGER.info("Updating desired count for service {} from {} to {}",
+                                        ecsService.serviceName(),
+                                        ecsService.desiredCount(),
+                                        count);
+                                try {
+                                    ecs.updateService(UpdateServiceRequest.builder()
+                                            .cluster(cluster)
+                                            .service(ecsService.serviceName())
+                                            .desiredCount(count)
+                                            .build()
+                                    );
+                                } catch (SdkServiceException ecsError) {
+                                    LOGGER.error("ecs::UpdateService", ecsError);
+                                    LOGGER.error(Utils.getFullStackTrace(ecsError));
+                                    throw ecsError;
+                                }
                             }
                         }
+                    } catch (SdkServiceException ecsError) {
+                        LOGGER.error("ecs::DescribeServices", ecsError);
+                        LOGGER.error(Utils.getFullStackTrace(ecsError));
+                        throw ecsError;
                     }
-                } catch (SdkServiceException ecsError) {
-                    LOGGER.error("ecs::DescribeServices", ecsError);
-                    LOGGER.error(Utils.getFullStackTrace(ecsError));
-                    throw ecsError;
                 }
             }
         }
@@ -122,57 +139,41 @@ public class EcsStartupServices implements RequestHandler<Map<String, Object>, O
         return null;
     }
 
-    protected ArrayList<Map<String, Object>> getProvisionedTenants(Context context) {
-        ArrayList<Map<String, Object>> provisionedTenants = null;
-        try {
-            String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                    ApiGatewayHelper.getApiRequest(
-                            API_GATEWAY_HOST,
-                            API_GATEWAY_STAGE,
-                            ApiRequest.builder()
-                                    .resource("tenants/provisioned")
-                                    .method("GET")
-                                    .build()
-                    ),
-                    API_TRUST_ROLE,
-                    context.getAwsRequestId()
-            );
-            provisionedTenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
-        } catch (Exception e) {
-            LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/tenants/provisioned");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return provisionedTenants;
+    protected Map<String, Object> getAppConfig(Context context) {
+        // Fetch all of the services configured for this application
+        LOGGER.info("Calling settings service get app config API");
+        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings/config")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+        return appConfig;
     }
 
-    protected Integer getDefaultMinCount(Context context) {
-        Integer defaultMin = null;
-        try {
-            String getSettingResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                    ApiGatewayHelper.getApiRequest(
-                            API_GATEWAY_HOST,
-                            API_GATEWAY_STAGE,
-                            ApiRequest.builder()
-                                    .resource("settings?setting=MIN_COUNT")
-                                    .method("GET")
-                                    .build()
-                    ),
-                    API_TRUST_ROLE,
-                    context.getAwsRequestId()
-            );
-            ArrayList<Map<String, Object>> settings = Utils.fromJson(getSettingResponseBody, ArrayList.class);
-            Map<String, Object> setting = settings.get(0);
-            try {
-                defaultMin = Integer.parseInt((String) setting.get("value"));
-            } catch (NumberFormatException nfe) {
-                LOGGER.error("Error parsing numeric value from MIN_COUNT setting {}", setting.get("value"));
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error invoking API " + API_GATEWAY_STAGE + "/settings?setting=MIN_COUNT");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return defaultMin;
+    protected List<Map<String, Object>> getProvisionedTenants(Context context) {
+        LOGGER.info("Calling tenants service get tenants API");
+        String resource = "tenants?status=provisioned";
+        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource(resource)
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+        return tenants;
     }
 }
