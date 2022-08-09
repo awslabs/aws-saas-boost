@@ -1,7 +1,7 @@
 # ECS Startup Services
 
 ## Overview
-This function can be used to startup all application workloads running for your provisioned tenants. It does this by setting the `desiredCount` attribute of the ECS service for each tenant to the minium task count set for that tenant. [Watch a detailed walkthru](https://www.twitch.tv/videos/1065389231) of building this solution during our [Office Hours](https://github.com/awslabs/aws-saas-boost/discussions/106).
+This function can be used to startup all application workloads running for your provisioned tenants. It does this by setting the `desiredCount` attribute of each of your ECS services for each tenant to the minium task count set for the tier that tenant is onboarded into. [Watch a detailed walkthru](https://www.twitch.tv/videos/1065389231) of building this solution during our [Office Hours](https://github.com/awslabs/aws-saas-boost/discussions/106).
 
 ## Why would you need this?
 This function gives you a way to undo the [EcsShutdownServices](../ecs-shutdown-services/README.md) function. If you're using that to save costs in your non-production environments, pair it with this function to bring your services back up when you're ready to use them again.
