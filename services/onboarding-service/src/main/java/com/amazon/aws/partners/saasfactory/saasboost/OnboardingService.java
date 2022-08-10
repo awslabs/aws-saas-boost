@@ -908,7 +908,7 @@ public class OnboardingService {
                                     }
                                 }
                             }
-                            if (fileSystemType == null) {
+                            if (enableEfs || fileSystemType == null) {
                                 fileSystemType = "FSX_WINDOWS";
                             }
                         }
