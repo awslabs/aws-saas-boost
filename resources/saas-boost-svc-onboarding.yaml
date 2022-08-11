@@ -382,6 +382,9 @@ Resources:
               - codepipeline:GetPipeline
               - codepipeline:GetPipelineState
               - codepipeline:UpdatePipeline
+              - codepipeline:TagResource
+              - codepipeline:UntagResource
+              - codepipeline:ListTagsForResource
             Resource:
               - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-tenant*
           - Effect: Allow

@@ -355,9 +355,9 @@ public class MetricServiceDAL {
             String query = new StringBuilder().append("SELECT\n")
                     .append("concat(url_extract_path(request_url), '+', request_verb) AS url")
                     .append(metricCol)
-                    .append("FROM ")
+                    .append("FROM \"")
                     .append(ACCESS_LOGS_TABLE)
-                    .append("\n")
+                    .append("\"\n")
                     .append(where)
                     .append("GROUP BY concat(url_extract_path(request_url), '+', request_verb)\n")
                     .append("ORDER BY 2 DESC\n")
@@ -674,7 +674,7 @@ public class MetricServiceDAL {
                 .format(today); //"2019/08/01";
         String dateTimeFormat =  DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault())
                 .format(today); //"2019-08-01";
-        String queryString = "ALTER TABLE " + ACCESS_LOGS_TABLE + " ADD IF NOT EXISTS PARTITION "
+        String queryString = "ALTER TABLE \"" + ACCESS_LOGS_TABLE + "\" ADD IF NOT EXISTS PARTITION "
                 + "(time='" + dateTimeFormat + "') LOCATION '" + ACCESS_LOGS_PATH + "/" + formatPartitionDate + "/';";
         LOGGER.info("addAthenaPartition: Query for partition: {}", queryString);
         String queryExecutionId = MetricHelper.submitAthenaQuery(
