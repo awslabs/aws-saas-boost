@@ -30,6 +30,9 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
+import software.amazon.awssdk.services.codepipeline.CodePipelineClient;
+import software.amazon.awssdk.services.codepipeline.model.ListTagsForResourceResponse;
+import software.amazon.awssdk.services.codepipeline.model.Tag;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
@@ -83,6 +86,7 @@ public class OnboardingService {
     private final Route53Client route53;
     private final SqsClient sqs;
     private final ElasticLoadBalancingV2Client elb;
+    private final CodePipelineClient codePipeline;
 
     public OnboardingService() {
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
@@ -106,6 +110,7 @@ public class OnboardingService {
         this.route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME);
         this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
         this.elb = Utils.sdkClient(ElasticLoadBalancingV2Client.builder(), ElasticLoadBalancingV2Client.SERVICE_NAME);
+        this.codePipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
     }
 
     /**
@@ -1141,19 +1146,17 @@ public class OnboardingService {
 
     protected void handleOnboardingDeploymentPipelineChanged(Map<String, Object> event, Context context) {
         if ("aws.codepipeline".equals(event.get("source"))) {
+            List<String> resources = (List<String>) event.get("resources");
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String pipeline = (String) detail.get("pipeline");
-            String prefix = "sb-" + SAAS_BOOST_ENV + "-tenant-";
-            if (pipeline != null && pipeline.startsWith(prefix)) {
-                // CodePipelines are named sb-${environment}-tenant-${tenantId prefix}-${service name}
-                // We can fetch the full tenantId from the Tags on the pipeline if this is too fragile
-                String tenantId;
-                try {
-                    tenantId = pipeline.split("-")[3];
-                } catch (IndexOutOfBoundsException iob) {
-                    LOGGER.error("Unexpected CodePipeline name pattern {}", pipeline);
-                    tenantId = pipeline.substring(prefix.length());
-                }
+            try {
+                String pipelineArn = resources.get(0);
+                LOGGER.info("Fetching tenant id from CodePipeline tags");
+                ListTagsForResourceResponse tagsResponse = codePipeline.listTagsForResource(request -> request
+                        .resourceArn(pipelineArn)
+                );
+                Tag tenantTag = tagsResponse.tags().stream().filter(t -> "Tenant".equals(t.key())).findFirst().get();
+                String tenantId = tenantTag.value();
                 Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
                 if (onboarding != null) {
                     tenantId = onboarding.getTenantId().toString();
@@ -1227,6 +1230,9 @@ public class OnboardingService {
                 } else {
                     LOGGER.error("Can't find onboarding record for tenant {}", tenantId);
                 }
+            } catch (Exception e) {
+                LOGGER.error("Error fetching tenant id from pipeline {}", pipeline);
+                LOGGER.error(Utils.getFullStackTrace(e));
             }
         }
     }
