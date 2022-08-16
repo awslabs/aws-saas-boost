@@ -162,11 +162,11 @@ export function ApplicationContainer(props) {
         weeklyMaintenanceTime,
         ...cleanedFs
       } = filesystem
-      cleanedFs.type = filesystemType
+      cleanedFs.type = FILESYSTEM_TYPES[filesystemType].configId
       if (weeklyMaintenanceDay && weeklyMaintenanceTime) {
         cleanedFs.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${getFormattedTime(weeklyMaintenanceTime)}`
       }
-      let wantedKeys = Object.keys(FILESYSTEM_TYPES[cleanedFs.type].defaults)
+      let wantedKeys = Object.keys(FILESYSTEM_TYPES[filesystemType].defaults)
       Object.keys(cleanedFs).forEach(k => {
         if (!wantedKeys.includes(k) && k !== 'type') {
           delete cleanedFs[k]

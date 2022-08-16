@@ -26,6 +26,7 @@ export const FILESYSTEM_TYPES = {
         "name": "EFS",
         "icon": cibAmazonAws,
         "component": EfsFilesystemOptions,
+        "enabled": (os, launchType) => os === "LINUX",
         "defaults": {
             mountPoint: '',
             lifecycle: 'NEVER',
@@ -50,6 +51,7 @@ export const FILESYSTEM_TYPES = {
         "name": "FSX Windows",
         "icon": cibWindows,
         "component": FsxWindowsFilesystemOptions,
+        "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
             storageGb: 32,
@@ -87,11 +89,64 @@ export const FILESYSTEM_TYPES = {
                 .required('Windows mount drive is required'),
         })
     },
-    "FSX_ONTAP": {
-        "id": "FSX_ONTAP",
+    "FSX_ONTAP_LINUX": {
+        "configId": "FSX_ONTAP",
+        "id": "FSX_ONTAP_LINUX",
         "name": "FSX Ontap",
         "icon": cilViewQuilt,
         "component": FsxOntapFilesystemOptions,
+        "enabled": (os, launchType) => os === "LINUX" && launchType === "EC2",
+        "defaults": {
+            mountPoint: '',
+            storageGb: 1024,
+            throughputMbs: 128,
+            backupRetentionDays: 7,
+            dailyBackupTime: '01:00',
+            weeklyMaintenanceTime: '07:01:00',
+            weeklyMaintenanceDay: '1',
+            volumeSize: 40
+        },
+        "validationSchema": Yup.object({
+            mountPoint: Yup.string()
+                .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
+                .max(100, "The full path can't exceed 100 characters in length")
+                .test(
+                    'subdirectories',
+                    'The path can only include up to four subdirectories',
+                    (val) => (val?.match(/\//g) || []).length <= 4
+                )
+                .required(),
+            storageGb: Yup.number()
+                .required()
+                .min(1024, 'Storage minimum is 1024 GB')
+                .max(196608, 'Storage maximum is 196,608 GB'),
+            throughputMbs: Yup.number()
+                .required()
+                .min(128, 'Throughput minimum is 128 MB/s')
+                .max(2048, 'Throughput maximum is 2048 MB/s'),
+            backupRetentionDays: Yup.number()
+                .required()
+                .min(7, 'Minimum retention time is 7 days')
+                .max(35, 'Maximum retention time is 35 days'),
+            dailyBackupTime: Yup.string()
+                .required('Daily backup time is required'),
+            weeklyMaintenanceTime: Yup.string()
+                .required('Weekly maintenance time is required'),
+            windowsMountDrive: Yup.string()
+                .required('Windows mount drive is required'),
+            volumeSize: Yup.number()
+                .required()
+                .min(0, 'Volume Size must be a positive number')
+                .max(196608, 'Volume size maximum is 196,608 GB')
+        })
+    },
+    "FSX_ONTAP_WINDOWS": {
+        "configId": "FSX_ONTAP",
+        "id": "FSX_ONTAP_WINDOWS",
+        "name": "FSX Ontap",
+        "icon": cilViewQuilt,
+        "component": FsxOntapFilesystemOptions,
+        "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
             storageGb: 1024,
@@ -131,7 +186,7 @@ export const FILESYSTEM_TYPES = {
             volumeSize: Yup.number()
                 .required()
                 .min(0, 'Volume Size must be a positive number')
-                .max(196608, 'Volume size maximum is 196.608 GB')
+                .max(196608, 'Volume size maximum is 196,608 GB')
         })
     }
 }
@@ -144,10 +199,11 @@ export const FILESYSTEM_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
 
 export const OS_TO_FS_TYPES = {
     "LINUX": [
-        FILESYSTEM_TYPES.EFS
+        FILESYSTEM_TYPES.EFS,
+        FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
     ],
     "WINDOWS": [
         FILESYSTEM_TYPES.FSX_WINDOWS,
-        FILESYSTEM_TYPES.FSX_ONTAP,
+        FILESYSTEM_TYPES.FSX_ONTAP_WINDOWS,
     ]
 }

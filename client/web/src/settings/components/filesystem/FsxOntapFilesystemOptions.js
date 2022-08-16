@@ -230,6 +230,7 @@ export default class FsxOntapFilesystemOptions extends React.Component {
                   </Row>
                   <Row>
                     <Col xs={6}>
+                      {this.props.containerOs === "WINDOWS" && (
                       <SaasBoostSelect
                         id={
                           props.formikTierPrefix + '.filesystem.windowsMountDrive'
@@ -260,6 +261,7 @@ export default class FsxOntapFilesystemOptions extends React.Component {
                         <option value="Y:">Y:</option>
                         <option value="Z:">Z:</option>
                       </SaasBoostSelect>
+                      )}
                     </Col>
                     <Col xs={6}>
                       <SaasBoostInput

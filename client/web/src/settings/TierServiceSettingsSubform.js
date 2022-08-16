@@ -38,22 +38,24 @@ const TierServiceSettingsSubform = (props) => {
 
   const formikTierPrefix = formikServicePrefix + '.tiers[' + selectedTier + ']'
 
-  // set compute size if default exists and this tier doesn't
-  if (!!!serviceValues?.tiers[selectedTier]?.computeSize && !!serviceValues?.tiers[defaultTier]?.computeSize) {
-    // set instance to default if it doesn't exist already
-    setFieldValue(formikTierPrefix + '.computeSize', serviceValues?.tiers[defaultTier]?.computeSize)
-  }
+  if (!!serviceValues?.tiers) {
+    // set compute size if default exists and this tier doesn't
+    if (!!!serviceValues?.tiers[selectedTier]?.computeSize && !!serviceValues?.tiers[defaultTier]?.computeSize) {
+      // set instance to default if it doesn't exist already
+      setFieldValue(formikTierPrefix + '.computeSize', serviceValues?.tiers[defaultTier]?.computeSize)
+    }
 
-  // set min if default exists and this tier doesn't
-  if (!!!serviceValues?.tiers[selectedTier]?.min && !!serviceValues?.tiers[defaultTier]?.min) {
-    // set instance to default if it doesn't exist already
-    setFieldValue(formikTierPrefix + '.min', serviceValues?.tiers[defaultTier]?.min)
-  }
+    // set min if default exists and this tier doesn't
+    if (!!!serviceValues?.tiers[selectedTier]?.min && !!serviceValues?.tiers[defaultTier]?.min) {
+      // set instance to default if it doesn't exist already
+      setFieldValue(formikTierPrefix + '.min', serviceValues?.tiers[defaultTier]?.min)
+    }
 
-  // set max if default exists and this tier doesn't
-  if (!!!serviceValues?.tiers[selectedTier]?.max && !!serviceValues?.tiers[defaultTier]?.max) {
-    // set instance to default if it doesn't exist already
-    setFieldValue(formikTierPrefix + '.max', serviceValues?.tiers[defaultTier]?.max)
+    // set max if default exists and this tier doesn't
+    if (!!!serviceValues?.tiers[selectedTier]?.max && !!serviceValues?.tiers[defaultTier]?.max) {
+      // set instance to default if it doesn't exist already
+      setFieldValue(formikTierPrefix + '.max', serviceValues?.tiers[defaultTier]?.max)
+    }
   }
 
   return (
@@ -108,6 +110,7 @@ const TierServiceSettingsSubform = (props) => {
                         label="Minimum Instance Count"
                         name={formikTierPrefix + '.min'}
                         type="number"
+                        min="0"
                       />
                     </Col>
                     <Col>
@@ -116,6 +119,7 @@ const TierServiceSettingsSubform = (props) => {
                         label="Maximum Instance Count"
                         name={formikTierPrefix + '.max'}
                         type="number"
+                        min="0"
                       />
                     </Col>
                   </Row>
@@ -131,6 +135,7 @@ const TierServiceSettingsSubform = (props) => {
                       serviceValues?.tiers[selectedTier]?.provisionFS
                     }
                     containerOs={serviceValues?.operatingSystem}
+                    containerLaunchType={serviceValues?.ecsLaunchType}
                     filesystemType={serviceValues?.tiers[selectedTier]?.filesystemType}
                     setFieldValue={props.setFieldValue}
                   ></FileSystemSubform>

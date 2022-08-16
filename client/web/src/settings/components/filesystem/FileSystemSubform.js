@@ -61,7 +61,7 @@ const FilesystemType = (props) => {
           id={"fs-" + fs.id + "-" + props.formikTierPrefix}
           name={props.formikTierPrefix + ".filesystemType"}
           value={fs.id}
-          disabled={props.isLocked}
+          disabled={!fs.enabled(props.containerOs, props.containerLaunchType)}
         />
         <Label className="form-check-label" check htmlFor={"fs-" + fs.id + "-" + props.formikTierPrefix}>
           <CIcon icon={fs.icon} /> {fs.name}
@@ -80,7 +80,7 @@ class EmptyComponent extends React.Component {
 export default class FileSystemSubform extends React.Component {
   render() {
     var FsComponent = (!!this.props.filesystemType && FILESYSTEM_TYPES[this.props.filesystemType]) 
-        ? FILESYSTEM_TYPES[this.props.filesystemType].component 
+        ? FILESYSTEM_TYPES[this.props.filesystemType].component
         : EmptyComponent
     return (
       <Fragment>
@@ -94,7 +94,9 @@ export default class FileSystemSubform extends React.Component {
                   name={this.props.formikTierPrefix + '.provisionFS'}
                   label="Provision a File System for the application."
                 />
-                <FilesystemType {...this.props}></FilesystemType>
+                {this.props.provisionFs && (
+                  <FilesystemType {...this.props}></FilesystemType>
+                )}
                 {this.props.provisionFs && this.props.filesystemType && (
                   <FsComponent {...this.props}></FsComponent>
                 )}
@@ -111,6 +113,7 @@ FileSystemSubform.propTypes = {
   provisionFs: PropTypes.bool,
   filesystemType: PropTypes.string,
   containerOs: PropTypes.string,
+  containerLaunchType: PropTypes.string,
   isLocked: PropTypes.bool,
   filesystem: PropTypes.object,
   formik: PropTypes.object,
