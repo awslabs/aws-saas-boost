@@ -26,7 +26,7 @@ import globalConfig from '../config/appConfig'
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
-import { FILESYSTEM_DEFAULTS, FILESYSTEM_TYPES } from './components/filesystem'
+import { FILESYSTEM_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
 
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
@@ -69,11 +69,11 @@ export function ApplicationComponent(props) {
     window.scrollTo(0, 0)
   }
 
-  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues) => {
+  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, os) => {
     let filesystem = {
       ...FILESYSTEM_DEFAULTS,
       ...defaultValues.filesystem,
-      ...tierValues.filesystem
+      ...splitWeeklyMaintenanceTime(tierValues.filesystem)
     }
     let defaults = Object.assign({
       min: 0,
@@ -84,12 +84,15 @@ export function ApplicationComponent(props) {
       ...defaults,
       filesystem: filesystem,
     }
+
+    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === tierValues.filesystem?.type)[0]?.id || ''
+
     return {
       ...uncleanedInitialTierValues,
       provisionDb: !!tierValues.database,
       provisionFS: !!tierValues.filesystem,
-      filesystemType: tierValues.filesystem?.type || '',
-      filesystem: splitWeeklyMaintenanceTime(uncleanedInitialTierValues.filesystem),
+      filesystemType: filesystemType,
+      filesystem: filesystem,
     }
   }
 
@@ -144,11 +147,11 @@ export function ApplicationComponent(props) {
           }
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
-    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {})
+    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, os)
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues)
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues, os)
     }
     return {
       ...thisService,

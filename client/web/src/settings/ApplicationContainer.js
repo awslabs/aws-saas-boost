@@ -146,15 +146,6 @@ export function ApplicationContainer(props) {
     updateConfiguration(formValues)
   }
 
-  const getFormattedTime = (timeString) => {
-    // Expecting timeString to be HH:MM:SS
-    let parts = timeString.split(':')
-    if (parts.length === 3) {
-      parts = parts.splice(0, 2) //Trim the trailing :00. Server doesn't need seconds
-    }
-    return parts.join(':')
-  }
-
   const cleanFilesystemForSubmittal = (provisionFS, filesystemType, filesystem) => {
     if (provisionFS) {
       let {
@@ -162,11 +153,11 @@ export function ApplicationContainer(props) {
         weeklyMaintenanceTime,
         ...cleanedFs
       } = filesystem
-      cleanedFs.type = filesystemType
+      cleanedFs.type = FILESYSTEM_TYPES[filesystemType].configId
       if (weeklyMaintenanceDay && weeklyMaintenanceTime) {
-        cleanedFs.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${getFormattedTime(weeklyMaintenanceTime)}`
+        cleanedFs.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${weeklyMaintenanceTime}`
       }
-      let wantedKeys = Object.keys(FILESYSTEM_TYPES[cleanedFs.type].defaults)
+      let wantedKeys = Object.keys(FILESYSTEM_TYPES[filesystemType].defaults)
       Object.keys(cleanedFs).forEach(k => {
         if (!wantedKeys.includes(k) && k !== 'type') {
           delete cleanedFs[k]
