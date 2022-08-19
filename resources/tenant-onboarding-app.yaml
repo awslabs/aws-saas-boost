@@ -594,6 +594,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   FsxWaitHandle:
     Condition: ProvisionFSx
     DependsOn: fsx
@@ -774,6 +776,8 @@ Resources:
             - Key: Tenant
               Value:
                 !Ref TenantId
+            - Key: Tier
+              Value: !Ref Tier
       LaunchTemplateData:
         ImageId:
           Fn::If:
@@ -1181,6 +1185,7 @@ Resources:
         ThroughputCapacity: !Ref FileSystemThroughput
         ECSSecurityGroup: !Ref ECSSecurityGroup
         OntapVolumeSize: !Ref OntapVolumeSize
+        Tier: !Ref Tier
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
@@ -1196,6 +1201,7 @@ Resources:
         ECSSecurityGroup: !Ref ECSSecurityGroup
         EncryptEFS: !Ref EncryptEFS
         EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
+        Tier: !Ref Tier
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
@@ -1219,6 +1225,7 @@ Resources:
         RDSPort: !Ref RDSPort
         RDSDatabase: !Ref RDSDatabase
         RDSBootstrap: !Ref RDSBootstrap
+        Tier: !Ref Tier
 Outputs:
   RdsEndpoint:
     Condition: ProvisionRDS
