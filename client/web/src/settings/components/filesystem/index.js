@@ -58,7 +58,7 @@ export const FILESYSTEM_TYPES = {
             throughputMbs: 8,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
-            weeklyMaintenanceTime: '07:01:00',
+            weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
             windowsMountDrive: 'G:',
         },
@@ -102,7 +102,7 @@ export const FILESYSTEM_TYPES = {
             throughputMbs: 128,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
-            weeklyMaintenanceTime: '07:01:00',
+            weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
             volumeSize: 40
         },
@@ -153,7 +153,7 @@ export const FILESYSTEM_TYPES = {
             throughputMbs: 128,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
-            weeklyMaintenanceTime: '07:01:00',
+            weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
             windowsMountDrive: 'G:',
             volumeSize: 40

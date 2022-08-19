@@ -73,7 +73,7 @@ export function ApplicationComponent(props) {
     let filesystem = {
       ...FILESYSTEM_DEFAULTS,
       ...defaultValues.filesystem,
-      ...tierValues.filesystem
+      ...splitWeeklyMaintenanceTime(tierValues.filesystem)
     }
     let defaults = Object.assign({
       min: 0,
@@ -92,7 +92,7 @@ export function ApplicationComponent(props) {
       provisionDb: !!tierValues.database,
       provisionFS: !!tierValues.filesystem,
       filesystemType: filesystemType,
-      filesystem: splitWeeklyMaintenanceTime(uncleanedInitialTierValues.filesystem),
+      filesystem: filesystem,
     }
   }
 
