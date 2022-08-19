@@ -50,6 +50,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.CreateSecretRequest;
+import software.amazon.awssdk.services.secretsmanager.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
@@ -526,15 +527,20 @@ public class SaaSBoostInstall {
         List<LinkedHashMap<String, Object>> tenants = getProvisionedTenants();
         for (LinkedHashMap<String, Object> tenant : tenants) {
             outputMessage("Deleting AWS SaaS Boost tenant " + tenant.get("id"));
-            deleteProvisionedTenant(tenant);
+            if ((Boolean) tenant.get("active")) {
+                LOGGER.debug("Deleting active tenant", tenant);
+                deleteProvisionedTenant(tenant);
+            } else {
+                LOGGER.debug("Not deleting inactive tenant: ", tenant);
+            }
         }
 
         // Clear all the images from ECR or CloudFormation won't be able to delete the repository
         try {
-            GetParameterResponse parameterResponse = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/ECR_REPO"));
-            String ecrRepo = parameterResponse.parameter().value();
-            outputMessage("Deleting images from ECR repository " + ecrRepo);
-            deleteEcrImages(ecrRepo);
+            for (String ecrRepo : getEcrRepositories()) {
+                outputMessage("Deleting images from ECR repository " + ecrRepo);
+                deleteEcrImages(ecrRepo);
+            }
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error", ssmError);
             LOGGER.error(getFullStackTrace(ssmError));
@@ -554,6 +560,26 @@ public class SaaSBoostInstall {
         // Delete the SaaS Boost stack
         outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
         deleteCloudFormationStack(this.stackName);
+
+        // Delete the ActiveDirectory Password in SSM if it exists
+        try {
+            ssm.deleteParameter(request -> request
+                .name("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
+                .build());
+            outputMessage("ActiveDirectory SSM secret deleted.");
+        } catch (ParameterNotFoundException pnfe) {
+            // there is no ACTIVE_DIRECTORY_PASSWORD parameter, so there is nothing to delete
+        }
+        // Delete the ActiveDirectory password in SecretsManager if it exists
+        try {
+            secretsManager.deleteSecret(request -> request
+                .forceDeleteWithoutRecovery(true)
+                .secretId("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
+                .build());
+            outputMessage("ActiveDirectory secretsManager secret deleted.");
+        } catch (ResourceNotFoundException rnfe) {
+            // there is no ACTIVE_DIRECTORY_PASSWORD secret, so there is nothing to delete
+        }
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
         LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
@@ -576,6 +602,49 @@ public class SaaSBoostInstall {
         }
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
+    }
+
+    private List<String> getEcrRepositories() {
+        List<String> repos = new ArrayList<>();
+        try {
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("resource", "settings/config");
+            detail.put("method", "GET");
+            systemApiRequest.put("detail", detail);
+            final ObjectMapper mapper = new ObjectMapper();
+            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
+            try {
+                LOGGER.info("Invoking getSettings API");
+                InvokeResponse response = lambda.invoke(request -> request
+                        .functionName("sb-" + this.envName + "-private-api-client")
+                        .invocationType(InvocationType.REQUEST_RESPONSE)
+                        .payload(SdkBytes.fromByteArray(payload))
+                );
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    LOGGER.error("got response back: {}", response);
+                    String configJson = response.payload().asUtf8String();
+                    HashMap<String, Object> config = mapper.readValue(configJson, HashMap.class);
+                    HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
+                    for (String serviceName : services.keySet()) {
+                        HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
+                        repos.add((String) service.get("containerRepo"));
+                    }
+                } else {
+                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                }
+            } catch (SdkServiceException lambdaError) {
+                LOGGER.error("lambda:Invoke error", lambdaError);
+                LOGGER.error(getFullStackTrace(lambdaError));
+                throw lambdaError;
+            }
+        } catch (IOException jacksonError) {
+            LOGGER.error("Error processing JSON", jacksonError);
+            LOGGER.error(getFullStackTrace(jacksonError));
+            throw new RuntimeException(jacksonError);
+        }
+        return repos;
     }
 
     protected void installAnalyticsModule() {
@@ -959,15 +1028,72 @@ public class SaaSBoostInstall {
     }
 
     protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
-        // Arguably, the delete tenant API should be called here, but all it currently does is set the tenant status
-        // to disabled and then fire off an async event to delete the CloudFormation stack. We could do that, but we'd
-        // still need to either subscribe to the SNS topic for DELETE_COMPLETE notification or we'd need to cycle on
-        // describe stacks like we do elsewhere to wait for CloudFormation to finish. In either case, we need to know
-        // the stack name for the tenant.
-        // Also, this won't scale super well and could be parallelized...
-        String tenantStackName = "Tenant-" + ((String) tenant.get("id")).split("-")[0];
-        outputMessage("Deleteing tenant CloudFormation stack " + tenantStackName);
-        deleteCloudFormationStack(tenantStackName);
+        // TODO we can parallelize to improve performance with lots of tenants
+        String tenantStackId = (String) ((HashMap<String, Object>)((HashMap<String, Object>) tenant.get("resources")).get("CLOUDFORMATION")).get("arn");
+        final ObjectMapper mapper = new ObjectMapper();
+        try {
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("resource", "tenants/" + (String) tenant.get("id"));
+            detail.put("method", "DELETE");
+            Map<String, String> tenantIdOnly = new HashMap<>();
+            tenantIdOnly.put("id", (String) tenant.get("id"));
+            detail.put("body", mapper.writeValueAsString(tenantIdOnly));
+            systemApiRequest.put("detail", detail);
+            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
+            try {
+                LOGGER.info("Invoking delete tenant API");
+                InvokeResponse response = lambda.invoke(request -> request
+                        .functionName("sb-" + this.envName + "-private-api-client")
+                        .invocationType(InvocationType.REQUEST_RESPONSE)
+                        .payload(SdkBytes.fromByteArray(payload))
+                );
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    LOGGER.error("got response back: {}", response);
+                    // wait for tenant CloudFormation stack to reach deleted
+                    boolean waiting = true;
+                    while (waiting) {
+                        DescribeStacksResponse stackStatusResponse = cfn.describeStacks(request -> request.stackName(tenantStackId));
+                        StackStatus stackStatus = stackStatusResponse.stacks().get(0).stackStatus();
+                        switch (stackStatus) {
+                            case DELETE_COMPLETE:
+                            case DELETE_FAILED: {
+                                waiting = false;
+                                break;
+                            }
+                            case DELETE_IN_PROGRESS: {
+                                outputMessage("Waiting 1 minute for " + tenantStackId + " to finish deleting.");
+                                try {
+                                    Thread.sleep(60 * 1000);
+                                } catch (InterruptedException e) {
+
+                                }
+                            }
+                            default: {
+                                outputMessage("Unexpected stackStatus " + stackStatus + " while waiting for " + tenantStackId + " to finish deleting.");
+                                outputMessage("Waiting 1 minute for " + tenantStackId + " to finish deleting.");
+                                try {
+                                    Thread.sleep(60 * 1000);
+                                } catch (InterruptedException e) {
+
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                }
+            } catch (SdkServiceException lambdaError) {
+                LOGGER.error("lambda:Invoke error", lambdaError);
+                LOGGER.error(getFullStackTrace(lambdaError));
+                throw lambdaError;
+            }
+        } catch (IOException jacksonError) {
+            LOGGER.error("Error processing JSON", jacksonError);
+            LOGGER.error(getFullStackTrace(jacksonError));
+            throw new RuntimeException(jacksonError);
+        }
     }
 
     protected void deleteEcrImages(String ecrRepo) {
