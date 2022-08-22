@@ -188,8 +188,6 @@ The following options can be configured for your Netapp ONTAP FSx file system:
 - Volume Size - Enter the size of the ONTAP Volume in GiB that you want to create.
 
 The following options can be configured for your Windows FSx file system:
-
-The following options can be configured for your file system:
 - Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
 - Storage - Enter the size of the file system you want to provision.
 - Throughput - Enter the level of throughput you want to be supported by your file system.
