@@ -560,16 +560,6 @@ public class SaaSBoostInstall {
         // Delete the SaaS Boost stack
         outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
         deleteCloudFormationStack(this.stackName);
-
-        // Delete the ActiveDirectory Password in SSM if it exists
-        try {
-            ssm.deleteParameter(request -> request
-                .name("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
-                .build());
-            outputMessage("ActiveDirectory SSM secret deleted.");
-        } catch (ParameterNotFoundException pnfe) {
-            // there is no ACTIVE_DIRECTORY_PASSWORD parameter, so there is nothing to delete
-        }
         // Delete the ActiveDirectory password in SecretsManager if it exists
         try {
             secretsManager.deleteSecret(request -> request
@@ -590,11 +580,13 @@ public class SaaSBoostInstall {
         // needed to delete stacks via CloudFormation. delete these last.
         // TODO move these parameters to CloudFormation
         try {
-            ssm.deleteParameters(request -> request.names(
-                    "/saas-boost/" + this.envName + "/ACTIVE_DIRECTORY_PASSWORD",
-                    "/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED",
-                    "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD"
-            ));
+            List<String> parameterNamesToDelete = ssm.describeParameters(
+                request -> request.parameterFilters(ParameterStringFilter.builder()
+                    .key("Path")
+                    .values("/saas-boost/" + this.envName + "/")
+                    .build()))
+                .parameters().stream().map(meta -> meta.name()).collect(Collectors.toList());
+            ssm.deleteParameters(request -> request.names(parameterNamesToDelete));
         } catch (SdkServiceException ssmError) {
             outputMessage("Failed to delete all Parameter Store entries");
             LOGGER.error("ssm:DeleteParameters error", ssmError);
