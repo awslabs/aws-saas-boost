@@ -21,6 +21,10 @@ Parameters:
   TenantId:
     Description: The GUID for the tenant
     Type: String
+  Tier:
+    Description: The tier this tenant is onboading into
+    Type: String
+    Default: ''
   ServiceName:
     Description: Name for this application service
     Type: String
@@ -288,6 +292,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   ClusterCapacityProviderAssociations:
     Type: AWS::ECS::ClusterCapacityProviderAssociations
     Condition: Ec2LaunchType
@@ -459,6 +465,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
       ContainerDefinitions:
         - Name:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
@@ -586,6 +594,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   FsxWaitHandle:
     Condition: ProvisionFSx
     DependsOn: fsx
@@ -766,6 +776,8 @@ Resources:
             - Key: Tenant
               Value:
                 !Ref TenantId
+            - Key: Tier
+              Value: !Ref Tier
       LaunchTemplateData:
         ImageId:
           Fn::If:
@@ -899,6 +911,8 @@ Resources:
               - Key: Tenant
                 Value:
                   !Ref TenantId
+              - Key: Tier
+                Value: !Ref Tier
   LinuxLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Condition: Ec2Linux
@@ -936,6 +950,8 @@ Resources:
             - Key: Tenant
               Value:
                 !Ref TenantId
+            - Key: Tier
+              Value: !Ref Tier
       LaunchTemplateData:
         ImageId: !Ref AMZNLINUX2
         InstanceType: !Ref ClusterInstanceType
@@ -967,6 +983,8 @@ Resources:
               - Key: Tenant
                 Value:
                   !Ref TenantId
+              - Key: Tier
+                Value: !Ref Tier
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: IsPublic
@@ -998,6 +1016,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   ALBRule:
     Condition: IsPublicHttp
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -1165,6 +1185,7 @@ Resources:
         ThroughputCapacity: !Ref FileSystemThroughput
         ECSSecurityGroup: !Ref ECSSecurityGroup
         OntapVolumeSize: !Ref OntapVolumeSize
+        Tier: !Ref Tier
   efs:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionEFS
@@ -1180,6 +1201,7 @@ Resources:
         ECSSecurityGroup: !Ref ECSSecurityGroup
         EncryptEFS: !Ref EncryptEFS
         EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
+        Tier: !Ref Tier
   rds:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionRDS
@@ -1203,6 +1225,7 @@ Resources:
         RDSPort: !Ref RDSPort
         RDSDatabase: !Ref RDSDatabase
         RDSBootstrap: !Ref RDSBootstrap
+        Tier: !Ref Tier
 Outputs:
   RdsEndpoint:
     Condition: ProvisionRDS

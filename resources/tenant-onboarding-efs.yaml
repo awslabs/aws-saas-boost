@@ -21,6 +21,10 @@ Parameters:
   TenantId:
     Description: The GUID for the tenant
     Type: String
+  Tier:
+    Description: The tier this tenant is onboading into
+    Type: String
+    Default: ''
   ServiceResourceName:
     Description: CloudFormation friendly version of the service name
     Type: String
@@ -87,6 +91,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   MountTargetA:
     Type: AWS::EFS::MountTarget
     Properties:

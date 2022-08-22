@@ -18,6 +18,10 @@ Parameters:
   Environment:
     Description: Environment (test, uat, prod, etc.)
     Type: String
+  Tier:
+    Description: The tier this tenant is onboading into
+    Type: String
+    Default: ''
   TenantId:
     Description: The GUID for the tenant
     Type: String
@@ -136,6 +140,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   FSxKeyAlias:
     Condition: CreateKey
     Type: AWS::KMS::Alias
@@ -405,6 +411,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
       WindowsConfiguration: !If
         - FSxWindows
         -
@@ -457,6 +465,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   StorageVolume:
     Type: AWS::FSx::Volume
     Condition: FSxONTAP
@@ -475,6 +485,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   FsxDnsNameRole:
     Type: AWS::IAM::Role
     Properties:
@@ -557,6 +569,8 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   InvokeGetFsxDnsName:
     Type: Custom::CustomResource
     DependsOn:

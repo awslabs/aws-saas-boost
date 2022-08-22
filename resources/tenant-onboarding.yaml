@@ -64,12 +64,16 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
@@ -85,6 +89,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-public-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   RoutePublic:
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
@@ -104,6 +110,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-public-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   SubnetPublicARouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -121,6 +129,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-public-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   SubnetPublicBRouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -138,6 +148,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-private-az1-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   SubnetPrivateB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -150,6 +162,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-private-az2-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   RouteTablePrivate:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -160,6 +174,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-private-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
   Subnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -184,6 +200,8 @@ Resources:
         - Key: Name
           Value:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        - Key: Tier
+          Value: !Ref Tier
       TransitGatewayId:
         Fn::Join: ['', ['{{resolve:ssm:/saas-boost/', !Ref Environment, '/TRANSIT_GATEWAY}}']]
       VpcId: !Ref VPC
@@ -219,6 +237,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -280,6 +300,8 @@ Resources:
       Tags:
         - Key: Tenant
           Value: !Ref TenantId
+        - Key: Tier
+          Value: !Ref Tier
   RecordSetAlias:
      Type: AWS::Route53::RecordSet
      Condition: CreateSubDomainAlias
