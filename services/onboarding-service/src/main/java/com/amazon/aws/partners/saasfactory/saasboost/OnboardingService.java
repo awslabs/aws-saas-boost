@@ -998,6 +998,7 @@ public class OnboardingService {
                         // TODO rework these last 2?
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
                         templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
+                        templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue(tier).build());
                         for (Parameter p : templateParameters) {
                             LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
                             if (p.parameterValue() == null) {
