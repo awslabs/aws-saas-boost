@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# set -o xtrace
 myEnv="$1"
 if [ "z$myEnv" == "z" ]; then
     read -p "What environment? " myEnv
@@ -32,7 +34,8 @@ echo "REACT_APP_COGNITO_USERPOOL=$userPoolId" >> .env
 poolClientId=$(aws cognito-idp list-user-pool-clients --user-pool-id ${userPoolId} | jq '.UserPoolClients[0].ClientId' | cut -d\" -f2)
 echo "REACT_APP_CLIENT_ID=$poolClientId" >> .env
 
-publicApiGId=$(aws apigateway get-rest-apis | jq '.items[] | select (.name == "sb-test-public-api").id' | cut -d\" -f2)
+publicApiName="sb-${myEnv}-public-api"
+publicApiGId=$(aws apigateway get-rest-apis | jq --arg publicApiName "$publicApiName" '.items[] | select (.name == $publicApiName).id' | cut -d\" -f2)
 echo "REACT_APP_API_URI=https://${publicApiGId}.execute-api.${myRegion}.amazonaws.com/v1" >> .env
 
 cat .env

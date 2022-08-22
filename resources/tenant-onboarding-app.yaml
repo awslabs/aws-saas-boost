@@ -852,7 +852,7 @@ Resources:
                 $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
-                If ('${FSxFileSystemType}' -eq 'FSXO')  {
+                If ('${FSxFileSystemType}' -eq 'FSX_ONTAP')  {
                     $fileServerPath = "\\{0}\C$" -f "${fsx.Outputs.FSxDnsName}"
                 }
                 Else {
