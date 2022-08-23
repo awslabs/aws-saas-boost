@@ -64,8 +64,14 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  CreateMacroResources:
+    Description: Whether to create the Lambda, LogGroup, and CloudFormation macro for SaaS Boost environments
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
+  ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -402,6 +408,7 @@ Resources:
       Bucket: !Ref Resources
   ApplicationServicesMacroExecutionRole:
     Type: AWS::IAM::Role
+    Condition: ShouldCreateMacroResources
     DependsOn:
       - ApplicationServicesMacroLogs
     Properties:
@@ -433,11 +440,13 @@ Resources:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   ApplicationServicesMacroLogs:
     Type: AWS::Logs::LogGroup
+    Condition: ShouldCreateMacroResources
     Properties:
       LogGroupName: /aws/lambda/saas-boost-app-services-macro
       RetentionInDays: 30
   ApplicationServicesMacroFunction:
     Type: AWS::Lambda::Function
+    Condition: ShouldCreateMacroResources
     DependsOn: ApplicationServicesMacroLogs
     Properties:
       FunctionName: saas-boost-app-services-macro
@@ -461,6 +470,7 @@ Resources:
           Value: !Ref Environment
   ApplicationServicesMacro:
     Type: AWS::CloudFormation::Macro
+    Condition: ShouldCreateMacroResources
     Properties:
       # Can't use a parameter as part of a macro name when you include it in another template
       Name: saas-boost-app-services-macro
