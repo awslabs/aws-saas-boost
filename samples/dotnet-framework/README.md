@@ -14,6 +14,7 @@ Next, you must configure the **Application Settings** in your SaaS Boost environ
 - Set the Container Port to **80**
 - Set the Health Check URL to **/**
 - **Enable** the Provision a File System for the application checkbox
+- Select either **FSx ONTAP** or **FSx Windows** for File System Type
 - Set the Mount point to **C:\Images**
 - **Enable** the Provision a database for the application checkbox
 - Select **SQL Server Express Edition**
