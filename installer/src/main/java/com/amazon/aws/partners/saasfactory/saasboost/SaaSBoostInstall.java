@@ -59,6 +59,9 @@ import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.Temporal;
+import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -987,6 +990,45 @@ public class SaaSBoostInstall {
         return provisionedTenants;
     }
 
+    private LinkedHashMap<String, Object> getTenant(String tenantId) {
+        LinkedHashMap<String, Object> tenantDetail = new LinkedHashMap<>();
+        final ObjectMapper mapper = new ObjectMapper();
+        try {
+            Map<String, Object> systemApiRequest = new HashMap<>();
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("resource", "tenants/" + tenantId);
+            detail.put("method", "GET");
+            systemApiRequest.put("detail", detail);
+            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
+            try {
+                LOGGER.info("Invoking get tenant by id API");
+                InvokeResponse response = lambda.invoke(request -> request
+                        .functionName("sb-" + this.envName + "-private-api-client")
+                        .invocationType(InvocationType.REQUEST_RESPONSE)
+                        .payload(SdkBytes.fromByteArray(payload))
+                );
+                if (response.sdkHttpResponse().isSuccessful()) {
+                    String responseBody = response.payload().asUtf8String();
+                    LOGGER.info("Response Body");
+                    LOGGER.info(responseBody);
+                    tenantDetail = mapper.readValue(responseBody, LinkedHashMap.class);
+                } else {
+                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                }
+            } catch (SdkServiceException lambdaError) {
+                LOGGER.error("lambda:Invoke error", lambdaError);
+                LOGGER.error(getFullStackTrace(lambdaError));
+                throw lambdaError;
+            }
+        } catch (IOException jacksonError) {
+            LOGGER.error("Error processing JSON", jacksonError);
+            LOGGER.error(getFullStackTrace(jacksonError));
+            throw new RuntimeException(jacksonError);
+        }
+        return tenantDetail;
+    }
+
     protected void deleteApplicationConfig() {
         final ObjectMapper mapper = new ObjectMapper();
         try {
@@ -1028,8 +1070,9 @@ public class SaaSBoostInstall {
             Map<String, Object> detail = new HashMap<>();
             detail.put("resource", "tenants/" + (String) tenant.get("id"));
             detail.put("method", "DELETE");
+            String tenantId = (String) tenant.get("id");
             Map<String, String> tenantIdOnly = new HashMap<>();
-            tenantIdOnly.put("id", (String) tenant.get("id"));
+            tenantIdOnly.put("id", tenantId);
             detail.put("body", mapper.writeValueAsString(tenantIdOnly));
             systemApiRequest.put("detail", detail);
             final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
@@ -1041,36 +1084,24 @@ public class SaaSBoostInstall {
                         .payload(SdkBytes.fromByteArray(payload))
                 );
                 if (response.sdkHttpResponse().isSuccessful()) {
-                    LOGGER.error("got response back: {}", response);
-                    // wait for tenant CloudFormation stack to reach deleted
-                    boolean waiting = true;
-                    while (waiting) {
-                        DescribeStacksResponse stackStatusResponse = cfn.describeStacks(request -> request.stackName(tenantStackId));
-                        StackStatus stackStatus = stackStatusResponse.stacks().get(0).stackStatus();
-                        switch (stackStatus) {
-                            case DELETE_COMPLETE:
-                            case DELETE_FAILED: {
-                                waiting = false;
-                                break;
-                            }
-                            case DELETE_IN_PROGRESS: {
-                                outputMessage("Waiting 1 minute for " + tenantStackId + " to finish deleting.");
-                                try {
-                                    Thread.sleep(60 * 1000);
-                                } catch (InterruptedException e) {
-
-                                }
-                            }
-                            default: {
-                                outputMessage("Unexpected stackStatus " + stackStatus + " while waiting for " + tenantStackId + " to finish deleting.");
-                                outputMessage("Waiting 1 minute for " + tenantStackId + " to finish deleting.");
-                                try {
-                                    Thread.sleep(60 * 1000);
-                                } catch (InterruptedException e) {
-
-                                }
-                            }
+                    LOGGER.debug("got response back: {}", response);
+                    // wait for tenant to reach deleted
+                    boolean deleted = false;
+                    LocalDate timeout = LocalDate.now().plus(30L, ChronoUnit.MINUTES);
+                    String tenantStatus;
+                    while (!deleted) {
+                        tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                        if (tenantStatus.equalsIgnoreCase("deleted")) {
+                            deleted = true;
                         }
+                        if (LocalDate.now().compareTo(timeout) > 0) {
+                            // we've timed out retrying
+                            outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
+                                "Please check CloudFormation in your AWS Console for more details.");
+                        }
+                        outputMessage("Waiting 1 minute for tenant " + tenantId +
+                            " to reach deleted from " + tenantStatus);
+                        Thread.sleep(60 * 1000L);
                     }
                 } else {
                     LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
@@ -1080,6 +1111,10 @@ public class SaaSBoostInstall {
                 LOGGER.error("lambda:Invoke error", lambdaError);
                 LOGGER.error(getFullStackTrace(lambdaError));
                 throw lambdaError;
+            } catch (InterruptedException ie) {
+                LOGGER.error("Exception in waiting");
+                LOGGER.error(getFullStackTrace(ie));
+                throw new RuntimeException(ie);
             }
         } catch (IOException jacksonError) {
             LOGGER.error("Error processing JSON", jacksonError);
