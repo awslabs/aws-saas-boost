@@ -58,6 +58,7 @@ import software.amazon.awssdk.services.ssm.model.*;
 import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.Temporal;
@@ -1086,22 +1087,22 @@ public class SaaSBoostInstall {
                 if (response.sdkHttpResponse().isSuccessful()) {
                     LOGGER.debug("got response back: {}", response);
                     // wait for tenant to reach deleted
-                    boolean deleted = false;
-                    LocalDate timeout = LocalDate.now().plus(30L, ChronoUnit.MINUTES);
-                    String tenantStatus;
+                    final String DELETED = "deleted";
+                    LocalDateTime timeout = LocalDateTime.now().plus(30, ChronoUnit.MINUTES);
+                    String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                    boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
                     while (!deleted) {
-                        tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                        if (tenantStatus.equalsIgnoreCase("deleted")) {
-                            deleted = true;
-                        }
-                        if (LocalDate.now().compareTo(timeout) > 0) {
+                        if (LocalDateTime.now().compareTo(timeout) > 0) {
                             // we've timed out retrying
                             outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
                                 "Please check CloudFormation in your AWS Console for more details.");
+                            throw new RuntimeException("Delete failed.");
                         }
                         outputMessage("Waiting 1 minute for tenant " + tenantId +
                             " to reach deleted from " + tenantStatus);
-                        Thread.sleep(60 * 1000L);
+                        Thread.sleep(60 * 1000L); // 1 minute
+                        tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                        deleted = tenantStatus.equalsIgnoreCase(DELETED);
                     }
                 } else {
                     LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
