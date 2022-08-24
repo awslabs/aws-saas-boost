@@ -65,7 +65,7 @@ Parameters:
     Type: String
     Default: ''
   CreateMacroResources:
-    Description: Whether to create the Lambda, LogGroup, and CloudFormation macro for SaaS Boost environments
+    Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
     Type: String
     AllowedValues: ['true', 'false']
     Default: 'true'
