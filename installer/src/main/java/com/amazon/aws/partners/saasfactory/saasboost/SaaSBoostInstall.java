@@ -531,12 +531,7 @@ public class SaaSBoostInstall {
         List<LinkedHashMap<String, Object>> tenants = getProvisionedTenants();
         for (LinkedHashMap<String, Object> tenant : tenants) {
             outputMessage("Deleting AWS SaaS Boost tenant " + tenant.get("id"));
-            if ((Boolean) tenant.get("active")) {
-                LOGGER.debug("Deleting active tenant", tenant);
-                deleteProvisionedTenant(tenant);
-            } else {
-                LOGGER.debug("Not deleting inactive tenant: ", tenant);
-            }
+            deleteProvisionedTenant(tenant);
         }
 
         // Clear all the images from ECR or CloudFormation won't be able to delete the repository
@@ -590,7 +585,15 @@ public class SaaSBoostInstall {
                     .values("/saas-boost/" + this.envName + "/")
                     .build()))
                 .parameters().stream().map(meta -> meta.name()).collect(Collectors.toList());
-            ssm.deleteParameters(request -> request.names(parameterNamesToDelete));
+            // we need to batch ssm.deleteParameters in sizes of 10 parameters
+            // https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DeleteParameters.html#API_DeleteParameters_RequestSyntax
+            final int ssmBatchSize = 10;
+            for (int i = 0; i < parameterNamesToDelete.size(); i += ssmBatchSize) {
+                int batchStart = i;
+                int batchEnd = Math.min(batchStart + ssmBatchSize, parameterNamesToDelete.size());
+                // List#subList returns a view of the List inclusive from 'start' to exclusive on 'end'
+                ssm.deleteParameters(request -> request.names(parameterNamesToDelete.subList(batchStart, batchEnd)));
+            }
         } catch (SdkServiceException ssmError) {
             outputMessage("Failed to delete all Parameter Store entries");
             LOGGER.error("ssm:DeleteParameters error", ssmError);
@@ -1064,7 +1067,6 @@ public class SaaSBoostInstall {
 
     protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
         // TODO we can parallelize to improve performance with lots of tenants
-        String tenantStackId = (String) ((HashMap<String, Object>)((HashMap<String, Object>) tenant.get("resources")).get("CLOUDFORMATION")).get("arn");
         final ObjectMapper mapper = new ObjectMapper();
         try {
             Map<String, Object> systemApiRequest = new HashMap<>();
@@ -1088,7 +1090,7 @@ public class SaaSBoostInstall {
                     LOGGER.debug("got response back: {}", response);
                     // wait for tenant to reach deleted
                     final String DELETED = "deleted";
-                    LocalDateTime timeout = LocalDateTime.now().plus(30, ChronoUnit.MINUTES);
+                    LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
                     String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
                     boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
                     while (!deleted) {
@@ -1096,6 +1098,9 @@ public class SaaSBoostInstall {
                             // we've timed out retrying
                             outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
                                 "Please check CloudFormation in your AWS Console for more details.");
+                            // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
+                            // due to Tenant resources having cross-dependencies with other resources. stop here to let
+                            // the user figure out what went wrong
                             throw new RuntimeException("Delete failed.");
                         }
                         outputMessage("Waiting 1 minute for tenant " + tenantId +
