@@ -475,6 +475,18 @@ Resources:
       # Can't use a parameter as part of a macro name when you include it in another template
       Name: saas-boost-app-services-macro
       FunctionName: !GetAtt ApplicationServicesMacroFunction.Arn
+  CreateMacroWaitHandle:
+    Condition: ShouldCreateMacroResources
+    DependsOn: ApplicationServicesMacro
+    Type: AWS::CloudFormation::WaitConditionHandle
+  NoCreateMacroWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  MacroWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [ShouldCreateMacroResources, !Ref CreateMacroWaitHandle, !Ref NoCreateMacroWaitHandle]
+      Timeout: '1'
+      Count: 0
   SaaSBoostEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -617,7 +629,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
-      - ApplicationServicesMacro
+      - MacroWaitCondition
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
       Parameters:
