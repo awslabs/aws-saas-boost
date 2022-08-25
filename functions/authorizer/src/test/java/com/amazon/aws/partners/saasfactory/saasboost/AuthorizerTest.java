@@ -31,7 +31,7 @@ public class OidcAuthorizerTest {
     @Test
     public void handleRequestWithDenyTokenTest() throws JsonProcessingException {
         System.out.println("handleRequestWithEmptyTokenTest ...");
-        OidcAuthorizer oidcAuthorizer = new OidcAuthorizer();
+        Authorizer oidcAuthorizer = new Authorizer();
         String authorizationToken = "";
         String methodArn = "arn:aws-cn:execute-api:cn-north-1:111111111111:testapi/v1/GET/settings/";
 
@@ -52,7 +52,7 @@ public class OidcAuthorizerTest {
 
     @Test
     public void handleRequestWithAllowTest() throws JsonProcessingException {
-        OidcAuthorizer oidcAuthorizer = new OidcAuthorizer() {
+        Authorizer oidcAuthorizer = new Authorizer() {
             @Override
             protected TokenVerifier getTokenVerifier() {
                 return  new TokenVerifier() {
@@ -88,7 +88,7 @@ public class OidcAuthorizerTest {
 
     @Test
     public void handleRequestWithAllowTestWithOptions() throws JsonProcessingException {
-        OidcAuthorizer oidcAuthorizer = new OidcAuthorizer() {
+        Authorizer oidcAuthorizer = new Authorizer() {
             @Override
             protected TokenVerifier getTokenVerifier() {
                 return  new TokenVerifier() {

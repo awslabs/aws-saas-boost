@@ -189,10 +189,10 @@ Resources:
       Runtime: java11
       Timeout: 30
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.OidcAuthorizer::handleRequest
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.Authorizer::handleRequest
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/OidcAuthorizer-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/Authorizer-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:

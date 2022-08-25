@@ -22,7 +22,7 @@ limitations under the License.
         <artifactId>saasboost-functions</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>OidcAuthorizer</artifactId>
+    <artifactId>Authorizer</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>

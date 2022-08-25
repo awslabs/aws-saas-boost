@@ -29,8 +29,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 
-public class OidcAuthorizer implements RequestHandler<TokenAuthorizerContext, AuthPolicy> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(OidcAuthorizer.class);
+public class Authorizer implements RequestHandler<TokenAuthorizerContext, AuthPolicy> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Authorizer.class);
 
     private TokenVerifier tokenVerifier;
 

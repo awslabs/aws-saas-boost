@@ -21,7 +21,7 @@
         <module>onboarding-stack-listener</module>
         <module>system-rest-api-client</module>
         <module>workload-deploy</module>
-        <module>oidc-authorizer</module>
+        <module>authorizer</module>
     </modules>
     <licenses>
         <license>

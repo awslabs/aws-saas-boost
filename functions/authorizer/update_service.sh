@@ -48,7 +48,7 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-oidc-authorizer"
+FUNCTIONS=("sb-${ENVIRONMENT}-authorizer"
         )
 
 for FUNCTION in ${FUNCTIONS[@]}; do
