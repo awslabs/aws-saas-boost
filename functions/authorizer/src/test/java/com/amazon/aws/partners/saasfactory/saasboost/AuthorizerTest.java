@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import java.util.*;
 
-public class OidcAuthorizerTest {
+public class AuthorizerTest {
 
     @Test
     public void handleRequestWithDenyTokenTest() throws JsonProcessingException {
