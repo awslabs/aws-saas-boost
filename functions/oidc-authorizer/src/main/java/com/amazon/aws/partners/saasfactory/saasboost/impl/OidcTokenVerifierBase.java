@@ -1,12 +1,12 @@
 /**
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,17 +21,15 @@ import com.auth0.jwk.Jwk;
 import com.auth0.jwk.JwkException;
 import com.auth0.jwk.JwkProvider;
 import com.auth0.jwk.UrlJwkProvider;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
+import java.io.InputStream;
 import java.net.URI;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.util.Arrays;
@@ -42,9 +40,8 @@ import java.util.regex.Pattern;
 
 public abstract class OidcTokenVerifierBase implements TokenVerifier {
     private static final Logger LOGGER = LoggerFactory.getLogger(OidcTokenVerifierBase.class);
-    private static Map<String, PublicKey> PUB_KEY_CACHE = new HashMap<>();
+    private static Map<Object, PublicKey> PUB_KEY_CACHE = new HashMap<Object, PublicKey>();
     private OIDCConfig config;
-    private ObjectMapper objectMapper = new ObjectMapper();
 
     public OidcTokenVerifierBase(OIDCConfig config) {
         this.config = config;
@@ -62,8 +59,8 @@ public abstract class OidcTokenVerifierBase implements TokenVerifier {
         LOGGER.info("headerDecoded: {}", headerDecoded);
         String openidConfiguration = config.getOpenIdConfigurationUri();
         try {
-            JsonNode headerJson = this.objectMapper.readTree(headerDecoded);
-            String kid = headerJson.get("kid").asText();
+            Map headerJson = Utils.fromJson(headerDecoded, Map.class);
+            String kid = headerJson.get("kid").toString();
             PublicKey pubKey;
             if (PUB_KEY_CACHE.get(kid) != null) {
                 pubKey = PUB_KEY_CACHE.get(kid);
@@ -82,8 +79,12 @@ public abstract class OidcTokenVerifierBase implements TokenVerifier {
     }
 
     private PublicKey getPublicKeyFromIdp(String kid, String openidConfiguration) throws IOException, JwkException {
-        JsonNode jsonNode = this.objectMapper.readTree(URI.create(openidConfiguration).toURL());
-        String jwksUri = jsonNode.get("jwks_uri").asText();
+        URLConnection c = URI.create(openidConfiguration).toURL().openConnection();
+        Map jsonNode = null;
+        try (InputStream inputStream = c.getInputStream()) {
+            jsonNode = Utils.fromJson(inputStream, Map.class);
+        }
+        String jwksUri = jsonNode.get("jwks_uri").toString();
         LOGGER.info("jwksUri: {}", jwksUri);
         JwkProvider provider = new UrlJwkProvider(URI.create(jwksUri).toURL());
         Jwk jwk = provider.get(kid);

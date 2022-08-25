@@ -809,6 +809,7 @@ Resources:
         UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
         UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
         UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         AuthMethod: !Ref AuthMethod
         OIDCIssuer: !Ref OIDCIssuer
         OIDCPermissions: !Ref OIDCPermissions
