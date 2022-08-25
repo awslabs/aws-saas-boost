@@ -27,7 +27,7 @@ import software.amazon.awssdk.services.s3.model.*;
 import java.nio.file.Path;
 import java.util.UUID;
 
-import static com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall.getFullStackTrace;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.getFullStackTrace;
 
 public class SaaSBoostArtifactsBucket {
 
