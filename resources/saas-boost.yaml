@@ -412,7 +412,7 @@ Resources:
     DependsOn:
       - ApplicationServicesMacroLogs
     Properties:
-      RoleName: saas-boost-app-services-macro
+      RoleName: !Sub saas-boost-app-services-macro-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
