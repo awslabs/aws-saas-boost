@@ -68,7 +68,7 @@ Parameters:
     Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
     Type: String
     AllowedValues: ['true', 'false']
-    Default: 'true'
+    Default: 'false'
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
