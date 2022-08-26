@@ -2042,7 +2042,7 @@ public class SaaSBoostInstall {
                 .map(summary -> summary.stackName())
                 .collect(Collectors.toList()));
             paginationToken = listStacksResponse.nextToken();
-        } while(paginationToken == null);
+        } while(paginationToken != null);
         // for each stack, look for Macro Resource (either by listing all or getResource by logical id)
         for (String stackName : stackNamesToCheck) {
             try {
