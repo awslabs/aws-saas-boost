@@ -1800,7 +1800,8 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build(),
                             Parameter.builder().parameterKey("HostedZone").parameterValue(hostedZone).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
-                                    String.join(",", services.keySet())).build()
+                                    String.join(",", services.keySet())).build(),
+                            Parameter.builder().parameterKey("CreateMacroResources").usePreviousValue(Boolean.TRUE).build()
                     )
                     .build()
             );
