@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -16,22 +16,20 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.impl.DefaultOidcTokenVerifier;
-import io.jsonwebtoken.Claims;
+import org.junit.Test;
 
-public interface TokenVerifier {
-    static TokenVerifier getInstance(String issuer) {
-        return new DefaultOidcTokenVerifier(new OIDCConfig(issuer));
+import static org.junit.Assert.*;
+
+public class ApiGatewayAuthorizerTest {
+
+    @Test
+    public void testApiGatewayResource_Default() {
+        TokenAuthorizerRequest event = TokenAuthorizerRequest.builder()
+                .methodArn("arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/request")
+                .build();
+
+        assertEquals("arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/*/*",
+                ApiGatewayAuthorizer.apiGatewayResource(event));
     }
-
-    /**
-     * Verify OIDC token
-     *
-     * @param token: OIDC token, must start with 'Bearer '
-     * @param resource: http resource, HttpMethod and resource path
-     * @return claims in the token
-     * @throws IllegalTokenException, if token is illegal, this exception will be thrown
-     */
-    Claims verify(String token, Resource resource) throws IllegalTokenException;
 
 }

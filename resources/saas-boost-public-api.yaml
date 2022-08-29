@@ -24,6 +24,9 @@ Parameters:
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
   PublicApi:
     Description: API Gateway REST API
     Type: String
@@ -130,31 +133,12 @@ Parameters:
   UserServiceToken:
     Description: User Service auth token Lambda ARN
     Type: String
-  SaaSBoostUtilsLayer:
-    Description: Utils Layer ARN
-    Type: String
-  AuthMethod:
-    Description: Authentication method
-    Type: String
-    AllowedValues:
-      - CognitoUserPool
-      - OIDC
-  OIDCIssuer:
-    Description: OIDC Issuer
-    Type: String
-  OIDCPermissions:
-    Description: OIDC Permissions, required claims in token, e.g, scope=saas-boost-api:admin
-    Type: String
-    Default: ''
-
-Conditions:
-  AuthWithCognitoUserPool: !Equals [!Ref AuthMethod, 'CognitoUserPool']
 
 Resources:
-  LambdaAuthorizerExecutionRole:
+  AuthorizerExecRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-oidc-authorizer-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-authorizer-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -166,30 +150,36 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-oidc-authorizer-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-authorizer-policy-${AWS::Region}
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-  LambdaAuthorizer:
-    Type: AWS::Lambda::Function
+  AuthorizerLogs:
+    Type: AWS::Logs::LogGroup
     Properties:
-      FunctionName: !Sub sb-${Environment}-oidc-authorizer
-      Role: !GetAtt LambdaAuthorizerExecutionRole.Arn
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-authorizer
+      RetentionInDays: 30
+
+  AuthorizerLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: AuthorizerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-authorizer
+      Role: !GetAtt AuthorizerExecRole.Arn
       Runtime: java11
       Timeout: 30
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.Authorizer::handleRequest
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayAuthorizer
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/Authorizer-lambda.zip
@@ -197,54 +187,17 @@ Resources:
         - !Ref SaaSBoostUtilsLayer
       Environment:
         Variables:
+          SAAS_BOOST_ENV: !Ref Environment
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-          OIDC_ISSUER: !If
-            - AuthWithCognitoUserPool
-            - !Sub https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${CognitoUserPoolId}
-            - !Ref OIDCIssuer
-          OIDC_PERMISSIONS: !Ref OIDCPermissions
+          IDENTITY_PROVIDER: COGNITO
+          USER_POOL_ID: !Ref CognitoUserPoolId
       Tags:
-        - Key: Application
-          Value: SaaSBoost
-        - Key: Environment
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
           Value: !Ref Environment
-
-  LambdaAuthorizerLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-oidc-authorizer
-      RetentionInDays: 30
-
-  OIDCAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: OidcAuthorizer
-      RestApiId: !Ref PublicApi
-      Type: TOKEN
-      AuthorizerResultTtlInSeconds: '300'
-      AuthorizerUri: !Join
-        - ''
-        - - 'arn:aws:apigateway:'
-          - !Ref 'AWS::Region'
-          - ':lambda:path/2015-03-31/functions/'
-          - !GetAtt
-            - LambdaAuthorizer
-            - Arn
-          - /invocations
-      IdentitySource: method.request.header.authorization
-      IdentityValidationExpression: 'Bearer .*'
-
-  ApiGatewayLambdaAuthorizerPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt LambdaAuthorizer.Arn
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceAccount: !Ref 'AWS::AccountId'
-      SourceArn: !Join
-         - ''
-         - - !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/authorizers/
-           - !Ref OIDCAuthorizer
+        - Key: "BoostService"
+          Value: "Authorizer"
 
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
@@ -262,10 +215,64 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
   ApiGatewayLoggingAccount:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
+
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${PublicApi}
+      RetentionInDays: 30
+
+  ApiGatewayLambdaAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-authorizer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-authorizer-policy-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:invokeFunction
+                Resource:
+                  - !GetAtt AuthorizerLambda.Arn
+
+  ApiGatewayLambdaAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      RestApiId: !Ref PublicApi
+      Type: TOKEN
+      Name: !Sub sb-${Environment}-pub-api-authorizer
+      AuthorizerCredentials: !GetAtt ApiGatewayLambdaAuthorizerRole.Arn
+      IdentitySource: method.request.header.Authorization
+      IdentityValidationExpression: ^[Bb]earer [A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$
+      AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambda.Arn}/invocations
+
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      RestApiId: !Ref PublicApi
+      Type: COGNITO_USER_POOLS
+      ProviderARNs:
+        - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+      IdentitySource: method.request.header.Authorization
+
   BillingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -315,7 +322,7 @@ Resources:
       ResourceId: !Ref BillingServicePlansResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -382,7 +389,7 @@ Resources:
       ResourceId: !Ref MetricsServiceQueryResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -437,7 +444,7 @@ Resources:
       ResourceId: !Ref MetricsServiceDatasetsResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -492,7 +499,7 @@ Resources:
       ResourceId: !Ref MetricsServiceAlbQueryResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
@@ -553,7 +560,7 @@ Resources:
       ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
@@ -628,7 +635,7 @@ Resources:
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -653,7 +660,7 @@ Resources:
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -708,7 +715,7 @@ Resources:
       ResourceId: !Ref OnboardingServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -789,7 +796,7 @@ Resources:
       ResourceId: !Ref SettingsServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -844,7 +851,7 @@ Resources:
       ResourceId: !Ref SettingsServiceOptionsResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -899,7 +906,7 @@ Resources:
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -924,7 +931,7 @@ Resources:
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -979,7 +986,7 @@ Resources:
       ResourceId: !Ref SettingsServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1060,7 +1067,7 @@ Resources:
       ResourceId: !Ref TenantServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1115,7 +1122,7 @@ Resources:
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1142,7 +1149,7 @@ Resources:
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1169,7 +1176,7 @@ Resources:
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1226,7 +1233,7 @@ Resources:
       ResourceId: !Ref TenantServiceEnableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1283,7 +1290,7 @@ Resources:
       ResourceId: !Ref TenantServiceDisableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1412,7 +1419,7 @@ Resources:
       ResourceId: !Ref TierServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1439,7 +1446,7 @@ Resources:
       ResourceId: !Ref TierServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1466,7 +1473,7 @@ Resources:
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1493,7 +1500,7 @@ Resources:
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1520,7 +1527,7 @@ Resources:
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1577,7 +1584,7 @@ Resources:
       ResourceId: !Ref UserServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1602,7 +1609,7 @@ Resources:
       ResourceId: !Ref UserServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -1657,7 +1664,7 @@ Resources:
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1684,7 +1691,7 @@ Resources:
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1711,7 +1718,7 @@ Resources:
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1768,7 +1775,7 @@ Resources:
       ResourceId: !Ref UserServiceEnableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
@@ -1825,7 +1832,7 @@ Resources:
       ResourceId: !Ref UserServiceDisableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
-      AuthorizerId: !Ref OIDCAuthorizer
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY

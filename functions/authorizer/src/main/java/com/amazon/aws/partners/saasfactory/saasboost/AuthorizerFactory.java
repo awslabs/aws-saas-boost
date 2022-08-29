@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -16,11 +16,27 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-public class IllegalTokenException extends Exception {
-    public IllegalTokenException(String message) {
-        super(message);
+public class AuthorizerFactory {
+
+    private AuthorizerFactory() {
     }
-    public IllegalTokenException(Exception source) {
-        super(source);
+
+    public static AuthorizerFactory getInstance() {
+        return AuthorizerFactoryInstance.instance;
+    }
+
+    public Authorizer getAuthorizer(String identityProvider) {
+        switch (identityProvider) {
+            case "COGNITO":
+                return new CognitoAuthorizer();
+            case "KEYCLOAK":
+                return new KeyCloakAuthorizer();
+            default:
+                return null;
+        }
+    }
+
+    private static class AuthorizerFactoryInstance {
+        public static final AuthorizerFactory instance = new AuthorizerFactory();
     }
 }
