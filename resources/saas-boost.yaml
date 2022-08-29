@@ -820,6 +820,7 @@ Resources:
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
+        TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
         SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn

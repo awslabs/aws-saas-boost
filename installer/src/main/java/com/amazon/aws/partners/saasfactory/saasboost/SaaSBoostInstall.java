@@ -19,7 +19,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
@@ -52,6 +51,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.CreateSecretRequest;
+import software.amazon.awssdk.services.secretsmanager.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
@@ -60,16 +60,17 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isBlank;
-import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isEmpty;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotEmpty;
-import static com.amazon.aws.partners.saasfactory.saasboost.Utils.getFullStackTrace;
 
 public class SaaSBoostInstall {
 
@@ -540,10 +541,10 @@ public class SaaSBoostInstall {
 
         // Clear all the images from ECR or CloudFormation won't be able to delete the repository
         try {
-            GetParameterResponse parameterResponse = ssm.getParameter(request -> request.name("/saas-boost/" + this.envName + "/ECR_REPO"));
-            String ecrRepo = parameterResponse.parameter().value();
-            outputMessage("Deleting images from ECR repository " + ecrRepo);
-            deleteEcrImages(ecrRepo);
+            for (String ecrRepo : getEcrRepositories()) {
+                outputMessage("Deleting images from ECR repository " + ecrRepo);
+                deleteEcrImages(ecrRepo);
+            }
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error", ssmError);
             LOGGER.error(getFullStackTrace(ssmError));
@@ -563,6 +564,16 @@ public class SaaSBoostInstall {
         // Delete the SaaS Boost stack
         outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
         deleteCloudFormationStack(this.stackName);
+        // Delete the ActiveDirectory password in SecretsManager if it exists
+        try {
+            secretsManager.deleteSecret(request -> request
+                .forceDeleteWithoutRecovery(true)
+                .secretId("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
+                .build());
+            outputMessage("ActiveDirectory secretsManager secret deleted.");
+        } catch (ResourceNotFoundException rnfe) {
+            // there is no ACTIVE_DIRECTORY_PASSWORD secret, so there is nothing to delete
+        }
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
         LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
@@ -573,11 +584,21 @@ public class SaaSBoostInstall {
         // needed to delete stacks via CloudFormation. delete these last.
         // TODO move these parameters to CloudFormation
         try {
-            ssm.deleteParameters(request -> request.names(
-                    "/saas-boost/" + this.envName + "/ACTIVE_DIRECTORY_PASSWORD",
-                    "/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED",
-                    "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD"
-            ));
+            List<String> parameterNamesToDelete = ssm.describeParameters(
+                request -> request.parameterFilters(ParameterStringFilter.builder()
+                    .key("Path")
+                    .values("/saas-boost/" + this.envName + "/")
+                    .build()))
+                .parameters().stream().map(meta -> meta.name()).collect(Collectors.toList());
+            // we need to batch ssm.deleteParameters in sizes of 10 parameters
+            // https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DeleteParameters.html#API_DeleteParameters_RequestSyntax
+            final int ssmBatchSize = 10;
+            for (int i = 0; i < parameterNamesToDelete.size(); i += ssmBatchSize) {
+                int batchStart = i;
+                int batchEnd = Math.min(batchStart + ssmBatchSize, parameterNamesToDelete.size());
+                // List#subList returns a view of the List inclusive from 'start' to exclusive on 'end'
+                ssm.deleteParameters(request -> request.names(parameterNamesToDelete.subList(batchStart, batchEnd)));
+            }
         } catch (SdkServiceException ssmError) {
             outputMessage("Failed to delete all Parameter Store entries");
             LOGGER.error("ssm:DeleteParameters error", ssmError);
@@ -585,6 +606,42 @@ public class SaaSBoostInstall {
         }
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
+    }
+
+    private List<String> getEcrRepositories() {
+        List<String> repos = new ArrayList<>();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "settings/config");
+        detail.put("method", "GET");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
+        try {
+            LOGGER.info("Invoking getSettings API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                LOGGER.error("got response back: {}", response);
+                String configJson = response.payload().asUtf8String();
+                HashMap<String, Object> config = Utils.fromJson(configJson, HashMap.class);
+                HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
+                for (String serviceName : services.keySet()) {
+                    HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
+                    repos.add((String) service.get("containerRepo"));
+                }
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+            }
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
+        }
+        return repos;
     }
 
     protected void installAnalyticsModule() {
@@ -928,6 +985,38 @@ public class SaaSBoostInstall {
         return provisionedTenants;
     }
 
+    private LinkedHashMap<String, Object> getTenant(String tenantId) {
+        LinkedHashMap<String, Object> tenantDetail = new LinkedHashMap<>();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "tenants/" + tenantId);
+        detail.put("method", "GET");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
+        try {
+            LOGGER.info("Invoking get tenant by id API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                String responseBody = response.payload().asUtf8String();
+                LOGGER.info("Response Body");
+                LOGGER.info(responseBody);
+                tenantDetail = Utils.fromJson(responseBody, LinkedHashMap.class);
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+            }
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
+        }
+        return tenantDetail;
+    }
+
     protected void deleteApplicationConfig() {
         Map<String, Object> systemApiRequest = new HashMap<>();
         Map<String, Object> detail = new HashMap<>();
@@ -954,15 +1043,60 @@ public class SaaSBoostInstall {
     }
 
     protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
-        // Arguably, the delete tenant API should be called here, but all it currently does is set the tenant status
-        // to disabled and then fire off an async event to delete the CloudFormation stack. We could do that, but we'd
-        // still need to either subscribe to the SNS topic for DELETE_COMPLETE notification or we'd need to cycle on
-        // describe stacks like we do elsewhere to wait for CloudFormation to finish. In either case, we need to know
-        // the stack name for the tenant.
-        // Also, this won't scale super well and could be parallelized...
-        String tenantStackName = "Tenant-" + ((String) tenant.get("id")).split("-")[0];
-        outputMessage("Deleteing tenant CloudFormation stack " + tenantStackName);
-        deleteCloudFormationStack(tenantStackName);
+        // TODO we can parallelize to improve performance with lots of tenants
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "tenants/" + (String) tenant.get("id"));
+        detail.put("method", "DELETE");
+        String tenantId = (String) tenant.get("id");
+        Map<String, String> tenantIdOnly = new HashMap<>();
+        tenantIdOnly.put("id", tenantId);
+        detail.put("body", Utils.toJson(tenantIdOnly));
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
+        try {
+            LOGGER.info("Invoking delete tenant API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                LOGGER.debug("got response back: {}", response);
+                // wait for tenant to reach deleted
+                final String DELETED = "deleted";
+                LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
+                String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
+                while (!deleted) {
+                    if (LocalDateTime.now().compareTo(timeout) > 0) {
+                        // we've timed out retrying
+                        outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
+                            "Please check CloudFormation in your AWS Console for more details.");
+                        // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
+                        // due to Tenant resources having cross-dependencies with other resources. stop here to let
+                        // the user figure out what went wrong
+                        throw new RuntimeException("Delete failed.");
+                    }
+                    outputMessage("Waiting 1 minute for tenant " + tenantId +
+                        " to reach deleted from " + tenantStatus);
+                    Thread.sleep(60 * 1000L); // 1 minute
+                    tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                    deleted = tenantStatus.equalsIgnoreCase(DELETED);
+                }
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+            }
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
+        } catch (InterruptedException ie) {
+            LOGGER.error("Exception in waiting");
+            LOGGER.error(getFullStackTrace(ie));
+            throw new RuntimeException(ie);
+        }
     }
 
     protected void deleteEcrImages(String ecrRepo) {
@@ -2029,20 +2163,20 @@ public class SaaSBoostInstall {
         String paginationToken = null;
         do {
             ListStacksResponse listStacksResponse = cfn.listStacks(
-                ListStacksRequest.builder().nextToken(paginationToken).build());
+                    ListStacksRequest.builder().nextToken(paginationToken).build());
             stackNamesToCheck.addAll(listStacksResponse.stackSummaries().stream()
-                .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
-                                && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
-                .map(summary -> summary.stackName())
-                .collect(Collectors.toList()));
+                    .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
+                                    && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
+                    .map(summary -> summary.stackName())
+                    .collect(Collectors.toList()));
             paginationToken = listStacksResponse.nextToken();
-        } while(paginationToken != null);
+        } while (paginationToken != null);
         // for each stack, look for Macro Resource (either by listing all or getResource by logical id)
         for (String stackName : stackNamesToCheck) {
             try {
                 StackResourceDetail stackResourceDetail = cfn.describeStackResource(request -> request
-                    .stackName(stackName)
-                    .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
+                        .stackName(stackName)
+                        .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
                 if (stackResourceDetail.resourceStatus() != ResourceStatus.DELETE_COMPLETE) {
                     LOGGER.debug("Found the ApplicationServicesMacro resource in {}", stackName);
                     return true;
