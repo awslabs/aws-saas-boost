@@ -2027,8 +2027,8 @@ public class SaaSBoostInstall {
     }
 
     private boolean doesCfnMacroResourceExist() {
-        // this assumes that the macro resource exists in CloudFormation IFF all requisite resources also exist,
-        // e.g. the macro Lambda function, execution role, and log group. this should always be true, since the
+        // this assumes that the macro resource exists in CloudFormation if and only if all requisite resources also 
+        // exist, i.e. the macro Lambda function, execution role, and log group. this should always be true, since the
         // macro resource will never be deleted unless each of the others are deleted thanks to CloudFormation
         // dependency analysis
         List<String> stackNamesToCheck = new ArrayList<>();
