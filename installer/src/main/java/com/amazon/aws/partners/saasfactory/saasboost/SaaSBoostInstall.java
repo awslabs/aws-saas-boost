@@ -33,6 +33,7 @@ import software.amazon.awssdk.services.apigateway.model.RestApi;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.cloudformation.model.Parameter;
+import software.amazon.awssdk.services.cloudformation.model.ResourceStatus;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.*;
@@ -1480,6 +1481,7 @@ public class SaaSBoostInstall {
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
+        templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
         String stackId = null;
@@ -2016,6 +2018,50 @@ public class SaaSBoostInstall {
         } else {
             LOGGER.info("Bucket " + bucket + " is empty. No objects to clean up.");
         }
+    }
+
+    private boolean doesCfnMacroResourceExist() {
+        // this assumes that the macro resource exists in CloudFormation if and only if all requisite resources also 
+        // exist, i.e. the macro Lambda function, execution role, and log group. this should always be true, since the
+        // macro resource will never be deleted unless each of the others are deleted thanks to CloudFormation
+        // dependency analysis
+        List<String> stackNamesToCheck = new ArrayList<>();
+        String paginationToken = null;
+        do {
+            ListStacksResponse listStacksResponse = cfn.listStacks(
+                ListStacksRequest.builder().nextToken(paginationToken).build());
+            stackNamesToCheck.addAll(listStacksResponse.stackSummaries().stream()
+                .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
+                                && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
+                .map(summary -> summary.stackName())
+                .collect(Collectors.toList()));
+            paginationToken = listStacksResponse.nextToken();
+        } while(paginationToken != null);
+        // for each stack, look for Macro Resource (either by listing all or getResource by logical id)
+        for (String stackName : stackNamesToCheck) {
+            try {
+                StackResourceDetail stackResourceDetail = cfn.describeStackResource(request -> request
+                    .stackName(stackName)
+                    .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
+                if (stackResourceDetail.resourceStatus() != ResourceStatus.DELETE_COMPLETE) {
+                    LOGGER.debug("Found the ApplicationServicesMacro resource in {}", stackName);
+                    return true;
+                }
+            } catch (CloudFormationException cfne) {
+                if (cfne.getMessage().contains("Stack '" + stackName + "' does not exist")) {
+                    // if stacks are being deleted
+                }
+            }
+        }
+        LOGGER.debug("Could not find any ApplicationServicesMacro resource");
+        return false;
+    }
+
+    public static String getFullStackTrace(Exception e) {
+        final StringWriter sw = new StringWriter();
+        final PrintWriter pw = new PrintWriter(sw, true);
+        e.printStackTrace(pw);
+        return sw.getBuffer().toString();
     }
 
     public static String getVersionInfo() {
