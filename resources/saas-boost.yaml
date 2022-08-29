@@ -64,8 +64,14 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  CreateMacroResources:
+    Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
+  ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -402,10 +408,11 @@ Resources:
       Bucket: !Ref Resources
   ApplicationServicesMacroExecutionRole:
     Type: AWS::IAM::Role
+    Condition: ShouldCreateMacroResources
     DependsOn:
       - ApplicationServicesMacroLogs
     Properties:
-      RoleName: saas-boost-app-services-macro
+      RoleName: !Sub saas-boost-app-services-macro-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -433,11 +440,13 @@ Resources:
                   - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   ApplicationServicesMacroLogs:
     Type: AWS::Logs::LogGroup
+    Condition: ShouldCreateMacroResources
     Properties:
       LogGroupName: /aws/lambda/saas-boost-app-services-macro
       RetentionInDays: 30
   ApplicationServicesMacroFunction:
     Type: AWS::Lambda::Function
+    Condition: ShouldCreateMacroResources
     DependsOn: ApplicationServicesMacroLogs
     Properties:
       FunctionName: saas-boost-app-services-macro
@@ -461,10 +470,23 @@ Resources:
           Value: !Ref Environment
   ApplicationServicesMacro:
     Type: AWS::CloudFormation::Macro
+    Condition: ShouldCreateMacroResources
     Properties:
       # Can't use a parameter as part of a macro name when you include it in another template
       Name: saas-boost-app-services-macro
       FunctionName: !GetAtt ApplicationServicesMacroFunction.Arn
+  CreateMacroWaitHandle:
+    Condition: ShouldCreateMacroResources
+    DependsOn: ApplicationServicesMacro
+    Type: AWS::CloudFormation::WaitConditionHandle
+  NoCreateMacroWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  MacroWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Handle: !If [ShouldCreateMacroResources, !Ref CreateMacroWaitHandle, !Ref NoCreateMacroWaitHandle]
+      Timeout: '1'
+      Count: 0
   SaaSBoostEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -607,7 +629,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
-      - ApplicationServicesMacro
+      - MacroWaitCondition
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
       Parameters:
