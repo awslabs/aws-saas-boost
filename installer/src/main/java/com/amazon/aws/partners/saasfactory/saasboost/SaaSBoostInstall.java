@@ -19,6 +19,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
@@ -56,12 +57,19 @@ import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isBlank;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isEmpty;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotEmpty;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.getFullStackTrace;
 
 public class SaaSBoostInstall {
 
@@ -889,73 +897,59 @@ public class SaaSBoostInstall {
 
     protected List<LinkedHashMap<String, Object>> getProvisionedTenants() {
         List<LinkedHashMap<String, Object>> provisionedTenants = new ArrayList<>();
-        final ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "tenants");
+        detail.put("method", "GET");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
         try {
-            Map<String, Object> systemApiRequest = new HashMap<>();
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "tenants");
-            detail.put("method", "GET");
-            systemApiRequest.put("detail", detail);
-            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
-            try {
-                LOGGER.info("Invoking get provisioned tenants API");
-                InvokeResponse response = lambda.invoke(request -> request
-                        .functionName("sb-" + this.envName + "-private-api-client")
-                        .invocationType(InvocationType.REQUEST_RESPONSE)
-                        .payload(SdkBytes.fromByteArray(payload))
-                );
-                if (response.sdkHttpResponse().isSuccessful()) {
-                    String responseBody = response.payload().asUtf8String();
-                    LOGGER.info("Response Body");
-                    LOGGER.info(responseBody);
-                    provisionedTenants = mapper.readValue(responseBody, ArrayList.class);
-                    LOGGER.info("Loaded " + provisionedTenants.size() + " tenants");
-                } else {
-                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-                }
-            } catch (SdkServiceException lambdaError) {
-                LOGGER.error("lambda:Invoke error", lambdaError);
-                LOGGER.error(getFullStackTrace(lambdaError));
-                throw lambdaError;
+            LOGGER.info("Invoking get provisioned tenants API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                String responseBody = response.payload().asUtf8String();
+                LOGGER.info("Response Body");
+                LOGGER.info(responseBody);
+                provisionedTenants = Utils.fromJson(responseBody, ArrayList.class);
+                LOGGER.info("Loaded " + provisionedTenants.size() + " tenants");
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
             }
-        } catch (IOException jacksonError) {
-            LOGGER.error("Error processing JSON", jacksonError);
-            LOGGER.error(getFullStackTrace(jacksonError));
-            throw new RuntimeException(jacksonError);
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
         }
         return provisionedTenants;
     }
 
     protected void deleteApplicationConfig() {
-        final ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "settings/config");
+        detail.put("method", "DELETE");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
         try {
-            Map<String, Object> systemApiRequest = new HashMap<>();
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "settings/config");
-            detail.put("method", "DELETE");
-            systemApiRequest.put("detail", detail);
-            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
-            try {
-                LOGGER.info("Invoking delete application config API");
-                InvokeResponse response = lambda.invoke(request -> request
-                        .functionName("sb-" + this.envName + "-private-api-client")
-                        .invocationType(InvocationType.REQUEST_RESPONSE)
-                        .payload(SdkBytes.fromByteArray(payload))
-                );
-                if (!response.sdkHttpResponse().isSuccessful()) {
-                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-                }
-            } catch (SdkServiceException lambdaError) {
-                LOGGER.error("lambda:Invoke error", lambdaError);
-                LOGGER.error(getFullStackTrace(lambdaError));
-                throw lambdaError;
+            LOGGER.info("Invoking delete application config API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (!response.sdkHttpResponse().isSuccessful()) {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
             }
-        } catch (IOException jacksonError) {
-            LOGGER.error("Error processing JSON", jacksonError);
-            LOGGER.error(getFullStackTrace(jacksonError));
-            throw new RuntimeException(jacksonError);
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
         }
     }
 
@@ -1260,7 +1254,7 @@ public class SaaSBoostInstall {
     protected String getExistingSaaSBoostEnvironment() {
         LOGGER.info("Asking for existing SaaS Boost environment label");
         String environment = null;
-        while (environment == null || environment.isBlank()) {
+        while (isBlank(environment)) {
             System.out.print("Please enter the existing SaaS Boost environment label: ");
             environment = Keyboard.readString();
             if (!validateEnvironmentName(environment)) {
@@ -2071,38 +2065,7 @@ public class SaaSBoostInstall {
     }
 
     public static String getVersionInfo() {
-        String result = "";
-        String propFileName = "git.properties";
-        try (InputStream inputStream = SaaSBoostInstall.class.getClassLoader().getResourceAsStream(propFileName)) {
-            Properties prop = new Properties();
-            prop.load(inputStream);
-
-            String tag = prop.getProperty("git.commit.id.describe");
-            String commitTime = prop.getProperty("git.commit.time");
-            LOGGER.info("{}, Commit time: {}", tag, commitTime);
-
-            result = prop.getProperty("git.closest.tag.name");
-            if (isBlank(result)) {
-                // TODO is there a bug on version being blank?
-                if (isNotBlank(tag)) {
-                    // Fall back to git describe --tags --always for untagged repositories
-                    result = tag.replaceAll("-dirty$", "");
-                    LOGGER.warn("Setting version to {} because the repository is untagged.", result);
-                }
-                if (isBlank(result)) {
-                    LOGGER.warn("Setting version to v0 because it can't be determined from the git.properties file.");
-                    result = "v0";
-                }
-            } else {
-                LOGGER.info("Setting version to {}", result);
-            }
-        } catch (NullPointerException | IOException e) {
-            outputMessage("Error loading git.properties: " + e.getMessage());
-            outputMessage(propFileName + " is generated by a Maven build plugin. Check for a .git folder in the same directory as the Maven POM file.");
-            result = "v0";
-            outputMessage("Setting version to " + result);
-        }
-        return result;
+        return Utils.version(SaaSBoostInstall.class);
     }
 
     public static boolean isWindows() {
@@ -2111,22 +2074,6 @@ public class SaaSBoostInstall {
 
     public static boolean isMac() {
         return (OS.contains("mac"));
-    }
-
-    public static boolean isEmpty(String str) {
-        return (str == null || str.isEmpty());
-    }
-
-    public static boolean isBlank(String str) {
-        return (str == null || str.isBlank());
-    }
-
-    public static boolean isNotEmpty(String str) {
-        return !isEmpty(str);
-    }
-
-    public static boolean isNotBlank(String str) {
-        return !isBlank(str);
     }
 
     /**
@@ -2140,31 +2087,21 @@ public class SaaSBoostInstall {
 
         // Split the classes of characters into separate buckets so we can be sure to use
         // the correct amount of each type
-        final char[][] chars = {
+        final char[][] requiredCharacterBuckets = {
                 {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'},
                 {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'},
-                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'},
-                {'!', '#', '$', '%', '&', '*', '+', '-', '.', ':', '=', '?', '^', '_'}
+                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
         };
 
         Random random = new Random();
         StringBuilder password = new StringBuilder(passwordLength);
 
         // Randomly select one character from each of the required character types
-        ArrayList<Integer> requiredCharacterBuckets = new ArrayList<>(3);
-        requiredCharacterBuckets.add(0, 0);
-        requiredCharacterBuckets.add(1, 1);
-        requiredCharacterBuckets.add(2, 2);
-        while (!requiredCharacterBuckets.isEmpty()) {
-            Integer randomRequiredCharacterBucket = requiredCharacterBuckets.remove(random.nextInt(requiredCharacterBuckets.size()));
-            password.append(chars[randomRequiredCharacterBucket][random.nextInt(chars[randomRequiredCharacterBucket].length)]);
+        for (char[] requiredCharacterBucket : requiredCharacterBuckets) {
+            password.append(requiredCharacterBucket[random.nextInt(requiredCharacterBucket.length)]);
         }
 
-        // Fill out the rest of the password with randomly selected characters
-        for (int i = 0; i < passwordLength - requiredCharacterBuckets.size(); i++) {
-            int characterBucket = random.nextInt(chars.length);
-            password.append(chars[characterBucket][random.nextInt(chars[characterBucket].length)]);
-        }
-        return password.toString();
+        // build the remaining password using Utils.randomString
+        return password.append(Utils.randomString(passwordLength - requiredCharacterBuckets.length)).toString();
     }
 }
