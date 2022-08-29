@@ -1253,7 +1253,7 @@ public class SaaSBoostInstall {
     protected String getExistingSaaSBoostEnvironment() {
         LOGGER.info("Asking for existing SaaS Boost environment label");
         String environment = null;
-        while (environment == null || environment.isBlank()) {
+        while (isBlank(environment)) {
             System.out.print("Please enter the existing SaaS Boost environment label: ");
             environment = Keyboard.readString();
             if (!validateEnvironmentName(environment)) {
@@ -2041,31 +2041,21 @@ public class SaaSBoostInstall {
 
         // Split the classes of characters into separate buckets so we can be sure to use
         // the correct amount of each type
-        final char[][] chars = {
+        final char[][] requiredCharacterBuckets = {
                 {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'},
                 {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'},
-                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'},
-                {'!', '#', '$', '%', '&', '*', '+', '-', '.', ':', '=', '?', '^', '_'}
+                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
         };
 
         Random random = new Random();
         StringBuilder password = new StringBuilder(passwordLength);
 
         // Randomly select one character from each of the required character types
-        ArrayList<Integer> requiredCharacterBuckets = new ArrayList<>(3);
-        requiredCharacterBuckets.add(0, 0);
-        requiredCharacterBuckets.add(1, 1);
-        requiredCharacterBuckets.add(2, 2);
-        while (!requiredCharacterBuckets.isEmpty()) {
-            Integer randomRequiredCharacterBucket = requiredCharacterBuckets.remove(random.nextInt(requiredCharacterBuckets.size()));
-            password.append(chars[randomRequiredCharacterBucket][random.nextInt(chars[randomRequiredCharacterBucket].length)]);
+        for (char[] requiredCharacterBucket : requiredCharacterBuckets) {
+            password.append(requiredCharacterBucket[random.nextInt(requiredCharacterBucket.length)]);
         }
 
-        // Fill out the rest of the password with randomly selected characters
-        for (int i = 0; i < passwordLength - requiredCharacterBuckets.size(); i++) {
-            int characterBucket = random.nextInt(chars.length);
-            password.append(chars[characterBucket][random.nextInt(chars[characterBucket].length)]);
-        }
-        return password.toString();
+        // build the remaining password using Utils.randomString
+        return password.append(Utils.randomString(passwordLength - requiredCharacterBuckets.length)).toString();
     }
 }
