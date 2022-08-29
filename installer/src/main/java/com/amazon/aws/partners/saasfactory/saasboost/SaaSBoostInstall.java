@@ -19,7 +19,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
@@ -64,17 +63,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.Temporal;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isBlank;
-import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isEmpty;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotEmpty;
-import static com.amazon.aws.partners.saasfactory.saasboost.Utils.getFullStackTrace;
 
 public class SaaSBoostInstall {
 
@@ -2188,20 +2184,20 @@ public class SaaSBoostInstall {
         String paginationToken = null;
         do {
             ListStacksResponse listStacksResponse = cfn.listStacks(
-                ListStacksRequest.builder().nextToken(paginationToken).build());
+                    ListStacksRequest.builder().nextToken(paginationToken).build());
             stackNamesToCheck.addAll(listStacksResponse.stackSummaries().stream()
-                .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
-                                && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
-                .map(summary -> summary.stackName())
-                .collect(Collectors.toList()));
+                    .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
+                                    && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
+                    .map(summary -> summary.stackName())
+                    .collect(Collectors.toList()));
             paginationToken = listStacksResponse.nextToken();
-        } while(paginationToken != null);
+        } while (paginationToken != null);
         // for each stack, look for Macro Resource (either by listing all or getResource by logical id)
         for (String stackName : stackNamesToCheck) {
             try {
                 StackResourceDetail stackResourceDetail = cfn.describeStackResource(request -> request
-                    .stackName(stackName)
-                    .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
+                        .stackName(stackName)
+                        .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
                 if (stackResourceDetail.resourceStatus() != ResourceStatus.DELETE_COMPLETE) {
                     LOGGER.debug("Found the ApplicationServicesMacro resource in {}", stackName);
                     return true;
