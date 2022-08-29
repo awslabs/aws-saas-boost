@@ -610,43 +610,36 @@ public class SaaSBoostInstall {
 
     private List<String> getEcrRepositories() {
         List<String> repos = new ArrayList<>();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "settings/config");
+        detail.put("method", "GET");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
         try {
-            Map<String, Object> systemApiRequest = new HashMap<>();
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "settings/config");
-            detail.put("method", "GET");
-            systemApiRequest.put("detail", detail);
-            final ObjectMapper mapper = new ObjectMapper();
-            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
-            try {
-                LOGGER.info("Invoking getSettings API");
-                InvokeResponse response = lambda.invoke(request -> request
-                        .functionName("sb-" + this.envName + "-private-api-client")
-                        .invocationType(InvocationType.REQUEST_RESPONSE)
-                        .payload(SdkBytes.fromByteArray(payload))
-                );
-                if (response.sdkHttpResponse().isSuccessful()) {
-                    LOGGER.error("got response back: {}", response);
-                    String configJson = response.payload().asUtf8String();
-                    HashMap<String, Object> config = mapper.readValue(configJson, HashMap.class);
-                    HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
-                    for (String serviceName : services.keySet()) {
-                        HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
-                        repos.add((String) service.get("containerRepo"));
-                    }
-                } else {
-                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+            LOGGER.info("Invoking getSettings API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                LOGGER.error("got response back: {}", response);
+                String configJson = response.payload().asUtf8String();
+                HashMap<String, Object> config = Utils.fromJson(configJson, HashMap.class);
+                HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
+                for (String serviceName : services.keySet()) {
+                    HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
+                    repos.add((String) service.get("containerRepo"));
                 }
-            } catch (SdkServiceException lambdaError) {
-                LOGGER.error("lambda:Invoke error", lambdaError);
-                LOGGER.error(getFullStackTrace(lambdaError));
-                throw lambdaError;
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
             }
-        } catch (IOException jacksonError) {
-            LOGGER.error("Error processing JSON", jacksonError);
-            LOGGER.error(getFullStackTrace(jacksonError));
-            throw new RuntimeException(jacksonError);
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
         }
         return repos;
     }
@@ -994,39 +987,32 @@ public class SaaSBoostInstall {
 
     private LinkedHashMap<String, Object> getTenant(String tenantId) {
         LinkedHashMap<String, Object> tenantDetail = new LinkedHashMap<>();
-        final ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "tenants/" + tenantId);
+        detail.put("method", "GET");
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
         try {
-            Map<String, Object> systemApiRequest = new HashMap<>();
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "tenants/" + tenantId);
-            detail.put("method", "GET");
-            systemApiRequest.put("detail", detail);
-            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
-            try {
-                LOGGER.info("Invoking get tenant by id API");
-                InvokeResponse response = lambda.invoke(request -> request
-                        .functionName("sb-" + this.envName + "-private-api-client")
-                        .invocationType(InvocationType.REQUEST_RESPONSE)
-                        .payload(SdkBytes.fromByteArray(payload))
-                );
-                if (response.sdkHttpResponse().isSuccessful()) {
-                    String responseBody = response.payload().asUtf8String();
-                    LOGGER.info("Response Body");
-                    LOGGER.info(responseBody);
-                    tenantDetail = mapper.readValue(responseBody, LinkedHashMap.class);
-                } else {
-                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-                }
-            } catch (SdkServiceException lambdaError) {
-                LOGGER.error("lambda:Invoke error", lambdaError);
-                LOGGER.error(getFullStackTrace(lambdaError));
-                throw lambdaError;
+            LOGGER.info("Invoking get tenant by id API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                String responseBody = response.payload().asUtf8String();
+                LOGGER.info("Response Body");
+                LOGGER.info(responseBody);
+                tenantDetail = Utils.fromJson(responseBody, LinkedHashMap.class);
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
             }
-        } catch (IOException jacksonError) {
-            LOGGER.error("Error processing JSON", jacksonError);
-            LOGGER.error(getFullStackTrace(jacksonError));
-            throw new RuntimeException(jacksonError);
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
         }
         return tenantDetail;
     }
@@ -1058,65 +1044,58 @@ public class SaaSBoostInstall {
 
     protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
         // TODO we can parallelize to improve performance with lots of tenants
-        final ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> systemApiRequest = new HashMap<>();
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("resource", "tenants/" + (String) tenant.get("id"));
+        detail.put("method", "DELETE");
+        String tenantId = (String) tenant.get("id");
+        Map<String, String> tenantIdOnly = new HashMap<>();
+        tenantIdOnly.put("id", tenantId);
+        detail.put("body", Utils.toJson(tenantIdOnly));
+        systemApiRequest.put("detail", detail);
+        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
         try {
-            Map<String, Object> systemApiRequest = new HashMap<>();
-            Map<String, Object> detail = new HashMap<>();
-            detail.put("resource", "tenants/" + (String) tenant.get("id"));
-            detail.put("method", "DELETE");
-            String tenantId = (String) tenant.get("id");
-            Map<String, String> tenantIdOnly = new HashMap<>();
-            tenantIdOnly.put("id", tenantId);
-            detail.put("body", mapper.writeValueAsString(tenantIdOnly));
-            systemApiRequest.put("detail", detail);
-            final byte[] payload = mapper.writeValueAsBytes(systemApiRequest);
-            try {
-                LOGGER.info("Invoking delete tenant API");
-                InvokeResponse response = lambda.invoke(request -> request
-                        .functionName("sb-" + this.envName + "-private-api-client")
-                        .invocationType(InvocationType.REQUEST_RESPONSE)
-                        .payload(SdkBytes.fromByteArray(payload))
-                );
-                if (response.sdkHttpResponse().isSuccessful()) {
-                    LOGGER.debug("got response back: {}", response);
-                    // wait for tenant to reach deleted
-                    final String DELETED = "deleted";
-                    LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
-                    String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                    boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
-                    while (!deleted) {
-                        if (LocalDateTime.now().compareTo(timeout) > 0) {
-                            // we've timed out retrying
-                            outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
-                                "Please check CloudFormation in your AWS Console for more details.");
-                            // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
-                            // due to Tenant resources having cross-dependencies with other resources. stop here to let
-                            // the user figure out what went wrong
-                            throw new RuntimeException("Delete failed.");
-                        }
-                        outputMessage("Waiting 1 minute for tenant " + tenantId +
-                            " to reach deleted from " + tenantStatus);
-                        Thread.sleep(60 * 1000L); // 1 minute
-                        tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                        deleted = tenantStatus.equalsIgnoreCase(DELETED);
+            LOGGER.info("Invoking delete tenant API");
+            InvokeResponse response = lambda.invoke(request -> request
+                    .functionName("sb-" + this.envName + "-private-api-client")
+                    .invocationType(InvocationType.REQUEST_RESPONSE)
+                    .payload(SdkBytes.fromByteArray(payload))
+            );
+            if (response.sdkHttpResponse().isSuccessful()) {
+                LOGGER.debug("got response back: {}", response);
+                // wait for tenant to reach deleted
+                final String DELETED = "deleted";
+                LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
+                String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
+                while (!deleted) {
+                    if (LocalDateTime.now().compareTo(timeout) > 0) {
+                        // we've timed out retrying
+                        outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. " +
+                            "Please check CloudFormation in your AWS Console for more details.");
+                        // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
+                        // due to Tenant resources having cross-dependencies with other resources. stop here to let
+                        // the user figure out what went wrong
+                        throw new RuntimeException("Delete failed.");
                     }
-                } else {
-                    LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                    throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                    outputMessage("Waiting 1 minute for tenant " + tenantId +
+                        " to reach deleted from " + tenantStatus);
+                    Thread.sleep(60 * 1000L); // 1 minute
+                    tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                    deleted = tenantStatus.equalsIgnoreCase(DELETED);
                 }
-            } catch (SdkServiceException lambdaError) {
-                LOGGER.error("lambda:Invoke error", lambdaError);
-                LOGGER.error(getFullStackTrace(lambdaError));
-                throw lambdaError;
-            } catch (InterruptedException ie) {
-                LOGGER.error("Exception in waiting");
-                LOGGER.error(getFullStackTrace(ie));
-                throw new RuntimeException(ie);
+            } else {
+                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
+                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
             }
-        } catch (IOException jacksonError) {
-            LOGGER.error("Error processing JSON", jacksonError);
-            LOGGER.error(getFullStackTrace(jacksonError));
-            throw new RuntimeException(jacksonError);
+        } catch (SdkServiceException lambdaError) {
+            LOGGER.error("lambda:Invoke error", lambdaError);
+            LOGGER.error(getFullStackTrace(lambdaError));
+            throw lambdaError;
+        } catch (InterruptedException ie) {
+            LOGGER.error("Exception in waiting");
+            LOGGER.error(getFullStackTrace(ie));
+            throw new RuntimeException(ie);
         }
     }
 
