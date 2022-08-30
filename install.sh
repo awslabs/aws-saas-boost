@@ -18,6 +18,12 @@ echo "Starting SaaS Boost installation..."
 
 CURRENT_DIR=$(pwd)
 
+# Check for utils dir
+if [ ! -d "${CURRENT_DIR}/layers/utils" ]; then
+        echo "Directory ${CURRENT_DIR}/layers/utils not found."
+        exit 2
+fi
+
 # Check for installer dir
 if [ ! -d "${CURRENT_DIR}/installer" ]; then
 	echo "Directory ${CURRENT_DIR}/installer not found."
@@ -63,6 +69,29 @@ if [ -z $AWS_DEFAULT_REGION ]; then
 	fi
 else
 	export AWS_REGION=$AWS_DEFAULT_REGION
+fi
+
+cd ${CURRENT_DIR}
+echo "Building maven requirements..."
+mvn --quiet --non-recursive install -Dspotbugs.skip > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+        echo "Error building parent pomfile for SaaS Boost."
+        exit 2
+fi
+
+cd ${CURRENT_DIR}/layers
+mvn --quiet --non-recursive install -Dspotbugs.skip > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+        echo "Error building layers pomfile for SaaS Boost."
+        exit 2
+fi
+
+cd ${CURRENT_DIR}/layers/utils
+echo "Building utils..."
+mvn --quiet -Dspotbugs.skip > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+        echo "Error building utilities for SaaS Boost."
+        exit 2
 fi
 
 cd ${CURRENT_DIR}/installer
