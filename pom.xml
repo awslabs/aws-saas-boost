@@ -104,7 +104,7 @@
     </dependencyManagement>
     <!-- Warning! Do not define dependencies at this top level POM. -->
     <build>
-        <defaultGoal>clean package</defaultGoal>
+        <defaultGoal>package</defaultGoal>
         <!-- this defines default plugin configuration when referenced by all inheriting modules -->
         <pluginManagement>
             <plugins>
@@ -162,7 +162,7 @@
                 <executions>
                     <execution>
                         <id>spot-bugs</id>
-                        <phase>compile</phase>
+                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
