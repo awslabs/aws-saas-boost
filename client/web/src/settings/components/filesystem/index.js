@@ -22,6 +22,7 @@ import * as Yup from 'yup'
 
 export const FILESYSTEM_TYPES = {
     "EFS": {
+        "configId": "EFS",
         "id": "EFS",
         "name": "EFS",
         "icon": cibAmazonAws,
@@ -47,6 +48,7 @@ export const FILESYSTEM_TYPES = {
         })
     },
     "FSX_WINDOWS": {
+        "configId": "FSX_WINDOWS",
         "id": "FSX_WINDOWS",
         "name": "FSX Windows",
         "icon": cibWindows,
