@@ -54,6 +54,12 @@ public class AwsClientBuilderFactory {
     private final Region awsRegion;
     private final AwsCredentialsProvider credentialsProvider;
 
+    AwsClientBuilderFactory() {
+        // for testing
+        this.awsRegion = null;
+        this.credentialsProvider = null;
+    }
+
     private AwsClientBuilderFactory(Builder builder) {
         // passing no region or a null region to any of the AWS Client Builders
         // leads to the default region from the configured profile being used
