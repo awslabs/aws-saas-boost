@@ -124,6 +124,12 @@ if ([string]::IsNullOrWhiteSpace($AWS_REGION))
     echo "AWS_REGION not set, check your aws profile or set AWS_DEFAULT_REGION"
     Exit 2
 }
+aws ec2 describe-regions | Select-String -Pattern "$AWS_REGION" | Out-Null
+if (-not $?)
+{
+    Write-host "Invalid region $AWS_REGION set, please set a valid region using aws configure"
+    Exit 2
+}
 
 cd ${CURRENT_DIR}
 Write-host "Building requirements for SaaS Boost"
