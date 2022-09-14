@@ -63,6 +63,11 @@ fi
 # check for AWS region
 if [ -z $AWS_DEFAULT_REGION ]; then
 	export AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
+        aws ec2 describe-regions | grep "$AWS_REGION" - > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+                echo "Invalid region set, please set a valid region using \`aws configure\`"
+                exit 2
+        fi
 	if [ -z $AWS_REGION ]; then
 		echo "AWS_REGION environment variable not set, check your AWS profile or set AWS_DEFAULT_REGION."
 		exit 2
