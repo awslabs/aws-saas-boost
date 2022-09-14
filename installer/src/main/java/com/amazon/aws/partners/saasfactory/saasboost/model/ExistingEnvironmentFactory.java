@@ -46,7 +46,7 @@ public final class ExistingEnvironmentFactory {
             String environmentName,
             String accountId) {
         if (Utils.isBlank(environmentName)) {
-            throw new EnvironmentLoadException("EnvironmentName " + environmentName + " is not allowed.");
+            throw new EnvironmentLoadException("EnvironmentName cannot be blank.");
         }
 
         String baseCloudFormationStackName = getExistingSaaSBoostStackName(ssm, environmentName);
@@ -76,6 +76,10 @@ public final class ExistingEnvironmentFactory {
                     .name("/saas-boost/" + environmentName + "/SAAS_BOOST_BUCKET")
             );
             artifactsBucket = response.parameter().value();
+        } catch (ParameterNotFoundException paramStoreError) {
+            LOGGER.error("Parameter /saas-boost/" + environmentName + "/SAAS_BOOST_BUCKET not found");
+            LOGGER.error(Utils.getFullStackTrace(paramStoreError));
+            throw paramStoreError;
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
             LOGGER.error(Utils.getFullStackTrace(ssmError));
@@ -178,15 +182,13 @@ public final class ExistingEnvironmentFactory {
                     .name("/saas-boost/" + environmentName + "/METRICS_ANALYTICS_DEPLOYED")
             );
             analyticsDeployed = Boolean.parseBoolean(response.parameter().value());
+        } catch (ParameterNotFoundException paramStoreError) {
+            // this means the parameter doesn't exist, so ignore
         } catch (SdkServiceException ssmError) {
-            // TODO CloudFormation should own this parameter, not the installer... 
-            // it's possible the parameter doesn't exist
-            // parameter not found is an exception
-            if (!ssmError.getMessage().contains("not found")) {
-                LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
-                LOGGER.error(Utils.getFullStackTrace(ssmError));
-                throw ssmError;
-            }
+            // TODO CloudFormation should own this parameter, not the installer...
+            LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(ssmError));
+            throw ssmError;
         }
         LOGGER.info("Loaded analytics deployed {}", analyticsDeployed);
         return analyticsDeployed;

@@ -48,10 +48,5 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-# Find all the functions for this microservice
-eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-populate-ddb\`)] | [].FunctionName' --output text"\)
-FUNCTIONS=($FUNCTIONS)
-for FX in "${FUNCTIONS[@]}"; do
-    printf "Updating function code for %s\n" $FX
-    aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "$FX" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
-done
+printf "Updating function code for sb-${ENVIRONMENT}-populate-ddb\n"
+aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "sb-${ENVIRONMENT}-populate-ddb" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE

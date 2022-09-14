@@ -22,5 +22,5 @@ import software.amazon.awssdk.regions.Region;
 public final class Constants {
     public static final Region AWS_REGION = Region.of(System.getenv(SdkSystemSetting.AWS_REGION.environmentVariable()));
     public static final String OS = System.getProperty("os.name").toLowerCase();
-    public static final String VERSION = Utils.version(Constants.class).split(",")[0];
+    public static final String VERSION = Utils.version(Constants.class);
 }

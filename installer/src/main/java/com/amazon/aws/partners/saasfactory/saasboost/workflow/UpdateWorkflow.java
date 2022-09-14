@@ -341,15 +341,41 @@ public class UpdateWorkflow extends AbstractWorkflow {
     protected Collection<UpdateAction> getUpdateActionsFromPaths(List<Path> changedPaths) {
         Set<UpdateAction> actions = EnumSet.noneOf(UpdateAction.class);
 
+        /*
+         * Take for example the following list of changed paths:
+         *   client/web/src/App.js
+         *   functions/core-stack-listener/src/...
+         *   services/onboarding-service/src/...
+         *   services/tenant-service/src/...
+         *   services/tenant-service/src/...
+         *   resources/saas-boost.yaml
+         *   resources/saas-boost-svc-tenant.yaml
+         *   resources/custom-resources/app-services-ecr-macro/src/...
+         *
+         * The intention of this algorithm is to pull out the high level SaaS Boost components from the Path, as
+         * represented by the UpdateAction Enum. e.g. CLIENT, FUNCTIONS, SERVICES, CUSTOM_RESOURCES, RESOURCES for
+         * the above example, following these steps
+         *   - for each path
+         *     - traverse through each path component, up to a maximum depth of 2 (optimization, since no component
+         *       pathname is at a depth deeper than two)
+         *       - if we find the resources/ path component and the next component is custom-resources, continue
+         *       - otherwise match the path component against an UpdateAction. if we find a valid one, add it to our
+         *         list taking into account not only the UpdateAction itself (e.g. FUNCTIONS) but also the "target"
+         *         of the UpdateAction (e.g. FUNCTIONS -> core-stack-listener)
+         *
+         * So the expected set of UpdateActions resulting from the above example is:
+         *   CLIENT
+         *   FUNCTIONS -> core-stack-listener
+         *   SERVICES -> onboarding-service, tenant-service
+         *   RESOURCES -> saas-boost.yaml, saas-boost-svc-tenant.yaml
+         *   CUSTOM_RESOURCES -> app-services-ecr-macro
+         */
         for (Path changedPath : changedPaths) {
             LOGGER.debug("processing {}", changedPath);
             if (!Utils.isBlank(workingDir.toString())) {
                 // TODO support alternate workingDir for update
                 // relativize the path before continuing
             }
-            // iterate by path component
-            // we do Math.min to prevent walking long unnecessary paths: the UpdateAction directories 
-            // are at a maximum depth of 2 (e.g. client/ (0) or resources/custom-resources/clear-s3-bucket (2))
             final int maximumTraversalDepth = 2;
             for (int i = 0; i < Math.min(changedPath.getNameCount(), maximumTraversalDepth); i++) {
                 UpdateAction pathAction = UpdateAction.fromDirectoryName(changedPath.getName(i).toString());

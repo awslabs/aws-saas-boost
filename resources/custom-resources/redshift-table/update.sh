@@ -49,6 +49,7 @@ fi
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
 # Find all the functions for this microservice
+# We must list in the redshift-table case since functions are created with a tenant ID suffix
 eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-redshift-table-\`)] | [].FunctionName' --output text"\)
 FUNCTIONS=($FUNCTIONS)
 for FX in "${FUNCTIONS[@]}"; do

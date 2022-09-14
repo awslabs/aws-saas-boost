@@ -54,6 +54,17 @@ public class AwsClientBuilderFactory {
     private final Region awsRegion;
     private final AwsCredentialsProvider credentialsProvider;
 
+    private ApiGatewayClientBuilder cachedApiGatewayBuilder;
+    private CloudFormationClientBuilder cachedCloudFormationBuilder;
+    private EcrClientBuilder cachedEcrBuilder;
+    private IamClientBuilder cachedIamBuilder;
+    private LambdaClientBuilder cachedLambdaBuilder;
+    private QuickSightClientBuilder cachedQuickSightBuilder;
+    private S3ClientBuilder cachedS3Builder;
+    private SsmClientBuilder cachedSsmBuilder;
+    private StsClientBuilder cachedStsBuilder;
+    private SecretsManagerClientBuilder cachedSecretsManagerClientBuilder;
+
     AwsClientBuilderFactory() {
         // for testing
         this.awsRegion = null;
@@ -76,8 +87,6 @@ public class AwsClientBuilderFactory {
                 .region(awsRegion);
     }
 
-    private ApiGatewayClientBuilder cachedApiGatewayBuilder;
-
     public ApiGatewayClientBuilder apiGatewayBuilder() {
         if (cachedApiGatewayBuilder == null) {
             // override throttling policy to wait 5 seconds if we're throttled on CreateDeployment
@@ -95,8 +104,6 @@ public class AwsClientBuilderFactory {
         return cachedApiGatewayBuilder;
     }
 
-    private CloudFormationClientBuilder cachedCloudFormationBuilder;
-
     public CloudFormationClientBuilder cloudFormationBuilder() {
         if (cachedCloudFormationBuilder == null) {
             cachedCloudFormationBuilder = decorateBuilderWithDefaults(CloudFormationClient.builder());
@@ -104,16 +111,12 @@ public class AwsClientBuilderFactory {
         return cachedCloudFormationBuilder;
     }
 
-    private EcrClientBuilder cachedEcrBuilder;
-
     public EcrClientBuilder ecrBuilder() {
         if (cachedEcrBuilder == null) {
             cachedEcrBuilder = decorateBuilderWithDefaults(EcrClient.builder());
         }
         return cachedEcrBuilder;
     }
-
-    private IamClientBuilder cachedIamBuilder;
 
     public IamClientBuilder iamBuilder() {
         if (cachedIamBuilder == null) {
@@ -124,16 +127,12 @@ public class AwsClientBuilderFactory {
         return cachedIamBuilder;
     }
 
-    private LambdaClientBuilder cachedLambdaBuilder;
-
     public LambdaClientBuilder lambdaBuilder() {
         if (cachedLambdaBuilder == null) {
             cachedLambdaBuilder = decorateBuilderWithDefaults(LambdaClient.builder());
         }
         return cachedLambdaBuilder;
     }
-
-    private QuickSightClientBuilder cachedQuickSightBuilder;
 
     public QuickSightClientBuilder quickSightBuilder() {
         if (cachedQuickSightBuilder == null) {
@@ -142,16 +141,12 @@ public class AwsClientBuilderFactory {
         return cachedQuickSightBuilder;
     }
 
-    private S3ClientBuilder cachedS3Builder;
-
     public S3ClientBuilder s3Builder() {
         if (cachedS3Builder == null) {
             cachedS3Builder = decorateBuilderWithDefaults(S3Client.builder());
         }
         return cachedS3Builder;
     }
-
-    private SsmClientBuilder cachedSsmBuilder;
 
     public SsmClientBuilder ssmBuilder() {
         if (cachedSsmBuilder == null) {
@@ -160,16 +155,12 @@ public class AwsClientBuilderFactory {
         return cachedSsmBuilder;
     }
 
-    private StsClientBuilder cachedStsBuilder;
-
     public StsClientBuilder stsBuilder() {
         if (cachedStsBuilder == null) {
             cachedStsBuilder = decorateBuilderWithDefaults(StsClient.builder());
         }
         return cachedStsBuilder;
     }
-
-    private SecretsManagerClientBuilder cachedSecretsManagerClientBuilder;
 
     public SecretsManagerClientBuilder secretsManagerBuilder() {
         if (cachedSecretsManagerClientBuilder == null) {
