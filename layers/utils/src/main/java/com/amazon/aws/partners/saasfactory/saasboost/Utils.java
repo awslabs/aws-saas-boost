@@ -379,7 +379,7 @@ public class Utils {
         try (InputStream propertiesFile = clazz.getClassLoader().getResourceAsStream(GIT_PROPERTIES_FILENAME)) {
             Properties versionProperties = new Properties();
             versionProperties.load(propertiesFile);
-            version = versionProperties.getProperty("git.commit.id.describe") + ", Commit time: " + versionProperties.getProperty("git.commit.time");
+            version = versionProperties.getProperty("git.commit.id.describe");
         } catch (Exception e) {
             LOGGER.error("Error loading version info from {} for {}", GIT_PROPERTIES_FILENAME, clazz.getName());
             LOGGER.error(Utils.getFullStackTrace(e));

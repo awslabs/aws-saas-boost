@@ -35,7 +35,7 @@ i=0
 echo "${SAAS_BOOST_ENV} contains ${#SERVICE_NAMES[@]} services:"
 for SERVICE in "${SERVICE_NAMES[@]}"; do
     echo "| ${i}: ${SERVICE}"
-    i=$((i++))
+    i=$((i + 1))
 done
 read -p "Please enter the number of the service to upload to: " CHOSEN_SERVICE_INDEX
 CHOSEN_SERVICE="${SERVICE_NAMES[CHOSEN_SERVICE_INDEX]}"

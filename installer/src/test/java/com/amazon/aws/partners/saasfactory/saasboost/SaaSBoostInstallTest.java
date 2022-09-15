@@ -80,32 +80,4 @@ public class SaaSBoostInstallTest {
     public void resetStdIn() {
         System.setIn(System.in);
     }
-
-    @Test
-    public void testGetCloudFormationParameterMap() throws Exception {
-        // The input map represents the existing CloudFormation parameter values.
-        // These will either be the template defaults, or they will be the parameter
-        // values read from a created stack with the describeStacks call.
-        // We'll pretend that the RequiredStringParameter parameter is newly added
-        // to the template on disk so the user should be prompted for a value
-        Map<String, String> input = new LinkedHashMap<>();
-        input.put("DefaultStringParameter", "foobar");
-        input.put("NumericParameter", "1"); // Let's pretend that we overwrote the default the first time around
-
-        // Fill up standard input with a response for the Keyboard class
-        System.setIn(new ByteArrayInputStream(("keyboard input" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8)));
-
-        Path cloudFormationTemplate = Path.of(this.getClass().getClassLoader().getResource("template.yaml").toURI());
-        Map<String, String> actual = SaaSBoostInstall.getCloudFormationParameterMap(cloudFormationTemplate, input);
-
-        Map<String, String> expected = new LinkedHashMap<>();
-        expected.put("RequiredStringParameter", "keyboard input");
-        expected.put("DefaultStringParameter", "foobar");
-        expected.put("NumericParameter", "1");
-
-        assertEquals("Template has 3 parameters", expected.size(), actual.size());
-        for (Map.Entry<String, String> entry : expected.entrySet()) {
-            assertEquals(entry.getKey() + " equals " + entry.getValue(), entry.getValue(), actual.get(entry.getKey()));
-        }
-    }
 }
