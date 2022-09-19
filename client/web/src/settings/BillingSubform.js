@@ -45,7 +45,6 @@ export default function BillingSubform(props) {
                       label="Please enter your Stripe Secret API Key"
                       name="billing.apiKey"
                       type="password"
-                      value=""
                     />
                   </Col>
                 </Row>
