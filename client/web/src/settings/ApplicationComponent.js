@@ -367,16 +367,17 @@ export function ApplicationComponent(props) {
       } else {
         formik.errors.services?.forEach((service, index) => {
           if (!!service) {
-            let serviceString = formik.values?.services[index].name
+            let serviceName = formik.values?.services[index].name
+            let serviceMessage = "Service " + serviceName
             if (!!service.tiers) {
-              serviceString = serviceString.concat(": ", Object.keys(service.tiers).toString())
+              serviceMessage = serviceMessage.concat(" Tiers ", Object.keys(service.tiers).toString())
             }
-            servicesWithErrors.push(serviceString)
+            servicesWithErrors.push(serviceMessage)
           }
         })
       }
     }
-    return servicesWithErrors.join(', ')
+    return servicesWithErrors.join(" ; ")
   }
 
   return (
@@ -417,7 +418,7 @@ export function ApplicationComponent(props) {
               <>
                 {!!formik.errors && Object.keys(formik.errors).length > 0 ? (
                   <Alert variant="danger">
-                    Errors in {findServicesWithErrors(formik)}
+                    Errors in form: {findServicesWithErrors(formik)}
                   </Alert>
                 ) : null}
                 <Form>
