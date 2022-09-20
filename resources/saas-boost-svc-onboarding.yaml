@@ -711,6 +711,8 @@ Resources:
               - lambda:CreateFunction
               - lambda:InvokeFunction
               - lambda:DeleteFunction
+              - lambda:TagResource
+              - lambda:UntagResource
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-rds-bootstrap-tenant-*
           - Effect: Allow
@@ -796,6 +798,7 @@ Resources:
               - lambda:InvokeFunction
               - lambda:DeleteFunction
               - lambda:TagResource
+              - lambda:UntagResource
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-fsx-dns-tenant-*
           - Effect: Allow
@@ -957,11 +960,10 @@ Resources:
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
   OnboardingServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -989,11 +991,10 @@ Resources:
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
   OnboardingServiceEventHandlerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1031,11 +1032,10 @@ Resources:
           RESOURCES_BUCKET: !Ref ResourcesBucket
           TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
   OnboardingServiceValidationLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1068,11 +1068,10 @@ Resources:
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
   ValidationEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -1116,11 +1115,10 @@ Resources:
           TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ
           RESOURCES_BUCKET: !Ref ResourcesBucket
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
   OnboardingTenantConfigEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
