@@ -15,11 +15,11 @@
  */
 import { PropTypes } from 'prop-types'
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Row, Col, Card, Button, Table, Spinner, Alert } from 'react-bootstrap'
 import CIcon from '@coreui/icons-react'
 import { cilReload, cilListRich } from '@coreui/icons'
 import OnboardingListItemComponent from './OnboardingListItemComponent'
-import ECRInstructions from '../components/ECRInstructions'
 
 const showError = (error, dismissError) => {
   return (
@@ -39,9 +39,6 @@ export const OnboardingListComponent = (props) => {
     loading,
     onboardingRequests,
     showOnboardRequestForm,
-    ecrRepository,
-    awsAccount,
-    awsRegion,
     clickTenantDetails,
   } = props
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -80,15 +77,9 @@ export const OnboardingListComponent = (props) => {
       <Row className="mb-3">
         <Col sm={12} md={8} lg={9}>
           <Alert color="light">
-            Onboarding tenants requires an application image to be uploaded. For
-            more detail, click
-            <ECRInstructions
-              awsAccount={awsAccount}
-              awsRegion={awsRegion}
-              ecrRepo={ecrRepository}
-            >
-              <span>here.</span>
-            </ECRInstructions>
+            Onboarding tenants requires an application image to be uploaded for each service. 
+            If you haven't done so, view the upload instructions for each service:
+            <Link to="/summary">here</Link>.
           </Alert>
         </Col>
         <Col sm={12} md={4} lg={3}>
