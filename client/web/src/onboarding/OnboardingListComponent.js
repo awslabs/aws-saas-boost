@@ -78,7 +78,7 @@ export const OnboardingListComponent = (props) => {
         <Col sm={12} md={8} lg={9}>
           <Alert color="light">
             Onboarding tenants requires an application image to be uploaded for each service. 
-            If you haven't done so, view the upload instructions for each service:
+            If you haven't done so, view the upload instructions for each service &nbsp;
             <Link to="/summary">here</Link>.
           </Alert>
         </Col>
