@@ -121,6 +121,27 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH
       GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - phone
+        - email
+        - openid
+        - profile
+        - aws.cognito.signin.user.admin
+      CallbackURLs:
+        - !Sub https://${ConsoleCloudFrontDistribution.DomainName}
+        - http://localhost:3000
+      LogoutURLs:
+        - !Sub https://${ConsoleCloudFrontDistribution.DomainName}
+        - http://localhost:3000
+  
+  ConsoleUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub sb-${Environment}-saas-boost
+      UserPoolId: !Ref ConsoleUserPool
 
   # Create the initial admin user
   ConsoleAdminUser:

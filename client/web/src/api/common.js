@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { Auth } from 'aws-amplify'
 import axios from 'axios'
 import appConfig from '../config/appConfig'
 const { apiUri } = appConfig
+
+const OIDC_STORAGE_USER_KEY = "aws-saas-boost-userinfo"
 
 export const handleErrorResponse = async (response) => {
   if (!response.ok) {
@@ -48,14 +49,16 @@ export const handleErrorNoResponse = (response) => {
 }
 
 export async function fetchAccessToken() {
-  try {
-    const authSession = await Auth.currentSession()
-    const accessToken = authSession.getAccessToken()
-    return accessToken.getJwtToken()
-  } catch (e) {
-    console.error(e)
-    console.error('User session expired, need to log in.')
-  }
+  const userInfo = localStorage.getItem(OIDC_STORAGE_USER_KEY)
+  return JSON.parse(userInfo).access_token
+}
+
+export const saveUserInfo = (user) => {
+  localStorage.setItem(OIDC_STORAGE_USER_KEY, JSON.stringify(user))
+}
+
+export const removeUserInfo = () => {
+  localStorage.removeItem(OIDC_STORAGE_USER_KEY)
 }
 
 //API Aborted class
