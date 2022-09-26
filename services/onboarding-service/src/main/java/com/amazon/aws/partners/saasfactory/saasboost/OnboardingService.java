@@ -66,6 +66,7 @@ public class OnboardingService {
     private static final String EVENT_SOURCE = "saas-boost";
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
+    private static final String SAAS_BOOST_METRICS_STREAM = System.getenv("SAAS_BOOST_METRICS_STREAM");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
@@ -89,6 +90,9 @@ public class OnboardingService {
     private final CodePipelineClient codePipeline;
 
     public OnboardingService() {
+        if (Utils.isBlank(AWS_REGION)) {
+            throw new IllegalStateException("Missing environment variable AWS_REGION");
+        }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.dal = new OnboardingServiceDAL();
         this.cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME);
@@ -96,13 +100,14 @@ public class OnboardingService {
         this.ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME);
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
         try {
+            String presignerEndpoint = "https://" + s3.serviceName() + "."
+                    + Region.of(AWS_REGION)
+                    + "."
+                    + Utils.endpointDomain(AWS_REGION);
             this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                    .region(Region.of(System.getenv("AWS_REGION")))
-                    .endpointOverride(new URI("https://" + s3.serviceName() + "."
-                            + Region.of(System.getenv("AWS_REGION"))
-                            + ".amazonaws.com")
-                    ) // will break in China regions
+                    .region(Region.of(AWS_REGION))
+                    .endpointOverride(new URI(presignerEndpoint))
                     .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -585,7 +590,7 @@ public class OnboardingService {
                 // Now run the onboarding stack to provision the infrastructure for this tenant
                 LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
                 String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                        + ".amazonaws.com/tenant-onboarding.yaml";
+                        + "." + Utils.endpointDomain(AWS_REGION) + "/tenant-onboarding.yaml";
                 String stackId;
                 try {
                     CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -996,8 +1001,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
                         // TODO rework these last 2?
-                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
-                        templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
+                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream")
+                                .parameterValue(Objects.toString(SAAS_BOOST_METRICS_STREAM, "")).build());
+                        templateParameters.add(Parameter.builder().parameterKey("EventBus")
+                                .parameterValue(Objects.toString(SAAS_BOOST_EVENT_BUS, "")).build());
                         templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue(tier).build());
                         for (Parameter p : templateParameters) {
                             LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
@@ -1019,7 +1026,7 @@ public class OnboardingService {
                         // Now run the onboarding stack to provision the infrastructure for this application service
                         LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
                         String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                                + ".amazonaws.com/tenant-onboarding-app.yaml";
+                                + "." + Utils.endpointDomain(AWS_REGION) + "/tenant-onboarding-app.yaml";
                         String stackId;
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -1589,7 +1596,8 @@ public class OnboardingService {
             // not part of the onboarding request data nor is it part of the tenant data.
             Map<String, Object> settings = fetchSettingsForTenantUpdate(context);
             final String lambdaSourceFolder = (String) settings.get("SAAS_BOOST_LAMBDAS_FOLDER");
-            final String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/" + settings.get("ONBOARDING_TEMPLATE");
+            final String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3."
+                    + Utils.endpointDomain(AWS_REGION) + "/" + settings.get("ONBOARDING_TEMPLATE");
 
             List<Parameter> templateParameters = new ArrayList<>();
             templateParameters.add(Parameter.builder().parameterKey("TenantId").usePreviousValue(Boolean.TRUE).build());

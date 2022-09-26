@@ -275,79 +275,17 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
-      Description: KMS key generated to encrypt Kinesis data.
+      Description: KMS key used to encrypt Kinesis Firehose data.
       EnableKeyRotation: true
       KeyPolicy:
         Id: !Sub sb-${Environment}-kms-metrics-policy
         Version: '2012-10-17'
         Statement:
-          - Sid: Enable IAM User Permissions
-            Effect: Allow
+          - Effect: Allow
             Principal:
-              AWS:
-                - !Join
-                  - ''
-                  - - 'arn:aws:iam::'
-                    - !Ref 'AWS::AccountId'
-                    - :root
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
             Action: kms:*
             Resource: '*'
-          - Sid: Allow access for Key Administrators
-            Effect: Allow
-            Principal:
-              AWS:
-                - !Join
-                  - ''
-                  - - 'arn:aws:iam::'
-                    - !Ref 'AWS::AccountId'
-                    - :root
-            Action:
-              - kms:Create*
-              - kms:Describe*
-              - kms:Enable*
-              - kms:List*
-              - kms:Put*
-              - kms:Update*
-              - kms:Revoke*
-              - kms:Disable*
-              - kms:Get*
-              - kms:Delete*
-              - kms:ScheduleKeyDeletion
-              - kms:CancelKeyDeletion
-            Resource: '*'
-          - Sid: Allow use of the key
-            Effect: Allow
-            Principal:
-              AWS:
-                - !Join
-                  - ''
-                  - - 'arn:aws:iam::'
-                    - !Ref 'AWS::AccountId'
-                    - :root
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:ReEncrypt*
-              - kms:GenerateDataKey*
-              - kms:DescribeKey
-            Resource: '*'
-          - Sid: Allow attachment of persistent resources
-            Effect: Allow
-            Principal:
-              AWS:
-                - !Join
-                  - ''
-                  - - 'arn:aws:iam::'
-                    - !Ref 'AWS::AccountId'
-                    - :root
-            Action:
-              - kms:CreateGrant
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: '*'
-            Condition:
-              Bool:
-                kms:GrantIsForAWSResource: true
   KMSAlias:
     Type: AWS::KMS::Alias
     Properties:
@@ -381,8 +319,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${MetricsBucket}/*
-              - !Sub arn:aws:s3:::${MetricsBucket}
+              - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/*
+              - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   RedshiftCluster:
@@ -402,12 +340,7 @@ Resources:
         - !GetAtt RedshiftClusterRole.Arn
       MasterUsername:
         Ref: MetricUser
-      MasterUserPassword:
-        Fn::Join:
-          - ''
-          - - '{{resolve:ssm-secure:'
-            - !Ref MetricUserPasswordSSMParameter
-            - '}}'
+      MasterUserPassword: !Sub '{{resolve:ssm-secure:${MetricUserPasswordSSMParameter}}}'
       ClusterParameterGroupName:
         Ref: RedshiftClusterParameterGroup
       VpcSecurityGroupIds:
@@ -485,7 +418,7 @@ Resources:
               StringEquals:
                 sts:ExternalId: !Ref 'AWS::AccountId'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-redshift-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-redshift-policy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -499,12 +432,12 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:ListAllMyBuckets
                 Resource:
-                  - !Sub arn:aws:s3:::${MetricsBucket}
-                  - !Sub arn:aws:s3:::${MetricsBucket}/*
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/*
   FirehoseDeliveryRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-firehose-name-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-firehose-role-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -518,12 +451,11 @@ Resources:
               StringEquals:
                 sts:ExternalId: !Ref 'AWS::AccountId'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-firehose-delivery-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-firehose
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Sid: ''
-                Effect: Allow
+              - Effect: Allow
                 Action:
                   - s3:AbortMultipartUpload
                   - s3:GetBucketLocation
@@ -534,52 +466,28 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:ListAllMyBuckets
                 Resource:
-                  - !Join
-                    - ''
-                    - - 'arn:aws:s3:::'
-                      - !Ref 'MetricsBucket'
-                  - !Join
-                    - ''
-                    - - 'arn:aws:s3:::'
-                      - !Ref 'MetricsBucket'
-                      - /*
-              - Sid: ''
-                Effect: Allow
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/*
+              - Effect: Allow
                 Action:
                   - kms:Decrypt
                   - kms:GenerateDataKey
                 Resource:
                   - !If
                     - NoEncryption
-                    - !Join
-                      - ''
-                      - - 'arn:aws:kms:'
-                        - !Ref 'AWS::Region'
-                        - ':'
-                        - !Ref 'AWS::AccountId'
-                        - :key/placeholder-kms-id
+                    - !Sub arn:${AWS::Partition}:kms:${AWS::AccountId}:key/placeholder-kms-id
                     - !GetAtt 'EncryptionKey.Arn'
                 Condition:
                   StringEquals:
-                    kms:ViaService: !Join
-                      - ''
-                      - - s3.
-                        - !Ref 'AWS::Region'
-                        - .amazonaws.com
+                    kms:ViaService: !Sub s3.${AWS::Region}.amazonaws.com
                   StringLike:
-                    kms:EncryptionContext:aws:s3:arn: !Join
-                      - ''
-                      - - 'arn:aws:s3:::'
-                        - !Ref 'MetricsBucket'
-                        - /RedshiftDelivery/*
-              - Sid: ''
-                Effect: Allow
+                    kms:EncryptionContext:aws:s3:arn: !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}/RedshiftDelivery/*
+              - Effect: Allow
                 Action:
                   - logs:PutLogEvents
                 Resource:
                   - '*'
-              - Sid: ''
-                Effect: Allow
+              - Effect: Allow
                 Action:
                   - kinesis:Get*
                   - kinesis:Describe*
@@ -596,30 +504,17 @@ Resources:
       RedshiftDestinationConfiguration:
         ClusterJDBCURL: !Sub "jdbc:redshift://${RedshiftCluster.Endpoint.Address}:${RedshiftCluster.Endpoint.Port}/${DatabaseName}"
         CopyCommand:
-          CopyOptions: !Join
-                        - ''
-                        - - "gzip compupdate off STATUPDATE ON TIMEFORMAT 'epochsecs' "
-                          - "json 's3://"
-                          - !Ref 'MetricsBucket'
-                          - "/metrics_redshift_jsonpath.json'"
+          CopyOptions: !Sub "GZIP COMPUPDATE OFF STATUPDATE ON TIMEFORMAT 'epochsecs' JSON s3://${MetricsBucket}/metrics_redshift_jsonpath.json"
           DataTableName: !Ref 'MetricsTableName'
         Username: !Ref 'MetricUser'
-        Password:
-          Fn::Join:
-            - ''
-            - - '{{resolve:ssm-secure:'
-              - !Ref MetricUserPasswordSSMParameter
-              - '}}'
+        Password: !Sub '{{resolve:ssm-secure:${MetricUserPasswordSSMParameter}}}'
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref RSCloudwatchLogsGroup
           LogStreamName: !Ref RSLogStream
         RoleARN: !GetAtt 'FirehoseDeliveryRole.Arn'
         S3Configuration:
-          BucketARN: !Join
-            - ''
-            - - 'arn:aws:s3:::'
-              - !Ref 'MetricsBucket'
+          BucketARN: !Sub arn:${AWS::Partition}:s3:::${MetricsBucket}
           RoleARN: !GetAtt 'FirehoseDeliveryRole.Arn'
           BufferingHints:
             IntervalInSeconds: !Ref 'KinesisBufferInterval'
@@ -667,7 +562,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-redshift-exec-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-redshift-exec-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -675,14 +570,14 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface
@@ -692,7 +587,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
-                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/REDSHIFT_MASTER_PASSWORD
   LambdaSG:
     Type: AWS::EC2::SecurityGroup
     Properties:

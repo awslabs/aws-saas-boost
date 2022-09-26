@@ -171,18 +171,48 @@ public class Utils {
         return object;
     }
 
+    public static boolean isChinaRegion(String region) {
+        return "cn-north-1".equalsIgnoreCase(region) || "cn-northwest-1".equalsIgnoreCase(region);
+    }
+
+    public static boolean isGovCloudRegion(String region) {
+        return "us-gov-east-1".equalsIgnoreCase(region) || "us-gov-west-1".equalsIgnoreCase(region);
+    }
+
+    public static String endpointDomain(String region) {
+        String domain = "amazonaws.com";
+        if (isChinaRegion(region)) {
+            domain = "amazonaws.com.cn";
+        }
+        return domain;
+    }
+
     public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(AwsSyncClientBuilder<B, C> builder, String service) {
-        Region signingRegion = Region.of(System.getenv("AWS_REGION"));
-        String endpoint = "https://" + service + "." + signingRegion.toString() + ".amazonaws.com";
-        // Route53 doesn't follow the rules...
+        String region = System.getenv("AWS_REGION");
+        if (Utils.isBlank(region)) {
+            throw new IllegalStateException("Missing required environment variable AWS_REGION");
+        }
+        String endpoint = "https://" + service + "." + region + "." + endpointDomain(region);
         if ("route53".equals(service)) {
-            signingRegion = Region.AWS_GLOBAL;
-            endpoint = "https://route53.amazonaws.com";
+            if (!isChinaRegion(region)) {
+                region = Region.AWS_GLOBAL.toString();
+                endpoint = "https://route53.amazonaws.com";
+            } else {
+                region = Region.AWS_CN_GLOBAL.toString();
+                endpoint = "https://route53.amazonaws.com.cn";
+            }
+        }
+        if ("iam".equals(service)) {
+            if (!isChinaRegion(region)) {
+                region = Region.AWS_GLOBAL.toString();
+                endpoint = "https://iam.amazonaws.com";
+            }
+            // China's IAM endpoints are regional
         }
         C client = builder
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                .region(signingRegion)
+                .region(Region.of(region))
                 .endpointOverride(URI.create(endpoint))
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .retryPolicy(RetryPolicy.builder()

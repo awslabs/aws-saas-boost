@@ -112,7 +112,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-onboard-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-onboard-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -125,13 +125,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   #####
 
   # Process billing event resources
@@ -202,7 +202,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-event-process-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-event-process-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -215,13 +215,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   #####
 
   # Aggregation resources
@@ -271,7 +271,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-aggregate-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-aggregate-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -298,13 +298,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   #####
 
   # Publish billing data to Stripe resources
@@ -336,7 +336,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-publish-event-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-publish-event-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -403,7 +403,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-publish-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-publish-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -447,7 +447,7 @@ Resources:
           DYNAMODB_TABLE_NAME: !Ref MeteringBillingTable
           DYNAMODB_CONFIG_INDEX_NAME: !Ref TenantConfigurationIndexName
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
@@ -481,7 +481,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-publish-external-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-publish-external-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -505,13 +505,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -589,7 +589,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
@@ -631,7 +631,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-system-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-system-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -639,13 +639,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
@@ -653,9 +653,9 @@ Resources:
                   - events:EnableRule
                   - events:DisableRule
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/sb-${Environment}-bill-publish-event
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/sb-${Environment}-bill-publish-event
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -695,7 +695,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
@@ -737,7 +737,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-tenant-setup-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-tenant-setup-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -745,20 +745,20 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                   - logs:CreateLogGroup
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -797,7 +797,7 @@ Resources:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::disableTenantBillingListener
@@ -838,7 +838,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: !Sub sb-${Environment}-bill-tenant-setup-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-bill-tenant-setup-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -846,19 +846,19 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - events:DescribeEventBus
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
