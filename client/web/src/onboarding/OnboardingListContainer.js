@@ -27,8 +27,6 @@ import {
 } from './ducks'
 import globalConfig from '../config/appConfig'
 
-import { selectSettingsById } from '../settings/ducks'
-
 import { OnboardingListComponent } from './OnboardingListComponent'
 
 const log = logger.getLogger('onboarding')
@@ -42,8 +40,6 @@ export default function OnboardingListContainer() {
   const onboardings = useSelector(selectAllOnboarding)
   const loading = useSelector(selectLoading)
   const error = useSelector(selectError)
-
-  const ecrRepository = useSelector((state) => selectSettingsById(state, 'ECR_REPO'))
 
   const showOnboardRequestForm = () => {
     history.push('/onboarding/request')
@@ -89,7 +85,6 @@ export default function OnboardingListContainer() {
       loading={loading}
       onboardingRequests={onboardings}
       showOnboardRequestForm={showOnboardRequestForm}
-      ecrRepository={ecrRepository?.value}
       awsAccount={globalConfig.awsAccount}
       awsRegion={globalConfig.region}
       showEcrPushModal={showEcrPushModal}
