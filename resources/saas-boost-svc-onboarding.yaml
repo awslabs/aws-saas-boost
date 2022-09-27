@@ -339,6 +339,7 @@ Resources:
               - cloudformation:CreateChangeSet
               - cloudformation:DeleteStack
               - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackResource
             Resource:
               - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/sb-${Environment}*
               - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:transform/saas-boost-app-services-macro
