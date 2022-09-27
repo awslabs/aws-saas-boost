@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 public class QuotasService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotasService.class);
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final Map<String, String> CORS = Stream
             .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -54,7 +55,16 @@ public class QuotasService implements RequestHandler<Map<String, Object>, APIGat
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        QuotasServiceDAL.QuotaCheck quotaCheck = dal.checkQuotas();
+        QuotasServiceDAL.QuotaCheck quotaCheck;
+        if (Utils.isCnRegion(AWS_REGION)) {
+            // no QuotasService in China regions
+            LOGGER.info("QuotasService is not available in region " + AWS_REGION + ", ignore checkQuotas");
+            quotaCheck = new QuotasServiceDAL.QuotaCheck();
+            quotaCheck.setPassed(true);
+            quotaCheck.setMessage("no QuotasService in China regions, set all to pass");
+        } else {
+            quotaCheck = dal.checkQuotas();
+        }
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SettingsService::getSettings exec " + totalTimeMillis);
