@@ -650,7 +650,7 @@ Resources:
     Condition: Ec2LaunchType
     Properties:
       RoleName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
