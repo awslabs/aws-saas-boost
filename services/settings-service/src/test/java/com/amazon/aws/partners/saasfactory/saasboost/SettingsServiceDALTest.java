@@ -19,10 +19,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import software.amazon.awssdk.awscore.endpoint.DefaultServiceEndpointBuilder;
-import software.amazon.awssdk.regions.*;
-import software.amazon.awssdk.regions.internal.util.ServiceMetadataUtils;
-import software.amazon.awssdk.regions.partitionmetadata.AwsPartitionMetadata;
 import software.amazon.awssdk.services.ssm.model.Parameter;
 import software.amazon.awssdk.services.ssm.model.ParameterType;
 
