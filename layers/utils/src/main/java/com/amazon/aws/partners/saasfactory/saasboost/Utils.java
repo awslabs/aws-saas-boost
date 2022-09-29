@@ -36,6 +36,8 @@ import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.partitionmetadata.AwsCnPartitionMetadata;
+import software.amazon.awssdk.regions.partitionmetadata.AwsUsGovPartitionMetadata;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
@@ -172,19 +174,27 @@ public class Utils {
     }
 
     public static boolean isChinaRegion(String region) {
-        return "cn-north-1".equalsIgnoreCase(region) || "cn-northwest-1".equalsIgnoreCase(region);
+        return isChinaRegion(Region.of(region));
+    }
+
+    public static boolean isChinaRegion(Region region) {
+        return region.metadata().partition() instanceof AwsCnPartitionMetadata;
     }
 
     public static boolean isGovCloudRegion(String region) {
-        return "us-gov-east-1".equalsIgnoreCase(region) || "us-gov-west-1".equalsIgnoreCase(region);
+        return isGovCloudRegion(Region.of(region));
+    }
+
+    public static boolean isGovCloudRegion(Region region) {
+        return region.metadata().partition() instanceof AwsUsGovPartitionMetadata;
     }
 
     public static String endpointDomain(String region) {
-        String domain = "amazonaws.com";
-        if (isChinaRegion(region)) {
-            domain = "amazonaws.com.cn";
-        }
-        return domain;
+        return endpointDomain(Region.of(region));
+    }
+
+    public static String endpointDomain(Region region) {
+        return region.metadata().partition().dnsSuffix();
     }
 
     public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(AwsSyncClientBuilder<B, C> builder, String service) {

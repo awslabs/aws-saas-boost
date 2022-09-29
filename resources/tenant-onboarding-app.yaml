@@ -810,7 +810,12 @@ Resources:
                 <powershell>
                 Start-Transcript -Path "C:\UserData.log" -Append
                 Write-Output ("Download and install the CloudWatch agent")
-                Invoke-WebRequest https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+                $cloudWatchAgentInstaller = "https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi"
+                If ('${AWS::Region}' -eq 'cn-north-1' -or '${AWS::Region}' -eq 'cn-northwest-1') {
+                    # MSI is not hosted in the Ningxia region
+                    $cloudWatchAgentInstaller = "https://s3.cn-north-1.${AWS::URLSuffix}/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi"
+                }
+                Invoke-WebRequest $cloudWatchAgentInstaller -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
 
                 Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
 
@@ -877,7 +882,12 @@ Resources:
                 <powershell>
                 Start-Transcript -Path "C:\UserData.log" -Append
                 Write-Output ("Download and install the CloudWatch agent")
-                Invoke-WebRequest https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
+                $cloudWatchAgentInstaller = "https://s3.${AWS::Region}.${AWS::URLSuffix}/amazoncloudwatch-agent-${AWS::Region}/windows/amd64/latest/amazon-cloudwatch-agent.msi"
+                If ('${AWS::Region}' -eq 'cn-north-1' -or '${AWS::Region}' -eq 'cn-northwest-1') {
+                    # MSI is not hosted in the Ningxia region
+                    $cloudWatchAgentInstaller = "https://s3.cn-north-1.${AWS::URLSuffix}/amazoncloudwatch-agent/windows/amd64/latest/amazon-cloudwatch-agent.msi"
+                }
+                Invoke-WebRequest $cloudWatchAgentInstaller -OutFile c:\Windows\Temp\amazon-cloudwatch-agent.msi
 
                 Start-Process msiexec.exe -Wait -ArgumentList '/I c:\Windows\Temp\amazon-cloudwatch-agent.msi /quiet'
 

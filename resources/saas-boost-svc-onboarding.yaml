@@ -347,7 +347,7 @@ Resources:
             Action:
               - sns:Publish
             Resource:
-              - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-*
+              - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-onboarding*
           - Effect: Allow
             Action:
               - ssm:GetParameter*
