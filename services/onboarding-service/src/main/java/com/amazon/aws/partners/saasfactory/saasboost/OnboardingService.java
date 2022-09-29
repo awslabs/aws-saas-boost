@@ -1775,8 +1775,9 @@ public class OnboardingService {
 
         Map<String, Object> appConfig = getAppConfig(context);
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+
         String domainName = (String) appConfig.getOrDefault("domainName", "");
-        String hostedZone = getExistingHostedZone(domainName);
+        String hostedZone = chooseHostedZoneParameter(stackName, domainName, cfn, route53);
 
         // If there's an existing hosted zone, we need to tell the AppConfig about it
         // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
@@ -2193,14 +2194,15 @@ public class OnboardingService {
         return pathPriority;
     }
 
-    protected String getExistingHostedZone(String domainName) {
+    // separate out route53 client for testability
+    protected static String getExistingHostedZone(String domainName, Route53Client route53Client) {
         String existingHostedZone = "";
         if (Utils.isNotEmpty(domainName)) {
             String nextDnsName = null;
             String nextHostedZone = null;
             ListHostedZonesByNameResponse response;
             do {
-                response = route53.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
+                response = route53Client.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
                         .dnsName(nextDnsName)
                         .hostedZoneId(nextHostedZone)
                         .maxItems("100")
@@ -2231,5 +2233,65 @@ public class OnboardingService {
             } while (response.isTruncated());
         }
         return existingHostedZone;
+    }
+
+    protected static String chooseHostedZoneParameter(
+                String stackName, 
+                String domainName, 
+                CloudFormationClient cfnClient, // separate out clients for testability
+                Route53Client route53Client) {
+        if (Utils.isNotBlank(domainName)) {
+            final String hostedZoneCfnName = "PublicDomainHostedZone";
+            // need to find the core stack to find whether we already created a hostedZone
+            // this call might throw a CloudFormationException if the stack or the core resource does not exist
+            // in either case, we couldn't possibly continue with our updateInfrastructure operation, so allow
+            // it to bubble up into the logs. unfortunately there's currently no way to percolate a serious fatal
+            // state error through the system
+            final StackResourceDetail coreStackResourceDetail = cfnClient.describeStackResource(
+                    DescribeStackResourceRequest.builder()
+                            .stackName(stackName)
+                            .logicalResourceId("core")
+                            .build())
+                    .stackResourceDetail();
+            boolean saasBoostOwnsHostedZone = false;
+            try {
+                cfnClient.describeStackResource(DescribeStackResourceRequest.builder()
+                        .stackName(coreStackResourceDetail.physicalResourceId())
+                        .logicalResourceId(hostedZoneCfnName)
+                        .build());
+                // because we didn't throw, the resource must exist. so saasBoost has created
+                // a hostedZone for this environment
+                saasBoostOwnsHostedZone = true;
+            } catch (CloudFormationException cfne) {
+                // if the exception is that the resource does not exist, that means that we have not created
+                // a hosted zone in this environment. any other exception is unexpected and should be rethrown
+                if (!cfne.getMessage().contains("Resource " + hostedZoneCfnName + " does not exist")) {
+                    throw new RuntimeException(cfne);
+                }
+            }
+
+            if (!saasBoostOwnsHostedZone) {
+                String existingHostedZone = getExistingHostedZone(domainName, route53Client);
+                if (Utils.isNotBlank(existingHostedZone)) {
+                    /*
+                     * If there exists a hostedZone and we don't own it, we want to pass that hostedZone
+                     * name to the stack, since that means it won't be created
+                     */
+                    return existingHostedZone;
+                }
+            } else {
+                /*
+                 * If there exists a hostedZone and we DO own it, we don't want to pass the hostedZone
+                 * name to the stack, since the condition to create the hostedZone will evaluate to 
+                 * false and the owned hostedZone will be deleted
+                 * 
+                 * If there does not exist a hostedZone we won't own it (because it doesn't exist) but
+                 * either way we would not want to pass a hostedZone name in so that the stack
+                 * creates one. This might be happening on an initial configuration of domainName in
+                 * AppConfig.
+                 */
+            }
+        }
+        return "";
     }
 }
