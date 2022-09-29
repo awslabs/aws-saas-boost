@@ -88,7 +88,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             String presignerEndpoint = "https://" + s3.serviceName() + "."
                     + Region.of(AWS_REGION)
                     + "."
-                    + Utils.endpointDomain(AWS_REGION);
+                    + Utils.endpointSuffix(AWS_REGION);
             this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                     .region(Region.of(AWS_REGION))

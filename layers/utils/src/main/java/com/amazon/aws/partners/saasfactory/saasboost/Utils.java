@@ -189,40 +189,55 @@ public class Utils {
         return region.metadata().partition() instanceof AwsUsGovPartitionMetadata;
     }
 
-    public static String endpointDomain(String region) {
-        return endpointDomain(Region.of(region));
+    public static String endpointSuffix(String region) {
+        return endpointSuffix(Region.of(region));
     }
 
-    public static String endpointDomain(Region region) {
+    public static String endpointSuffix(Region region) {
         return region.metadata().partition().dnsSuffix();
     }
 
     public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(AwsSyncClientBuilder<B, C> builder, String service) {
-        String region = System.getenv("AWS_REGION");
-        if (Utils.isBlank(region)) {
+        if (Utils.isBlank(System.getenv("AWS_REGION"))) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
-        String endpoint = "https://" + service + "." + region + "." + endpointDomain(region);
+        Region region = Region.of(System.getenv("AWS_REGION"));
+
+        // PartitionMetadata and ServiceMetadata do not generate the
+        // correct service endpoints for all services
+        String endpoint = "https://" + service + "." + region.id() + "." + endpointSuffix(region);
+
+        // See https://docs.aws.amazon.com/general/latest/gr/r53.html
         if ("route53".equals(service)) {
             if (!isChinaRegion(region)) {
-                region = Region.AWS_GLOBAL.toString();
+                region = Region.US_EAST_1;
                 endpoint = "https://route53.amazonaws.com";
             } else {
-                region = Region.AWS_CN_GLOBAL.toString();
+                region = Region.CN_NORTHWEST_1;
                 endpoint = "https://route53.amazonaws.com.cn";
             }
         }
+
+        // See https://docs.aws.amazon.com/general/latest/gr/iam-service.html
         if ("iam".equals(service)) {
-            if (!isChinaRegion(region)) {
-                region = Region.AWS_GLOBAL.toString();
+            if (isChinaRegion(region)) {
+                // China's IAM endpoints are regional
+                // See https://docs.amazonaws.cn/en_us/aws/latest/userguide/iam.html
+            } else if (isGovCloudRegion(region)) {
+                // TODO double check if we are supposed to use Region.AWS_GLOBAL
+                region = Region.AWS_US_GOV_GLOBAL;
+                endpoint = "https://iam.us-gov.amazonaws.com";
+            } else {
+                region = Region.AWS_GLOBAL;
                 endpoint = "https://iam.amazonaws.com";
             }
-            // China's IAM endpoints are regional
+
         }
+
         C client = builder
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                .region(Region.of(region))
+                .region(region)
                 .endpointOverride(URI.create(endpoint))
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .retryPolicy(RetryPolicy.builder()

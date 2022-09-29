@@ -103,7 +103,7 @@ public class OnboardingService {
             String presignerEndpoint = "https://" + s3.serviceName() + "."
                     + Region.of(AWS_REGION)
                     + "."
-                    + Utils.endpointDomain(AWS_REGION);
+                    + Utils.endpointSuffix(AWS_REGION);
             this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                     .region(Region.of(AWS_REGION))
@@ -590,7 +590,7 @@ public class OnboardingService {
                 // Now run the onboarding stack to provision the infrastructure for this tenant
                 LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
                 String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                        + "." + Utils.endpointDomain(AWS_REGION) + "/tenant-onboarding.yaml";
+                        + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding.yaml";
                 String stackId;
                 try {
                     CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -1026,7 +1026,7 @@ public class OnboardingService {
                         // Now run the onboarding stack to provision the infrastructure for this application service
                         LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
                         String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                                + "." + Utils.endpointDomain(AWS_REGION) + "/tenant-onboarding-app.yaml";
+                                + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
                         String stackId;
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -1597,7 +1597,7 @@ public class OnboardingService {
             Map<String, Object> settings = fetchSettingsForTenantUpdate(context);
             final String lambdaSourceFolder = (String) settings.get("SAAS_BOOST_LAMBDAS_FOLDER");
             final String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3."
-                    + Utils.endpointDomain(AWS_REGION) + "/" + settings.get("ONBOARDING_TEMPLATE");
+                    + Utils.endpointSuffix(AWS_REGION) + "/" + settings.get("ONBOARDING_TEMPLATE");
 
             List<Parameter> templateParameters = new ArrayList<>();
             templateParameters.add(Parameter.builder().parameterKey("TenantId").usePreviousValue(Boolean.TRUE).build());

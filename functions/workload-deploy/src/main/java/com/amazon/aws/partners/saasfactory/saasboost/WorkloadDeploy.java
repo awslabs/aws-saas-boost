@@ -248,7 +248,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         String tag = (String) detail.get("image-tag");
         if (Utils.isNotBlank(accountId) && Utils.isNotBlank(region)
                 && Utils.isNotBlank(repo) && Utils.isNotBlank(tag)) {
-            imageUri = accountId + ".dkr.ecr." + region + "." + Utils.endpointDomain(region) + "/" + repo + ":" + tag;
+            imageUri = accountId + ".dkr.ecr." + region + "." + Utils.endpointSuffix(region) + "/" + repo + ":" + tag;
         }
         return imageUri;
     }
