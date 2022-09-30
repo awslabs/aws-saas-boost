@@ -2240,6 +2240,7 @@ public class OnboardingService {
                 String domainName, 
                 CloudFormationClient cfnClient, // separate out clients for testability
                 Route53Client route53Client) {
+        LOGGER.debug("Locating SaaS Boost provisioned Hosted Zone for domain {}", domainName);
         if (Utils.isNotBlank(domainName)) {
             final String hostedZoneCfnName = "PublicDomainHostedZone";
             // need to find the core stack to find whether we already created a hostedZone
@@ -2271,6 +2272,7 @@ public class OnboardingService {
             }
 
             if (!saasBoostOwnsHostedZone) {
+                LOGGER.debug("Found SaaS Boost provisioned Hosted Zone in CloudFormation");
                 String existingHostedZone = getExistingHostedZone(domainName, route53Client);
                 if (Utils.isNotBlank(existingHostedZone)) {
                     /*
@@ -2280,6 +2282,7 @@ public class OnboardingService {
                     return existingHostedZone;
                 }
             } else {
+                LOGGER.debug("No SaaS Boost provisioned Hosted Zone in CloudFormation");
                 /*
                  * If there exists a hostedZone and we DO own it, we don't want to pass the hostedZone
                  * name to the stack, since the condition to create the hostedZone will evaluate to 
