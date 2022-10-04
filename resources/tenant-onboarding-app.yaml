@@ -282,7 +282,7 @@ Resources:
     Condition: Ec2LaunchType
     Properties:
       Name: 
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       AutoScalingGroupProvider:
           AutoScalingGroupArn: !Ref ECSAutoScalingGroup
           ManagedScaling:
@@ -616,7 +616,7 @@ Resources:
     Condition: Ec2LaunchType
     Properties:
       AutoScalingGroupName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       VPCZoneIdentifier:
         - !Ref SubnetPrivateA
         - !Ref SubnetPrivateB
@@ -650,7 +650,7 @@ Resources:
     Condition: Ec2LaunchType
     Properties:
       RoleName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-ecs-instance-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -1149,7 +1149,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-cpu', '-', !Ref ServiceResourceName]]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
@@ -1162,7 +1162,7 @@ Resources:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
       PolicyName:
-        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem']]
+        Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-autoscaling-policy-mem', '-', !Ref ServiceResourceName]]
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ECSServiceAutoScalingTarget
       TargetTrackingScalingPolicyConfiguration:
