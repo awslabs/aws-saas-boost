@@ -390,16 +390,29 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     }
                     // now add targets if necessary
                     switch (pathAction) {
+                        case RESOURCES: {
+                            String target = changedPath.getName(i + 1).toString();
+                            if (target.endsWith(".yaml")) {
+                                pathAction.addTarget(target);
+                            }
+                            break;
+                        }
                         case CUSTOM_RESOURCES:
                         case FUNCTIONS:
                         case LAYERS:
                         case METERING_BILLING:
-                        case RESOURCES:
                         case SERVICES: {
                             try {
                                 String target = changedPath.getName(i + 1).toString();
                                 LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
-                                pathAction.addTarget(changedPath.getName(i + 1).toString());
+                                Path targetpath = changedPath.subpath(0, i + 2); // exclusive on end
+                                if (!targetpath.toFile().isFile() || target.endsWith(".yaml")) {
+                                    LOGGER.debug("!subpath.toFile().isFile() {}", !targetpath.toFile().isFile());
+                                    LOGGER.debug("target: {}", target);
+                                    // a non-yaml file (e.g. pom.xml) is not an acceptable target, 
+                                    // since there will be no update path underneath it
+                                    pathAction.addTarget(changedPath.getName(i + 1).toString());
+                                }
                             } catch (IllegalArgumentException iae) {
                                 LOGGER.error("Error parsing changed paths during update: {} is an unparsable path",
                                         changedPath);

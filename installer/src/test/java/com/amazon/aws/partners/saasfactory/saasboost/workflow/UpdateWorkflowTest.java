@@ -108,6 +108,20 @@ public class UpdateWorkflowTest {
     }
 
     @Test
+    public void testUpdateActionsFromPaths_layersFirst() {
+        Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.LAYERS, UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
+        List<Path> changedPaths = List.of(
+            Path.of("client/src/App.js"),
+            Path.of("functions/onboarding-app-stack-listener/pom.xml"),
+            Path.of("layers/apigw-helper/pom.xml"));
+        Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
+        assertEquals(expectedActions, actualActions);
+        // the first item in the set iterator should always be LAYERS
+        // (meaning we update layers first) regardless of changedPath ordering
+        assertTrue(actualActions.iterator().next().name().equals("LAYERS"));
+    }
+
+    @Test
     public void testUpdateActionsFromPaths_unrecognizedPath() {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.FUNCTIONS, UpdateAction.SERVICES);
         List<Path> unrecognizedPaths = List.of(

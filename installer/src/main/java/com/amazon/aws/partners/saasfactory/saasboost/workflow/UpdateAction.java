@@ -25,10 +25,10 @@ import java.util.Set;
  * the course of a SaaS Boost update.
  */
 public enum UpdateAction {
+    LAYERS,
     CLIENT,
     CUSTOM_RESOURCES,
     FUNCTIONS,
-    LAYERS,
     METERING_BILLING,
     RESOURCES,
     SERVICES;
