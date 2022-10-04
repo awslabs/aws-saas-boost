@@ -55,6 +55,7 @@ public class OnboardingServiceDALTest {
         onboarding.setRequest(new OnboardingRequest("Unit Test", "default"));
         onboarding.setStacks(stacks);
         onboarding.setZipFile("foobar");
+        onboarding.setEcsClusterLocked(false);
 
         Map<String, AttributeValue> expected = new HashMap<>();
         expected.put("id", AttributeValue.builder().s(onboardingId.toString()).build());
@@ -74,6 +75,7 @@ public class OnboardingServiceDALTest {
                 )).build())
                 .collect(Collectors.toList())
         ).build());
+        expected.put("ecs_cluster_locked", AttributeValue.builder().bool(false).build());
 
         Map<String, AttributeValue> actual = OnboardingServiceDAL.toAttributeValueMap(onboarding);
 

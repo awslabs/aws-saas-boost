@@ -382,6 +382,7 @@ public class OnboardingServiceDAL {
                     ).build()
             );
         }
+        item.put("ecs_cluster_locked", AttributeValue.builder().bool(onboarding.isEcsClusterLocked()).build());
         return item;
     }
 
@@ -471,6 +472,9 @@ public class OnboardingServiceDAL {
                         })
                         .collect(Collectors.toList())
                 );
+            }
+            if (item.containsKey("ecs_cluster_locked")) {
+                onboarding.setEcsClusterLocked(item.get("ecs_cluster_locked").bool());
             }
         }
         return onboarding;

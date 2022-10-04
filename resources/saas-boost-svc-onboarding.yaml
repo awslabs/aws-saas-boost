@@ -620,6 +620,7 @@ Resources:
               - lambda:InvokeFunction
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-set-instance-protection
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
           - Effect: Allow
             Action:
               - servicediscovery:CreatePrivateDnsNamespace
