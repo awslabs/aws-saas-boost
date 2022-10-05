@@ -182,7 +182,26 @@ public class UpdateWorkflowTest {
                 assertTrue(action.getTargets().contains("saas-boost-newtemplate.yaml"));
             }
         });
+    }
 
+    @Test
+    public void testUpdateActionsFromPaths_invalidChangedPath() {
+        Set<UpdateAction> expectedActions = EnumSet.noneOf(UpdateAction.class);
+        // just a directory is not a valid changedPath: directories don't change, files do.
+        // getUpdateActionsFromPaths should skip invalid changedPaths
+        List<Path> invalidChangedPaths = List.of(
+                Path.of("resources"), Path.of("resources/custom-resources"), Path.of("services"));
+        Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(invalidChangedPaths);
+        assertEquals(expectedActions, actualActions);
+    }
+
+    @Test
+    public void testUpdateActionsFromPaths_resourcesCheckstyle() {
+        Set<UpdateAction> expectedActions = EnumSet.noneOf(UpdateAction.class);
+        // this is not a valid update target
+        List<Path> changedPaths = List.of(Path.of("resources/checkstyle/checkstyle.xml"));
+        Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
+        assertEquals(expectedActions, actualActions);
     }
 
     private void createFile(Path relativePath) {

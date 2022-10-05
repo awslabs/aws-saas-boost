@@ -384,13 +384,19 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     // edge case: if this is a resources/custom-resources/.. path, we might be pinging on resources/
                     //            when we should on custom-resources. so skip if it is
                     LOGGER.debug("found action {} from path {}", pathAction, changedPath);
+                    if ((i + 1) == changedPath.getNameCount()) {
+                        // "this" name at `i` resolved to an UpdateAction, but there is no valid target
+                        // represented by the next value in the name. this is an invalid changed path:
+                        // a directory itself isn't changed, the files underneath is changed
+                        LOGGER.error("Skipping {}, since it's an invalid changed path: expecting a file", changedPath);
+                        break;
+                    }
+                    String target = changedPath.getName(i + 1).toString();
                     if (pathAction == UpdateAction.RESOURCES
-                            && UpdateAction.fromDirectoryName(changedPath.getName(i + 1).toString())
-                                    == UpdateAction.CUSTOM_RESOURCES) {
+                            && UpdateAction.fromDirectoryName(target) == UpdateAction.CUSTOM_RESOURCES) {
                         LOGGER.debug("Skipping RESOURCES for CUSTOM_RESOURCES in {}", changedPath);
                         continue;
                     }
-                    String target = changedPath.getName(i + 1).toString();
                     // now add targets if necessary
                     switch (pathAction) {
                         case RESOURCES: {
@@ -402,6 +408,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                             }
                             break;
                         }
+                        case CLIENT:
                         case CUSTOM_RESOURCES:
                         case FUNCTIONS:
                         case LAYERS:
@@ -425,7 +432,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                             // do nothing
                         }
                     }
-                    if (!actions.contains(pathAction)) {
+                    if (pathAction.getTargets().size() > 0 && !actions.contains(pathAction)) {
                         LOGGER.debug("Adding new action {} from path {}", pathAction, changedPath);
                         actions.add(pathAction);
                     }
