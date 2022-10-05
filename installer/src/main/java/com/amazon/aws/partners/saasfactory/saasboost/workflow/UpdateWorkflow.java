@@ -372,9 +372,10 @@ public class UpdateWorkflow extends AbstractWorkflow {
          */
         for (Path changedPath : changedPaths) {
             LOGGER.debug("processing {}", changedPath);
-            if (!Utils.isBlank(workingDir.toString())) {
-                // TODO support alternate workingDir for update
-                // relativize the path before continuing
+            Path absolutePath = Path.of(workingDir.toString(), changedPath.toString());
+            if (!absolutePath.toFile().exists()) {
+                LOGGER.debug("Skipping {} since it doesn't exist", changedPath);
+                continue;
             }
             final int maximumTraversalDepth = 2;
             for (int i = 0; i < Math.min(changedPath.getNameCount(), maximumTraversalDepth); i++) {
@@ -384,16 +385,20 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     //            when we should on custom-resources. so skip if it is
                     LOGGER.debug("found action {} from path {}", pathAction, changedPath);
                     if (pathAction == UpdateAction.RESOURCES
-                            && UpdateAction.fromDirectoryName(changedPath.getName(i + 1).toString()) != null) {
+                            && UpdateAction.fromDirectoryName(changedPath.getName(i + 1).toString())
+                                    == UpdateAction.CUSTOM_RESOURCES) {
                         LOGGER.debug("Skipping RESOURCES for CUSTOM_RESOURCES in {}", changedPath);
                         continue;
                     }
+                    String target = changedPath.getName(i + 1).toString();
                     // now add targets if necessary
                     switch (pathAction) {
                         case RESOURCES: {
-                            String target = changedPath.getName(i + 1).toString();
                             if (target.endsWith(".yaml")) {
+                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
                                 pathAction.addTarget(target);
+                            } else {
+                                LOGGER.debug("Skipping adding {} to UpdateAction {}", target, pathAction);
                             }
                             break;
                         }
@@ -402,22 +407,17 @@ public class UpdateWorkflow extends AbstractWorkflow {
                         case LAYERS:
                         case METERING_BILLING:
                         case SERVICES: {
-                            try {
-                                String target = changedPath.getName(i + 1).toString();
-                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
-                                Path targetpath = changedPath.subpath(0, i + 2); // exclusive on end
-                                if (!targetpath.toFile().isFile() || target.endsWith(".yaml")) {
-                                    LOGGER.debug("!subpath.toFile().isFile() {}", !targetpath.toFile().isFile());
-                                    LOGGER.debug("target: {}", target);
-                                    // a non-yaml file (e.g. pom.xml) is not an acceptable target, 
-                                    // since there will be no update path underneath it
-                                    pathAction.addTarget(changedPath.getName(i + 1).toString());
-                                }
-                            } catch (IllegalArgumentException iae) {
-                                LOGGER.error("Error parsing changed paths during update: {} is an unparsable path",
-                                        changedPath);
-                                LOGGER.error(Utils.getFullStackTrace(iae));
-                                throw new RuntimeException(iae);
+                            // each of the above actions use update.sh to update. the target here needs to be
+                            // a directory, because the update workflow looks underneath the target for the update
+                            // script. therefore editing something like layers/ parent pom or metering-billing
+                            // parent pom is not something worth updating
+                            LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                            // absolute against workingDir, rather than against running dir
+                            Path targetPath = Path.of(workingDir.toString(), changedPath.subpath(0, i + 2).toString());
+                            if (targetPath.toFile().isDirectory()) {
+                                // a non-yaml file (e.g. pom.xml) is not an acceptable target,
+                                // since there will be no update path underneath it
+                                pathAction.addTarget(target);
                             }
                             break;
                         }

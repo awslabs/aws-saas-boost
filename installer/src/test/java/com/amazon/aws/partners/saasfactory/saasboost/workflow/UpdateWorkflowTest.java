@@ -20,6 +20,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,14 +47,23 @@ public class UpdateWorkflowTest {
             .name("ENV")
             .accountId("123456789012")
             .build();
-    private static final Path workingDir = Paths.get("");
     
     private UpdateWorkflow updateWorkflow;
     private AwsClientBuilderFactory clientBuilderFactory;
+    private Path workingDir;
 
     @Before
     public void setup() {
         clientBuilderFactory = new MockAwsClientBuilderFactory();
+        workingDir = Paths.get("../");
+        try {
+            // location is installer/target/something.jar, so we need
+            // to go up three directories to get real install location
+            workingDir = Paths.get(UpdateWorkflowTest.class
+                .getProtectionDomain().getCodeSource().getLocation().toURI()).getParent().getParent().getParent();
+        } catch (URISyntaxException urise) {
+            throw new RuntimeException("Failed to determine installation directory for test");
+        }
         updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, clientBuilderFactory);
     }
 
@@ -94,7 +106,7 @@ public class UpdateWorkflowTest {
     public void testUpdateActionsFromPaths_basic() {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
-            Path.of("client/src/App.js"),
+            Path.of("client/web/src/App.js"),
             Path.of("functions/onboarding-app-stack-listener/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
@@ -111,7 +123,7 @@ public class UpdateWorkflowTest {
     public void testUpdateActionsFromPaths_layersFirst() {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.LAYERS, UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
-            Path.of("client/src/App.js"),
+            Path.of("client/web/src/App.js"),
             Path.of("functions/onboarding-app-stack-listener/pom.xml"),
             Path.of("layers/apigw-helper/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
@@ -123,25 +135,10 @@ public class UpdateWorkflowTest {
 
     @Test
     public void testUpdateActionsFromPaths_unrecognizedPath() {
-        Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.FUNCTIONS, UpdateAction.SERVICES);
-        List<Path> unrecognizedPaths = List.of(
-            Path.of("abc/unrecognized/path.java"),
-            Path.of("services/new-service/src/main/java/MyService.java"),
-            Path.of("services/really-new-service/src/main/java/MyService.java"),
-            Path.of("functions/new-function/pom.xml"));
+        Set<UpdateAction> expectedActions = EnumSet.noneOf(UpdateAction.class);
+        List<Path> unrecognizedPaths = List.of(Path.of("abc/unrecognized/path.java"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(unrecognizedPaths);
         assertEquals(expectedActions, actualActions);
-        actualActions.forEach(action -> {
-            if (action == UpdateAction.FUNCTIONS) {
-                assertEquals(1, action.getTargets().size());
-                assertTrue(action.getTargets().contains("new-function"));
-            }
-            if (action == UpdateAction.SERVICES) {
-                assertEquals(2, action.getTargets().size());
-                assertTrue(action.getTargets().contains("new-service"));
-                assertTrue(action.getTargets().contains("really-new-service"));
-            }
-        });
     }
 
     @Test
@@ -149,22 +146,52 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CUSTOM_RESOURCES, UpdateAction.RESOURCES);
         List<Path> changedPaths = List.of(
             Path.of("resources/saas-boost.yaml"),
-            Path.of("resources/new-cfn-template.yaml"),
-            Path.of("resources/custom-resources/app-services-ecr-macro/pom.xml"),
-            Path.of("resources/custom-resources/new-resource/pom.xml"));
+            Path.of("resources/custom-resources/app-services-ecr-macro/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
             if (action == UpdateAction.RESOURCES) {
-                assertEquals(2, action.getTargets().size());
+                assertEquals(1, action.getTargets().size());
                 assertTrue(action.getTargets().contains("saas-boost.yaml"));
-                assertTrue(action.getTargets().contains("new-cfn-template.yaml"));
             }
             if (action == UpdateAction.CUSTOM_RESOURCES) {
-                assertEquals(2, action.getTargets().size());
+                assertEquals(1, action.getTargets().size());
                 assertTrue(action.getTargets().contains("app-services-ecr-macro"));
-                assertTrue(action.getTargets().contains("new-resource"));
             }
         });
+    }
+
+    @Test
+    public void testUpdateActionsFromPaths_shortPaths() {
+        Set<UpdateAction> expectedActions = EnumSet.noneOf(UpdateAction.class);
+        List<Path> changedPaths = List.of(Path.of("pom.xml"));
+        Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
+        assertEquals(expectedActions, actualActions);
+    }
+
+    @Test
+    public void testUpdateActionsFromPaths_newPath() {
+        Path newResource = Path.of("resources/saas-boost-newtemplate.yaml");
+        createFile(newResource);
+        Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.RESOURCES);
+        Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(List.of(newResource));
+        assertEquals(expectedActions, actualActions);
+        actualActions.forEach(action -> {
+            if (action == UpdateAction.RESOURCES) {
+                assertEquals(1, action.getTargets().size());
+                assertTrue(action.getTargets().contains("saas-boost-newtemplate.yaml"));
+            }
+        });
+
+    }
+
+    private void createFile(Path relativePath) {
+        try {
+            File absoluteFile = new File(workingDir.toString(), relativePath.toString());
+            absoluteFile.createNewFile();
+            absoluteFile.deleteOnExit();
+        } catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
     }
 }
