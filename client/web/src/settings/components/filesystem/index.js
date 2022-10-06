@@ -106,7 +106,7 @@ export const FILESYSTEM_TYPES = {
             dailyBackupTime: '01:00',
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
-            volumeSize: 40
+            volumeSize: 1
         },
         "validationSchema": Yup.object({
             mountPoint: Yup.string()
@@ -138,8 +138,8 @@ export const FILESYSTEM_TYPES = {
                 .required('Windows mount drive is required'),
             volumeSize: Yup.number()
                 .required()
-                .min(0, 'Volume Size must be a positive number')
-                .max(196608, 'Volume size maximum is 196,608 GB')
+                .min(1, 'Volume Size must be a positive number')
+                .max(100, 'Volume size maximum is 100 GB')
         })
     },
     "FSX_ONTAP_WINDOWS": {
@@ -158,7 +158,7 @@ export const FILESYSTEM_TYPES = {
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
             windowsMountDrive: 'G:',
-            volumeSize: 40
+            volumeSize: 1
         },
         "validationSchema": Yup.object({
             mountPoint: Yup.string()
@@ -187,8 +187,8 @@ export const FILESYSTEM_TYPES = {
                 .required('Windows mount drive is required'),
             volumeSize: Yup.number()
                 .required()
-                .min(0, 'Volume Size must be a positive number')
-                .max(196608, 'Volume size maximum is 196,608 GB')
+                .min(1, 'Volume Size must be a positive number')
+                .max(100, 'Volume size maximum is 100 GB')
         })
     }
 }

@@ -91,9 +91,9 @@ Parameters:
   OntapVolumeSize:
     Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
     Type: Number
-    Default: 40
-    MinValue: 20
-    MaxValue: 104857600
+    Default: 1024
+    MinValue: 1024
+    MaxValue: 102400
 Conditions:
   UseAWSDirectoryService: !Not [!Equals [!Ref ActiveDirectoryId, '']]
   HasKey: !Equals [!Ref FSxEncryptionKey, 'UseKey']
@@ -381,6 +381,12 @@ Resources:
           ToPort: 11105
           Description: NetApp SnapMirror data transfer
           SourceSecurityGroupId: !Ref ECSSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          Description: Allowing FsxOntapCifsShareFunction access to FSx ONTAP for CIFS creation
+          #"0.0.0.0/0" needs to be updated to the specific Network Interface Private IP that gets assigned to the lambda function if a way to extract it exists
+          CidrIp: "0.0.0.0/0"
   FSxFileSystem:
     Type: AWS::FSx::FileSystem
     Properties:
@@ -433,6 +439,8 @@ Resources:
           DeploymentType: MULTI_AZ_1
           PreferredSubnetId: !Ref PrivateSubnetA
           ThroughputCapacity: !Ref ThroughputCapacity
+          #Password can be stored in Secrets manager and referenced from there or if saas boost is using some other mechanism, then that can be employed
+          FsxAdminPassword: "Netapp123"
           RouteTableIds: !Split [',', !Ref PrivateRouteTable]
         - !Ref 'AWS::NoValue'
   StorageVirtualMachine:
@@ -579,6 +587,138 @@ Resources:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref FSxFileSystem
       StorageVirtualMachineId: !If [FSxONTAP, !Ref StorageVirtualMachine, '']
+  
+  FSxOntapCifsFunctionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: FSx ONTAP CIFS Share Creation Lambda Security Group
+      GroupName:
+        Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-cifs-share-function-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          Description: Egress Traffic allowed for Lambda function for configuring CIFS share
+          CidrIp: "0.0.0.0/0"
+  
+  FsxOntapCifsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-cifs-share-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName, '-', !Ref AWS::Region]]
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-fsx-difs-share-function-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName, '-', !Ref AWS::Region]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - fsx:DescribeFileSystems
+                  - fsx:DescribeStorageVirtualMachines
+                Resource: '*'
+
+  #update share name in app.yaml
+  FsxOntapCifsShareFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - FsxOntapCifsFunctionRole
+      - FSxFileSystem
+      - StorageVirtualMachine
+      - StorageVolume
+      - FSxOntapCifsFunctionSecurityGroup
+      - InvokeGetFsxDnsName
+    Condition: FSxONTAP    
+    Properties:
+      Handler: index.lambda_handler
+      Description: "Creates CIFS Share for ONTAP Volume"
+      Timeout: 5
+      Role: !GetAtt 'FsxOntapCifsFunctionRole.Arn'
+      Runtime: python3.9
+      Environment:
+        Variables:
+          #Password set above during FSX ONTAP creation needs to be referenced below
+          fsxadmin_password: 'Netapp123'
+          fsxEndpoint: !Ref InvokeGetFsxDnsName.DnsName
+          svm_name:
+            Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
+          svm_uuid: !GetAtt StorageVirtualMachine.UUID
+          vol_name: 'vol1' #to be taken as input later
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref FSxOntapCifsFunctionSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+      Code:
+        ZipFile: |
+          import json
+          import urllib3
+          import base64
+          import os
+                  
+          def lambda_handler(event, context):
+              http = urllib3.PoolManager(cert_reqs="CERT_NONE")
+              
+              
+              fsxUrl = "https://{}/api/protocols/cifs/shares?return_records=true".format(os.environ['fsxEndpoint'])
+              uname_pwd = "fsxadmin:{}".format(os.environ['fsxadmin_password'])
+              uname_pwd_bytes = uname_pwd.encode("ascii")
+              uname_pwd_base64_bytes = base64.b64encode(uname_pwd_bytes)
+              encoded_uname_pwd = uname_pwd_base64_bytes.decode("ascii")
+              
+              headers_api = {
+                  "accept": "application/json",
+                  "authorization": "Basic {}".format(encoded_uname_pwd),
+                  "Content-Type": "application/json"
+              }
+              
+              formData = {
+                  "access_based_enumeration": "false",
+                  "change_notify": "true",
+                  "encryption": "false",
+                  "home_directory": "false",
+                  "name": "{}share".format(os.environ['vol_name']),
+                  "oplocks": "true",
+                  "path": "/{}".format(os.environ['vol_name']),
+                  "svm": {
+                      "name": os.environ['svm_name'],
+                      "uuid": os.environ['svm_uuid']
+                  },
+                  "unix_symlink": "local"
+              }
+              
+              encoded_data = json.dumps(formData).encode('utf-8')
+              response = http.request("POST",fsxUrl,headers=headers_api, body=encoded_data)
+
+              return
+
+  
 Outputs:
   FileSystemId:
     Description: FSx File System ID
