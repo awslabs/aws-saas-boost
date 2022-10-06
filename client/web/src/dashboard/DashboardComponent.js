@@ -257,7 +257,7 @@ export const DashboardComponent = (props) => {
                                   ecrRepo={service.containerRepo}
                                 >
                                   <span className="text-muted">
-                                    View details{' '}
+                                    View docker image upload instructions{' '}
                                     <CIcon icon={cilExternalLink} />
                                   </span>
                                 </ECRInstructions>
