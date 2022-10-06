@@ -134,8 +134,6 @@ export const FILESYSTEM_TYPES = {
                 .required('Daily backup time is required'),
             weeklyMaintenanceTime: Yup.string()
                 .required('Weekly maintenance time is required'),
-            windowsMountDrive: Yup.string()
-                .required('Windows mount drive is required'),
             volumeSize: Yup.number()
                 .required()
                 .min(0, 'Volume Size must be a positive number')
