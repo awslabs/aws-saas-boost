@@ -200,7 +200,7 @@ export const FILESYSTEM_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
 export const OS_TO_FS_TYPES = {
     "LINUX": [
         FILESYSTEM_TYPES.EFS,
-        FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
+        // FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
     ],
     "WINDOWS": [
         FILESYSTEM_TYPES.FSX_WINDOWS,
