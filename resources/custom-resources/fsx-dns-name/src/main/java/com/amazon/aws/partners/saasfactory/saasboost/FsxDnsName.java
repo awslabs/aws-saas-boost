@@ -60,6 +60,7 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                     LOGGER.info("CREATE or UPDATE");
                     try {
                         String fsxDns;
+                        String fsxDnsFS;
                         if (Utils.isNotBlank(storageVirtualMachineId)) {
                             LOGGER.info("Querying for Storage Virtual Machine DNS hostname");
                             // FSx for NetApp ONTAP uses Storage Virtual Machines and the hostname the EC2
@@ -76,6 +77,12 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                             );
                             LOGGER.info("SVM response: " + Objects.toString(response, "null"));
                             fsxDns = response.storageVirtualMachines().get(0).endpoints().smb().dnsName();
+                            DescribeFileSystemsResponse responseOne = fsx.describeFileSystems(request -> request
+                                    .fileSystemIds(fileSystemId)
+                            );
+                            LOGGER.info("testing fsx: " + Objects.toString(responseOne, "null"));
+                            fsxDnsFS = responseOne.fileSystems().get(0).ontapConfiguration().endpoints().management().dnsName();
+                            
                         } else {
                             LOGGER.info("Querying for File System DNS hostname");
                             DescribeFileSystemsResponse response = fsx.describeFileSystems(request -> request
@@ -83,8 +90,10 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                             );
                             LOGGER.info("File System response: " + Objects.toString(response, "null"));
                             fsxDns = response.fileSystems().get(0).dnsName();
+                            fsxDnsFS = response.fileSystems().get(0).ontapConfiguration().endpoints().management().dnsName();
                         }
                         responseData.put("DnsName", fsxDns);
+                        responseData.put("fsxDnsFS", fsxDnsFS);
                         LOGGER.info("responseDate: " +  Utils.toJson(responseData));
                         CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                     } catch (FSxException e) {

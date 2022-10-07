@@ -63,7 +63,7 @@ export default class FsxOntapFilesystemOptions extends React.Component {
           const onVolumeChange = (val) => {
             props.setFieldValue(
               props.formikTierPrefix + '.filesystem.volumeSize',
-              val * 1024
+              val
             )
           }
 
@@ -159,7 +159,7 @@ export default class FsxOntapFilesystemOptions extends React.Component {
                           id={'volumeVal' + props.formikTierPrefix}
                           className="mb-4"
                           type="number"
-                          value={props.filesystem?.volumeSize / 1024}
+                          value={props.filesystem?.volumeSize}
                           readOnly
                         ></Input>
                       </FormGroup>

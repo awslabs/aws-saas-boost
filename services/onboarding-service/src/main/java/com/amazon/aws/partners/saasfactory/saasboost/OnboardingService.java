@@ -907,7 +907,7 @@ public class OnboardingService {
                                     fsxWindowsMountDrive = "G:";
                                 }
                                 if ("FSX_ONTAP".equals(fileSystemType)) {
-                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize");
+                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize") * 1024;
                                     if (ontapVolumeSize == null) {
                                         ontapVolumeSize = 1024;
                                     }

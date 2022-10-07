@@ -583,6 +583,7 @@ Resources:
     Type: Custom::CustomResource
     DependsOn:
       - FsxDnsNameLogs
+    DeletionPolicy: Retain
     Properties:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref FSxFileSystem
@@ -664,7 +665,7 @@ Resources:
         Variables:
           #Password set above during FSX ONTAP creation needs to be referenced below
           fsxadmin_password: 'Netapp123'
-          fsxEndpoint: !Ref InvokeGetFsxDnsName.DnsName
+          fsxEndpoint: !GetAtt InvokeGetFsxDnsName.fsxDnsFS
           svm_name:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
           svm_uuid: !GetAtt StorageVirtualMachine.UUID
@@ -681,6 +682,7 @@ Resources:
           import urllib3
           import base64
           import os
+          import cfnresponse
                   
           def lambda_handler(event, context):
               http = urllib3.PoolManager(cert_reqs="CERT_NONE")
@@ -715,9 +717,16 @@ Resources:
               
               encoded_data = json.dumps(formData).encode('utf-8')
               response = http.request("POST",fsxUrl,headers=headers_api, body=encoded_data)
+              responseData = json.dumps(str(response.data))
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
 
-              return
-
+  InvokeOntapCifsShareFunction:
+    Type: Custom::CustomResource
+    DependsOn:
+      - FsxOntapCifsShareFunction
+    DeletionPolicy: Retain
+    Properties:
+      ServiceToken: !GetAtt FsxOntapCifsShareFunction.Arn
   
 Outputs:
   FileSystemId:
