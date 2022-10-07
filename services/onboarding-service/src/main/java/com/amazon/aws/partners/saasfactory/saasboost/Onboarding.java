@@ -32,6 +32,7 @@ public class Onboarding {
     private OnboardingRequest request;
     private List<OnboardingStack> stacks = new ArrayList<>();
     private String zipFile;
+    private boolean ecsClusterLocked;
 
     public Onboarding() {
     }
@@ -104,6 +105,14 @@ public class Onboarding {
         if (stack != null) {
             this.stacks.add(stack);
         }
+    }
+
+    public boolean isEcsClusterLocked() {
+        return ecsClusterLocked;
+    }
+
+    public void setEcsClusterLocked(boolean locked) {
+        this.ecsClusterLocked = locked;
     }
 
     public boolean hasBaseStacks() {

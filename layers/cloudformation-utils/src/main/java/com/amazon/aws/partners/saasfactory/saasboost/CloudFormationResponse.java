@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 public class CloudFormationResponse {
@@ -123,7 +124,7 @@ public class CloudFormationResponse {
             responseBody.put("Data", responseData != null ? responseData : Collections.EMPTY_MAP);
         } else {
             // CloudFormation will blow up if the failure response string is longer than 256 chars
-            String error = (String) responseData.getOrDefault("Reason", "");
+            String error = Objects.toString(responseData.getOrDefault("Reason", ""), "");
             if (error.length() > 256) {
                 error = error.substring(0, 256);
             }
