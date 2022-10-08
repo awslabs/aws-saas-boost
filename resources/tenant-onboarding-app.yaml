@@ -223,6 +223,9 @@ Parameters:
     Type: String
     AllowedValues: ['true', 'false']
     Default: 'false'
+  OnboardingDdbTable:
+    Description: Internal DDB table used to store Onboarding Metadata
+    Type: String
   # These params are here to read the image values from the public SSM. Leave the defaults.
   WIN2022FULL:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -294,21 +297,19 @@ Resources:
           Value: !Ref TenantId
         - Key: Tier
           Value: !Ref Tier
-  ClusterCapacityProviderAssociations:
-    Type: AWS::ECS::ClusterCapacityProviderAssociations
+  AttachEcsCapacityProvider:
+    Type: Custom::CustomResource
     Condition: Ec2LaunchType
     Properties:
-      Cluster: !Ref ECSCluster
-      CapacityProviders:
-        - !Ref CapacityProvider
-      DefaultCapacityProviderStrategy:
-        - CapacityProvider: !Ref CapacityProvider
-          Base: 0
-          Weight: 1
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
+      CapacityProvider: !Ref CapacityProvider
+      ECSCluster: !Ref ECSCluster
+      OnboardingDdbTable: !Ref OnboardingDdbTable
+      TenantId: !Ref TenantId
   CapacityProviderWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
     Condition: Ec2LaunchType
-    DependsOn: ClusterCapacityProviderAssociations
+    DependsOn: AttachEcsCapacityProvider
   ClusterCapacityAssociationWaitCondition:
     Type: AWS::CloudFormation::WaitCondition
     Properties:

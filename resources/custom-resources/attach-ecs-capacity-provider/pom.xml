@@ -22,7 +22,7 @@ limitations under the License.
         <artifactId>saasboost-custom-resources</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>RedshiftTable</artifactId>
+    <artifactId>AttachEcsCapacityProvider</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -32,7 +32,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>35</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -86,22 +86,37 @@ limitations under the License.
             <artifactId>Utils</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/com.amazon.redshift/redshift-jdbc42 -->
         <dependency>
-            <groupId>com.amazon.redshift</groupId>
-            <artifactId>redshift-jdbc42</artifactId>
-            <version>2.1.0.8</version>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>url-connection-client</artifactId>
+            <artifactId>ecs</artifactId>
             <version>${aws.java.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>ssm</artifactId>
+            <artifactId>dynamodb</artifactId>
             <version>${aws.java.sdk.version}</version>
             <exclusions>
                 <exclusion>
@@ -115,12 +130,5 @@ limitations under the License.
             </exclusions>
         </dependency>
     </dependencies>
-
-    <repositories>
-        <repository>
-            <id>redshift</id>
-            <url>https://s3.amazonaws.com/redshift-maven-repository/release</url>
-        </repository>
-    </repositories>
 
 </project>

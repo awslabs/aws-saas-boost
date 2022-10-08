@@ -844,6 +844,78 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "SetInstanceProtection"
+  AttachCapacityProviderExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-attach-capacity-provider-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-attach-capacity-provider-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogStreams
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sb-${Environment}-onboarding
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeClusters
+                  - ecs:PutClusterCapacityProviders
+                Resource: !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/*
+  AttachCapacityProviderLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-attach-capacity-provider
+      RetentionInDays: 30
+  AttachCapacityProviderFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - AttachCapacityProviderLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-attach-capacity-provider
+      Role: !GetAtt AttachCapacityProviderExecRole.Arn
+      Runtime: java11
+      Timeout: 870
+      MemorySize: 640
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.AttachEcsCapacityProvider
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/AttachEcsCapacityProvider-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "AttachEcsCapacityProvider"
   # Macro transform will add as many AWS::ECR::Repository resources as necessary
   # based on the length of the list of ApplicationServices passed as a parameter
 Outputs:

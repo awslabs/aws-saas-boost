@@ -71,6 +71,7 @@ public class OnboardingService {
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
+    private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String ONBOARDING_STACK_SNS = System.getenv("ONBOARDING_STACK_SNS");
     private static final String ONBOARDING_APP_STACK_SNS = System.getenv("ONBOARDING_APP_STACK_SNS");
     private static final String ONBOARDING_VALIDATION_QUEUE = System.getenv("ONBOARDING_VALIDATION_QUEUE");
@@ -958,6 +959,9 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("OnboardingDdbTable")
+                                .parameterValue(ONBOARDING_TABLE).build());
                         templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
                         templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
@@ -2103,7 +2107,7 @@ public class OnboardingService {
         try {
             LOGGER.info("API call for quotas/check");
             responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, context.getAwsRequestId());
-//            LOGGER.info("API response for quoatas/check: " + responseBody);
+            //LOGGER.info("API response for quoatas/check: " + responseBody);
             valMap = Utils.fromJson(responseBody, HashMap.class);
         } catch (Exception e) {
             LOGGER.error("Error invoking API quotas/check");
