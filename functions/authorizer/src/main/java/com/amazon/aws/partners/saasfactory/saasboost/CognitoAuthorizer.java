@@ -47,8 +47,10 @@ public class CognitoAuthorizer implements Authorizer {
         // TODO add aud claim and pass client id in to the Lambda as an env variable
         JWTVerifier verifier = JWT
                 .require(Algorithm.RSA256(new CognitoKeyProvider()))
-                .acceptLeeway(5L)
+                .acceptLeeway(5L) // Allowed seconds of clock skew between token issuer and verifier
                 .withClaim("token_use", (claim, token) -> (
+                        // Per Cognito documentation, make sure we got an Access or Identity token
+                        // (not a refresh token)
                         "access".equals(claim.asString()) || "id".equals(claim.asString()))
                 )
                 .build();
