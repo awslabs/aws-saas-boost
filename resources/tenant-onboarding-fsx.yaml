@@ -717,8 +717,10 @@ Resources:
               
               encoded_data = json.dumps(formData).encode('utf-8')
               response = http.request("POST",fsxUrl,headers=headers_api, body=encoded_data)
-              responseData = json.dumps(str(response.data))
+              responseData = {}
+              responseData['test'] = 'test'
               cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              return
 
   InvokeOntapCifsShareFunction:
     Type: Custom::CustomResource

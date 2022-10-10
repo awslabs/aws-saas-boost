@@ -322,6 +322,7 @@ Resources:
               - lambda:GetFunction
               - lambda:GetFunctionConfiguration
               - lambda:CreateFunction
+              - lambda:DeleteFunction
             Resource:
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
