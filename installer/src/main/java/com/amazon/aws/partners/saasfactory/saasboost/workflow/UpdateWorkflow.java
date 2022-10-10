@@ -276,7 +276,14 @@ public class UpdateWorkflow extends AbstractWorkflow {
         String commitHash = null;
         if (versionParameter.startsWith("{") && versionParameter.endsWith("}")) {
             // we know this is a JSON-created versionParameter, so attempt deserialization to GitVersionInfo
-            commitHash = Utils.fromJson(versionParameter, GitVersionInfo.class).getHash();
+            GitVersionInfo parsedInfo = Utils.fromJson(versionParameter, GitVersionInfo.class);
+            if (parsedInfo != null) {
+                commitHash = parsedInfo.getHash();
+            } else {
+                // we cannot continue with an update without being able to parse the version information
+                throw new RuntimeException("Unable to continue with update; cannot parse VERSION as JSON: "
+                        + versionParameter);
+            }
         } else {
             // this versionParameter was created before the JSON migration of git information,
             // so parse using the old logic
