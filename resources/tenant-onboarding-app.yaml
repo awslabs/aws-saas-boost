@@ -215,6 +215,7 @@ Parameters:
   OntapVolumeSize:
     Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
     Type: Number
+    # Below values updated to represent volume size in MB from 1GB to 100GB
     Default: 1024
     MinValue: 1024
     MaxValue: 102400
@@ -799,7 +800,7 @@ Resources:
         InstanceType: !Ref ClusterInstanceType
         IamInstanceProfile:
           Arn: !GetAtt ECSInstanceProfile.Arn
-        KeyName: 'testing'
+        KeyName: !Ref 'AWS::NoValue'
         SecurityGroupIds:
           - !Ref ECSSecurityGroup
         UserData:
@@ -852,6 +853,7 @@ Resources:
                 $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
+                #Updating path to make use of new volume share instead of root volume
                 If ('${FSxFileSystemType}' -eq 'FSX_ONTAP')  {
                     $fileServerPath = "\\{0}\vol1share" -f "${fsx.Outputs.FSxDnsName}"
                 }

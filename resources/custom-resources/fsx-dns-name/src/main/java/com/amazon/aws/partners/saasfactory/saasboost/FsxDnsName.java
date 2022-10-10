@@ -60,6 +60,7 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                     LOGGER.info("CREATE or UPDATE");
                     try {
                         String fsxDns;
+                        // Creating fsxDnsFS variable to get FSx ONTAP Managament DNS Name needed for lambda function that makes API call to FSx ONTAP for creating CIFS share
                         String fsxDnsFS;
                         if (Utils.isNotBlank(storageVirtualMachineId)) {
                             LOGGER.info("Querying for Storage Virtual Machine DNS hostname");

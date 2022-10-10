@@ -321,6 +321,7 @@ Resources:
               - lambda:InvokeFunction
               - lambda:GetFunction
               - lambda:GetFunctionConfiguration
+              # Added below 2 permissions to allow lambda function creation and deleteion for FSx ONTAP CIFS share creation function
               - lambda:CreateFunction
               - lambda:DeleteFunction
             Resource:

@@ -156,6 +156,7 @@ export const FILESYSTEM_TYPES = {
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
             windowsMountDrive: 'G:',
+            //volumeSize changed to represent size in GB to fix defect
             volumeSize: 1
         },
         "validationSchema": Yup.object({

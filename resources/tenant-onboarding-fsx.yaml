@@ -439,7 +439,7 @@ Resources:
           DeploymentType: MULTI_AZ_1
           PreferredSubnetId: !Ref PrivateSubnetA
           ThroughputCapacity: !Ref ThroughputCapacity
-          #Password can be stored in Secrets manager and referenced from there or if saas boost is using some other mechanism, then that can be employed
+          #Password can be stored in Secrets manager and referenced from there
           FsxAdminPassword: "Netapp123"
           RouteTableIds: !Split [',', !Ref PrivateRouteTable]
         - !Ref 'AWS::NoValue'
@@ -644,7 +644,6 @@ Resources:
                   - fsx:DescribeStorageVirtualMachines
                 Resource: '*'
 
-  #update share name in app.yaml
   FsxOntapCifsShareFunction:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -669,7 +668,7 @@ Resources:
           svm_name:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
           svm_uuid: !GetAtt StorageVirtualMachine.UUID
-          vol_name: 'vol1' #to be taken as input later
+          vol_name: 'vol1'
       VpcConfig:
         SecurityGroupIds:
           - !Ref FSxOntapCifsFunctionSecurityGroup
