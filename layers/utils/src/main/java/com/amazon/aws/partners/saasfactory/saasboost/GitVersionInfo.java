@@ -34,12 +34,12 @@ public final class GitVersionInfo {
     public static final String DESCRIPTION_PROPERTY = "git.commit.id.describe-short";
 
     private final String tag;
-    private final String hash;
+    private final String commit;
     private final String describe;
 
     private GitVersionInfo(Builder b) {
         this.tag = b.tag;
-        this.hash = b.hash;
+        this.commit = b.commit;
         this.describe = b.describe;
     }
 
@@ -47,8 +47,8 @@ public final class GitVersionInfo {
         return tag;
     }
 
-    public String getHash() {
-        return hash;
+    public String getCommit() {
+        return commit;
     }
 
     public String getDescribe() {
@@ -62,13 +62,13 @@ public final class GitVersionInfo {
         }
         GitVersionInfo otherVersionInfo = (GitVersionInfo) other;
         return getTag().equals(otherVersionInfo.getTag())
-            && getHash().equals(otherVersionInfo.getHash())
+            && getCommit().equals(otherVersionInfo.getCommit())
             && getDescribe().equals(otherVersionInfo.getDescribe());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tag, hash, describe);
+        return Objects.hash(tag, commit, describe);
     }
 
     public static Builder builder() {
@@ -84,7 +84,7 @@ public final class GitVersionInfo {
          */
         return builder()
             .tag(gitProperties.getProperty(TAG_NAME_PROPERTY))
-            .hash(gitProperties.getProperty(COMMIT_HASH_PROPERTY))
+            .commit(gitProperties.getProperty(COMMIT_HASH_PROPERTY))
             .describe(gitProperties.getProperty(DESCRIPTION_PROPERTY))
             .build();
     }
@@ -92,7 +92,7 @@ public final class GitVersionInfo {
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static class Builder {
         private String tag;
-        private String hash;
+        private String commit;
         private String describe;
 
         private Builder() {
@@ -104,8 +104,8 @@ public final class GitVersionInfo {
             return this;
         }
 
-        public Builder hash(String hash) {
-            this.hash = hash;
+        public Builder commit(String commit) {
+            this.commit = commit;
             return this;
         }
 
@@ -115,9 +115,9 @@ public final class GitVersionInfo {
         }
 
         public GitVersionInfo build() {
-            if (tag == null || hash == null || describe == null) {
+            if (tag == null || commit == null || describe == null) {
                 LOGGER.error("Invalid attempted construction of git version information."
-                        + "tag: {}, hash: {}, describe: {}", tag, hash, describe);
+                        + "tag: {}, commit: {}, describe: {}", tag, commit, describe);
                 throw new IllegalArgumentException("Invalid attempted construction of git version information.");
             }
             return new GitVersionInfo(this);

@@ -278,7 +278,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
             // we know this is a JSON-created versionParameter, so attempt deserialization to GitVersionInfo
             GitVersionInfo parsedInfo = Utils.fromJson(versionParameter, GitVersionInfo.class);
             if (parsedInfo != null) {
-                commitHash = parsedInfo.getHash();
+                commitHash = parsedInfo.getCommit();
             } else {
                 // we cannot continue with an update without being able to parse the version information
                 throw new RuntimeException("Unable to continue with update; cannot parse VERSION as JSON: "

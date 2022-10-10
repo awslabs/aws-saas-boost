@@ -27,13 +27,13 @@ import org.junit.Test;
 public final class GitVersionInfoTest {
 
     private static final String VALID_TAG = "v2.0.0";
-    private static final String VALID_HASH = "9ac3fbe";
+    private static final String VALID_COMMIT = "9ac3fbe";
     private static final String VALID_DESC = "v2.0.0-4-dirty";
     private static final String VALID_JSON = "{\"tag\":\"" + VALID_TAG
-            + "\",\"hash\":\"" + VALID_HASH
+            + "\",\"commit\":\"" + VALID_COMMIT
             + "\",\"describe\":\"" + VALID_DESC + "\"}";
     private static final GitVersionInfo VALID_INFO = GitVersionInfo.builder()
-            .tag(VALID_TAG).hash(VALID_HASH).describe(VALID_DESC).build();
+            .tag(VALID_TAG).commit(VALID_COMMIT).describe(VALID_DESC).build();
 
     private Properties properties;
 
@@ -41,7 +41,7 @@ public final class GitVersionInfoTest {
     public void setup() {
         properties = new Properties();
         properties.setProperty(GitVersionInfo.TAG_NAME_PROPERTY, VALID_TAG);
-        properties.setProperty(GitVersionInfo.COMMIT_HASH_PROPERTY, VALID_HASH);
+        properties.setProperty(GitVersionInfo.COMMIT_HASH_PROPERTY, VALID_COMMIT);
         properties.setProperty(GitVersionInfo.DESCRIPTION_PROPERTY, VALID_DESC);
     }
     
@@ -61,7 +61,7 @@ public final class GitVersionInfoTest {
         GitVersionInfo info = GitVersionInfo.fromProperties(properties);
         assertNotNull(info);
         assertEquals(VALID_TAG, info.getTag());
-        assertEquals(VALID_HASH, info.getHash());
+        assertEquals(VALID_COMMIT, info.getCommit());
         assertEquals(VALID_DESC, info.getDescribe());
     }
 

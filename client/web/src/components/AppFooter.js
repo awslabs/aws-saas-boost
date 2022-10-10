@@ -33,11 +33,11 @@ const AppFooter = (props) => {
     let versionString = versionParameter?.value
     try {
         let versionObject = JSON.parse(versionString)
-        if (versionObject?.tag && versionObject?.describe && versionObject?.hash) {
+        if (versionObject?.tag && versionObject?.describe && versionObject?.commit) {
             if (versionObject.tag === versionObject.describe) {
                 versionString = versionObject.tag
             } else {
-                versionString = versionObject.describe + "@" + versionObject.hash
+                versionString = versionObject.describe + "@" + versionObject.commit
             }
         }
     } catch (e) {
