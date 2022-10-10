@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.workflow;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Constants;
+import com.amazon.aws.partners.saasfactory.saasboost.GitVersionInfo;
 import com.amazon.aws.partners.saasfactory.saasboost.Keyboard;
 import com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
@@ -272,21 +273,31 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // list all staged and committed changes against the last updated commit
         String versionParameter = cloudFormationParamMap.get("Version");
         LOGGER.debug("Found existing version: {}", versionParameter);
-        // if Version was created with "Commit time", we need to remove that to get commit hash
-        if (versionParameter.contains(",")) {
-            versionParameter = versionParameter.split(",")[0];
+        String commitHash = null;
+        if (versionParameter.startsWith("{") && versionParameter.endsWith("}")) {
+            // we know this is a JSON-created versionParameter, so attempt deserialization to GitVersionInfo
+            commitHash = Utils.fromJson(versionParameter, GitVersionInfo.class).getHash();
+        } else {
+            // this versionParameter was created before the JSON migration of git information,
+            // so parse using the old logic
+
+            // if Version was created with "Commit time", we need to remove that to get commit hash
+            if (versionParameter.contains(",")) {
+                versionParameter = versionParameter.split(",")[0];
+            }
+            // if last update or install was created with uncommitted code, assume we're working from
+            // the last information we have: the commit on top of which the uncommitted code was written
+            if (versionParameter.contains("-dirty")) {
+                versionParameter = versionParameter.split("-")[0];
+            }
+            commitHash = versionParameter;
         }
-        // if last update or install was created with uncommitted code, assume we're working from
-        // the last information we have: the commit on top of which the uncommitted code was written
-        if (versionParameter.contains("-dirty")) {
-            versionParameter = versionParameter.split("-")[0];
-        }
-        LOGGER.debug("Parsed version to: {}", versionParameter);
+        LOGGER.debug("Parsed commit hash to: {}", commitHash);
         List<Path> changedPaths = new ArrayList<>();
         // -b               : ignore whitespace-only changes
         // --name-only      : only output the filename (for easy parsing)
         // $(version)..HEAD : output changes since $(version)
-        String gitDiffCommand = "git diff -b --name-only " + versionParameter;
+        String gitDiffCommand = "git diff -b --name-only " + commitHash;
         changedPaths.addAll(listPathsFromGitCommand(gitDiffCommand));
 
         // list all untracked changes (i.e. net new un-added files)

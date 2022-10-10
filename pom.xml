@@ -219,7 +219,6 @@
                         <includeOnlyProperty>^git.commit.id.abbrev</includeOnlyProperty>
                         <includeOnlyProperty>^git.commit.id.describe</includeOnlyProperty>
                         <includeOnlyProperty>^git.commit.id.describe-short</includeOnlyProperty>
-                        <includeOnlyProperty>^git.commit.time</includeOnlyProperty>
                         <includeOnlyProperty>^git.closest.tag.name</includeOnlyProperty>
                     </includeOnlyProperties>
                     <commitIdGenerationMode>full</commitIdGenerationMode>
