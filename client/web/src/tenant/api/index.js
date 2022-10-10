@@ -34,7 +34,7 @@ apiServer.interceptors.request.use(async (r) => {
   console.log(r)
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
-  r.headers.Authorization = authorizationToken
+  r.headers.Authorization = "Bearer " + authorizationToken
 
   //Configure the AbortSignal
   if (r.signal) {
@@ -64,7 +64,7 @@ const tenantAPI = {
         mode: 'cors',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
 
@@ -98,7 +98,7 @@ const tenantAPI = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
       const responseJSON = await handleErrorResponse(response)
@@ -122,7 +122,7 @@ const tenantAPI = {
         }),
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
       const responseJSON = await handleErrorResponse(response)

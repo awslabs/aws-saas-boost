@@ -43,7 +43,7 @@ const source = CancelToken.source()
 apiServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
-  r.headers.Authorization = authorizationToken
+  r.headers.Authorization = "Bearer " + authorizationToken
   r.headers['Content-Type'] = 'application/json'
 
   //Configure the AbortSignal
@@ -58,8 +58,6 @@ apiServer.interceptors.request.use(async (r) => {
 })
 
 datasetServer.interceptors.request.use(async (r) => {
-  //Obtain and pass along Authorization token
-
   r.headers['Content-Type'] = 'application/json'
 
   //Configure the AbortSignal
