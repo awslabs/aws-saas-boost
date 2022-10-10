@@ -35,7 +35,6 @@ public class ApiRequestEvent {
     private ApiRequest detail;
 
     public ApiRequestEvent() {
-
     }
 
     public String getVersion() {

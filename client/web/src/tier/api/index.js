@@ -34,7 +34,7 @@ const source = CancelToken.source()
 apiServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
-  r.headers.Authorization = authorizationToken
+  r.headers.Authorization = "Bearer " + authorizationToken
 
   //Configure the AbortSignal
   if (r.signal) {
@@ -85,7 +85,7 @@ const tierAPI = {
         }),
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
       return await handleErrorResponse(response)
@@ -107,7 +107,7 @@ const tierAPI = {
         }),
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
       console.log('tier api update response', response)
@@ -125,7 +125,7 @@ const tierAPI = {
       const response = await fetch(`${apiUri}/tiers/${tierId}`, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authorizationToken,
+          Authorization: "Bearer " + authorizationToken,
         },
       })
       return await handleErrorResponse(response)

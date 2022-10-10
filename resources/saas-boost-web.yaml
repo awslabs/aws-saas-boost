@@ -120,39 +120,6 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH
       GenerateSecret: false
-  ConsoleIdentityPool:
-    Type: AWS::Cognito::IdentityPool
-    Properties:
-      IdentityPoolName: !Sub sb-${Environment}-identities
-      AllowClassicFlow: true
-      AllowUnauthenticatedIdentities: false
-      CognitoIdentityProviders:
-        - ClientId: !Ref ConsoleUserPoolClient
-          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${ConsoleUserPool}
-          ServerSideTokenCheck: true
-  ConsoleIdentityPoolAuthRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub sb-${Environment}-cognito-auth-role-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal: {"Federated": "cognito-identity.amazonaws.com"}
-            Action:
-              - sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                cognito-identity.amazonaws.com:aud:
-                  - !Ref ConsoleIdentityPool
-              ForAnyValue:StringLike: {"cognito-identity.amazonaws.com:amr": authenticated}
-  ConsoleIdentityPoolRoleAttachment:
-    Type: AWS::Cognito::IdentityPoolRoleAttachment
-    Properties:
-      IdentityPoolId: !Ref ConsoleIdentityPool
-      Roles:
-        authenticated: !GetAtt ConsoleIdentityPoolAuthRole.Arn
   # Create the initial admin user
   ConsoleAdminUser:
     Type: AWS::Cognito::UserPoolUser
@@ -161,8 +128,6 @@ Resources:
         - EMAIL
       ForceAliasCreation: false
       UserAttributes:
-        - Name: "custom:identity_pool"
-          Value: !Ref ConsoleIdentityPool
         - Name: "email"
           Value: !Ref AdminEmailAddress
         - Name: "email_verified"
@@ -202,11 +167,6 @@ Outputs:
     Value: !Ref ConsoleUserPoolClient
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolClientId
-  SBIdentityPool:
-    Description: SaaS Boost Identity Pool Id
-    Value: !Ref ConsoleIdentityPool
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:identityPoolId
   CloudFrontDistributionUrl:
     Description: Saas Boost Cloudfront distribution URL
     Value: !Sub https://${ConsoleCloudFrontDistribution.DomainName}
