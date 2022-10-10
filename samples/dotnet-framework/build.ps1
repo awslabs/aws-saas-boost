@@ -33,7 +33,12 @@ $SERVICE_JSON = (aws ssm get-parameter --name "/saas-boost/$SAAS_BOOST_ENV/app/$
 $ECR_REPO = ($SERVICE_JSON | ConvertFrom-Json).containerRepo
 $TAG = ($SERVICE_JSON | ConvertFrom-Json).containerTag
 
-$DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
+If ("$AWS_REGION" -eq "cn-northwest-1" -or "$AWS_REGION" -eq "cn-north-1") {
+    $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com.cn/$ECR_REPO"
+}
+Else {
+    $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
+}
 $DOCKER_TAG = "{0}:{1}" -f $DOCKER_REPO, $TAG
 
 #Write-Output $DOCKER_TAG

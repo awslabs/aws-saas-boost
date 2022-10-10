@@ -32,6 +32,7 @@ public class Onboarding {
     private OnboardingRequest request;
     private List<OnboardingStack> stacks = new ArrayList<>();
     private String zipFile;
+    private boolean ecsClusterLocked;
 
     public Onboarding() {
     }
@@ -106,6 +107,14 @@ public class Onboarding {
         }
     }
 
+    public boolean isEcsClusterLocked() {
+        return ecsClusterLocked;
+    }
+
+    public void setEcsClusterLocked(boolean locked) {
+        this.ecsClusterLocked = locked;
+    }
+
     public boolean hasBaseStacks() {
         return !getStacks()
                 .stream()
@@ -131,10 +140,6 @@ public class Onboarding {
                 .isEmpty();
     }
 
-    public boolean stacksComplete() {
-        return stacksComplete(false);
-    }
-
     public boolean baseStacksComplete() {
         return stacksComplete(true);
     }
@@ -148,6 +153,10 @@ public class Onboarding {
             }
         }
         return deployed;
+    }
+
+    public boolean stacksComplete() {
+        return stacksComplete(false);
     }
 
     protected boolean stacksComplete(boolean baseStacks) {

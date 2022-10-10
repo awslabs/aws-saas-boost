@@ -23,6 +23,14 @@ import static org.junit.Assert.*;
 public class UtilsTest {
 
     @Test
+    public void testIsChinaRegion() {
+        assertFalse("N. Virginia is not in China", Utils.isChinaRegion("us-east-1"));
+        assertFalse("US Gov Cloud is not in China", Utils.isChinaRegion("us-gov-west-1"));
+        assertTrue("Beijing is in China", Utils.isChinaRegion("cn-north-1"));
+        assertTrue("Ningxia is in China", Utils.isChinaRegion("cn-northwest-1"));
+    }
+
+    @Test
     public void testRandomString() {
         assertThrows(IllegalArgumentException.class, () -> {Utils.randomString(0);});
         assertThrows(IllegalArgumentException.class, () -> {Utils.randomString(-1);});
