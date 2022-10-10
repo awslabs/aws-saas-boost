@@ -140,10 +140,6 @@ public class Onboarding {
                 .isEmpty();
     }
 
-    public boolean stacksComplete() {
-        return stacksComplete(false);
-    }
-
     public boolean baseStacksComplete() {
         return stacksComplete(true);
     }
@@ -157,6 +153,10 @@ public class Onboarding {
             }
         }
         return deployed;
+    }
+
+    public boolean stacksComplete() {
+        return stacksComplete(false);
     }
 
     protected boolean stacksComplete(boolean baseStacks) {

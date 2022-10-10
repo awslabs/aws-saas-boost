@@ -53,7 +53,7 @@ public class SaaSBoostArtifactsBucket {
      * @return the S3 URL the Bucket object represents
      */
     public String getBucketUrl() {
-        return String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
+        return String.format("https://%s.s3.%s.%s/", bucketName, region, Utils.endpointSuffix(region));
     }
 
     public void putFile(S3Client s3, Path localPath, Path remotePath) {

@@ -12,23 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use your saas boost envirionment name
-$SAAS_BOOST_ENV="test"
-# Use your own profile name and region
-Set-AWSCredential -ProfileName dev
-Set-DefaultAWSRegion -Region us-west-2
-$AWS_ACCOUNT_ID = (Get-StsCallerIdentity).Account
-$AWS_REGION=(Get-DefaultAWSRegion).Region
-echo $AWS_REGION
-$ECR_REPO = (Get-SSMParameterValue -Name /saas-boost/$SAAS_BOOST_ENV/ECR_REPO).Parameters[0].Value
-echo $ECR_REPO
-$DOCKER_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
-echo "repo = $DOCKER_REPO"
-$DOCKER_TAG = "{0}:{1}" -f $DOCKER_REPO, "latest"
-echo "tag = $DOCKER_TAG"
+$SAAS_BOOST_ENV = Read-Host -Prompt 'Please enter your AWS SaaS Boost Environment label'
+$APP_NAME = Read-Host -Prompt 'Please enter the application service name to build'
+
+$AWS_ACCOUNT_ID = (aws sts get-caller-identity | ConvertFrom-Json).Account
+#Write-Output "Using AWS Account ID $AWS_ACCOUNT_ID"
+
+$AWS_REGION = (aws configure list | Select-String -Pattern "region" | Out-String).Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[2]
+#Write-Output "Using AWS Region $AWS_REGION"
+
+$SERVICE_JSON = (aws ssm get-parameter --name "/saas-boost/$SAAS_BOOST_ENV/app/$APP_NAME/SERVICE_JSON" | ConvertFrom-Json).Parameter.Value
+#Write-Output $SERVICE_JSON
+
+$ECR_REPO = ($SERVICE_JSON | ConvertFrom-Json).containerRepo
+$TAG = ($SERVICE_JSON | ConvertFrom-Json).containerTag
+
+If ("$AWS_REGION" -eq "cn-northwest-1" -or "$AWS_REGION" -eq "cn-north-1") {
+    $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com.cn/$ECR_REPO"
+}
+Else {
+    $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
+}
+$DOCKER_TAG = "{0}:{1}" -f $DOCKER_REPO, $TAG
+#Write-Output $DOCKER_TAG
+
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $DOCKER_REPO
+
 mvn clean package
-aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REPO
-echo $DOCKER_TAG
 docker image build -t helloworld -f Dockerfile .
-docker tag helloworld $DOCKER_TAG
+docker tag helloworld:latest $DOCKER_TAG
 docker push $DOCKER_TAG
