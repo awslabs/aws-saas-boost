@@ -296,7 +296,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
         List<Path> changedPaths = new ArrayList<>();
         // -b               : ignore whitespace-only changes
         // --name-only      : only output the filename (for easy parsing)
-        // $(version)..HEAD : output changes since $(version)
+        // $(version)       : output changes since $(version)
         String gitDiffCommand = "git diff -b --name-only " + commitHash;
         changedPaths.addAll(listPathsFromGitCommand(gitDiffCommand));
 
