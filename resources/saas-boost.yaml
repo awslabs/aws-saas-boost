@@ -27,6 +27,15 @@ Parameters:
     Description: SaaS Boost "environment" such as test, prod, beta, etc...
     Type: String
     MinLength: 1
+  SystemIdentityProvider:
+    Description: Identity Provider for the SaaS Boost system users and control plane API authorization
+    Type: String
+    Default: COGNITO
+    AllowedValues: [COGNITO, KEYCLOAK]
+  AdminUsername:
+    Description: Initial administrative user name for SaaS Boost admin web app
+    Type: String
+    Default: admin
   AdminEmailAddress:
     Description: Email address of admin user to receive temporary password notification
     Type: String
@@ -72,6 +81,8 @@ Parameters:
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
+  UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
+  UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -230,27 +241,6 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}
             Condition:
               Bool: { 'aws:SecureTransport': false }
-  # Bucket to host the admin console web application
-  # NOTE: The deny non-secure policy is in the web template.
-  AdminWeb:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: Private
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LoggingConfiguration:
-        DestinationBucketName: !Ref Logging
-        LogFilePrefix: web-logs-
-      Tags:
-        - Key: SaaS Boost
-          Value: !Ref Environment
   # Bucket to hold optional tenant configuration files (zip archive)
   # Onboarding will be notified of put object events via EventBridge
   Resources:
@@ -273,12 +263,106 @@ Resources:
         CorsRules:
           - AllowedOrigins:
               - http://localhost:3000
-              - !GetAtt web.Outputs.CloudFrontDistributionUrl
+              - !GetAtt AdminWebCloudFrontDistribution.DomainName
             AllowedMethods:
               - PUT
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
+  # Bucket to host the admin console web application
+  AdminWeb:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref Logging
+        LogFilePrefix: web-logs-
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  AdminWebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        !Ref AdminWeb
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser:
+                !GetAtt AdminWebOriginAccessIdentity.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub arn:${AWS::Partition}:s3:::${AdminWeb}/*
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}
+            Condition:
+              Bool: {'aws:SecureTransport': false}
+  AdminWebOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub access-identity-${AdminWeb}
+  AdminWebCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    # Make sure we delete the distribution before clearing out the logging bucket or new
+    # logs from S3 website hosting may be generated between clearing the bucket and trying
+    # to delete the bucket
+    DependsOn: InvokeClearLoggingBucket
+    Properties:
+      DistributionConfig:
+        Comment: Saas Boost Admin Console
+        DefaultRootObject: index.html
+        Enabled: true
+        IPV6Enabled: false
+        HttpVersion: http2
+        Origins:
+          - DomainName: !Sub ${AdminWeb}.s3.${AWS::Region}.${AWS::URLSuffix}
+            Id: !Sub sb-${Environment}-s3-website
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${AdminWebOriginAccessIdentity}
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub sb-${Environment}-s3-website
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # CachingOptimized managed cache policy
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # CORS-S3Origin managed origin request policy
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
+          ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -613,18 +697,22 @@ Resources:
               - !GetAtt network.Outputs.PrivateSubnet2
         VpcId: !GetAtt network.Outputs.EgressVpc
         ADPasswordParam: !Ref ADPasswordParam
+  idp:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-idp.yaml
+      Parameters:
+        Environment: !Ref Environment
+        IdentityProvider: !Ref SystemIdentityProvider
+        AdminUsername: !Ref AdminUsername
+        AdminEmailAddress: !Ref AdminEmailAddress
+        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
   web:
     Type: AWS::CloudFormation::Stack
-    # Make sure we delete the web stack before clearing out the logging bucket or new logs
-    # from S3 website hosting may be generated between clearing the bucket and trying to
-    # delete the bucket
-    DependsOn: InvokeClearLoggingBucket
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
-        AdminEmailAddress: !Ref AdminEmailAddress
-        WebS3Bucket: !Ref AdminWeb
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -765,7 +853,7 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -778,7 +866,7 @@ Resources:
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -894,6 +982,11 @@ Outputs:
     Value: !Ref AdminWeb
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:webBucket
+  AdminWebUrl:
+    Description: Saas Boost admin web app URL
+    Value: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
+    Export:
+      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webUrl
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Value: !Ref Pipelines
