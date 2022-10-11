@@ -311,6 +311,11 @@ Resources:
               - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
           - Effect: Allow
             Action:
+              - cloudfront:GetDistribution
+            Resource:
+              - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+          - Effect: Allow
+            Action:
               - apigateway:GET
             Resource:
               - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*/resources
