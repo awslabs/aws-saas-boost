@@ -48,18 +48,6 @@ if ! command -v mvn >/dev/null 2>&1; then
 	exit 2
 fi
 
-# check for Yarn
-if ! command -v yarn >/dev/null 2>&1; then
-	echo "Yarn package manager for Node must be installed."
-	exit 2
-fi
-
-# check for Node
-if ! command -v node >/dev/null 2>&1; then
-	echo "Node must be installed."
-	exit 2
-fi
-
 # check for AWS region
 if [ -z $AWS_DEFAULT_REGION ]; then
 	export AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
@@ -104,14 +92,6 @@ echo "Building installer..."
 mvn --quiet -Dspotbugs.skip > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Error building installer for SaaS Boost."
-	exit 2
-fi
-
-cd ${CURRENT_DIR}/client/web
-echo "Downloading Node dependencies for React web app..."
-yarn
-if [ $? -ne 0 ]; then
-	echo "Error executing Yarn, check Node version per documentation."
 	exit 2
 fi
 

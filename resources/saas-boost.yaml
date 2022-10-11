@@ -713,6 +713,14 @@ Resources:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        AdminWebBucket: !Ref AdminWeb
+        AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
+        ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
+        UserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        UserPoolBaseUri: !If [UseCognito, !GetAtt idp.Outputs.CognitoSignOnBaseUri, '']
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -975,18 +983,12 @@ Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources
     Value: !Ref SaaSBoostBucket
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:saasBoostBucket
   WebS3Bucket:
     Description: S3 bucket for web assets
     Value: !Ref AdminWeb
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webBucket
   AdminWebUrl:
     Description: Saas Boost admin web app URL
     Value: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webUrl
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Value: !Ref Pipelines
