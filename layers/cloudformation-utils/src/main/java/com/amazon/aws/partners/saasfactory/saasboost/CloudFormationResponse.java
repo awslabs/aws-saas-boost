@@ -52,6 +52,16 @@ public class CloudFormationResponse {
     private CloudFormationResponse() {
     }
 
+    public static void signal(String waitHandle, boolean success, String uniqueId, String data, String reason) {
+        String responseBody = Utils.toJson(Map.of(
+                "Status", (success ? "SUCCESS" : "FAILURE"),
+                "UniqueId", uniqueId,
+                "Data", Objects.toString(data),
+                "Reason", Objects.toString(reason)
+        ));
+        send(waitHandle, responseBody);
+    }
+
     public static void send(Map<String, Object> event, Context context, String responseStatus,
                             Map<String, Object> responseData) {
         send(event, context, responseStatus, responseData, false);
@@ -61,7 +71,10 @@ public class CloudFormationResponse {
                             Map<String, Object> responseData, boolean noEcho) {
         String responseBody = buildResponseBody(event, context, responseStatus, responseData, noEcho);
         String responseUrl = (String) event.get("ResponseURL");
+        send(responseUrl, responseBody);
+    }
 
+    protected static void send(String responseUrl, String responseBody) {
         // Super helpful command line equivalent to copy/paste from CloudWatch if things are stuck
         LOGGER.info("curl -H 'Content-Type: \"\"' -X PUT -d '" + responseBody + "' \"" + responseUrl + "\"");
 

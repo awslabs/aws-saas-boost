@@ -64,6 +64,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.Constants.AWS_REGION;
 import static com.amazon.aws.partners.saasfactory.saasboost.Constants.OS;
@@ -108,7 +110,7 @@ public class SaaSBoostInstall {
         UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
         DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
         CANCEL(6, "Exit installer.", false);
-//        DEBUG(7, "Debug", false);
+        //DEBUG(7, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -174,9 +176,8 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void debug() {
-//        getExistingSaaSBoostLambdasFolder();
-//        processLambdas();
+    protected void debug(String existingBucket) {
+        copyAdminWebAppSourceToS3(workingDir, null, null);
     }
 
     public void start(String existingBucket) {
@@ -246,9 +247,9 @@ public class SaaSBoostInstall {
             case CANCEL:
                 cancel();
                 break;
-        //    case DEBUG:
-        //        debug();
-        //        break;
+            //case DEBUG:
+            //    debug(existingBucket);
+            //    break;
             default:
                 cancel();
         }
@@ -288,6 +289,24 @@ public class SaaSBoostInstall {
             }
         }
 
+        String systemIdentityProvider;
+        while (true) {
+            System.out.print("Enter the identity provider to use for system users (Cognito or Keycloak) Press Enter for 'Cognito': ");
+            systemIdentityProvider = Keyboard.readString();
+            if (isNotBlank(systemIdentityProvider)) {
+                if (systemIdentityProvider.toUpperCase().equals("COGNITO")
+                        || systemIdentityProvider.toUpperCase().equals("KEYCLOAK")) {
+                    systemIdentityProvider = systemIdentityProvider.toUpperCase();
+                    break;
+                } else {
+                    outputMessage("Invalid identity provider. Enter either Cognito or Keycloak.");
+                }
+            } else {
+                systemIdentityProvider = "COGNITO";
+                break;
+            }
+        }
+
         System.out.print("Would you like to install the metrics and analytics module of AWS SaaS Boost (y or n)? ");
         this.useAnalyticsModule = Keyboard.readBoolean();
 
@@ -312,6 +331,7 @@ public class SaaSBoostInstall {
         outputMessage("AWS Region: " + AWS_REGION.toString());
         outputMessage("AWS SaaS Boost Environment Name: " + this.envName);
         outputMessage("Admin Email Address: " + emailAddress);
+        outputMessage("System Identity Provider: " + systemIdentityProvider);
         outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
         if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
             outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
@@ -352,6 +372,8 @@ public class SaaSBoostInstall {
         } else {
             outputMessage("Reusing existing artifacts bucket " + existingBucket);
             saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyTemplateFilesToS3();
             try {
                 s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
             } catch (SdkServiceException s3error) {
@@ -397,7 +419,8 @@ public class SaaSBoostInstall {
         // Run CloudFormation create stack
         outputMessage("Running CloudFormation");
         this.stackName = "sb-" + envName;
-        createSaaSBoostStack(stackName, emailAddress, setupActiveDirectory, activeDirectoryPasswordParameterName);
+        createSaaSBoostStack(stackName, emailAddress, systemIdentityProvider, setupActiveDirectory,
+                activeDirectoryPasswordParameterName);
 
         if (useAnalyticsModule) {
             LOGGER.info("Install metrics and analytics module");
@@ -411,7 +434,7 @@ public class SaaSBoostInstall {
 
         outputMessage("Check the admin email box for the temporary password.");
         outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
-        //outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
+        outputMessage("AWS SaaS Boost Console URL is: " + baseStackDetails.get("AdminWebUrl"));
     }
 
     protected void deleteSaasBoostInstallation() {
@@ -1126,13 +1149,13 @@ public class SaaSBoostInstall {
     }
 
     protected void copyTemplateFilesToS3() {
-        final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.{yaml,yml}");
         final Path resourcesDir = workingDir.resolve(Path.of("resources"));
         try (Stream<Path> stream = Files.list(resourcesDir)) {
             Set<Path> cloudFormationTemplates = stream
-                    .filter(filter::matches)
+                    .filter(file -> Files.isRegularFile(file)
+                            && file.getFileName().toString().endsWith(".yaml"))
                     .collect(Collectors.toSet());
-            outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
+            outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation resources to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
                 LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> "
                         + cloudFormationTemplate.getFileName().toString());
@@ -1143,6 +1166,11 @@ public class SaaSBoostInstall {
             LOGGER.error("Error listing resources directory", ioe);
             LOGGER.error(getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
+        }
+        Path keycloakResources = resourcesDir.resolve(Path.of("keycloak", "Dockerfile"));
+        if (Files.exists(keycloakResources)) {
+            LOGGER.info("Uploading Keycloak resources to S3");
+            saasBoostArtifactsBucket.putFile(s3, keycloakResources, Path.of("keycloak", "Dockerfile"));
         }
     }
 
@@ -1302,13 +1330,15 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void createSaaSBoostStack(final String stackName, String adminEmail, Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
+    protected void createSaaSBoostStack(final String stackName, String adminEmail, String systemIdentityProvider,
+                                        Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
         // Note - most params the default is used from the CloudFormation stack
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
         templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(adminEmail).build());
         templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
+        templateParameters.add(Parameter.builder().parameterKey("SystemIdentityProvider").parameterValue(systemIdentityProvider).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
         templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
@@ -1503,8 +1533,6 @@ public class SaaSBoostInstall {
 
         // Sync files to the web bucket
         outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
-        // First, clear out any files that are currently in the artifacts bucket
-        cleanUpS3(s3, artifactsBucket, "client/web/");
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(webDir)) {
             filesToUpload = stream
@@ -1517,24 +1545,39 @@ public class SaaSBoostInstall {
                     )
                     .collect(Collectors.toList());
             outputMessage("Uploading " + filesToUpload.size() + " files to S3");
-            for (Path fileToUpload : filesToUpload) {
+
+            // Create a ZIP archive of the source files so we only call s3 put object once
+            // and so we can trigger the CodeBuild project off of that single s3 event
+            // (instead of triggering CodeBuild 180+ times -- once for each file put to s3).
+            try {
+                ByteArrayOutputStream src = new ByteArrayOutputStream();
+                ZipOutputStream zip = new ZipOutputStream(src);
+                for (Path fileToUpload : filesToUpload) {
+                    // java.nio.file.Path will use OS dependent file separators
+                    String fileName = fileToUpload.toFile().toString().replace('\\', '/');
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zip.putNextEntry(entry);
+                    zip.write(Files.readAllBytes(fileToUpload)); // all of our files are very small
+                    zip.closeEntry();
+                }
+                zip.close();
                 try {
                     // Now copy the admin web app source files up to the artifacts bucket
                     // This will trigger a CodeBuild project to build and deploy the app
-                    String key = fileToUpload.toFile().toString();
+                    // if done after the initial install of SaaS Boost
                     s3.putObject(PutObjectRequest.builder()
                             .bucket(artifactsBucket)
-                            // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
-                            // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
-                            // definitions of the Lambda functions will always use forward slashes for the S3Key property.
-                            .key(key.replace('\\', '/'))
-                            .build(), RequestBody.fromFile(fileToUpload)
+                            .key("client/web/src.zip")
+                            .build(), RequestBody.fromBytes(src.toByteArray())
                     );
                 } catch (SdkServiceException s3Error) {
                     LOGGER.error("s3:PutObject error", s3Error);
                     LOGGER.error(getFullStackTrace(s3Error));
                     throw s3Error;
                 }
+            } catch (IOException ioe) {
+                LOGGER.error("ZIP archive generation failed");
+                throw new RuntimeException(Utils.getFullStackTrace(ioe));
             }
         } catch (IOException ioe) {
             LOGGER.error("Error walking client/web directory", ioe);

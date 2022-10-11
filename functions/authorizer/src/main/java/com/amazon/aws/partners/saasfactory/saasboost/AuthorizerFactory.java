@@ -29,6 +29,8 @@ public class AuthorizerFactory {
         switch (identityProvider) {
             case "COGNITO":
                 return new CognitoAuthorizer();
+            case "KEYCLOAK":
+                return new KeycloakAuthorizer();
             default:
                 return null;
         }

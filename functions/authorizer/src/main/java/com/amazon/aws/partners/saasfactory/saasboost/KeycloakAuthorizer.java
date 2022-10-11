@@ -23,21 +23,15 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CognitoAuthorizer implements Authorizer {
+public class KeycloakAuthorizer implements Authorizer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CognitoAuthorizer.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(KeycloakAuthorizer.class);
 
     @Override
     public boolean verifyToken(TokenAuthorizerRequest request) {
-        // TODO add aud claim and pass client id in to the Lambda as an env variable
         JWTVerifier verifier = JWT
-                .require(Algorithm.RSA256(new CognitoKeyProvider()))
+                .require(Algorithm.RSA256(new KeycloakKeyProvider()))
                 .acceptLeeway(5L) // Allowed seconds of clock skew between token issuer and verifier
-                .withClaim("token_use", (claim, token) -> (
-                        // Per Cognito documentation, make sure we got an Access or Identity token
-                        // (not a refresh token)
-                        "access".equals(claim.asString()) || "id".equals(claim.asString()))
-                )
                 .build();
         boolean valid = false;
         try {

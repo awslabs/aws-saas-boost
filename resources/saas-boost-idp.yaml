@@ -18,6 +18,30 @@ Parameters:
   Environment:
     Description: SaaS Boost environment name
     Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  CodePipelineUpdateEcsService:
+    Description: Lambda ARN to update ECS desired count
+    Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  CloudFormationWaitHandleCallback:
+    Description: CodePipelineWaitHandler Lambda ARN
+    Type: String
   IdentityProvider:
     Description: Identity Provider for the SaaS Boost system users and Control Plane API authorization
     Type: String
@@ -35,24 +59,32 @@ Parameters:
   AdminWebDomainName:
     Description: The FQDN (do not include the protocol) where the SaaS Boost admin web console is hosted.
     Type: String
-  SaaSBoostBucket:
-    Description: The bucket containing the SaaS Boost logo for configuration of IDP hosted UIs.
-    Type: String
   LogoS3Key:
     Description: The S3 key of the SaaS Boost logo for configuration of IDP hosted UIs.
     Type: String
-  LambdaSourceFolder:
-    Description: Folder for lambda source code to change on each deployment
+  VPC:
     Type: String
-  SaaSBoostUtilsLayer:
-    Description: Utils Layer ARN
+    Description: The SaaS Boost VPC ID.
+  PublicSubnets:
+    Description: SaaS Boost VPC public subnets
     Type: String
-  CloudFormationUtilsLayer:
-    Description: CloudFormation Utils Layer ARN
+  PrivateSubnets:
+    Description: SaaS Boost VPC public subnets
     Type: String
 Conditions:
   UseCognito: !Equals [!Ref IdentityProvider, 'COGNITO']
+  UseKeycloak: !Equals [!Ref IdentityProvider, 'KEYCLOAK']
 Resources:
+  SaaSBoostAdminCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub sb-${Environment}-admin
+      GenerateSecretString:
+        IncludeSpace: false
+        ExcludePunctuation: true
+        PasswordLength: 12
+        GenerateStringKey: password
+        SecretStringTemplate: !Sub '{"username": "${AdminUsername}", "email": "${AdminEmailAddress}"}'
   UserPool:
     Type: AWS::Cognito::UserPool
     Condition: UseCognito
@@ -206,6 +238,25 @@ Resources:
       UserPoolId: !Ref UserPool
       LogoS3Bucket: !Ref SaaSBoostBucket
       LogoS3Key: !Ref LogoS3Key
+  keycloak:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseKeycloak
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-keycloak.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        CodePipelineBucket: !Ref CodePipelineBucket
+        CodePipelineUpdateEcsService: !Ref CodePipelineUpdateEcsService
+        StartCodeBuildLambda: !Ref StartCodeBuildLambda
+        CloudFormationWaitHandleCallback: !Ref CloudFormationWaitHandleCallback
+        AdminCredentials: !Ref SaaSBoostAdminCredentials
+        VPC: !Ref VPC
+        PublicSubnets: !Ref PublicSubnets
+        PrivateSubnets: !Ref PrivateSubnets
 Outputs:
   SBUserPool:
     Condition: UseCognito
@@ -219,4 +270,16 @@ Outputs:
     Condition: UseCognito
     Description: URL for Cognito Hosted signon base URI
     Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
+  KeycloakHost:
+    Condition: UseKeycloak
+    Description: URL for the Keycloak install
+    Value: !GetAtt keycloak.Outputs.KeycloakHost
+  KeycloakRealm:
+    Condition: UseKeycloak
+    Description: URL for the Keycloak install
+    Value: !GetAtt keycloak.Outputs.KeycloakRealm
+  KeycloakDatabaseEndpoint:
+    Condition: UseKeycloak
+    Description: Keycloak database hostname
+    Value: !GetAtt keycloak.Outputs.KeycloakDatabaseEndpoint
 ...

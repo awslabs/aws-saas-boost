@@ -26,7 +26,7 @@ LAMBDA_STAGE_FOLDER=$2
 if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
-LAMBDA_CODE=StartCodeBuild-lambda.zip
+LAMBDA_CODE=KeycloakSetup-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
@@ -48,5 +48,11 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-printf "Updating function code for sb-${ENVIRONMENT}-start-build\n"
-aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "sb-${ENVIRONMENT}-start-build" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+FUNCTION="sb-${ENVIRONMENT}-keycloak-setup"
+
+# Make sure the function exists before trying to update it
+aws lambda --region "$MY_AWS_REGION" get-function --function-name "$FUNCTION" > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    printf "Updating function code for sb-${ENVIRONMENT}-keycloak-setup\n"
+    aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "$FUNCTION" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+fi
