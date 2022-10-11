@@ -434,7 +434,7 @@ public class Utils {
         try (InputStream propertiesFile = clazz.getClassLoader().getResourceAsStream(GIT_PROPERTIES_FILENAME)) {
             Properties versionProperties = new Properties();
             versionProperties.load(propertiesFile);
-            version = versionProperties.getProperty("git.commit.id.describe");
+            version = Utils.toJson(GitVersionInfo.fromProperties(versionProperties));
         } catch (Exception e) {
             LOGGER.error("Error loading version info from {} for {}", GIT_PROPERTIES_FILENAME, clazz.getName());
             LOGGER.error(Utils.getFullStackTrace(e));
