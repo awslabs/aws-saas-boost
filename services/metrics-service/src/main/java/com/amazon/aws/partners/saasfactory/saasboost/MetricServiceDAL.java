@@ -57,7 +57,7 @@ public class MetricServiceDAL {
     private final ApplicationAutoScalingClient autoScaling;
     private final CloudWatchClient cloudWatch;
     private final S3Client s3;
-    private final S3Presigner s3Presigner;
+    private final S3Presigner presigner;
     private final AthenaClient athenaClient;
     private final Map<String, MetricDimension> dataQueryDimMap = new LinkedHashMap<>();
 
@@ -82,10 +82,14 @@ public class MetricServiceDAL {
         this.cloudWatch = Utils.sdkClient(CloudWatchClient.builder(), CloudWatchClient.SERVICE_NAME);
         this.autoScaling = Utils.sdkClient(ApplicationAutoScalingClient.builder(), ApplicationAutoScalingClient.SERVICE_NAME);
         try {
-            this.s3Presigner = S3Presigner.builder()
+            String presignerEndpoint = "https://" + s3.serviceName() + "."
+                + Region.of(AWS_REGION)
+                + "."
+                + Utils.endpointSuffix(AWS_REGION);
+            this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                     .region(Region.of(AWS_REGION))
-                    .endpointOverride(new URI("https://" + s3.serviceName() + "." + Region.of(AWS_REGION) + ".amazonaws.com")) // will break in China regions
+                    .endpointOverride(new URI(presignerEndpoint))
                     .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -724,7 +728,7 @@ public class MetricServiceDAL {
 
         // Generate the presigned request
         LOGGER.info("Generating presigned S3 URL for {}{}", S3_ATHENA_BUCKET, key);
-        PresignedGetObjectRequest presignedGetObjectRequest = s3Presigner.presignGetObject(getObjectPresignRequest);
+        PresignedGetObjectRequest presignedGetObjectRequest = presigner.presignGetObject(getObjectPresignRequest);
         URL url;
         if (presignedGetObjectRequest.isBrowserExecutable()) {
             url = presignedGetObjectRequest.url();

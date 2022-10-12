@@ -85,10 +85,14 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
         try {
+            String presignerEndpoint = "https://" + s3.serviceName() + "."
+                    + Region.of(AWS_REGION)
+                    + "."
+                    + Utils.endpointSuffix(AWS_REGION);
             this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                     .region(Region.of(AWS_REGION))
-                    .endpointOverride(new URI("https://" + s3.serviceName() + "." + Region.of(AWS_REGION) + ".amazonaws.com")) // will break in China regions
+                    .endpointOverride(new URI(presignerEndpoint))
                     .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

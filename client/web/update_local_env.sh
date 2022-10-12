@@ -20,8 +20,9 @@ if [ "z$myEnv" == "z" ]; then
     read -p "What environment? " myEnv
 fi
 
-echo "$AWS_DEFAULT_REGION $AWS_REGION" > .env
-myRegion="us-west-2"
+rm .env
+
+myRegion=$(aws configure list | grep region | awk '{print $2}')
 echo "AWS_DEFAULT_REGION=$myRegion" >> .env
 echo "REACT_APP_AWS_REGION=$myRegion" >> .env
 echo "REACT_APP_ENVIRONMENT=$myEnv" >> .env

@@ -54,6 +54,23 @@ public class AwsClientBuilderFactory {
     private final Region awsRegion;
     private final AwsCredentialsProvider credentialsProvider;
 
+    private ApiGatewayClientBuilder cachedApiGatewayBuilder;
+    private CloudFormationClientBuilder cachedCloudFormationBuilder;
+    private EcrClientBuilder cachedEcrBuilder;
+    private IamClientBuilder cachedIamBuilder;
+    private LambdaClientBuilder cachedLambdaBuilder;
+    private QuickSightClientBuilder cachedQuickSightBuilder;
+    private S3ClientBuilder cachedS3Builder;
+    private SsmClientBuilder cachedSsmBuilder;
+    private StsClientBuilder cachedStsBuilder;
+    private SecretsManagerClientBuilder cachedSecretsManagerClientBuilder;
+
+    AwsClientBuilderFactory() {
+        // for testing
+        this.awsRegion = null;
+        this.credentialsProvider = null;
+    }
+
     private AwsClientBuilderFactory(Builder builder) {
         // passing no region or a null region to any of the AWS Client Builders
         // leads to the default region from the configured profile being used
@@ -71,54 +88,85 @@ public class AwsClientBuilderFactory {
     }
 
     public ApiGatewayClientBuilder apiGatewayBuilder() {
-        // override throttling policy to wait 5 seconds if we're throttled on CreateDeployment
-        // https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html
-        return decorateBuilderWithDefaults(ApiGatewayClient.builder())
+        if (cachedApiGatewayBuilder == null) {
+            // override throttling policy to wait 5 seconds if we're throttled on CreateDeployment
+            // https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html
+            cachedApiGatewayBuilder = decorateBuilderWithDefaults(ApiGatewayClient.builder())
                 .overrideConfiguration(config -> config.retryPolicy(AwsRetryPolicy.addRetryConditions(
-                        RetryPolicy.builder().throttlingBackoffStrategy(retryPolicyContext -> {
-                            if (retryPolicyContext.originalRequest() instanceof CreateDeploymentRequest) {
-                                return Duration.ofSeconds(5);
-                            }
-                            return null;
-                        }).build())));
+                    RetryPolicy.builder().throttlingBackoffStrategy(retryPolicyContext -> {
+                        if (retryPolicyContext.originalRequest() instanceof CreateDeploymentRequest) {
+                            return Duration.ofSeconds(5);
+                        }
+                        return null;
+                    }).build())));
+        }
+        
+        return cachedApiGatewayBuilder;
     }
 
     public CloudFormationClientBuilder cloudFormationBuilder() {
-        return decorateBuilderWithDefaults(CloudFormationClient.builder());
+        if (cachedCloudFormationBuilder == null) {
+            cachedCloudFormationBuilder = decorateBuilderWithDefaults(CloudFormationClient.builder());
+        }
+        return cachedCloudFormationBuilder;
     }
 
     public EcrClientBuilder ecrBuilder() {
-        return decorateBuilderWithDefaults(EcrClient.builder());
+        if (cachedEcrBuilder == null) {
+            cachedEcrBuilder = decorateBuilderWithDefaults(EcrClient.builder());
+        }
+        return cachedEcrBuilder;
     }
 
     public IamClientBuilder iamBuilder() {
-        // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
-        // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
-        return decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+        if (cachedIamBuilder == null) {
+            // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
+            // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+            cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+        }
+        return cachedIamBuilder;
     }
 
     public LambdaClientBuilder lambdaBuilder() {
-        return decorateBuilderWithDefaults(LambdaClient.builder());
+        if (cachedLambdaBuilder == null) {
+            cachedLambdaBuilder = decorateBuilderWithDefaults(LambdaClient.builder());
+        }
+        return cachedLambdaBuilder;
     }
 
     public QuickSightClientBuilder quickSightBuilder() {
-        return decorateBuilderWithDefaults(QuickSightClient.builder());
+        if (cachedQuickSightBuilder == null) {
+            cachedQuickSightBuilder = decorateBuilderWithDefaults(QuickSightClient.builder());
+        }
+        return cachedQuickSightBuilder;
     }
 
     public S3ClientBuilder s3Builder() {
-        return decorateBuilderWithDefaults(S3Client.builder());
+        if (cachedS3Builder == null) {
+            cachedS3Builder = decorateBuilderWithDefaults(S3Client.builder());
+        }
+        return cachedS3Builder;
     }
 
     public SsmClientBuilder ssmBuilder() {
-        return decorateBuilderWithDefaults(SsmClient.builder());
+        if (cachedSsmBuilder == null) {
+            cachedSsmBuilder = decorateBuilderWithDefaults(SsmClient.builder());
+        }
+        return cachedSsmBuilder;
     }
 
     public StsClientBuilder stsBuilder() {
-        return decorateBuilderWithDefaults(StsClient.builder());
+        if (cachedStsBuilder == null) {
+            cachedStsBuilder = decorateBuilderWithDefaults(StsClient.builder());
+        }
+        return cachedStsBuilder;
     }
 
     public SecretsManagerClientBuilder secretsManagerBuilder() {
-        return decorateBuilderWithDefaults(SecretsManagerClient.builder());
+        if (cachedSecretsManagerClientBuilder == null) {
+            cachedSecretsManagerClientBuilder = decorateBuilderWithDefaults(SecretsManagerClient.builder());
+        }
+        return cachedSecretsManagerClientBuilder;
     }
 
     public static Builder builder() {

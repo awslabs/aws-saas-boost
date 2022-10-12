@@ -32,11 +32,10 @@ import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.*;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
-import software.amazon.awssdk.services.sts.model.AssumedRoleUser;
 import software.amazon.awssdk.services.sts.model.Credentials;
 import software.amazon.awssdk.utils.StringInputStream;
 
@@ -56,13 +55,13 @@ public class ApiGatewayHelper {
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final Aws4Signer SIG_V4 = Aws4Signer.create();
-    private static SdkHttpClient HTTP_CLIENT = ApacheHttpClient.builder().build();
-    //private static final StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+    private static SdkHttpClient HTTP_CLIENT = UrlConnectionHttpClient.create();
     private static final StsClient sts = StsClient.builder()
             .httpClient(HTTP_CLIENT)
             .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
             .region(Region.of(AWS_REGION))
-            .endpointOverride(URI.create("https://" + StsClient.SERVICE_NAME + "." + Region.of(AWS_REGION).toString() + ".amazonaws.com"))
+            .endpointOverride(URI.create("https://" + StsClient.SERVICE_NAME + "." + AWS_REGION
+                    + "." + Utils.endpointSuffix(AWS_REGION)))
             .overrideConfiguration(ClientOverrideConfiguration.builder()
                     .retryPolicy(RetryPolicy.builder()
                             .backoffStrategy(BackoffStrategy.defaultStrategy())
@@ -97,17 +96,6 @@ public class ApiGatewayHelper {
         HttpExecuteRequest.Builder requestBuilder = HttpExecuteRequest.builder().request(signedApiRequest != null ? signedApiRequest : apiRequest);
         apiRequest.contentStreamProvider().ifPresent(c -> requestBuilder.contentStreamProvider(c));
         HttpExecuteRequest apiExecuteRequest = requestBuilder.build();
-
-//        StringBuilder buffer = new StringBuilder();
-//        for (Map.Entry<String, List<String>> header : apiExecuteRequest.httpRequest().headers().entrySet()) {
-//            buffer.append(header.getKey());
-//            buffer.append(": ");
-//            buffer.append(header.getValue());
-//            buffer.append("\n");
-//        }
-//        LOGGER.info(buffer.toString());
-
-        LOGGER.info("Calling REST API " + apiExecuteRequest.httpRequest().getUri());
         BufferedReader responseReader = null;
         String responseBody;
         try {

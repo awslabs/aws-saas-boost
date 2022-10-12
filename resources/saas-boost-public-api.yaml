@@ -18,6 +18,15 @@ Parameters:
   Environment:
     Description: Environment name
     Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
   PublicApi:
     Description: API Gateway REST API
     Type: String
@@ -125,6 +134,68 @@ Parameters:
     Description: User Service auth token Lambda ARN
     Type: String
 Resources:
+  AuthorizerExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-authorizer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-authorizer-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  AuthorizerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-authorizer
+      RetentionInDays: 30
+  AuthorizerLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: AuthorizerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-authorizer
+      Role: !GetAtt AuthorizerExecRole.Arn
+      Runtime: java11
+      Timeout: 30
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayAuthorizer
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/Authorizer-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          IDENTITY_PROVIDER: COGNITO
+          USER_POOL_ID: !Ref CognitoUserPoolId
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "Authorizer"
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
     Properties:
@@ -140,20 +211,50 @@ Resources:
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
   ApiGatewayLoggingAccount:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
-  CognitoAuthorizer:
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${PublicApi}
+      RetentionInDays: 30
+  ApiGatewayLambdaAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-authorizer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-authorizer-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:invokeFunction
+                Resource:
+                  - !GetAtt AuthorizerLambda.Arn
+  ApiGatewayLambdaAuthorizer:
     Type: AWS::ApiGateway::Authorizer
     Properties:
-      Name: CognitoAuthorizer
       RestApiId: !Ref PublicApi
-      Type: COGNITO_USER_POOLS
-      ProviderARNs:
-        - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+      Type: TOKEN
+      Name: !Sub sb-${Environment}-pub-api-authorizer
+      AuthorizerCredentials: !GetAtt ApiGatewayLambdaAuthorizerRole.Arn
       IdentitySource: method.request.header.Authorization
+      IdentityValidationExpression: ^[Bb]earer [A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$
+      AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambda.Arn}/invocations
   BillingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -202,14 +303,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref BillingServicePlansResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -222,7 +321,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref BillingServiceGetPlans
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/billing/plans
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/billing/plans
   MetricsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -271,14 +370,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceQueryResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -291,7 +388,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceQuery
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/metrics/query
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/metrics/query
   MetricsServiceQueryResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -328,14 +425,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceDatasetsResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -348,7 +443,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceDatasets
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/datasets
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/datasets
   MetricsServiceDatasetsResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -385,17 +480,15 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceAlbQueryResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters:
           integration.request.path.metric: 'method.request.path.metric'
@@ -411,7 +504,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}
   MetricsServiceAlbQueryResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -448,10 +541,8 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters:
         method.request.path.metric: true
         method.request.path.timerange: true
@@ -459,7 +550,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters:
           integration.request.path.metric: 'method.request.path.metric'
@@ -476,7 +567,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
   MetricsServiceAlbQueryByTenantIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -525,14 +616,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -545,21 +634,19 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding
   OnboardingServiceStartMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceStart}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceStart}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -572,7 +659,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceStart
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/onboarding
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/onboarding
   OnboardingServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -609,15 +696,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref OnboardingServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -631,7 +716,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding/{id}
   OnboardingServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -692,14 +777,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -712,7 +795,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings
   SettingsServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -749,14 +832,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceOptionsResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceOptions}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceOptions}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -769,7 +850,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceOptions
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/options
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/options
   SettingsServiceOptionsResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -806,14 +887,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAppConfig}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAppConfig}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -826,21 +905,19 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAppConfig
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
   SettingsServiceUpdateAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdateAppConfig}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdateAppConfig}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -853,7 +930,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceUpdateAppConfig
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/settings/config
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/settings/config
   SettingsServiceConfigResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -890,15 +967,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref SettingsServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -912,7 +987,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/{id}
   SettingsServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -973,14 +1048,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -993,7 +1066,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants
   TenantServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1030,15 +1103,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1052,22 +1123,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/{id}
   TenantServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1081,22 +1150,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceUpdate
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tenants/{id}
   TenantServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDelete}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDelete}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1110,7 +1177,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceDelete
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tenants/{id}
   TenantServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1147,15 +1214,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceEnableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceEnable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceEnable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1169,7 +1234,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceEnable
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/enable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/enable
   TenantServiceEnableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1206,15 +1271,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TenantServiceDisableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDisable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDisable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1228,7 +1291,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceDisable
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/disable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/disable
   TenantServiceDisableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1337,15 +1400,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1359,22 +1420,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers
   TierServiceCreateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceCreate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceCreate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1388,22 +1447,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceCreate
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/tiers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/tiers
   TierServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1417,22 +1474,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceGetById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers/{id}
   TierServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceUpdate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceUpdate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1446,22 +1501,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceUpdate
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tiers/{id}
   TierServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceDelete}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceDelete}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1475,7 +1528,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceDelete
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tiers/{id}
   UserServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1512,14 +1565,12 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -1532,21 +1583,19 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceGetAll
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users
   UserServiceInsertMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceResource
       HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceInsert}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceInsert}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -1559,7 +1608,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceInsert
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users
   UserServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1596,15 +1645,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1618,22 +1665,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceById
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users/{id}
   UserServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceUpdate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceUpdate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1647,22 +1692,20 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceUpdate
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/users/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/users/{id}
   UserServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceByIdResource
       HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDelete}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDelete}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1676,7 +1719,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceDelete
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/users/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/users/{id}
   UserServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1713,15 +1756,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceEnableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceEnable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceEnable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1735,7 +1776,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceEnable
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/enable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/enable
   UserServiceEnableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1772,15 +1813,13 @@ Resources:
       RestApiId: !Ref PublicApi
       ResourceId: !Ref UserServiceDisableResource
       HttpMethod: PATCH
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      AuthorizationScopes:
-        - aws.cognito.signin.user.admin
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDisable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDisable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1794,7 +1833,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceDisable
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/disable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/disable
   UserServiceDisableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1835,7 +1874,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceToken}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceToken}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
@@ -1848,7 +1887,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref UserServiceToken
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users/token
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users/token
   UserServiceTokenResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1933,20 +1972,25 @@ Resources:
       - UserServiceTokenResourceCORS
     Properties:
       RestApiId: !Ref PublicApi
-      #StageDescription:
-      #  DataTraceEnabled: true
-      #  LoggingLevel: ERROR
-      #StageName: !Ref PublicApiStage
   ApiStage:
     Type: AWS::ApiGateway::Stage
+    DependsOn: ApiGatewayLoggingAccount
     Properties:
       RestApiId: !Ref PublicApi
       StageName: !Ref PublicApiStage
       DeploymentId: !Ref ApiDeployment
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+        Format: "{\"operationName\":\"$context.operationName\",\"userAgent\":\"$context.identity.userAgent\",\"extendedRequestId\":\"$context.extendedRequestId\",\"requestId\":\"$context.requestId\",\"ip\":\"$context.identity.sourceIp\",\"accountId\":\"$context.identity.accountId\",\"user\":\"$context.identity.user\",\"userArn\":\"$context.identity.userArn\",\"principalOrgId\":\"$context.identity.principalOrgId\",\"requestTime\":\"$context.requestTime\",\"httpMethod\":\"$context.httpMethod\",\"resourcePath\":\"$context.resourcePath\",\"requestPath\":\"$context.path\",\"status\":\"$context.status\",\"latency\":\"$context.responseLatency\",\"integrationLatency\":\"$context.integrationLatency\",\"integrationErrorMessage\":\"$context.integrationErrorMessage\",\"authorizerLatency\":\"$context.authorizer.integrationLatency\",\"xrayTraceId\":\"$context.xrayTraceId\",\"responseLength\":\"$context.responseLength\",\"stage\":\"$context.stage\",\"executions\":$context.executions}"
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          ResourcePath: '/*'
 Outputs:
   PublicApiGatewayEndpoint:
     Description: SaaS Boost Admin PI Gateway Invoke URL
-    Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStage}'
+    Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
     Export:
       Name: !Sub saas-boost::${Environment}-${AWS::Region}:publicApiUrl
 ...

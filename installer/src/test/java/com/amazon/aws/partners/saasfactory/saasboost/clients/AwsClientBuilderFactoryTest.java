@@ -22,8 +22,12 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
+
+import java.lang.reflect.Method;
+import java.util.List;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -77,6 +81,24 @@ public class AwsClientBuilderFactoryTest {
                         .credentialsProvider(DefaultCredentialsProvider.create())
                         .build(),
                 DEFAULT_EXPECTED_REGION, expectedCredentialsProviderClass);
+    }
+
+    @Test
+    public void verifyFactoryCachingForAllBuilders() {
+        AwsClientBuilderFactory factory = AwsClientBuilderFactory.builder().build();
+        // for each method that returns a builder..
+        for (Method m : factory.getClass().getMethods()) {
+            // checking if the return type implements AwsSyncClientBuilder
+            if (List.of(m.getReturnType().getInterfaces()).contains(AwsSyncClientBuilder.class)) {
+                try {
+                    AwsSyncClientBuilder b = (AwsSyncClientBuilder) m.invoke(factory);
+                    // invoking the builder function again should not create a new builder
+                    assertEquals(b, (AwsSyncClientBuilder) m.invoke(factory));
+                } catch (Exception e) {
+                    throw new RuntimeException("test failed", e);
+                }
+            }
+        }
     }
 
     private void runBoostAwsClientBuilderFactoryTest(

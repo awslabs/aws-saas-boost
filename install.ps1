@@ -19,6 +19,13 @@ $CURRENT_DIR = Split-Path $script:MyInvocation.MyCommand.Path
 
 Write-host "Current directory is $CURRENT_DIR"
 
+# Check for utils
+if (-not (Test-Path -Path ${CURRENT_DIR}\layers\utils -PathType Container))
+{
+    Write-Host "Directory ${CURRENT_DIR}\layers\utils not found"
+    Exit 2
+}
+
 # Check for installer
 if (-not (Test-Path -Path ${CURRENT_DIR}\installer -PathType Container))
 {
@@ -117,8 +124,42 @@ if ([string]::IsNullOrWhiteSpace($AWS_REGION))
     echo "AWS_REGION not set, check your aws profile or set AWS_DEFAULT_REGION"
     Exit 2
 }
+aws ec2 describe-regions | Select-String -Pattern "$AWS_REGION" | Out-Null
+if (-not $?)
+{
+    Write-host "Invalid region $AWS_REGION set, please set a valid region using aws configure"
+    Exit 2
+}
 
-cd installer
+cd ${CURRENT_DIR}
+Write-host "Building requirements for SaaS Boost"
+mvn --quiet --non-recursive "-Dspotbugs.skip" install 2>&1 | Out-Null
+if (-not $?)
+{
+    Write-host "Error building parent pomfile for SaaS Boost"
+    Exit 2
+}
+
+cd ${CURRENT_DIR}\layers
+mvn --quiet --non-recursive "-Dspotbugs.skip" install 2>&1 | Out-Null
+if (-not $?)
+{
+    Write-host "Error building layers pomfile for SaaS Boost Utils"
+    Exit 2
+}
+Write-host "Requirements build completed"
+
+cd ${CURRENT_DIR}\layers\utils
+Write-host "Building Java Utils with maven"
+mvn --quiet "-Dspotbugs.skip" 2>&1 | Out-Null
+if (-not $?)
+{
+    Write-host "Error building Java Utils for SaaS Boost"
+    Exit 2
+}
+Write-host "Java Utils build completed"
+
+cd ${CURRENT_DIR}\installer
 Write-host "Building Java Installer with maven"
 mvn --quiet "-Dspotbugs.skip" 2>&1 | Out-Null
 if (-not $?)

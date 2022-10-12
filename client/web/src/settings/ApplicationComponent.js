@@ -362,16 +362,22 @@ export function ApplicationComponent(props) {
     let servicesWithErrors = []
     if (!!formik?.errors?.services) {
       if (typeof formik.errors.services === 'string') {
+        // TODO when is formik.errors.services not an array?
         servicesWithErrors.push(formik.errors.services)
       } else {
         formik.errors.services?.forEach((service, index) => {
           if (!!service) {
-            servicesWithErrors.push(formik.values?.services[index].name)
+            let serviceName = formik.values?.services[index].name
+            let serviceMessage = "Service " + serviceName
+            if (!!service.tiers) {
+              serviceMessage = serviceMessage.concat(" Tiers ", Object.keys(service.tiers).toString())
+            }
+            servicesWithErrors.push(serviceMessage)
           }
         })
       }
     }
-    return servicesWithErrors.join(', ')
+    return servicesWithErrors.join(" ; ")
   }
 
   return (
@@ -382,7 +388,7 @@ export function ApplicationComponent(props) {
     >
       <div className="animated fadeIn">
         {hasTenants && (
-          <Alert color="primary">
+          <Alert variant="primary">
             <span>
               <i className="fa fa-info-circle" /> Note: some settings cannot be
               modified once you have deployed tenants.
@@ -391,19 +397,19 @@ export function ApplicationComponent(props) {
         )}
         {/* {loading !== "idle" && <div>Loading...</div>} */}
         {!!error && (
-          <Alert color="danger" isOpen={!!error} toggle={dismissError}>
+          <Alert variant="danger" isOpen={!!error} toggle={dismissError}>
             {error}
           </Alert>
         )}
         {!!message && (
-          <Alert color="info" isOpen={!!message} toggle={dismissMessage}>
+          <Alert variant="info" isOpen={!!message} toggle={dismissMessage}>
             {message}
           </Alert>
         )}
         <Formik
           initialValues={initialValues}
           validationSchema={validationSpecs}
-          validateOnChange={false}
+          validateOnChange={true}
           onSubmit={updateConfig}
           enableReinitialize={true}
         >
@@ -411,8 +417,8 @@ export function ApplicationComponent(props) {
             return (
               <>
                 {!!formik.errors && Object.keys(formik.errors).length > 0 ? (
-                  <Alert color="danger">
-                    Errors in {findServicesWithErrors(formik)}
+                  <Alert variant="danger">
+                    Errors in form: {findServicesWithErrors(formik)}
                   </Alert>
                 ) : null}
                 <Form>
@@ -446,6 +452,7 @@ export function ApplicationComponent(props) {
                             type="Submit"
                             variant="info"
                             disabled={isSubmitting()}
+                            onClick={() => { window.scrollTo(0,0) }}
                           >
                             {isSubmitting() ? 'Saving...' : 'Submit'}
                           </Button>

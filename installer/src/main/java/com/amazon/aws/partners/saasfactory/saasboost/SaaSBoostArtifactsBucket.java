@@ -25,9 +25,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
 import java.nio.file.Path;
-import java.util.UUID;
 
-import static com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall.getFullStackTrace;
+import static com.amazon.aws.partners.saasfactory.saasboost.Utils.getFullStackTrace;
 
 public class SaaSBoostArtifactsBucket {
 
@@ -54,7 +53,7 @@ public class SaaSBoostArtifactsBucket {
      * @return the S3 URL the Bucket object represents
      */
     public String getBucketUrl() {
-        return String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
+        return String.format("https://%s.s3.%s.%s/", bucketName, region, Utils.endpointSuffix(region));
     }
 
     public void putFile(S3Client s3, Path localPath, Path remotePath) {
@@ -76,10 +75,7 @@ public class SaaSBoostArtifactsBucket {
     }
 
     protected static SaaSBoostArtifactsBucket createS3ArtifactBucket(S3Client s3, String envName, Region awsRegion) {
-        UUID uniqueId = UUID.randomUUID();
-        String[] parts = uniqueId.toString().split("-");  //UUID 29219402-d9e2-4727-afec-2cd61f54fa8f
-
-        String s3ArtifactBucketName = "sb-" + envName + "-artifacts-" + parts[0] + "-" + parts[1];
+        String s3ArtifactBucketName = "sb-" + envName + "-artifacts-" + Utils.randomString(12, "[^a-z0-9]");
         LOGGER.info("Creating S3 Artifact Bucket {}", s3ArtifactBucketName);
         try {
             CreateBucketRequest.Builder createBucketRequestBuilder = CreateBucketRequest.builder();

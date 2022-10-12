@@ -97,7 +97,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-workload-deploy-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-workload-deploy-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -105,32 +105,32 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                   - s3:ListBucketVersions
                   - s3:GetBucketVersioning
                 Resource:
-                  - !Sub arn:aws:s3:::${CodePipelineBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
               - Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
-                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}/*
+                Resource: !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/*
               - Effect: Allow
                 Action:
                   - codepipeline:StartPipelineExecution
                 Resource:
-                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:*
+                  - !Sub arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -155,7 +155,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           CODE_PIPELINE_BUCKET: !Ref CodePipelineBucket
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
@@ -207,7 +207,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-onboarding-listener-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-onboarding-listener
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -215,24 +215,24 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
                   - cloudformation:ListStackResources
                 Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
               - Effect: Allow
                 Action:
                   - events:PutEvents
                 Resource:
-                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
+                  - !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/{{resolve:ssm:/saas-boost/${Environment}/EVENT_BUS}}'
   OnboardingStackListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -364,9 +364,9 @@ Resources:
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonECS_FullAccess
       Policies:
-        - PolicyName: !Sub sb-${Environment}-tenant-pipeline-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-tenant-pipeline-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -381,18 +381,18 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecr:DescribeImages
-                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                   - s3:GetBucketVersioning
-                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}
+                Resource: !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
               - Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:GetObjectVersion
-                Resource: !Sub arn:aws:s3:::${CodePipelineBucket}/*
+                Resource: !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/*
               - Effect: Allow
                 Action:
                   - lambda:ListFunctions
@@ -423,20 +423,20 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-update-ecs-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-update-ecs
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - codepipeline:PutJobSuccessResult
@@ -447,11 +447,11 @@ Resources:
                   - ecs:DescribeServices
                   - ecs:UpdateService
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
   CodePipelineUpdateEcsServiceLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -509,11 +509,11 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-private-api-trust-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-private-api-trust-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -521,8 +521,8 @@ Resources:
                 Action:
                   - execute-api:Invoke
                 Resource:
-                  - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPrivateApi}/*/*/*
-                  - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPublicApi}/*/*/*
+                  - !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPrivateApi}/*/*/*
+                  - !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostPublicApi}/*/*/*
   SSMParamPrivateApiRole:
     Type: AWS::SSM::Parameter
     Properties:
@@ -544,7 +544,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-private-api-client-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-private-api-client-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -552,13 +552,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -587,7 +587,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
@@ -631,30 +631,30 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-ecs-shutdown-services-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-ecs-shutdown-services-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -684,7 +684,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
@@ -709,30 +709,30 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-ecs-startup-services-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-ecs-startup-services-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
                 Resource:
-                  - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/*
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/*
                 Condition:
                   StringLike:
                     ecs:cluster:
-                      - !Sub arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
@@ -762,7 +762,7 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !GetAtt SaaSBoostSystemRole.Arn
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.amazonaws.com
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
@@ -787,7 +787,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-set-instance-protection-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-set-instance-protection
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -795,13 +795,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - autoscaling:DescribeAutoScalingInstances
@@ -811,7 +811,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - autoscaling:SetInstanceProtection
-                Resource: !Sub arn:aws:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/sb-${Environment}-tenant-*
+                Resource: !Sub arn:${AWS::Partition}:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/sb-${Environment}-tenant-*
   SetInstanceProtectionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -844,6 +844,78 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "SetInstanceProtection"
+  AttachCapacityProviderExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-attach-capacity-provider-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-attach-capacity-provider-${AWS::Region}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogStreams
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/sb-${Environment}-onboarding
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeClusters
+                  - ecs:PutClusterCapacityProviders
+                Resource: !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/*
+  AttachCapacityProviderLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-attach-capacity-provider
+      RetentionInDays: 30
+  AttachCapacityProviderFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - AttachCapacityProviderLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-attach-capacity-provider
+      Role: !GetAtt AttachCapacityProviderExecRole.Arn
+      Runtime: java11
+      Timeout: 870
+      MemorySize: 640
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.AttachEcsCapacityProvider
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/AttachEcsCapacityProvider-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "AttachEcsCapacityProvider"
   # Macro transform will add as many AWS::ECR::Repository resources as necessary
   # based on the length of the list of ApplicationServices passed as a parameter
 Outputs:
