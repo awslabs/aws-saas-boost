@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.codebuild.CodeBuildClient;
 import software.amazon.awssdk.services.codebuild.model.Build;
 import software.amazon.awssdk.services.codebuild.model.CodeBuildException;
 import software.amazon.awssdk.services.codebuild.model.StartBuildResponse;
+import software.amazon.awssdk.services.codebuild.model.StatusType;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -61,10 +62,14 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
                                 .projectName(project)
                                 .build()
                         );
-                        //LOGGER.info(Utils.toJson(response));
-                        Build build = response.getValueForField("build", Build.class).get();
-                        responseData.put("BuildStatus", build.buildStatusAsString());
-                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                        Build build = response.build();
+                        if (StatusType.FAILED == build.buildStatus() || StatusType.FAULT == build.buildStatus()) {
+                            responseData.put("Reason", "CodeBuild start build failed");
+                            CloudFormationResponse.send(event, context, "FAILED", responseData);
+                        } else {
+                            responseData.put("Build", build.id());
+                            CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                        }
                     } catch (CodeBuildException codeBuildError) {
                         LOGGER.error("codebuild:StartBuild", codeBuildError.getMessage());
                         LOGGER.error(Utils.getFullStackTrace(codeBuildError));
