@@ -1991,6 +1991,4 @@ Outputs:
   PublicApiGatewayEndpoint:
     Description: SaaS Boost Admin PI Gateway Invoke URL
     Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:publicApiUrl
 ...

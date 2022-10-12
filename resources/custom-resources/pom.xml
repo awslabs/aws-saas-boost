@@ -23,6 +23,7 @@
         <module>rds-bootstrap</module>
         <module>rds-options</module>
         <module>redshift-table</module>
+        <module>start-codebuild</module>
     </modules>
     <dependencies>
         <dependency>

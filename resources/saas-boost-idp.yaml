@@ -98,18 +98,12 @@ Outputs:
     Condition: UseCognito
     Description: SaaS Boost User Pool Id
     Value: !Ref UserPool
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolId
   SBUserPoolClient:
     Condition: UseCognito
     Description: SaaS Boost User Pool Client id
     Value: !Ref UserPoolClient
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:userPoolClientId
   CognitoSignOnBaseUri:
     Condition: UseCognito
     Description: URL for Cognito Hosted signon base URI
     Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:cognitoBaseUri
 ...

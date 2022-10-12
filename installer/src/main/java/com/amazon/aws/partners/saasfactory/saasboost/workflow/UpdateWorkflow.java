@@ -106,13 +106,10 @@ public class UpdateWorkflow extends AbstractWorkflow {
             LOGGER.debug("executing UpdateAction: {}", action);
             switch (action) {
                 case CLIENT: {
-                    outputMessage("Updating Admin UI web application..");
-                    SaaSBoostInstall.buildAndCopyWebApp(
-                            workingDir,
-                            clientBuilderFactory.cloudFormationBuilder().build(),
-                            clientBuilderFactory.s3Builder().build(),
-                            environment.getName(),
-                            environment.getAccountId());
+                    outputMessage("Updating admin web application...");
+                    SaaSBoostInstall.copyAdminWebAppSourceToS3(workingDir,
+                            environment.getArtifactsBucket().getBucketName(),
+                            clientBuilderFactory.s3Builder().build());
                     break;
                 }
                 case CUSTOM_RESOURCES:
