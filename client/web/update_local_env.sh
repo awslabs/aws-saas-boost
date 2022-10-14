@@ -27,9 +27,10 @@ echo "AWS_DEFAULT_REGION=$myRegion" >> .env
 echo "REACT_APP_AWS_REGION=$myRegion" >> .env
 echo "REACT_APP_ENVIRONMENT=$myEnv" >> .env
 echo "REACT_APP_AWS_ACCOUNT=786938756705" >> .env
+echo "REACT_APP_SCOPE=openid profile email aws.cognito.signin.user.admin" >> .env
 echo "DEBUG=true" >> .env
 
-userPoolId=$(aws cognito-idp list-user-pools --max-results 20 | jq -c '.UserPools[] | select (.Name == "'sb-${myEnv}-users'").Id' | cut -d\" -f2)
+userPoolId=$(aws cognito-idp list-user-pools --max-results 20 | jq -c '.UserPools[] | select (.Name == "'sb-${myEnv}-system-users'").Id' | cut -d\" -f2)
 echo "REACT_APP_COGNITO_USERPOOL=$userPoolId" >> .env
 
 poolClientId=$(aws cognito-idp list-user-pool-clients --user-pool-id ${userPoolId} | jq '.UserPoolClients[0].ClientId' | cut -d\" -f2)

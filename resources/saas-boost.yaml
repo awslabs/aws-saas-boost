@@ -707,6 +707,11 @@ Resources:
         AdminUsername: !Ref AdminUsername
         AdminEmailAddress: !Ref AdminEmailAddress
         AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LogoS3Key: 'client/web/public/saas-boost-login.png'
   web:
     Type: AWS::CloudFormation::Stack
     Properties:

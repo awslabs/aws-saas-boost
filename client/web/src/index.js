@@ -13,14 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import 'react-app-polyfill/stable'
-import 'core-js'
 import React from 'react'
 import ReactDOM from 'react-dom'
 import AppWithAuth from './AppWithAuth'
+import appConfig from './config/appConfig'
+import { AuthProvider } from 'react-oidc-context'
 import * as serviceWorker from './serviceWorker'
 
-ReactDOM.render(<AppWithAuth />, document.getElementById('root'))
+
+const oidcConfig = {
+    authority: appConfig.issuer,
+    client_id: appConfig.clientId,
+    redirect_uri: window.location.origin,
+  }
+
+ReactDOM.render(
+  <AuthProvider {...oidcConfig}>
+    <AppWithAuth />
+  </AuthProvider>,
+  document.getElementById('root')
+)
 
 // If you want your app to work offline and load faster, you can change
 // unregister() to register() below. Note this comes with some pitfalls.
