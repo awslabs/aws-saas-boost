@@ -70,7 +70,6 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                                 .bucket(logoS3Bucket)
                                 .key(logoS3Key)
                                 .build());
-                        // GetObjectResponse getObjectResponse = responseInputStream.response();
                         SdkBytes logoBytes = SdkBytes.fromInputStream(responseInputStream);
                         // set ui customization
                         cognito.setUICustomization(request -> request
