@@ -220,7 +220,11 @@ public class SaaSBoostInstall {
                 installSaaSBoost(existingBucket);
                 break;
             case UPDATE:
-                workflow = new UpdateWorkflow(this.workingDir, this.environment, this.awsClientBuilderFactory);
+                workflow = new UpdateWorkflow(
+                    this.workingDir, 
+                    this.environment, 
+                    this.awsClientBuilderFactory, 
+                    doesCfnMacroResourceExist());
                 break;
             case UPDATE_WEB_APP:
                 SaaSBoostInstall.copyAdminWebAppSourceToS3(this.workingDir,
@@ -228,7 +232,8 @@ public class SaaSBoostInstall {
                 break;
             case ADD_ANALYTICS:
                 this.useAnalyticsModule = true;
-                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module? You must have already registered for Quicksight in your account (y or n)? ");
+                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module?"
+                        + "You must have already registered for Quicksight in your account (y or n)? ");
                 this.useQuickSight = Keyboard.readBoolean();
                 if (this.useQuickSight) {
                     getQuickSightUsername();
@@ -241,9 +246,9 @@ public class SaaSBoostInstall {
             case CANCEL:
                 cancel();
                 break;
-//            case DEBUG:
-//                debug();
-//                break;
+        //    case DEBUG:
+        //        debug();
+        //        break;
             default:
                 cancel();
         }
