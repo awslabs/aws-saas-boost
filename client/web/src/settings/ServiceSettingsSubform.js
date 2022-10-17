@@ -118,8 +118,8 @@ const ServiceSettingsSubform = (props) => {
                     </Col>
                     <Col className="d-flex align-items-center">
                       <SaasBoostCheckbox
+                        key={"services[" + serviceIndex + "].public"}
                         name={"services[" + serviceIndex + "].public"}
-                        id={"services[" + serviceIndex + "].public"}
                         label="Publicly accessible?"
                       />
                     </Col>
