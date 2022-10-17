@@ -58,6 +58,8 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
         final String logoS3Key = (String) resourceProperties.get("LogoS3Key");
         final String userPoolId = (String) resourceProperties.get("UserPoolId");
 
+        final String saasBoostColor = "rgb(50, 31, 219)";
+
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
         try {
@@ -71,11 +73,14 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                                 .key(logoS3Key)
                                 .build());
                         SdkBytes logoBytes = SdkBytes.fromInputStream(responseInputStream);
+                        StringBuilder css = new StringBuilder();
+                        css.append(".banner-customizable {background-color: " + saasBoostColor + "; ");
+                        css.append(".submitButton-customizable {background-color: " + saasBoostColor + "; ");
                         // set ui customization
                         cognito.setUICustomization(request -> request
                                 .userPoolId(userPoolId)
                                 .imageFile(logoBytes)
-                                .css(".banner-customizable {background-color: rgb(50, 31, 219);}")
+                                .css(css.toString())
                                 .build());
                         // if the above call doesn't throw an exception, it succeeded
                         responseData.put("UserPool", userPoolId);

@@ -23,7 +23,7 @@ const config = {
   environment: process.env.REACT_APP_ENVIRONMENT,
   awsAccount: process.env.REACT_APP_AWS_ACCOUNT,
   issuer: process.env.REACT_APP_ISSUER || `https://cognito-idp.${process.env.REACT_APP_AWS_REGION}.amazonaws.com/${process.env.REACT_APP_COGNITO_USERPOOL}`,
-  scope: process.env.REACT_APP_SCOPE || 'openid profile email aws.cognito.signin.user.admin'
+  scope: process.env.REACT_APP_SCOPE || 'openid profile email'
 }
 
 export default config

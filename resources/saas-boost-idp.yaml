@@ -98,11 +98,9 @@ Resources:
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
-        - phone
         - email
         - openid
         - profile
-        - aws.cognito.signin.user.admin
       CallbackURLs:
         - !Sub https://${AdminWebDomainName}
         - http://localhost:3000
