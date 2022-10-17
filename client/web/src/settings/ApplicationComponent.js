@@ -157,7 +157,7 @@ export function ApplicationComponent(props) {
       ...thisService,
       name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
-      public: thisService?.public || true,
+      public: thisService ? thisService.public : true,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
