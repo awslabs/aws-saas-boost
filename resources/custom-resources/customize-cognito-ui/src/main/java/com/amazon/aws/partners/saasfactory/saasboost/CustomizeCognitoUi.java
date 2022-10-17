@@ -75,7 +75,7 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                         cognito.setUICustomization(request -> request
                                 .userPoolId(userPoolId)
                                 .imageFile(logoBytes)
-                                .css(".banner-customizable {background-color: blue;}")
+                                .css(".banner-customizable {background-color: rgb(50, 31, 219);}")
                                 .build());
                         // if the above call doesn't throw an exception, it succeeded
                         responseData.put("UserPool", userPoolId);
