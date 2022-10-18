@@ -74,8 +74,8 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                                 .build());
                         SdkBytes logoBytes = SdkBytes.fromInputStream(responseInputStream);
                         StringBuilder css = new StringBuilder();
-                        css.append(".banner-customizable {background-color: " + saasBoostColor + "; ");
-                        css.append(".submitButton-customizable {background-color: " + saasBoostColor + "; ");
+                        css.append(".banner-customizable {background-color: " + saasBoostColor + ";}\n");
+                        css.append(".submitButton-customizable {background-color: " + saasBoostColor + ";}");
                         // set ui customization
                         cognito.setUICustomization(request -> request
                                 .userPoolId(userPoolId)
