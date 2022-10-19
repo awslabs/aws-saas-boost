@@ -353,6 +353,7 @@ Resources:
               - sns:Publish
             Resource:
               - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-onboarding*
+              - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-core-stack-listener
           - Effect: Allow
             Action:
               - ssm:GetParameter*
