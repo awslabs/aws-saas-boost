@@ -43,9 +43,31 @@ export default function OidcSignIn({ signOutReason }) {
       <div className="app d-flex min-vh-100 align-items-center bg-light">
         <Container>
           <Row className="justify-content-center">
-            <Col md="8">
-              <CardGroup>
-                <Card className="p-4">
+            <Col md="12">
+              <Row className="justify-content-center d-flex">
+                <Card
+                  className="text-white bg-primary py-5 d-none d-md-block"
+                  style={{ width: '44%' }}
+                >
+                  <CardBody className="text-center">
+                    <div>
+                      <h2>AWS SaaS Boost</h2>
+                      <div>
+                        <img
+                          src="/saas-boost-login.png"
+                          alt="SaasFactory"
+                          width="80%"
+                        />
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              </Row>
+              <Row className="justify-content-center d-flex">
+                <Card 
+                  className="p-4 d-md-block"
+                  style={{ width: '44%' }}
+                >
                   <CardBody className="d-flex align-items-center justify-content-center">
                     {!auth.isAuthenticated && (
                       <>
@@ -68,7 +90,7 @@ export default function OidcSignIn({ signOutReason }) {
                                   type="button"
                                   onClick={signInClickHandler}
                                 >
-                                  Login
+                                  Sign In
                                 </Button>
                               </Col>
                             </Row>
@@ -80,24 +102,7 @@ export default function OidcSignIn({ signOutReason }) {
                     {auth.isAuthenticated && <Redirect to="/"></Redirect>}
                   </CardBody>
                 </Card>
-                <Card
-                  className="text-white bg-primary py-5 d-none d-lg-block"
-                  style={{ width: '44%' }}
-                >
-                  <CardBody className="text-center">
-                    <div>
-                      <h2>AWS SaaS Boost</h2>
-                      <div>
-                        <img
-                          src="/saas-boost-login.png"
-                          alt="SaasFactory"
-                          width="80%"
-                        />
-                      </div>
-                    </div>
-                  </CardBody>
-                </Card>
-              </CardGroup>
+              </Row>
             </Col>
           </Row>
         </Container>
