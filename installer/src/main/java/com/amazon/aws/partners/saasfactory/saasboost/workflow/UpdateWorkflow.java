@@ -64,11 +64,17 @@ public class UpdateWorkflow extends AbstractWorkflow {
     private final Environment environment;
     private final Path workingDir;
     private final AwsClientBuilderFactory clientBuilderFactory;
+    private final boolean doesCfnMacroResourceExist;
 
-    public UpdateWorkflow(Path workingDir, Environment environment, AwsClientBuilderFactory clientBuilderFactory) {
+    public UpdateWorkflow(
+            Path workingDir, 
+            Environment environment, 
+            AwsClientBuilderFactory clientBuilderFactory, 
+            boolean doesCfnMacroResourceExist) {
         this.environment = environment;
         this.workingDir = workingDir;
         this.clientBuilderFactory = clientBuilderFactory;
+        this.doesCfnMacroResourceExist = doesCfnMacroResourceExist;
     }
 
     private boolean confirm() {
@@ -186,6 +192,12 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // Update the version number
         outputMessage("Updating Version parameter to " + Constants.VERSION);
         cloudFormationParamMap.put("Version", Constants.VERSION);
+
+        // If CloudFormation macro resources do not exist, that means that another environment that had previously
+        // owned those resources was deleted. In this case we should make sure to create them.
+        if (!doesCfnMacroResourceExist) {
+            cloudFormationParamMap.put("CreateMacroResources", Boolean.TRUE.toString());
+        }
 
         // Always call update stack
         outputMessage("Executing CloudFormation update stack on: " + environment.getBaseCloudFormationStackName());

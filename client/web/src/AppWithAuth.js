@@ -14,106 +14,53 @@
  * limitations under the License.
  */
 
-import React, { Component, lazy, Suspense } from 'react'
-
-import { Authenticator, Loading } from 'aws-amplify-react'
-import { SaasBoostLoading, SaasBoostVerifyContact } from './components/Auth'
+import React, { Fragment, Suspense, useState } from 'react'
+import { useAuth } from 'react-oidc-context'
 import App from './App'
 import IdleTimer from 'react-idle-timer'
-import { Auth, Hub } from 'aws-amplify'
-import { AuthSessionStorage } from './utils/AuthSessionStorage'
-import store from './store/index'
-const SaasBoostSignIn = lazy(() => import('./components/Auth/SaasBoostSignIn'))
-const SaasBoostForgotPassword = lazy(() => import('./components/Auth/SaasBoostForgotPassword'))
-const SaasBoostResetPassword = lazy(() => import('./components/Auth/SaasBoostResetPassword'))
-const SaasBoostRequireNewPassword = lazy(() =>
-  import('./components/Auth/SaasBoostRequireNewPassword'),
-)
+import { OidcSignIn } from './components/Auth'
+import { removeUserInfo, saveUserInfo } from './api/common'
 
-const amplifyConfig = {
-  Auth: {
-    region: process.env.REACT_APP_AWS_REGION,
-    userPoolId: process.env.REACT_APP_COGNITO_USERPOOL,
-    userPoolWebClientId: process.env.REACT_APP_CLIENT_ID,
-    authenticationFlowType: 'USER_SRP_AUTH',
-  },
-  storage: AuthSessionStorage,
-}
+const AppWithAuth = () => {
+  const [signOutReason, setSignOutReason] = useState()
+  const auth = useAuth()
+  const timeout = Number(process.env.REACT_APP_TIMEOUT) || 600000
+  const minutes = timeout / (60 * 1000)
 
-const timeout = Number(process.env.REACT_APP_TIMEOUT) || 600000
-const minutes = timeout / (60 * 1000)
-
-Hub.listen('auth', (data) => {
-  const { payload } = data
-  const { event } = payload
-
-  switch (event) {
-    case 'signOut':
-      console.log('dispatching reset')
-      store.dispatch({ type: 'RESET' })
-      break
-    case 'configured':
-      break
-    default:
-      console.log('Hub::catchAll - ' + JSON.stringify(payload.event))
-  }
-})
-
-class AppWithAuth extends Component {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      signOutReason: undefined,
-    }
-
-    this.onIdle = this.onIdle.bind(this)
-    this.dismissSignOutReason = this.dismissSignOutReason.bind(this)
-  }
-
-  loading = () => (
-    <div className="pt-3 text-center">
-      <div className="sk-spinner sk-spinner-pulse">Loading...</div>
-    </div>
+  const loading = () => (
+    <div className="animated fadeIn pt-1 text-center">Loading...</div>
   )
 
-  async onIdle() {
+  const onIdle = async () => {
     try {
-      const session = await Auth.currentSession()
-      if (session.isValid()) {
-        this.setState({
-          signOutReason: `Session closed due to ${minutes} minutes of inactivity.`,
-        })
-        return Auth.signOut()
-      }
+      const signOutReason = `Session closed due to ${minutes} minutes of inactivity.`
+      setSignOutReason(signOutReason)
+      return auth.removeUser()
     } catch (e) {
       // do nothing
     }
   }
 
-  dismissSignOutReason() {
-    this.setState({ signOutReason: undefined })
+  if (auth.isLoading) {
+    return <div>{loading()}</div>
+  }
+  if (auth.error) {
+    return <div>Oops... {auth.error.message}</div>
   }
 
-  render() {
-    const { signOutReason } = this.state
+  if (auth.isAuthenticated) {
+    saveUserInfo(auth.user)
     return (
-      <Suspense fallback={this.loading()}>
-        <Authenticator hideDefault={true} amplifyConfig={amplifyConfig}>
-          <SaasBoostSignIn
-            signOutReason={signOutReason}
-            dismissSignOutReason={this.dismissSignOutReason}
-          />
-          <SaasBoostForgotPassword />
-          <SaasBoostResetPassword />
-          <SaasBoostRequireNewPassword />
-          <App />
-          <SaasBoostVerifyContact />
-          <SaasBoostLoading override={Loading}></SaasBoostLoading>
-        </Authenticator>
-        <IdleTimer onIdle={this.onIdle} debounce={250} timeout={timeout} />
-      </Suspense>
+      <Fragment>
+        <Suspense fallback={loading()}>
+          <App authState={'signedIn'} oidcAuth={auth} />
+        </Suspense>
+        <IdleTimer onIdle={onIdle} debounce={250} timeout={timeout} />
+      </Fragment>
     )
+  } else {
+    removeUserInfo()
+    return <OidcSignIn signOutReason={signOutReason} />
   }
 }
 

@@ -22,12 +22,6 @@ import { Provider } from 'react-redux'
 import store from './store/index'
 import ScrollToTop from './utils/ScrollToTop'
 
-//const loading = (
-//  <div className="pt-3 text-center">
-//    <div className="sk-spinner sk-spinner-pulse"></div>
-//  </div>
-//)
-
 // Containers
 const DefaultLayout = React.lazy(() => import('./layout/DefaultLayout'))
 
@@ -36,6 +30,7 @@ App.propTypes = {
 }
 
 function App(props) {
+  const oidcAuth = props.oidcAuth
   if (props.authState === 'signedIn') {
     return (
       <Provider store={store}>
@@ -43,7 +38,7 @@ function App(props) {
           <ScrollToTop>
             <FetchSettings>
               <Switch>
-                <Route path="/" name="Home" render={(props) => <DefaultLayout {...props} />} />
+              <Route path="/" name="Home" render={(props) => <DefaultLayout {...props} oidcAuth={oidcAuth} />} />
               </Switch>
             </FetchSettings>
           </ScrollToTop>
