@@ -14,6 +14,7 @@
     <url>https://github.com/awslabs/aws-saas-boost</url>
 	<modules>
 		<module>authorizer</module>
+        <module>codepipeline-wait-handler</module>
         <module>core-stack-listener</module>
         <module>ecs-service-update</module>
         <module>ecs-shutdown-services</module>

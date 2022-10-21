@@ -37,8 +37,19 @@ Parameters:
     Description: The API Gateway REST API stage name for the SaaS Boost public API
     Type: String
     Default: v1
+  IdentityProvider:
+    Description: Identity Provider for the SaaS Boost system users and Control Plane API authorization
+    Type: String
+    Default: COGNITO
+    AllowedValues: [COGNITO, KEYCLOAK]
   CognitoUserPoolId:
     Description: User Pool Id for the Cognito Authorizer
+    Type: String
+  KeycloakHost:
+    Description: The hostname (and protocol) for the Keycloak install
+    Type: String
+  KeycloakRealm:
+    Description: The non-master Keycloak realm to authenticate against
     Type: String
   BillingServiceGetPlans:
     Description: Billing Service subscription plans Lambda ARN
@@ -187,8 +198,10 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-          IDENTITY_PROVIDER: COGNITO
+          IDENTITY_PROVIDER: !Ref IdentityProvider
           USER_POOL_ID: !Ref CognitoUserPoolId
+          KEYCLOAK_HOST: !Ref KeycloakHost
+          KEYCLOAK_REALM: !Ref KeycloakRealm
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

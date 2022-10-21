@@ -430,6 +430,9 @@ public class UpdateWorkflow extends AbstractWorkflow {
                             if (target.endsWith(".yaml")) {
                                 LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
                                 pathAction.addTarget(target);
+                            } else if (target.endsWith("keycloak/Dockerfile")) {
+                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                                pathAction.addTarget(target);
                             } else {
                                 LOGGER.debug("Skipping adding {} to UpdateAction {}", target, pathAction);
                             }

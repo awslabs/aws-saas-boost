@@ -160,6 +160,9 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref Logging
         LogFilePrefix: codepipeline-logs
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -702,16 +705,30 @@ Resources:
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-idp.yaml
       Parameters:
-        Environment: !Ref Environment
         IdentityProvider: !Ref SystemIdentityProvider
-        AdminUsername: !Ref AdminUsername
-        AdminEmailAddress: !Ref AdminEmailAddress
-        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
-        SaaSBoostBucket: !Ref SaaSBoostBucket
-        LogoS3Key: 'client/web/public/saas-boost-login.png'
+        CodePipelineBucket: !Ref Pipelines
+        CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
+        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
+        AdminUsername: !Ref AdminUsername
+        AdminEmailAddress: !Ref AdminEmailAddress
+        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        VPC: !GetAtt network.Outputs.EgressVpc
+        PrivateSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PrivateSubnet1
+              - !GetAtt network.Outputs.PrivateSubnet2
+        PublicSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PublicSubnet1
+              - !GetAtt network.Outputs.PublicSubnet2
   web:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -879,7 +896,10 @@ Resources:
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
+        IdentityProvider: !Ref SystemIdentityProvider
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
