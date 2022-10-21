@@ -28,13 +28,24 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, Object> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CustomizeCognitoUi.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String ADMIN_WEB_SOURCE_KEY = defaultIfBbank(
+            System.getenv("ADMIN_WEB_SOURCE_KEY"), "client/web/src.zip");
+    private static final String ADMIN_WEB_LOGO = defaultIfBbank(
+            System.getenv("ADMIN_WEB_LOGO"), "client/web/public/saas-boost-login.png");
+    private static final String ADMIN_WEB_BG_COLOR = defaultIfBbank(
+            System.getenv("ADMIN_WEB_BG_COLOR"), "rgb(50, 31, 219)");
     private final CognitoIdentityProviderClient cognito;
     private final S3Client s3;
 
@@ -54,11 +65,8 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
 
         final String requestType = (String) event.get("RequestType");
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
-        final String logoS3Bucket = (String) resourceProperties.get("LogoS3Bucket");
-        final String logoS3Key = (String) resourceProperties.get("LogoS3Key");
+        final String sourceBucket = (String) resourceProperties.get("SourceBucket");
         final String userPoolId = (String) resourceProperties.get("UserPoolId");
-
-        final String saasBoostColor = "rgb(50, 31, 219)";
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -67,19 +75,21 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                 if ("Create".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE or UPDATE");
                     try {
-                        // get bytes of logo from S3
+                        // Fetch the admin web app source from S3
                         ResponseInputStream<GetObjectResponse> responseInputStream = s3.getObject(request -> request
-                                .bucket(logoS3Bucket)
-                                .key(logoS3Key)
+                                .bucket(sourceBucket)
+                                .key(ADMIN_WEB_SOURCE_KEY)
                                 .build());
-                        SdkBytes logoBytes = SdkBytes.fromInputStream(responseInputStream);
+                        // Extract just the logo image from the ZIP archive
+                        SdkBytes logo = SdkBytes.fromByteArray(unzip(responseInputStream, ADMIN_WEB_LOGO));
+                        // Customize the background colors to match the SaaS Boost branding
                         StringBuilder css = new StringBuilder();
-                        css.append(".banner-customizable {background-color: " + saasBoostColor + ";}\n");
-                        css.append(".submitButton-customizable {background-color: " + saasBoostColor + ";}");
-                        // set ui customization
+                        css.append(".banner-customizable {background-color: " + ADMIN_WEB_BG_COLOR + ";}\n");
+                        css.append(".submitButton-customizable {background-color: " + ADMIN_WEB_BG_COLOR + ";}");
+                        // Set our UI customizations in Cognito
                         cognito.setUICustomization(request -> request
                                 .userPoolId(userPoolId)
-                                .imageFile(logoBytes)
+                                .imageFile(logo)
                                 .css(css.toString())
                                 .build());
                         // if the above call doesn't throw an exception, it succeeded
@@ -122,5 +132,32 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
             service.shutdown();
         }
         return null;
+    }
+
+    protected static byte[] unzip(InputStream archive, String logoPath) {
+        ByteArrayOutputStream logo = new ByteArrayOutputStream();
+        try {
+            ZipInputStream zip = new ZipInputStream(archive);
+            byte[] buffer = new byte[1024];
+            ZipEntry entry = zip.getNextEntry();
+            while (entry != null) {
+                if (logoPath.equals(entry.getName())) {
+                    int length;
+                    while ((length = zip.read(buffer)) != -1) {
+                        logo.write(buffer, 0, length);
+                    }
+                    break;
+                }
+                entry = zip.getNextEntry();
+            }
+        } catch (IOException ioe) {
+            LOGGER.error(Utils.getFullStackTrace(ioe));
+            throw new RuntimeException("Error processing ZIP archive", ioe);
+        }
+        return logo.toByteArray();
+    }
+
+    protected static String defaultIfBbank(String string, String defaultIfBlank) {
+        return Utils.isNotBlank(string) ? string : defaultIfBlank;
     }
 }
