@@ -797,7 +797,7 @@ Resources:
         CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
         AdminUsername: !Ref AdminUsername
         AdminEmailAddress: !Ref AdminEmailAddress
-        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
         VPC: !GetAtt network.Outputs.EgressVpc
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
@@ -820,8 +820,8 @@ Resources:
         StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
         AdminWebBucket: !Ref AdminWeb
         AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
-        ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
-        AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
   core:
     Type: AWS::CloudFormation::Stack
@@ -952,18 +952,21 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-  user:
+  sysuser:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-user.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        IdentityProvider: !Ref SystemIdentityProvider
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -1003,14 +1006,13 @@ Resources:
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
         TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
-        UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
-        UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
-        UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
-        UserServiceUpdate: !GetAtt user.Outputs.UserServiceUpdateArn
-        UserServiceDelete: !GetAtt user.Outputs.UserServiceDeleteArn
-        UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
-        UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
-        UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        SystemUserServiceGetAll: !GetAtt sysuser.Outputs.SystemUserServiceGetAllArn
+        SystemUserServiceInsert: !GetAtt sysuser.Outputs.SystemUserServiceInsertArn
+        SystemUserServiceById: !GetAtt sysuser.Outputs.SystemUserServiceByIdArn
+        SystemUserServiceUpdate: !GetAtt sysuser.Outputs.SystemUserServiceUpdateArn
+        SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
+        SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
+        SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:

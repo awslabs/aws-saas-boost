@@ -45,7 +45,7 @@ class Sidebar extends Component {
               key="users"
               className="text-dark"
             >
-              Users
+              System Users
             </Nav.Link>
             <Nav.Link disabled key="settings">
               Settings

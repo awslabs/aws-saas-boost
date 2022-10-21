@@ -120,29 +120,26 @@ Parameters:
   TierServiceDelete:
     Description: Tier Service delete tier Lambda ARN
     Type: String
-  UserServiceGetAll:
-    Description: User Service get all users Lambda ARN
+  SystemUserServiceGetAll:
+    Description: System User Service get all users Lambda ARN
     Type: String
-  UserServiceInsert:
-    Description: User Service insert new user Lambda ARN
+  SystemUserServiceInsert:
+    Description: System User Service insert new user Lambda ARN
     Type: String
-  UserServiceById:
-    Description: User Service get user by id Lambda ARN
+  SystemUserServiceById:
+    Description: System User Service get user by id Lambda ARN
     Type: String
-  UserServiceUpdate:
-    Description: User Service update user Lambda ARN
+  SystemUserServiceUpdate:
+    Description: System User Service update user Lambda ARN
     Type: String
-  UserServiceDelete:
-    Description: User Service delete user Lambda ARN
+  SystemUserServiceDelete:
+    Description: System User Service delete user Lambda ARN
     Type: String
-  UserServiceEnable:
-    Description: User Service enable user Lambda ARN
+  SystemUserServiceEnable:
+    Description: System User Service enable user Lambda ARN
     Type: String
-  UserServiceDisable:
-    Description: User Service disable user Lambda ARN
-    Type: String
-  UserServiceToken:
-    Description: User Service auth token Lambda ARN
+  SystemUserServiceDisable:
+    Description: System User Service disable user Lambda ARN
     Type: String
 Resources:
   AuthorizerExecRole:
@@ -1542,91 +1539,85 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceDelete
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tiers/{id}
-  UserServiceResource:
+  SystemUserServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref PublicApi
       ParentId: !Ref RootResourceId
-      PathPart: 'users'
-  UserServiceByIdResource:
+      PathPart: 'sysusers'
+  SystemUserServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref PublicApi
-      ParentId: !Ref UserServiceResource
+      ParentId: !Ref SystemUserServiceResource
       PathPart: '{id}'
-  UserServiceEnableResource:
+  SystemUserServiceEnableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref PublicApi
-      ParentId: !Ref UserServiceByIdResource
+      ParentId: !Ref SystemUserServiceByIdResource
       PathPart: 'enable'
-  UserServiceDisableResource:
+  SystemUserServiceDisableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref PublicApi
-      ParentId: !Ref UserServiceByIdResource
+      ParentId: !Ref SystemUserServiceByIdResource
       PathPart: 'disable'
-  UserServiceTokenResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref PublicApi
-      ParentId: !Ref UserServiceResource
-      PathPart: 'token'
-  UserServiceGetAllMethod:
+  SystemUserServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceResource
+      ResourceId: !Ref SystemUserServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceGetAll}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceGetAll}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceGetAllLambdaPermission:
+  SystemUserServiceGetAllLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users
-  UserServiceInsertMethod:
+      FunctionName: !Ref SystemUserServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/sysusers
+  SystemUserServiceInsertMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceResource
+      ResourceId: !Ref SystemUserServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceInsert}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceInsert}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceInsertLambdaPermission:
+  SystemUserServiceInsertLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceInsert
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users
-  UserServiceResourceCORS:
+      FunctionName: !Ref SystemUserServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/sysusers
+  SystemUserServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceResource
+      ResourceId: !Ref SystemUserServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1652,11 +1643,11 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  UserServiceGetByIdMethod:
+  SystemUserServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceByIdResource
+      ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
@@ -1664,7 +1655,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceById}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceById}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1672,18 +1663,18 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceByIdLambdaPermission:
+  SystemUserServiceByIdLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/users/{id}
-  UserServiceUpdateMethod:
+      FunctionName: !Ref SystemUserServiceById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/sysusers/{id}
+  SystemUserServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceByIdResource
+      ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
@@ -1691,7 +1682,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceUpdate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceUpdate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1699,18 +1690,18 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceUpdateLambdaPermission:
+  SystemUserServiceUpdateLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceUpdate
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/users/{id}
-  UserServiceDeleteMethod:
+      FunctionName: !Ref SystemUserServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/sysusers/{id}
+  SystemUserServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceByIdResource
+      ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
@@ -1718,7 +1709,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDelete}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceDelete}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1726,18 +1717,18 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceDeleteLambdaPermission:
+  SystemUserServiceDeleteLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceDelete
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/users/{id}
-  UserServiceByIdResourceCORS:
+      FunctionName: !Ref SystemUserServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/sysusers/{id}
+  SystemUserServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceByIdResource
+      ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1763,11 +1754,11 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  UserServiceEnableMethod:
+  SystemUserServiceEnableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceEnableResource
+      ResourceId: !Ref SystemUserServiceEnableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
@@ -1775,7 +1766,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceEnable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceEnable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1783,18 +1774,18 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceEnableLambdaPermission:
+  SystemUserServiceEnableLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceEnable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/enable
-  UserServiceEnableResourceCORS:
+      FunctionName: !Ref SystemUserServiceEnable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/sysusers/{id}/enable
+  SystemUserServiceEnableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceEnableResource
+      ResourceId: !Ref SystemUserServiceEnableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1820,11 +1811,11 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  UserServiceDisableMethod:
+  SystemUserServiceDisableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceDisableResource
+      ResourceId: !Ref SystemUserServiceDisableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
@@ -1832,7 +1823,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceDisable}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceDisable}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1840,18 +1831,18 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  UserServiceDisableLambdaPermission:
+  SystemUserServiceDisableLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceDisable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/users/{id}/disable
-  UserServiceDisableResourceCORS:
+      FunctionName: !Ref SystemUserServiceDisable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/sysusers/{id}/disable
+  SystemUserServiceDisableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceDisableResource
+      ResourceId: !Ref SystemUserServiceDisableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1863,60 +1854,6 @@ Resources:
             ResponseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  UserServiceTokenMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceTokenResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserServiceToken}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  UserServiceTokenLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref UserServiceToken
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/users/token
-  UserServiceTokenResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref PublicApi
-      ResourceId: !Ref UserServiceTokenResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Max-Age: "'3600'"
               method.response.header.X-Requested-With: "'*'"
@@ -1970,19 +1907,17 @@ Resources:
       - TenantServiceEnableResourceCORS
       - TenantServiceDisableMethod
       - TenantServiceDisableResourceCORS
-      - UserServiceGetAllMethod
-      - UserServiceInsertMethod
-      - UserServiceResourceCORS
-      - UserServiceGetByIdMethod
-      - UserServiceUpdateMethod
-      - UserServiceDeleteMethod
-      - UserServiceByIdResourceCORS
-      - UserServiceEnableMethod
-      - UserServiceEnableResourceCORS
-      - UserServiceDisableMethod
-      - UserServiceDisableResourceCORS
-      - UserServiceTokenMethod
-      - UserServiceTokenResourceCORS
+      - SystemUserServiceGetAllMethod
+      - SystemUserServiceInsertMethod
+      - SystemUserServiceResourceCORS
+      - SystemUserServiceGetByIdMethod
+      - SystemUserServiceUpdateMethod
+      - SystemUserServiceDeleteMethod
+      - SystemUserServiceByIdResourceCORS
+      - SystemUserServiceEnableMethod
+      - SystemUserServiceEnableResourceCORS
+      - SystemUserServiceDisableMethod
+      - SystemUserServiceDisableResourceCORS
     Properties:
       RestApiId: !Ref PublicApi
   ApiStage:

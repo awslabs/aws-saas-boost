@@ -45,6 +45,9 @@ Parameters:
   AdminCredentials:
     Description: Secrets Manager secret for the SaaS Boost initial admin user
     Type: String
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
   VPC:
     Type: String
     Description: The SaaS Boost VPC ID.
@@ -771,20 +774,35 @@ Resources:
       KeycloakCredentials: !Ref KeyCloakAdminCredentials
       AdminUserCredentials: !Ref AdminCredentials
       Realm: !Sub sb-${Environment}
+      AdminWebAppUrl: !Ref AdminWebUrl
 Outputs:
   KeycloakHost:
-    # If you update this, also update KeycloakIssuer
     Description: URL for the Keycloak install
     Value: !Sub http://${KeycloakLoadBalancer.DNSName}
   KeycloakRealm:
+    # Defined as an input to the Keycloak setup custom resource
     # If you update this, also update KeycloakIssuer
     Description: Configured realm for the Keycloak install
     Value: !Sub sb-${Environment}
   KeycloakIssuer:
-    # Unfortunately we can't reference Outputs from other Outputs
-    Description: Issuer endpoint for OIDC configuration
+    Description: The OIDC issuer for this Keycloak install
     Value: !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
   KeycloakDatabaseEndpoint:
     Description: Keycloak database hostname
     Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
+  AdminWebAppClientName:
+    Description: Public OAuth app client with PKCE for authorization code grant
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientName
+  AdminWebAppClientId:
+    Description: Public OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientId
+  ApiAppClientName:
+    Description: Private OAuth app client for client credentials grant
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientName
+  ApiAppClientId:
+    Description: Private OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientId
+  ApiAppClientSecret:
+    Description: Private OAuth app client secret
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientSecret
 ...

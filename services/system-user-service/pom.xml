@@ -22,7 +22,7 @@ limitations under the License.
         <artifactId>saasboost-services</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>UserService</artifactId>
+    <artifactId>SystemUserService</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>
@@ -33,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>26</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -84,6 +84,11 @@ limitations under the License.
                     <artifactId>apache-client</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-admin-client</artifactId>
+            <version>19.0.3</version>
         </dependency>
     </dependencies>
 </project>
