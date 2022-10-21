@@ -711,7 +711,6 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
-        LogoS3Key: 'client/web/public/saas-boost-login.png'
         CodePipelineBucket: !Ref Pipelines
         CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
         StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda

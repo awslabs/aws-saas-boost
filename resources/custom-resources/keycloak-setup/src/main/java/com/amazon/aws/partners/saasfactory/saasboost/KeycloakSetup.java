@@ -96,7 +96,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                                 adminUserCredentials.get("username"), adminUserCredentials.get("password"),
                                 adminUserCredentials.get("email"));
 
-                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                        success(event, context, responseData);
                     } catch (SdkServiceException secretsManagerError) {
                         LOGGER.error("Secrets Manager error {}", secretsManagerError.getMessage());
                         LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
@@ -126,7 +126,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
             LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             responseData.put("Reason", e.getMessage());
-            CloudFormationResponse.send(event, context, "FAILED", responseData);
+            fail(event, context, responseData);
         } finally {
             service.shutdown();
         }

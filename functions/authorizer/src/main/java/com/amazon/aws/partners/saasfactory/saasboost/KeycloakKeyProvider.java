@@ -49,6 +49,7 @@ public class KeycloakKeyProvider implements RSAKeyProvider {
         return null;
     }
 
+    // https://www.keycloak.org/docs/latest/securing_apps/index.html#_certificate_endpoint
     protected static URL jwksUrl() {
         URL url = null;
         try {
