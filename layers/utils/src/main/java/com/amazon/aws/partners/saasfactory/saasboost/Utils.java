@@ -36,6 +36,8 @@ import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.partitionmetadata.AwsCnPartitionMetadata;
+import software.amazon.awssdk.regions.partitionmetadata.AwsUsGovPartitionMetadata;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsRequestEntry;
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse;
@@ -182,18 +184,71 @@ public class Utils {
         return object;
     }
 
+    public static boolean isChinaRegion(String region) {
+        return isChinaRegion(Region.of(region));
+    }
+
+    public static boolean isChinaRegion(Region region) {
+        return region.metadata().partition() instanceof AwsCnPartitionMetadata;
+    }
+
+    public static boolean isGovCloudRegion(String region) {
+        return isGovCloudRegion(Region.of(region));
+    }
+
+    public static boolean isGovCloudRegion(Region region) {
+        return region.metadata().partition() instanceof AwsUsGovPartitionMetadata;
+    }
+
+    public static String endpointSuffix(String region) {
+        return endpointSuffix(Region.of(region));
+    }
+
+    public static String endpointSuffix(Region region) {
+        return region.metadata().partition().dnsSuffix();
+    }
+
     public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(AwsSyncClientBuilder<B, C> builder, String service) {
-        Region signingRegion = Region.of(System.getenv("AWS_REGION"));
-        String endpoint = "https://" + service + "." + signingRegion.toString() + ".amazonaws.com";
-        // Route53 doesn't follow the rules...
-        if ("route53".equals(service)) {
-            signingRegion = Region.AWS_GLOBAL;
-            endpoint = "https://route53.amazonaws.com";
+        if (Utils.isBlank(System.getenv("AWS_REGION"))) {
+            throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
+        Region region = Region.of(System.getenv("AWS_REGION"));
+
+        // PartitionMetadata and ServiceMetadata do not generate the
+        // correct service endpoints for all services
+        String endpoint = "https://" + service + "." + region.id() + "." + endpointSuffix(region);
+
+        // See https://docs.aws.amazon.com/general/latest/gr/r53.html
+        if ("route53".equals(service)) {
+            if (!isChinaRegion(region)) {
+                region = Region.US_EAST_1;
+                endpoint = "https://route53.amazonaws.com";
+            } else {
+                region = Region.CN_NORTHWEST_1;
+                endpoint = "https://route53.amazonaws.com.cn";
+            }
+        }
+
+        // See https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+        if ("iam".equals(service)) {
+            if (isChinaRegion(region)) {
+                // China's IAM endpoints are regional
+                // See https://docs.amazonaws.cn/en_us/aws/latest/userguide/iam.html
+            } else if (isGovCloudRegion(region)) {
+                // TODO double check if we are supposed to use Region.AWS_GLOBAL
+                region = Region.AWS_US_GOV_GLOBAL;
+                endpoint = "https://iam.us-gov.amazonaws.com";
+            } else {
+                region = Region.AWS_GLOBAL;
+                endpoint = "https://iam.amazonaws.com";
+            }
+
+        }
+
         C client = builder
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                .region(signingRegion)
+                .region(region)
                 .endpointOverride(URI.create(endpoint))
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .retryPolicy(RetryPolicy.builder()
@@ -390,7 +445,7 @@ public class Utils {
         try (InputStream propertiesFile = clazz.getClassLoader().getResourceAsStream(GIT_PROPERTIES_FILENAME)) {
             Properties versionProperties = new Properties();
             versionProperties.load(propertiesFile);
-            version = versionProperties.getProperty("git.commit.id.describe");
+            version = Utils.toJson(GitVersionInfo.fromProperties(versionProperties));
         } catch (Exception e) {
             LOGGER.error("Error loading version info from {} for {}", GIT_PROPERTIES_FILENAME, clazz.getName());
             LOGGER.error(Utils.getFullStackTrace(e));

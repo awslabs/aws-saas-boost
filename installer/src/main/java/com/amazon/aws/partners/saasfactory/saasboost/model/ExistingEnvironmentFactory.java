@@ -124,19 +124,15 @@ public final class ExistingEnvironmentFactory {
                     request -> request.stackName(baseCloudFormationStackName));
             if (response.hasStacks() && !response.stacks().isEmpty()) {
                 Stack stack = response.stacks().get(0);
-                // TODO Should we just capture them all?
                 Map<String, String> outputs = stack.outputs().stream()
-                        .filter(output -> requiredOutputs.contains(output.outputKey())) 
                         .collect(Collectors.toMap(Output::outputKey, Output::outputValue));
                 for (String requiredOutput : requiredOutputs) {
                     if (!outputs.containsKey(requiredOutput)) {
                         throw new EnvironmentLoadException("Missing required CloudFormation stack output "
                                 + requiredOutput + " from stack " + baseCloudFormationStackName);
-                    } else {
-                        LOGGER.debug("Loaded required stack output {} -> {}", 
-                                requiredOutput, outputs.get(requiredOutput));
                     }
                 }
+                LOGGER.info("Loaded stack outputs from stack " + baseCloudFormationStackName);
                 Map<String, String> parameters = stack.parameters().stream()
                         .collect(Collectors.toMap(Parameter::parameterKey, Parameter::parameterValue));
 

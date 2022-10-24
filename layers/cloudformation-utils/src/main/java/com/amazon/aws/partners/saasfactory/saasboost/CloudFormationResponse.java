@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 public class CloudFormationResponse {
@@ -51,6 +52,16 @@ public class CloudFormationResponse {
     private CloudFormationResponse() {
     }
 
+    public static void signal(String waitHandle, boolean success, String uniqueId, String data, String reason) {
+        String responseBody = Utils.toJson(Map.of(
+                "Status", (success ? "SUCCESS" : "FAILURE"),
+                "UniqueId", uniqueId,
+                "Data", Objects.toString(data),
+                "Reason", Objects.toString(reason)
+        ));
+        send(waitHandle, responseBody);
+    }
+
     public static void send(Map<String, Object> event, Context context, String responseStatus,
                             Map<String, Object> responseData) {
         send(event, context, responseStatus, responseData, false);
@@ -60,7 +71,10 @@ public class CloudFormationResponse {
                             Map<String, Object> responseData, boolean noEcho) {
         String responseBody = buildResponseBody(event, context, responseStatus, responseData, noEcho);
         String responseUrl = (String) event.get("ResponseURL");
+        send(responseUrl, responseBody);
+    }
 
+    protected static void send(String responseUrl, String responseBody) {
         // Super helpful command line equivalent to copy/paste from CloudWatch if things are stuck
         LOGGER.info("curl -H 'Content-Type: \"\"' -X PUT -d '" + responseBody + "' \"" + responseUrl + "\"");
 
@@ -123,7 +137,7 @@ public class CloudFormationResponse {
             responseBody.put("Data", responseData != null ? responseData : Collections.EMPTY_MAP);
         } else {
             // CloudFormation will blow up if the failure response string is longer than 256 chars
-            String error = (String) responseData.getOrDefault("Reason", "");
+            String error = Objects.toString(responseData.getOrDefault("Reason", ""), "");
             if (error.length() > 256) {
                 error = error.substring(0, 256);
             }

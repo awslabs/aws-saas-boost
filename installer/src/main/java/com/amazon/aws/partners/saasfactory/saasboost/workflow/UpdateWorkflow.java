@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.workflow;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Constants;
+import com.amazon.aws.partners.saasfactory.saasboost.GitVersionInfo;
 import com.amazon.aws.partners.saasfactory.saasboost.Keyboard;
 import com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
@@ -63,11 +64,17 @@ public class UpdateWorkflow extends AbstractWorkflow {
     private final Environment environment;
     private final Path workingDir;
     private final AwsClientBuilderFactory clientBuilderFactory;
+    private final boolean doesCfnMacroResourceExist;
 
-    public UpdateWorkflow(Path workingDir, Environment environment, AwsClientBuilderFactory clientBuilderFactory) {
+    public UpdateWorkflow(
+            Path workingDir, 
+            Environment environment, 
+            AwsClientBuilderFactory clientBuilderFactory, 
+            boolean doesCfnMacroResourceExist) {
         this.environment = environment;
         this.workingDir = workingDir;
         this.clientBuilderFactory = clientBuilderFactory;
+        this.doesCfnMacroResourceExist = doesCfnMacroResourceExist;
     }
 
     private boolean confirm() {
@@ -105,13 +112,10 @@ public class UpdateWorkflow extends AbstractWorkflow {
             LOGGER.debug("executing UpdateAction: {}", action);
             switch (action) {
                 case CLIENT: {
-                    outputMessage("Updating Admin UI web application..");
-                    SaaSBoostInstall.buildAndCopyWebApp(
-                            workingDir,
-                            clientBuilderFactory.cloudFormationBuilder().build(),
-                            clientBuilderFactory.s3Builder().build(),
-                            environment.getName(),
-                            environment.getAccountId());
+                    outputMessage("Updating admin web application...");
+                    SaaSBoostInstall.copyAdminWebAppSourceToS3(workingDir,
+                            environment.getArtifactsBucket().getBucketName(),
+                            clientBuilderFactory.s3Builder().build());
                     break;
                 }
                 case CUSTOM_RESOURCES:
@@ -188,6 +192,12 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // Update the version number
         outputMessage("Updating Version parameter to " + Constants.VERSION);
         cloudFormationParamMap.put("Version", Constants.VERSION);
+
+        // If CloudFormation macro resources do not exist, that means that another environment that had previously
+        // owned those resources was deleted. In this case we should make sure to create them.
+        if (!doesCfnMacroResourceExist) {
+            cloudFormationParamMap.put("CreateMacroResources", Boolean.TRUE.toString());
+        }
 
         // Always call update stack
         outputMessage("Executing CloudFormation update stack on: " + environment.getBaseCloudFormationStackName());
@@ -272,21 +282,38 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // list all staged and committed changes against the last updated commit
         String versionParameter = cloudFormationParamMap.get("Version");
         LOGGER.debug("Found existing version: {}", versionParameter);
-        // if Version was created with "Commit time", we need to remove that to get commit hash
-        if (versionParameter.contains(",")) {
-            versionParameter = versionParameter.split(",")[0];
+        String commitHash = null;
+        if (versionParameter.startsWith("{") && versionParameter.endsWith("}")) {
+            // we know this is a JSON-created versionParameter, so attempt deserialization to GitVersionInfo
+            GitVersionInfo parsedInfo = Utils.fromJson(versionParameter, GitVersionInfo.class);
+            if (parsedInfo != null) {
+                commitHash = parsedInfo.getCommit();
+            } else {
+                // we cannot continue with an update without being able to parse the version information
+                throw new RuntimeException("Unable to continue with update; cannot parse VERSION as JSON: "
+                        + versionParameter);
+            }
+        } else {
+            // this versionParameter was created before the JSON migration of git information,
+            // so parse using the old logic
+
+            // if Version was created with "Commit time", we need to remove that to get commit hash
+            if (versionParameter.contains(",")) {
+                versionParameter = versionParameter.split(",")[0];
+            }
+            // if last update or install was created with uncommitted code, assume we're working from
+            // the last information we have: the commit on top of which the uncommitted code was written
+            if (versionParameter.contains("-dirty")) {
+                versionParameter = versionParameter.split("-")[0];
+            }
+            commitHash = versionParameter;
         }
-        // if last update or install was created with uncommitted code, assume we're working from
-        // the last information we have: the commit on top of which the uncommitted code was written
-        if (versionParameter.contains("-dirty")) {
-            versionParameter = versionParameter.split("-")[0];
-        }
-        LOGGER.debug("Parsed version to: {}", versionParameter);
+        LOGGER.debug("Parsed commit hash to: {}", commitHash);
         List<Path> changedPaths = new ArrayList<>();
         // -b               : ignore whitespace-only changes
         // --name-only      : only output the filename (for easy parsing)
-        // $(version)..HEAD : output changes since $(version)
-        String gitDiffCommand = "git diff -b --name-only " + versionParameter;
+        // $(version)       : output changes since $(version)
+        String gitDiffCommand = "git diff -b --name-only " + commitHash;
         changedPaths.addAll(listPathsFromGitCommand(gitDiffCommand));
 
         // list all untracked changes (i.e. net new un-added files)
@@ -372,9 +399,10 @@ public class UpdateWorkflow extends AbstractWorkflow {
          */
         for (Path changedPath : changedPaths) {
             LOGGER.debug("processing {}", changedPath);
-            if (!Utils.isBlank(workingDir.toString())) {
-                // TODO support alternate workingDir for update
-                // relativize the path before continuing
+            Path absolutePath = Path.of(workingDir.toString(), changedPath.toString());
+            if (!absolutePath.toFile().exists()) {
+                LOGGER.debug("Skipping {} since it doesn't exist", changedPath);
+                continue;
             }
             final int maximumTraversalDepth = 2;
             for (int i = 0; i < Math.min(changedPath.getNameCount(), maximumTraversalDepth); i++) {
@@ -383,28 +411,50 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     // edge case: if this is a resources/custom-resources/.. path, we might be pinging on resources/
                     //            when we should on custom-resources. so skip if it is
                     LOGGER.debug("found action {} from path {}", pathAction, changedPath);
+                    if ((i + 1) == changedPath.getNameCount()) {
+                        // "this" name at `i` resolved to an UpdateAction, but there is no valid target
+                        // represented by the next value in the name. this is an invalid changed path:
+                        // a directory itself isn't changed, the files underneath is changed
+                        LOGGER.error("Skipping {}, since it's an invalid changed path: expecting a file", changedPath);
+                        break;
+                    }
+                    String target = changedPath.getName(i + 1).toString();
                     if (pathAction == UpdateAction.RESOURCES
-                            && UpdateAction.fromDirectoryName(changedPath.getName(i + 1).toString()) != null) {
+                            && UpdateAction.fromDirectoryName(target) == UpdateAction.CUSTOM_RESOURCES) {
                         LOGGER.debug("Skipping RESOURCES for CUSTOM_RESOURCES in {}", changedPath);
                         continue;
                     }
                     // now add targets if necessary
                     switch (pathAction) {
+                        case RESOURCES: {
+                            if (target.endsWith(".yaml")) {
+                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                                pathAction.addTarget(target);
+                            } else if (target.endsWith("keycloak/Dockerfile")) {
+                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                                pathAction.addTarget(target);
+                            } else {
+                                LOGGER.debug("Skipping adding {} to UpdateAction {}", target, pathAction);
+                            }
+                            break;
+                        }
+                        case CLIENT:
                         case CUSTOM_RESOURCES:
                         case FUNCTIONS:
                         case LAYERS:
                         case METERING_BILLING:
-                        case RESOURCES:
                         case SERVICES: {
-                            try {
-                                String target = changedPath.getName(i + 1).toString();
-                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
-                                pathAction.addTarget(changedPath.getName(i + 1).toString());
-                            } catch (IllegalArgumentException iae) {
-                                LOGGER.error("Error parsing changed paths during update: {} is an unparsable path",
-                                        changedPath);
-                                LOGGER.error(Utils.getFullStackTrace(iae));
-                                throw new RuntimeException(iae);
+                            // each of the above actions use update.sh to update. the target here needs to be
+                            // a directory, because the update workflow looks underneath the target for the update
+                            // script. therefore editing something like layers/ parent pom or metering-billing
+                            // parent pom is not something worth updating
+                            LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                            // absolute against workingDir, rather than against running dir
+                            Path targetPath = Path.of(workingDir.toString(), changedPath.subpath(0, i + 2).toString());
+                            if (targetPath.toFile().isDirectory()) {
+                                // a non-yaml file (e.g. pom.xml) is not an acceptable target,
+                                // since there will be no update path underneath it
+                                pathAction.addTarget(target);
                             }
                             break;
                         }
@@ -412,7 +462,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                             // do nothing
                         }
                     }
-                    if (!actions.contains(pathAction)) {
+                    if (pathAction.getTargets().size() > 0 && !actions.contains(pathAction)) {
                         LOGGER.debug("Adding new action {} from path {}", pathAction, changedPath);
                         actions.add(pathAction);
                     }

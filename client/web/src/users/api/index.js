@@ -35,7 +35,7 @@ apiServer.interceptors.request.use(async (r) => {
   console.log(r)
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
-  r.headers.Authorization = authorizationToken
+  r.headers.Authorization = "Bearer " + authorizationToken
 
   //Configure the AbortSignal
   r.signal.onabort = () => {

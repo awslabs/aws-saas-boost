@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# use this to build the services and copy the files to s3
 MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
 echo "AWS Region = $MY_AWS_REGION"
 
@@ -21,20 +20,38 @@ if [ "X$1" = "X" ]; then
     echo "usage: $0 <Environment>"
     exit 2
 fi
-
 ENVIRONMENT=$1
+LAMBDA_STAGE_FOLDER=$2
+if [ "X$LAMBDA_STAGE_FOLDER" = "X" ]; then
+	LAMBDA_STAGE_FOLDER="lambdas"
+fi
+
+LAMBDA_CODE=Authorizer-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
 
-
 SAAS_BOOST_BUCKET=`aws ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query "Parameter.Value" --output text`
 echo "SaaS Boost Bucket = $SAAS_BOOST_BUCKET"
 if [ "X$SAAS_BOOST_BUCKET" = "X" ]; then
-    echo "saasBoostBucket export not read from AWS env"
+    echo "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET SSM parameter not read from AWS env"
     exit 1
 fi
 
-find . -type f -name 'saas*.yaml' -exec aws s3 cp {} s3://$SAAS_BOOST_BUCKET/ \;
 
-find . -type f -name 'tenant*.yaml' -exec aws s3 cp {} s3://$SAAS_BOOST_BUCKET/ \;
+
+mvn
+if [ $? -ne 0 ]; then
+    echo "Error building project"
+    exit 1
+fi
+
+aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
+
+FUNCTIONS=("sb-${ENVIRONMENT}-authorizer" 
+        )
+
+for FUNCTION in ${FUNCTIONS[@]}; do
+	#echo $FUNCTION
+	aws lambda --region $MY_AWS_REGION update-function-code --function-name $FUNCTION --s3-bucket $SAAS_BOOST_BUCKET --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+done

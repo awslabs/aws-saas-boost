@@ -28,6 +28,26 @@ const AppFooter = (props) => {
   const saasBoostEnvironment = useSelector((state) =>
     selectSettingsById(state, 'SAAS_BOOST_ENVIRONMENT'),
   )
+
+  const prettyVersion = (versionParameter) => {
+    let versionString = versionParameter?.value
+    try {
+        if (!!versionString) {
+            let versionObject = JSON.parse(versionString)
+            if (versionObject?.tag && versionObject?.describe && versionObject?.commit) {
+                if (versionObject.tag === versionObject.describe) {
+                    versionString = versionObject.tag
+                } else {
+                    versionString = versionObject.describe + "@" + versionObject.commit
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed parsing VERSION: '" + versionString + "' to JSON", e)
+    }
+    return versionString
+  }
+
   return (
     <CFooter>
       <span>
@@ -37,7 +57,7 @@ const AppFooter = (props) => {
         &nbsp;&copy; Amazon.com, Inc.
       </span>
       <span className="ml-auto">
-        Version {version?.value} - {saasBoostEnvironment?.value}
+        Version {prettyVersion(version)} - {saasBoostEnvironment?.value}
       </span>
     </CFooter>
   )

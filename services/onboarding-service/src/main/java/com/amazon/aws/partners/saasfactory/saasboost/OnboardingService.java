@@ -66,10 +66,12 @@ public class OnboardingService {
     private static final String EVENT_SOURCE = "saas-boost";
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
+    private static final String SAAS_BOOST_METRICS_STREAM = System.getenv("SAAS_BOOST_METRICS_STREAM");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
+    private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String ONBOARDING_STACK_SNS = System.getenv("ONBOARDING_STACK_SNS");
     private static final String ONBOARDING_APP_STACK_SNS = System.getenv("ONBOARDING_APP_STACK_SNS");
     private static final String ONBOARDING_VALIDATION_QUEUE = System.getenv("ONBOARDING_VALIDATION_QUEUE");
@@ -89,6 +91,9 @@ public class OnboardingService {
     private final CodePipelineClient codePipeline;
 
     public OnboardingService() {
+        if (Utils.isBlank(AWS_REGION)) {
+            throw new IllegalStateException("Missing environment variable AWS_REGION");
+        }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.dal = new OnboardingServiceDAL();
         this.cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME);
@@ -96,13 +101,14 @@ public class OnboardingService {
         this.ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME);
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
         try {
+            String presignerEndpoint = "https://" + s3.serviceName() + "."
+                    + Region.of(AWS_REGION)
+                    + "."
+                    + Utils.endpointSuffix(AWS_REGION);
             this.presigner = S3Presigner.builder()
                     .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                    .region(Region.of(System.getenv("AWS_REGION")))
-                    .endpointOverride(new URI("https://" + s3.serviceName() + "."
-                            + Region.of(System.getenv("AWS_REGION"))
-                            + ".amazonaws.com")
-                    ) // will break in China regions
+                    .region(Region.of(AWS_REGION))
+                    .endpointOverride(new URI(presignerEndpoint))
                     .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -585,7 +591,7 @@ public class OnboardingService {
                 // Now run the onboarding stack to provision the infrastructure for this tenant
                 LOGGER.info("OnboardingService::provisionTenant create stack " + stackName);
                 String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                        + ".amazonaws.com/tenant-onboarding.yaml";
+                        + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding.yaml";
                 String stackId;
                 try {
                     CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -953,6 +959,9 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("OnboardingDdbTable")
+                                .parameterValue(ONBOARDING_TABLE).build());
                         templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
                         templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
@@ -996,8 +1005,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
                         // TODO rework these last 2?
-                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream").parameterValue("").build());
-                        templateParameters.add(Parameter.builder().parameterKey("EventBus").parameterValue(SAAS_BOOST_EVENT_BUS).build());
+                        templateParameters.add(Parameter.builder().parameterKey("MetricsStream")
+                                .parameterValue(Objects.toString(SAAS_BOOST_METRICS_STREAM, "")).build());
+                        templateParameters.add(Parameter.builder().parameterKey("EventBus")
+                                .parameterValue(Objects.toString(SAAS_BOOST_EVENT_BUS, "")).build());
                         templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue(tier).build());
                         for (Parameter p : templateParameters) {
                             LOGGER.info("{} => {}", p.parameterKey(), p.parameterValue());
@@ -1019,7 +1030,7 @@ public class OnboardingService {
                         // Now run the onboarding stack to provision the infrastructure for this application service
                         LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
                         String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                                + ".amazonaws.com/tenant-onboarding-app.yaml";
+                                + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
                         String stackId;
                         try {
                             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
@@ -1589,7 +1600,8 @@ public class OnboardingService {
             // not part of the onboarding request data nor is it part of the tenant data.
             Map<String, Object> settings = fetchSettingsForTenantUpdate(context);
             final String lambdaSourceFolder = (String) settings.get("SAAS_BOOST_LAMBDAS_FOLDER");
-            final String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3.amazonaws.com/" + settings.get("ONBOARDING_TEMPLATE");
+            final String templateUrl = "https://" + settings.get("SAAS_BOOST_BUCKET") + ".s3."
+                    + Utils.endpointSuffix(AWS_REGION) + "/" + settings.get("ONBOARDING_TEMPLATE");
 
             List<Parameter> templateParameters = new ArrayList<>();
             templateParameters.add(Parameter.builder().parameterKey("TenantId").usePreviousValue(Boolean.TRUE).build());
@@ -1767,8 +1779,9 @@ public class OnboardingService {
 
         Map<String, Object> appConfig = getAppConfig(context);
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+
         String domainName = (String) appConfig.getOrDefault("domainName", "");
-        String hostedZone = getExistingHostedZone(domainName);
+        String hostedZone = chooseHostedZoneParameter(stackName, domainName, cfn, route53);
 
         // If there's an existing hosted zone, we need to tell the AppConfig about it
         // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
@@ -2094,7 +2107,7 @@ public class OnboardingService {
         try {
             LOGGER.info("API call for quotas/check");
             responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, context.getAwsRequestId());
-//            LOGGER.info("API response for quoatas/check: " + responseBody);
+            //LOGGER.info("API response for quoatas/check: " + responseBody);
             valMap = Utils.fromJson(responseBody, HashMap.class);
         } catch (Exception e) {
             LOGGER.error("Error invoking API quotas/check");
@@ -2185,14 +2198,15 @@ public class OnboardingService {
         return pathPriority;
     }
 
-    protected String getExistingHostedZone(String domainName) {
+    // separate out route53 client for testability
+    protected static String getExistingHostedZone(String domainName, Route53Client route53Client) {
         String existingHostedZone = "";
         if (Utils.isNotEmpty(domainName)) {
             String nextDnsName = null;
             String nextHostedZone = null;
             ListHostedZonesByNameResponse response;
             do {
-                response = route53.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
+                response = route53Client.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
                         .dnsName(nextDnsName)
                         .hostedZoneId(nextHostedZone)
                         .maxItems("100")
@@ -2223,5 +2237,68 @@ public class OnboardingService {
             } while (response.isTruncated());
         }
         return existingHostedZone;
+    }
+
+    protected static String chooseHostedZoneParameter(
+                String stackName, 
+                String domainName, 
+                CloudFormationClient cfnClient, // separate out clients for testability
+                Route53Client route53Client) {
+        LOGGER.debug("Locating SaaS Boost provisioned Hosted Zone for domain {}", domainName);
+        if (Utils.isNotBlank(domainName)) {
+            final String hostedZoneCfnName = "PublicDomainHostedZone";
+            // need to find the core stack to find whether we already created a hostedZone
+            // this call might throw a CloudFormationException if the stack or the core resource does not exist
+            // in either case, we couldn't possibly continue with our updateInfrastructure operation, so allow
+            // it to bubble up into the logs. unfortunately there's currently no way to percolate a serious fatal
+            // state error through the system
+            final StackResourceDetail coreStackResourceDetail = cfnClient.describeStackResource(
+                    DescribeStackResourceRequest.builder()
+                            .stackName(stackName)
+                            .logicalResourceId("core")
+                            .build())
+                    .stackResourceDetail();
+            boolean saasBoostOwnsHostedZone = false;
+            try {
+                cfnClient.describeStackResource(DescribeStackResourceRequest.builder()
+                        .stackName(coreStackResourceDetail.physicalResourceId())
+                        .logicalResourceId(hostedZoneCfnName)
+                        .build());
+                // because we didn't throw, the resource must exist. so saasBoost has created
+                // a hostedZone for this environment
+                saasBoostOwnsHostedZone = true;
+            } catch (CloudFormationException cfne) {
+                // if the exception is that the resource does not exist, that means that we have not created
+                // a hosted zone in this environment. any other exception is unexpected and should be rethrown
+                if (!cfne.getMessage().contains("Resource " + hostedZoneCfnName + " does not exist")) {
+                    throw new RuntimeException(cfne);
+                }
+            }
+
+            if (!saasBoostOwnsHostedZone) {
+                LOGGER.debug("Found SaaS Boost provisioned Hosted Zone in CloudFormation");
+                String existingHostedZone = getExistingHostedZone(domainName, route53Client);
+                if (Utils.isNotBlank(existingHostedZone)) {
+                    /*
+                     * If there exists a hostedZone and we don't own it, we want to pass that hostedZone
+                     * name to the stack, since that means it won't be created
+                     */
+                    return existingHostedZone;
+                }
+            } else {
+                LOGGER.debug("No SaaS Boost provisioned Hosted Zone in CloudFormation");
+                /*
+                 * If there exists a hostedZone and we DO own it, we don't want to pass the hostedZone
+                 * name to the stack, since the condition to create the hostedZone will evaluate to 
+                 * false and the owned hostedZone will be deleted
+                 * 
+                 * If there does not exist a hostedZone we won't own it (because it doesn't exist) but
+                 * either way we would not want to pass a hostedZone name in so that the stack
+                 * creates one. This might be happening on an initial configuration of domainName in
+                 * AppConfig.
+                 */
+            }
+        }
+        return "";
     }
 }

@@ -27,6 +27,15 @@ Parameters:
     Description: SaaS Boost "environment" such as test, prod, beta, etc...
     Type: String
     MinLength: 1
+  SystemIdentityProvider:
+    Description: Identity Provider for the SaaS Boost system users and control plane API authorization
+    Type: String
+    Default: COGNITO
+    AllowedValues: [COGNITO, KEYCLOAK]
+  AdminUsername:
+    Description: Initial administrative user name for SaaS Boost admin web app
+    Type: String
+    Default: admin
   AdminEmailAddress:
     Description: Email address of admin user to receive temporary password notification
     Type: String
@@ -72,6 +81,8 @@ Parameters:
 Conditions:
   ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
+  UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
+  UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -126,8 +137,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${Logging}/*
-              - !Sub arn:aws:s3:::${Logging}
+              - !Sub arn:${AWS::Partition}:s3:::${Logging}/*
+              - !Sub arn:${AWS::Partition}:s3:::${Logging}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket needed for CodePipeline to drive tenant deployment workflow
@@ -149,6 +160,9 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref Logging
         LogFilePrefix: codepipeline-logs
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -162,8 +176,8 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${Pipelines}/*
-              - !Sub arn:aws:s3:::${Pipelines}
+              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}/*
+              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}
             Condition:
               Bool: { 'aws:SecureTransport': false }
   # Bucket for Access Logs for ALBs for Tenants
@@ -226,31 +240,10 @@ Resources:
             Action: s3:*
             Principal: '*'
             Resource:
-              - !Sub arn:aws:s3:::${AthenaOutput}/*
-              - !Sub arn:aws:s3:::${AthenaOutput}
+              - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}
             Condition:
               Bool: { 'aws:SecureTransport': false }
-  # Bucket to host the admin console web application
-  # NOTE: The deny non-secure policy is in the web template.
-  AdminWeb:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: Private
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LoggingConfiguration:
-        DestinationBucketName: !Ref Logging
-        LogFilePrefix: web-logs-
-      Tags:
-        - Key: SaaS Boost
-          Value: !Ref Environment
   # Bucket to hold optional tenant configuration files (zip archive)
   # Onboarding will be notified of put object events via EventBridge
   Resources:
@@ -273,12 +266,106 @@ Resources:
         CorsRules:
           - AllowedOrigins:
               - http://localhost:3000
-              - !GetAtt web.Outputs.CloudFrontDistributionUrl
+              - !GetAtt AdminWebCloudFrontDistribution.DomainName
             AllowedMethods:
               - PUT
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
+  # Bucket to host the admin console web application
+  AdminWeb:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref Logging
+        LogFilePrefix: web-logs-
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
+  AdminWebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        !Ref AdminWeb
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser:
+                !GetAtt AdminWebOriginAccessIdentity.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub arn:${AWS::Partition}:s3:::${AdminWeb}/*
+          - Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}/*
+              - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}
+            Condition:
+              Bool: {'aws:SecureTransport': false}
+  AdminWebOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub access-identity-${AdminWeb}
+  AdminWebCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    # Make sure we delete the distribution before clearing out the logging bucket or new
+    # logs from S3 website hosting may be generated between clearing the bucket and trying
+    # to delete the bucket
+    DependsOn: InvokeClearLoggingBucket
+    Properties:
+      DistributionConfig:
+        Comment: Saas Boost Admin Console
+        DefaultRootObject: index.html
+        Enabled: true
+        IPV6Enabled: false
+        HttpVersion: http2
+        Origins:
+          - DomainName: !Sub ${AdminWeb}.s3.${AWS::Region}.${AWS::URLSuffix}
+            Id: !Sub sb-${Environment}-s3-website
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${AdminWebOriginAccessIdentity}
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub sb-${Environment}-s3-website
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # CachingOptimized managed cache policy
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # CORS-S3Origin managed origin request policy
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
+          ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -318,20 +405,20 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-clear-bucket-policy-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-clear-bucket-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -340,13 +427,13 @@ Resources:
                 # We know all S3 buckets will have auto-generated names that are prefixed with the stack name
                 # Using this wildcard instead of Fn::Ref to the bucket resources avoids circular dependencies
                 Resource:
-                  - !Sub arn:aws:s3:::${AWS::StackName}-*
+                  - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-*
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
                 Resource:
-                  - !Sub arn:aws:s3:::${AWS::StackName}-*/*
+                  - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-*/*
   ClearBucketLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -431,13 +518,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
   ApplicationServicesMacroLogs:
     Type: AWS::Logs::LogGroup
     Condition: ShouldCreateMacroResources
@@ -512,7 +599,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-core-stack-listener-${AWS::Region}
+        - PolicyName: !Sub sb-${Environment}-core-stack-listener
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -520,29 +607,29 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:DescribeLogStreams
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - cloudformation:DescribeStacks
                   - cloudformation:ListStackResources
                 Resource:
-                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
               - Effect: Allow
                 Action:
                   - events:PutEvents
                 Resource:
-                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
               - Effect: Allow
                 Action:
                   - ecr:ListTagsForResource
                 Resource:
-                  - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
   CoreStackListenerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -596,14 +683,14 @@ Resources:
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-network.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
         Environment: !Ref Environment
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-managed-ad.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
       Parameters:
         Environment: !Ref Environment
         Subnets:
@@ -613,25 +700,56 @@ Resources:
               - !GetAtt network.Outputs.PrivateSubnet2
         VpcId: !GetAtt network.Outputs.EgressVpc
         ADPasswordParam: !Ref ADPasswordParam
+  idp:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-idp.yaml
+      Parameters:
+        IdentityProvider: !Ref SystemIdentityProvider
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        CodePipelineBucket: !Ref Pipelines
+        CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
+        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
+        AdminUsername: !Ref AdminUsername
+        AdminEmailAddress: !Ref AdminEmailAddress
+        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        VPC: !GetAtt network.Outputs.EgressVpc
+        PrivateSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PrivateSubnet1
+              - !GetAtt network.Outputs.PrivateSubnet2
+        PublicSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PublicSubnet1
+              - !GetAtt network.Outputs.PublicSubnet2
   web:
     Type: AWS::CloudFormation::Stack
-    # Make sure we delete the web stack before clearing out the logging bucket or new logs
-    # from S3 website hosting may be generated between clearing the bucket and trying to
-    # delete the bucket
-    DependsOn: InvokeClearLoggingBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-web.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
-        AdminEmailAddress: !Ref AdminEmailAddress
-        WebS3Bucket: !Ref AdminWeb
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        AdminWebBucket: !Ref AdminWeb
+        AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
+        ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
+        UserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        UserPoolBaseUri: !If [UseCognito, !GetAtt idp.Outputs.CognitoSignOnBaseUri, '']
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
       - MacroWaitCondition
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-core.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-core.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -652,7 +770,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -663,7 +781,7 @@ Resources:
   metering:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-metering-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -681,7 +799,7 @@ Resources:
       - InvokeClearAthenaBucket
       - InvokeClearAccessLogsBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-metrics.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -695,7 +813,7 @@ Resources:
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-onboarding.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -711,7 +829,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-quota.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -721,7 +839,7 @@ Resources:
   settings:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-settings.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -735,7 +853,7 @@ Resources:
   tenant:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tenant.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -747,7 +865,7 @@ Resources:
   tier:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-tier.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -759,23 +877,29 @@ Resources:
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-svc-user.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-public-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api.yaml
       Parameters:
         Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
-        CognitoUserPoolId: !GetAtt web.Outputs.SBUserPool
+        IdentityProvider: !Ref SystemIdentityProvider
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -810,7 +934,7 @@ Resources:
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-private-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-private-api.yaml
       Parameters:
         Environment: !Ref Environment
         PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
@@ -884,13 +1008,12 @@ Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources
     Value: !Ref SaaSBoostBucket
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:saasBoostBucket
   WebS3Bucket:
     Description: S3 bucket for web assets
     Value: !Ref AdminWeb
-    Export:
-      Name: !Sub saas-boost::${Environment}-${AWS::Region}:webBucket
+  AdminWebUrl:
+    Description: Saas Boost admin web app URL
+    Value: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Value: !Ref Pipelines

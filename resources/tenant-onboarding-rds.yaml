@@ -141,7 +141,7 @@ Resources:
           - Effect: Allow
             Principal:
               AWS:
-                - !Sub arn:aws:iam::${AWS::AccountId}:root
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
             Action: kms:*
             Resource: '*'
           - Effect: Allow
@@ -284,7 +284,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         - PolicyName:
-            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName, '-', !Ref AWS::Region]]
+            Fn::Join: ['', ['sb-', !Ref Environment, '-rds-bootstrap-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -292,14 +292,14 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - ec2:CreateNetworkInterface
@@ -310,16 +310,16 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub 'arn:aws:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/services/*'
+                  - !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/services/*'
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - Effect: Allow
                 Action:
                   - kms:Decrypt
-                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
                 Condition:
                   StringEquals:
                     kms:ViaService:

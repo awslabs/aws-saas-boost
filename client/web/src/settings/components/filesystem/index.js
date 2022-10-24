@@ -134,8 +134,6 @@ export const FILESYSTEM_TYPES = {
                 .required('Daily backup time is required'),
             weeklyMaintenanceTime: Yup.string()
                 .required('Weekly maintenance time is required'),
-            windowsMountDrive: Yup.string()
-                .required('Windows mount drive is required'),
             volumeSize: Yup.number()
                 .required()
                 .min(0, 'Volume Size must be a positive number')
@@ -202,7 +200,7 @@ export const FILESYSTEM_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
 export const OS_TO_FS_TYPES = {
     "LINUX": [
         FILESYSTEM_TYPES.EFS,
-        FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
+        // FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
     ],
     "WINDOWS": [
         FILESYSTEM_TYPES.FSX_WINDOWS,
