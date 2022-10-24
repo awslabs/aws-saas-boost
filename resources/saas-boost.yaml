@@ -83,6 +83,9 @@ Conditions:
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
+  IsCNRegion: !Or
+    - !Equals [ !Sub '${AWS::Region}', 'cn-north-1' ]
+    - !Equals [ !Sub '${AWS::Region}', 'cn-northwest-1' ]
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -358,10 +361,25 @@ Resources:
           TargetOriginId: !Sub sb-${Environment}-s3-website
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
+          ForwardedValues:
+            'Fn::If':
+              - IsCNRegion
+              - QueryString: true
+                Cookies:
+                  Forward: none
+              - !Ref AWS::NoValue
           # CachingOptimized managed cache policy
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          CachePolicyId:
+            'Fn::If':
+              - IsCNRegion
+              - !Ref AWS::NoValue
+              - 658327ea-f89d-4fab-a63d-7e88639e58f6
           # CORS-S3Origin managed origin request policy
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          OriginRequestPolicyId:
+            'Fn::If':
+              - IsCNRegion
+              - !Ref AWS::NoValue
+              - 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
           # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
           ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
