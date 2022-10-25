@@ -407,11 +407,10 @@ public class QuotasServiceDAL {
         long instances;
         long clusters;
         try {
-            clusters = rds.describeAccountAttributes().accountQuotas().stream()
-                    .filter(quota -> quota.accountQuotaName().equals("DBClusters"))
+            List<AccountQuota> accountQuotas = rds.describeAccountAttributes().accountQuotas();
+            clusters = accountQuotas.stream().filter(quota -> quota.accountQuotaName().equals("DBClusters"))
                     .findFirst().map(AccountQuota::max).orElse(40L);
-            instances = rds.describeAccountAttributes().accountQuotas().stream()
-                    .filter(quota -> quota.accountQuotaName().equals("DBInstances"))
+            instances = accountQuotas.stream().filter(quota -> quota.accountQuotaName().equals("DBInstances"))
                     .findFirst().map(AccountQuota::max).orElse(40L);
         } catch (SdkServiceException rdsError) {
             LOGGER.error("rds::describeAccountAttributes", rdsError);
