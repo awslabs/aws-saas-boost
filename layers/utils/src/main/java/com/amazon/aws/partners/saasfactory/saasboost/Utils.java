@@ -141,17 +141,6 @@ public class Utils {
         return json;
     }
 
-    public static boolean isCnRegion(final String region) {
-        return region.startsWith("cn-");
-    }
-
-    public static String getUrlSuffix(final String region) {
-        if (isCnRegion(region)) {
-            return "amazonaws.com.cn";
-        }
-        return "amazonaws.com";
-    }
-
     public static <T> TreeNode toJsonTree(T convertibleObject) {
         return MAPPER.valueToTree(convertibleObject);
     }

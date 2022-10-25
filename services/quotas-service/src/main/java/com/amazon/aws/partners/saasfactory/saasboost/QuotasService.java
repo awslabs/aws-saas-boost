@@ -56,7 +56,7 @@ public class QuotasService implements RequestHandler<Map<String, Object>, APIGat
         }
 
         QuotasServiceDAL.QuotaCheck quotaCheck;
-        if (Utils.isCnRegion(AWS_REGION)) {
+        if (Utils.isChinaRegion(AWS_REGION)) {
             quotaCheck = dal.checkQuotasForCNRegion();
         } else {
             quotaCheck = dal.checkQuotas();
