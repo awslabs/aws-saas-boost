@@ -353,6 +353,7 @@ Resources:
               - sns:Publish
             Resource:
               - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-onboarding*
+              - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-core-stack-listener
           - Effect: Allow
             Action:
               - ssm:GetParameter*
@@ -451,7 +452,7 @@ Resources:
               - kms:CreateKey
             Resource:
               - '*'
-  OnboardingServiceComputeProvisionPolicy:
+  OnboardingServiceEC2ComputeProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Onboarding Service policy for tenant environment compute provisioning
@@ -459,13 +460,6 @@ Resources:
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogGroup
-              - logs:PutRetentionPolicy
-            Resource:
-              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/sb-${Environment}-tenant*
-              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sb-${Environment}-tenant*
           - Effect: Allow
             Action:
               - ec2:CreateTags
@@ -517,6 +511,21 @@ Resources:
             Resource:
               - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
               - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
+  OnboardingServiceComputeProvisionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Onboarding Service policy for tenant environment compute provisioning
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:PutRetentionPolicy
+            Resource:
+              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/sb-${Environment}-tenant*
+              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/sb-${Environment}-tenant*
           - Effect: Allow
             Action:
               - elasticloadbalancing:CreateTargetGroup
@@ -844,6 +853,7 @@ Resources:
         - !Ref OnboardingServiceBasePolicy
         - !Ref OnboardingServiceTenantProvisionPolicy
         - !Ref OnboardingServiceComputeProvisionPolicy
+        - !Ref OnboardingServiceEC2ComputeProvisionPolicy
         - !Ref OnboardingServiceDatabaseProvisionPolicy
         - !Ref OnboardingServiceStorageProvisionPolicy
   OnboardingServiceGetAllLogs:

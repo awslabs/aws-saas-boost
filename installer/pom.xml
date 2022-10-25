@@ -34,7 +34,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>81</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>69</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -170,7 +170,7 @@ limitations under the License.
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.3</version>
+            <version>2.13.4.1</version>
         </dependency>
     </dependencies>
 

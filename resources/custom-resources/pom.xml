@@ -18,11 +18,13 @@
         <module>attach-ecs-capacity-provider</module>
         <module>cidr-dynamodb</module>
         <module>clear-s3-bucket</module>
+        <module>customize-cognito-ui</module>
         <module>set-instance-protection</module>
         <module>fsx-dns-name</module>
         <module>rds-bootstrap</module>
         <module>rds-options</module>
         <module>redshift-table</module>
+        <module>start-codebuild</module>
     </modules>
     <dependencies>
         <dependency>

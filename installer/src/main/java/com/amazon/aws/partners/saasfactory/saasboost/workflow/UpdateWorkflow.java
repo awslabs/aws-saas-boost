@@ -64,11 +64,17 @@ public class UpdateWorkflow extends AbstractWorkflow {
     private final Environment environment;
     private final Path workingDir;
     private final AwsClientBuilderFactory clientBuilderFactory;
+    private final boolean doesCfnMacroResourceExist;
 
-    public UpdateWorkflow(Path workingDir, Environment environment, AwsClientBuilderFactory clientBuilderFactory) {
+    public UpdateWorkflow(
+            Path workingDir, 
+            Environment environment, 
+            AwsClientBuilderFactory clientBuilderFactory, 
+            boolean doesCfnMacroResourceExist) {
         this.environment = environment;
         this.workingDir = workingDir;
         this.clientBuilderFactory = clientBuilderFactory;
+        this.doesCfnMacroResourceExist = doesCfnMacroResourceExist;
     }
 
     private boolean confirm() {
@@ -106,13 +112,10 @@ public class UpdateWorkflow extends AbstractWorkflow {
             LOGGER.debug("executing UpdateAction: {}", action);
             switch (action) {
                 case CLIENT: {
-                    outputMessage("Updating Admin UI web application..");
-                    SaaSBoostInstall.buildAndCopyWebApp(
-                            workingDir,
-                            clientBuilderFactory.cloudFormationBuilder().build(),
-                            clientBuilderFactory.s3Builder().build(),
-                            environment.getName(),
-                            environment.getAccountId());
+                    outputMessage("Updating admin web application...");
+                    SaaSBoostInstall.copyAdminWebAppSourceToS3(workingDir,
+                            environment.getArtifactsBucket().getBucketName(),
+                            clientBuilderFactory.s3Builder().build());
                     break;
                 }
                 case CUSTOM_RESOURCES:
@@ -189,6 +192,12 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // Update the version number
         outputMessage("Updating Version parameter to " + Constants.VERSION);
         cloudFormationParamMap.put("Version", Constants.VERSION);
+
+        // If CloudFormation macro resources do not exist, that means that another environment that had previously
+        // owned those resources was deleted. In this case we should make sure to create them.
+        if (!doesCfnMacroResourceExist) {
+            cloudFormationParamMap.put("CreateMacroResources", Boolean.TRUE.toString());
+        }
 
         // Always call update stack
         outputMessage("Executing CloudFormation update stack on: " + environment.getBaseCloudFormationStackName());
@@ -419,6 +428,9 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     switch (pathAction) {
                         case RESOURCES: {
                             if (target.endsWith(".yaml")) {
+                                LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
+                                pathAction.addTarget(target);
+                            } else if (target.endsWith("keycloak/Dockerfile")) {
                                 LOGGER.debug("Adding new target {} to UpdateAction {}", target, pathAction);
                                 pathAction.addTarget(target);
                             } else {

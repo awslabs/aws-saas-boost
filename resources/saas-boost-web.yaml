@@ -18,16 +18,201 @@ Parameters:
   Environment:
     Description: SaaS Boost "environment" such as test, prod, beta, etc...
     Type: String
-Conditions:
-  TemporaryCondition:
-    !Equals [!Ref Environment, '']
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  AdminWebBucket:
+    Description: S3 bucket hosting the admin web application
+    Type: String
+  AdminWebUrl:
+    Description: URL to access the admin web application (CloudFront distribution)
+    Type: String
+  ApiGatewayUrl:
+    Description: SaaS Boost API Gateway invoke URL
+    Type: String
+  AdminWebClientId:
+    Description: OAuth client id for the admin web app
+    Type: String
+  UserPoolId:
+    Description: Amazon Cognito User Pool id
+    Type: String
+  UserPoolBaseUri:
+    Description: Amazon Cognito User Pool hosted UI URL
+    Type: String
 Resources:
-  # Fake resource to make this a valid template temporarily while
-  # we're splitting up the IdP resources from the Web resources.
-  # Only doing this to simplify review of the PRs. This template
-  # will contain the actual Web resources (a CodeBuild project)
-  # in the next PR.
-  TemporaryPlaceHolder:
-    Condition: TemporaryCondition
+  AdminWebCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-admin-web-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-admin-web-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:listBucket
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${AdminWebBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/client/web/*
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${AdminWebBucket}/*
+  AdminWebCodeBuildLogs:
     Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/sb-${Environment}-admin-web
+      RetentionInDays: 14
+  AdminWebCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub sb-${Environment}-admin-web
+      ServiceRole: !Ref AdminWebCodeBuildRole
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:2.0
+        Type: ARM_CONTAINER
+        EnvironmentVariables:
+          - Name: SOURCE_BUCKET
+            Value: !Ref SaaSBoostBucket
+          - Name: WEBSITE_BUCKET
+            Value: !Ref AdminWebBucket
+          - Name: REACT_APP_AWS_REGION
+            Value: !Ref AWS::Region
+          - Name: REACT_APP_AWS_ACCOUNT
+            Value: !Ref AWS::AccountId
+          - Name: REACT_APP_ENVIRONMENT
+            Value: !Ref Environment
+          - Name: REACT_APP_SIGNOUT_URI
+            Value: !Ref AdminWebUrl
+          - Name: REACT_APP_CALLBACK_URI
+            Value: !Ref AdminWebUrl
+          - Name: REACT_APP_API_URI
+            Value: !Ref ApiGatewayUrl
+          - Name: REACT_APP_CLIENT_ID
+            Value: !Ref AdminWebClientId
+          - Name: REACT_APP_COGNITO_USERPOOL
+            Value: !Ref UserPoolId
+          - Name: REACT_APP_COGNITO_USERPOOL_BASE_URI
+            Value: !Ref UserPoolBaseUri
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - n 14
+                - aws s3 cp s3://$SOURCE_BUCKET/client/web/src.zip src.zip
+                - unzip src.zip
+            build:
+              commands:
+                - cd ./client/web
+                - yarn
+                - yarn build
+                - cd ../../
+            post_build:
+              commands:
+                - aws s3 sync ./client/web/build/ s3://$WEBSITE_BUCKET/ --delete --cache-control no-store --exclude "*" --include "index.html" --include "asset-manifest.json" --include "static/*"
+                - aws s3 sync ./client/web/build/ s3://$WEBSITE_BUCKET/ --delete --include "*" --exclude "index.html" --exclude "asset-manifest.json" --exclude "static/*"
+  InvokeStartCodeBuild:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Ref StartCodeBuildLambda
+      Project: !Ref AdminWebCodeBuildProject
+  AdminWebBuildEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-admin-web-event-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-admin-web-event-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource: !GetAtt AdminWebCodeBuildProject.Arn
+  AdminWebBuildRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-admin-web-build
+      Description: SaaS Boost Admin Web new source event
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created"
+          ],
+          "detail": {
+            "reason": [
+              "PutObject", "PostObject", "CopyObject", "CompleteMultipartUpload"
+            ],
+            "bucket": {
+              "name": [
+                "${SaaSBoostBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "client/web/"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AdminWebCodeBuildProject.Arn
+          RoleArn: !GetAtt AdminWebBuildEventRole.Arn
+          Id: !Sub sb-${Environment}-admin-web-build
 ...
