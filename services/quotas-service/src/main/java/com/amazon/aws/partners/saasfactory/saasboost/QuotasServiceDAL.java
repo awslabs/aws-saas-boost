@@ -430,10 +430,10 @@ public class QuotasServiceDAL {
             instances = elb.describeAccountLimits().limits().stream()
                     .filter(x -> x.name().equals("application-load-balancers"))
                     .findFirst().map(Limit::max).map(Long::valueOf).orElse(50L);
-        } catch (SdkServiceException rdsError) {
-            LOGGER.error("elb::describeAccountLimits", rdsError);
-            LOGGER.error(Utils.getFullStackTrace(rdsError));
-            throw rdsError;
+        } catch (SdkServiceException elbError) {
+            LOGGER.error("elb::describeAccountLimits", elbError);
+            LOGGER.error(Utils.getFullStackTrace(elbError));
+            throw elbError;
         }
         Map<String, Double> retVals = new LinkedHashMap<>();
         retVals.put("Application Load Balancers per Region", Double.valueOf(instances));
