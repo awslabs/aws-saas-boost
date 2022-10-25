@@ -422,13 +422,13 @@ public class SaaSBoostInstall {
         createSaaSBoostStack(stackName, emailAddress, systemIdentityProvider, setupActiveDirectory,
                 activeDirectoryPasswordParameterName);
 
+        this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
+                ssm, cfn, this.envName, this.accountId);
         this.baseStackDetails = environment.getBaseCloudFormationStackInfo();
         if (useAnalyticsModule) {
             LOGGER.info("Install metrics and analytics module");
             // The analytics module stack reads baseStackDetails for its CloudFormation template parameters
             // because we're not yet creating the analytics resources as a nested child stack of the main stack
-            this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
-                ssm, cfn, this.envName, this.accountId);
             installAnalyticsModule();
         }
 
