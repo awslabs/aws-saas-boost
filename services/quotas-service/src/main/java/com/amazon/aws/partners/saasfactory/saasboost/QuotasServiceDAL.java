@@ -86,7 +86,7 @@ public class QuotasServiceDAL {
         // fargate
         serviceCode = "fargate";
         deployedCountMap.clear();
-        deployedCountMap.put("Fargate On-Demand resource count", getFargateResourceCount());
+        deployedCountMap.put("Fargate On-Demand vCPU resource count", getFargateResourceCount());
         quotasMap = getQuotas(serviceCode);
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
@@ -238,9 +238,9 @@ public class QuotasServiceDAL {
                     .namespace("AWS/Usage")
                     .dimensions(Arrays.asList(
                             Dimension.builder().name("Type").value("Resource").build(),
-                            Dimension.builder().name("Resource").value("OnDemand").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
                             Dimension.builder().name("Service").value("Fargate").build(),
-                            Dimension.builder().name("Class").value("None").build()
+                            Dimension.builder().name("Class").value("Standard/OnDemand").build()
                     ))
                     .build();
 
