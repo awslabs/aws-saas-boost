@@ -1,0 +1,39 @@
+.login-pf body {
+    background: #909090;
+    color: #3B3B3B;
+}
+
+.login-pf-page .login-pf-page-header {
+    margin-bottom: 0px;
+}
+
+#kc-header-wrapper {
+    padding: 25px 0px 0px 0px;
+}
+
+@media (max-width: 767px) {
+    #kc-header {
+        padding-left: 0px;
+        padding-right: 0px;
+    }
+}
+
+div.kc-logo-text {
+    background-image: url(../img/saas-boost-login.png);
+    background-position: center;
+    background-color: rgb(50, 31, 219);
+    height: 200px;
+}
+
+@media (min-width: 768px) {
+    div.kc-logo-text {
+        width: 500px;
+    }
+}
+
+@media (max-width: 767px) {
+    div.kc-logo-text {
+        width: 100%;
+        background-size: initial;
+    }
+}

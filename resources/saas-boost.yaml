@@ -509,6 +509,70 @@ Resources:
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref Resources
+  ClearEcrRepoExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-clear-ecr-repo-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-clear-ecr-repo-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                  - ecr:BatchDeleteImage
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-*
+  ClearEcrRepoLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-clear-ecr-repo
+      RetentionInDays: 30
+  ClearEcrRepo:
+    Type: AWS::Lambda::Function
+    DependsOn: ClearEcrRepoLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-clear-ecr-repo
+      Role: !GetAtt ClearEcrRepoExecutionRole.Arn
+      Runtime: java11
+      Timeout: 900
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearEcrRepo
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ClearEcrRepo-lambda.zip
+      Layers:
+         - !Ref SaaSBoostUtilsLayer
+         - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
   ApplicationServicesMacroExecutionRole:
     Type: AWS::IAM::Role
     Condition: ShouldCreateMacroResources
@@ -735,6 +799,7 @@ Resources:
         AdminEmailAddress: !Ref AdminEmailAddress
         AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
         VPC: !GetAtt network.Outputs.EgressVpc
+        ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
           !Join
             - ','
@@ -757,8 +822,7 @@ Resources:
         AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
         ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
-        UserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
-        UserPoolBaseUri: !If [UseCognito, !GetAtt idp.Outputs.CognitoSignOnBaseUri, '']
+        OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:

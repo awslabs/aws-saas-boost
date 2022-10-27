@@ -159,6 +159,8 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
         LinkedHashMap<String, Object> realm = new LinkedHashMap<>();
         realm.put("realm", realmName);
         realm.put("enabled", "true");
+        realm.put("loginTheme", "sb-theme");
+        realm.put("displayNameHtml", "<div class=\"kc-logo-text\"><span>" + realmName + "</span></div>");
         realm.put("users", List.of(adminUser));
 
         try {
