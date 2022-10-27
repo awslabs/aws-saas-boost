@@ -148,7 +148,7 @@ public class QuotaTest {
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                 .region(AWS_REGION)
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .endpointOverride(new URI("https://rds." + AWS_REGION.id() + ".amazonaws.com")) // will break in China regions
+                .endpointOverride(new URI("https://rds." + AWS_REGION.id() + "." + Utils.endpointSuffix(AWS_REGION.id())))
                 .overrideConfiguration(ClientOverrideConfiguration.builder().build())
                 .build();
         return rdsClient;
@@ -172,7 +172,7 @@ public class QuotaTest {
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                 .region(AWS_REGION)
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .endpointOverride(new URI("https://elasticloadbalancing." + AWS_REGION.id() + ".amazonaws.com")) // will break in China regions
+                .endpointOverride(new URI("https://elasticloadbalancing." + AWS_REGION.id() + "." + Utils.endpointSuffix(AWS_REGION.id())))
                 .overrideConfiguration(ClientOverrideConfiguration.builder().build())
                 .build();
         return client;
@@ -214,7 +214,7 @@ public class QuotaTest {
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                 .region(AWS_REGION)
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .endpointOverride(new URI("https://ec2." + AWS_REGION.id() + ".amazonaws.com")) // will break in China regions
+                .endpointOverride(new URI("https://ec2." + AWS_REGION.id() + "." + Utils.endpointSuffix(AWS_REGION.id())))
                 .overrideConfiguration(ClientOverrideConfiguration.builder().build())
                 .build();
         return client;

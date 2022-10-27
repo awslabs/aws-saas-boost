@@ -16,14 +16,11 @@
 
 const config = {
   region: process.env.REACT_APP_AWS_REGION,
-  userPool: process.env.REACT_APP_COGNITO_USERPOOL,
-  userPoolBaseUri: process.env.REACT_APP_COGNITO_USERPOOL_BASE_URI,
   clientId: process.env.REACT_APP_CLIENT_ID,
   apiUri: process.env.REACT_APP_API_URI,
-  environment: process.env.REACT_APP_ENVIRONMENT,
   awsAccount: process.env.REACT_APP_AWS_ACCOUNT,
-  issuer: process.env.REACT_APP_ISSUER || `https://cognito-idp.${process.env.REACT_APP_AWS_REGION}.amazonaws.com/${process.env.REACT_APP_COGNITO_USERPOOL}`,
-  scope: process.env.REACT_APP_SCOPE || 'openid profile email'
+  issuer: process.env.REACT_APP_ISSUER,
+  scope: process.env.REACT_APP_SCOPE
 }
 
 export default config

@@ -47,7 +47,10 @@ class DefaultLayout extends Component {
   handleProfileClick = () => {
     const { history } = this.props
     try {
-      const username = this.state.user.profile['cognito:username']
+      let username = this.state.user.profile['cognito:username']
+      if (!username) {
+        username = this.state.user.profile['preferred_username']
+      }
       history.push(`/users/${username}`)
       console.log(history)
     } catch (err) {
