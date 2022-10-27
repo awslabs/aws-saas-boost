@@ -68,6 +68,9 @@ Parameters:
   PrivateSubnets:
     Description: SaaS Boost VPC public subnets
     Type: String
+  ClearEcrRepoArn:
+    Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
+    Type: String
 Conditions:
   UseCognito: !Equals [!Ref IdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref IdentityProvider, 'KEYCLOAK']
@@ -256,6 +259,7 @@ Resources:
         VPC: !Ref VPC
         PublicSubnets: !Ref PublicSubnets
         PrivateSubnets: !Ref PrivateSubnets
+        ClearEcrRepoArn: !Ref ClearEcrRepoArn
 Outputs:
   SBUserPool:
     Condition: UseCognito
@@ -265,10 +269,6 @@ Outputs:
     Condition: UseCognito
     Description: SaaS Boost User Pool Client id
     Value: !Ref UserPoolClient
-  CognitoSignOnBaseUri:
-    Condition: UseCognito
-    Description: URL for Cognito Hosted signon base URI
-    Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
   KeycloakHost:
     Condition: UseKeycloak
     Description: URL for the Keycloak install
@@ -281,4 +281,7 @@ Outputs:
     Condition: UseKeycloak
     Description: Keycloak database hostname
     Value: !GetAtt keycloak.Outputs.KeycloakDatabaseEndpoint
+  OidcIssuerUrl:
+    Description: URL to access authority for configured IDP
+    Value: !If [UseCognito, !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}", !GetAtt keycloak.Outputs.KeycloakIssuer]
 ...

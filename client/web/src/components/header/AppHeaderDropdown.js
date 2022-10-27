@@ -24,7 +24,7 @@ import {
   CDropdownMenu,
   CDropdownToggle,
 } from '@coreui/react'
-import { cilLockLocked, cilSettings, cilShieldAlt, cilUser } from '@coreui/icons'
+import { cilLockLocked, cilSettings, cilUser } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 
 const AppHeaderDropdown = (props) => {
@@ -33,6 +33,10 @@ const AppHeaderDropdown = (props) => {
   let userName = user?.profile['cognito:username']
   if (!userName) {
     userName = user?.profile?.username
+  }
+  if (!userName) {
+    // keycloak
+    userName = user?.profile?.preferred_username
   }
   if (!userName) {
     userName = user?.profile.name
