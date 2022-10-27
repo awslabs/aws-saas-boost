@@ -18,7 +18,6 @@ const config = {
   region: process.env.REACT_APP_AWS_REGION,
   clientId: process.env.REACT_APP_CLIENT_ID,
   apiUri: process.env.REACT_APP_API_URI,
-  environment: process.env.REACT_APP_ENVIRONMENT,
   awsAccount: process.env.REACT_APP_AWS_ACCOUNT,
   issuer: process.env.REACT_APP_ISSUER,
   scope: process.env.REACT_APP_SCOPE

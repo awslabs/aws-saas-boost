@@ -116,8 +116,6 @@ Resources:
             Value: !Ref AWS::Region
           - Name: REACT_APP_AWS_ACCOUNT
             Value: !Ref AWS::AccountId
-          - Name: REACT_APP_ENVIRONMENT
-            Value: !Ref Environment
           - Name: REACT_APP_API_URI
             Value: !Ref ApiGatewayUrl
           - Name: REACT_APP_CLIENT_ID

@@ -23,8 +23,10 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
+import software.amazon.awssdk.services.ecr.model.ListImagesResponse;
 import software.amazon.awssdk.services.ecr.model.RepositoryNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,22 +61,39 @@ public class ClearEcrRepo implements RequestHandler<Map<String, Object>, Object>
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
                     try {
-                        List<ImageIdentifier> images = ecr.listImages(request -> request
-                                .repositoryName(repo)).imageIds();
-                        ecr.batchDeleteImage(request -> request.repositoryName(repo).imageIds(images));
+                        List<ImageIdentifier> imagesToDelete = new ArrayList<>();
+                        String token = null;
+                        do {
+                            ListImagesResponse response = ecr.listImages(request -> request.repositoryName(repo));
+                            token = response.nextToken();
+                            imagesToDelete.addAll(response.imageIds());
+                        } while (token != null);
+
+                        final int batchDeleteImageBatchSize = 100;
+                        List<ImageIdentifier> imagesToDeleteBatch = new ArrayList<>();
+                        for (ImageIdentifier image : imagesToDelete) {
+                            imagesToDeleteBatch.add(image);
+                            if (imagesToDeleteBatch.size() == batchDeleteImageBatchSize) {
+                                ecr.batchDeleteImage(request -> request
+                                        .repositoryName(repo).imageIds(imagesToDeleteBatch));
+                                imagesToDeleteBatch.clear();
+                            }
+                        }
+                        // final batch
+                        ecr.batchDeleteImage(request -> request.repositoryName(repo).imageIds(imagesToDeleteBatch));
+
                         CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                     } catch (RepositoryNotFoundException rnfe) {
                         LOGGER.error("FAILED repository {} not found", repo);
                         LOGGER.error(Utils.getFullStackTrace(rnfe));
                         responseData.put("Reason", "Passed repository does not exist: " + repo);
-                        CloudFormationResponse.send(event, context, "FAILED", responseData);
+                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                     } catch (EcrException ecrException) {
                         LOGGER.error("FAILED unexpected error {}", ecrException.getMessage());
                         LOGGER.error(Utils.getFullStackTrace(ecrException));
                         responseData.put("Reason", ecrException.getMessage());
                         CloudFormationResponse.send(event, context, "FAILED", responseData);
                     }
-
                 } else {
                     LOGGER.error("FAILED unknown requestType {}", requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
