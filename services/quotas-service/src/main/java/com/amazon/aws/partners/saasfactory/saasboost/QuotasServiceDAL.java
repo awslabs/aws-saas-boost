@@ -91,6 +91,14 @@ public class QuotasServiceDAL {
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
 
+        // fargate Spot
+        serviceCode = "fargate";
+        deployedCountMap.clear();
+        deployedCountMap.put("Fargate Spot vCPU resource count", getFargateSpotResourceCount());
+        quotasMap = getQuotas(serviceCode);
+        exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
+        reportBackError = reportBackError || exceedsLimit;
+
         // vpc
         serviceCode = "vpc";
         deployedCountMap.clear();
@@ -282,7 +290,59 @@ public class QuotasServiceDAL {
         }
         return count;
     }
+    private Double getFargateSpotResourceCount() {
+        final long startTime = System.currentTimeMillis();
+        Double count = 0d;
+        try {
+            Metric metric = Metric.builder()
+                    .metricName("ResourceCount")
+                    .namespace("AWS/Usage")
+                    .dimensions(Arrays.asList(
+                            Dimension.builder().name("Type").value("Resource").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
+                            Dimension.builder().name("Service").value("Fargate").build(),
+                            Dimension.builder().name("Class").value("Standard/Spot").build()
+                    ))
+                    .build();
 
+            MetricStat metricStat = MetricStat.builder()
+                    .stat("Maximum")
+                    .period(600)
+                    .metric(metric)
+                    .build();
+
+            MetricDataQuery dataQuery = MetricDataQuery.builder()
+                    .metricStat(metricStat)
+                    .id("fargate")
+                    .returnData(true)
+                    .build();
+
+            Instant end = Instant.now();
+            Instant start = end.minus(600, ChronoUnit.SECONDS);
+
+            GetMetricDataRequest getMetricDataRequest = GetMetricDataRequest.builder()
+                    .maxDatapoints(10000)
+                    .startTime(start)
+                    .endTime(end)
+                    .metricDataQueries(Arrays.asList(dataQuery))
+                    .build();
+
+            GetMetricDataResponse response = cloudWatch.getMetricData(getMetricDataRequest);
+            for (MetricDataResult item : response.metricDataResults()) {
+                //get the last value as it is the most current
+                if (!item.values().isEmpty()) {
+                    count = item.values().get(item.values().size() - 1);
+                    break;
+                }
+            }
+            LOGGER.info("Time to process: " + (System.currentTimeMillis() - startTime));
+        } catch (CloudWatchException cloudWatchError) {
+            LOGGER.error("cloudwatch::GetMetricData", cloudWatchError);
+            LOGGER.error(Utils.getFullStackTrace(cloudWatchError));
+            throw cloudWatchError;
+        }
+        return count;
+    }
     private Double getVCpuCount() {
         final long startTime = System.currentTimeMillis();
         Double count = 0d;
