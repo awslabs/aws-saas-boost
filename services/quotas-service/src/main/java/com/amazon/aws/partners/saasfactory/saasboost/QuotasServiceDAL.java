@@ -84,8 +84,12 @@ public class QuotasServiceDAL {
         // fargate
         serviceCode = "fargate";
         deployedCountMap.clear();
-        deployedCountMap.put("Fargate On-Demand resource count", getFargateResourceCount());
+        deployedCountMap.put("Fargate On-Demand vCPU resource count", getFargateResourceCount());
+        deployedCountMap.put("Fargate Spot vCPU resource count", getFargateSpotResourceCount());
         quotasMap = getQuotas(serviceCode);
+        // Remove old on demand quota that have been replaced with the new vCPU quota
+        quotasMap.remove("Fargate On-Demand resource count");
+        quotasMap.remove("Fargate Spot resource count");
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
 
@@ -236,9 +240,9 @@ public class QuotasServiceDAL {
                     .namespace("AWS/Usage")
                     .dimensions(Arrays.asList(
                             Dimension.builder().name("Type").value("Resource").build(),
-                            Dimension.builder().name("Resource").value("OnDemand").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
                             Dimension.builder().name("Service").value("Fargate").build(),
-                            Dimension.builder().name("Class").value("None").build()
+                            Dimension.builder().name("Class").value("Standard/OnDemand").build()
                     ))
                     .build();
 
@@ -280,7 +284,59 @@ public class QuotasServiceDAL {
         }
         return count;
     }
+    private Double getFargateSpotResourceCount() {
+        final long startTime = System.currentTimeMillis();
+        Double count = 0d;
+        try {
+            Metric metric = Metric.builder()
+                    .metricName("ResourceCount")
+                    .namespace("AWS/Usage")
+                    .dimensions(Arrays.asList(
+                            Dimension.builder().name("Type").value("Resource").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
+                            Dimension.builder().name("Service").value("Fargate").build(),
+                            Dimension.builder().name("Class").value("Standard/Spot").build()
+                    ))
+                    .build();
 
+            MetricStat metricStat = MetricStat.builder()
+                    .stat("Maximum")
+                    .period(600)
+                    .metric(metric)
+                    .build();
+
+            MetricDataQuery dataQuery = MetricDataQuery.builder()
+                    .metricStat(metricStat)
+                    .id("fargate")
+                    .returnData(true)
+                    .build();
+
+            Instant end = Instant.now();
+            Instant start = end.minus(600, ChronoUnit.SECONDS);
+
+            GetMetricDataRequest getMetricDataRequest = GetMetricDataRequest.builder()
+                    .maxDatapoints(10000)
+                    .startTime(start)
+                    .endTime(end)
+                    .metricDataQueries(Arrays.asList(dataQuery))
+                    .build();
+
+            GetMetricDataResponse response = cloudWatch.getMetricData(getMetricDataRequest);
+            for (MetricDataResult item : response.metricDataResults()) {
+                //get the last value as it is the most current
+                if (!item.values().isEmpty()) {
+                    count = item.values().get(item.values().size() - 1);
+                    break;
+                }
+            }
+            LOGGER.info("Time to process: " + (System.currentTimeMillis() - startTime));
+        } catch (CloudWatchException cloudWatchError) {
+            LOGGER.error("cloudwatch::GetMetricData", cloudWatchError);
+            LOGGER.error(Utils.getFullStackTrace(cloudWatchError));
+            throw cloudWatchError;
+        }
+        return count;
+    }
     private Double getVCpuCount() {
         final long startTime = System.currentTimeMillis();
         Double count = 0d;
