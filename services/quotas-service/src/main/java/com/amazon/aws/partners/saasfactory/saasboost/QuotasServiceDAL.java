@@ -87,16 +87,6 @@ public class QuotasServiceDAL {
         serviceCode = "fargate";
         deployedCountMap.clear();
         deployedCountMap.put("Fargate On-Demand vCPU resource count", getFargateResourceCount());
-        quotasMap = getQuotas(serviceCode);
-        // Remove old on demand quota that have been replaced with the new vCPU quota
-        quotasMap.remove("Fargate On-Demand resource count");
-        quotasMap.remove("Fargate Spot resource count");
-        exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
-        reportBackError = reportBackError || exceedsLimit;
-
-        // fargate Spot
-        serviceCode = "fargate";
-        deployedCountMap.clear();
         deployedCountMap.put("Fargate Spot vCPU resource count", getFargateSpotResourceCount());
         quotasMap = getQuotas(serviceCode);
         // Remove old on demand quota that have been replaced with the new vCPU quota
