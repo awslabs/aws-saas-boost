@@ -126,7 +126,7 @@ public class SettingsServiceDAL {
 
     public Setting getSetting(String settingName, boolean decrypt) {
         return fromParameterStore(parameterStore.getParameter(
-                toParameterStore(Setting.builder().name(settingName).build()).name(), decrypt));
+                toParameterStore(Setting.builder().name(APP_BASE_PATH + settingName).build()).name(), decrypt));
     }
 
     public Setting getSecret(String settingName) {
