@@ -54,11 +54,19 @@ Parameters:
   PrivateSubnets:
     Description: SaaS Boost VPC public subnets
     Type: List<AWS::EC2::Subnet::Id>
+  ClearEcrRepoArn:
+    Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
+    Type: String
 Resources:
   KeycloakRepo:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub sb-${Environment}-keycloak
+  InvokeClearKeycloakRepo:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Ref ClearEcrRepoArn
+      Repo: !Ref KeycloakRepo
   KeycloakCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -765,11 +773,17 @@ Resources:
       Realm: !Sub sb-${Environment}
 Outputs:
   KeycloakHost:
+    # If you update this, also update KeycloakIssuer
     Description: URL for the Keycloak install
     Value: !Sub http://${KeycloakLoadBalancer.DNSName}
   KeycloakRealm:
-    Description: URL for the Keycloak install
+    # If you update this, also update KeycloakIssuer
+    Description: Configured realm for the Keycloak install
     Value: !Sub sb-${Environment}
+  KeycloakIssuer:
+    # Unfortunately we can't reference Outputs from other Outputs
+    Description: Issuer endpoint for OIDC configuration
+    Value: !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
   KeycloakDatabaseEndpoint:
     Description: Keycloak database hostname
     Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address

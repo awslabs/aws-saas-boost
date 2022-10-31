@@ -364,7 +364,7 @@ public class SaaSBoostInstall {
 
             // Copy the CloudFormation templates
             outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-            copyTemplateFilesToS3();
+            copyResourcesToS3();
 
             // Compile all the source code
             outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
@@ -373,7 +373,7 @@ public class SaaSBoostInstall {
             outputMessage("Reusing existing artifacts bucket " + existingBucket);
             saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
             outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-            copyTemplateFilesToS3();
+            copyResourcesToS3();
             try {
                 s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
             } catch (SdkServiceException s3error) {
@@ -1148,7 +1148,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void copyTemplateFilesToS3() {
+    protected void copyResourcesToS3() {
         final Path resourcesDir = workingDir.resolve(Path.of("resources"));
         try (Stream<Path> stream = Files.list(resourcesDir)) {
             Set<Path> cloudFormationTemplates = stream
@@ -1167,10 +1167,19 @@ public class SaaSBoostInstall {
             LOGGER.error(getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }
-        Path keycloakResources = resourcesDir.resolve(Path.of("keycloak", "Dockerfile"));
-        if (Files.exists(keycloakResources)) {
-            LOGGER.info("Uploading Keycloak resources to S3");
-            saasBoostArtifactsBucket.putFile(s3, keycloakResources, Path.of("keycloak", "Dockerfile"));
+        try (Stream<Path> stream = Files.walk(resourcesDir.resolve("keycloak"))) {
+            Set<Path> keycloakResources = stream.filter(file -> Files.isRegularFile(file)).collect(Collectors.toSet());
+            for (Path keycloakResource : keycloakResources) {
+                Path remotePath = resourcesDir.relativize(keycloakResource);
+                LOGGER.info("Uploading Keycloak resource to S3 " + keycloakResource.toString() + " -> " + remotePath);
+                saasBoostArtifactsBucket.putFile(s3, keycloakResource, remotePath);
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error walking keycloak directory", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            // TODO while this is an invalid state, maybe we only want to fail out if
+            //      KEYCLOAK actually needs to be installed for this environment
+            throw new RuntimeException(ioe);
         }
     }
 

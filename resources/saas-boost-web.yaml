@@ -36,11 +36,8 @@ Parameters:
   AdminWebClientId:
     Description: OAuth client id for the admin web app
     Type: String
-  UserPoolId:
-    Description: Amazon Cognito User Pool id
-    Type: String
-  UserPoolBaseUri:
-    Description: Amazon Cognito User Pool hosted UI URL
+  OidcIssuerUrl:
+    Description: URL to access authority for configured IDP
     Type: String
 Resources:
   AdminWebCodeBuildRole:
@@ -119,20 +116,14 @@ Resources:
             Value: !Ref AWS::Region
           - Name: REACT_APP_AWS_ACCOUNT
             Value: !Ref AWS::AccountId
-          - Name: REACT_APP_ENVIRONMENT
-            Value: !Ref Environment
-          - Name: REACT_APP_SIGNOUT_URI
-            Value: !Ref AdminWebUrl
-          - Name: REACT_APP_CALLBACK_URI
-            Value: !Ref AdminWebUrl
           - Name: REACT_APP_API_URI
             Value: !Ref ApiGatewayUrl
           - Name: REACT_APP_CLIENT_ID
             Value: !Ref AdminWebClientId
-          - Name: REACT_APP_COGNITO_USERPOOL
-            Value: !Ref UserPoolId
-          - Name: REACT_APP_COGNITO_USERPOOL_BASE_URI
-            Value: !Ref UserPoolBaseUri
+          - Name: REACT_APP_SCOPE
+            Value: openid profile email
+          - Name: REACT_APP_ISSUER
+            Value: !Ref OidcIssuerUrl
       Source:
         Type: NO_SOURCE
         BuildSpec: |
