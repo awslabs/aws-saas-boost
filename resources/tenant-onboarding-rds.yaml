@@ -215,6 +215,7 @@ Resources:
   RDSAuroraInstance:
     Type: AWS::RDS::DBInstance
     Condition: Aurora
+    DeletionPolicy: Delete
     Properties:
       DBClusterIdentifier: !Ref RDSCluster
       PubliclyAccessible: false
@@ -230,6 +231,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Condition: NotAurora
     DependsOn: RDSSecurityGroup
+    DeletionPolicy: Delete
     Properties:
       DBInstanceIdentifier:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
