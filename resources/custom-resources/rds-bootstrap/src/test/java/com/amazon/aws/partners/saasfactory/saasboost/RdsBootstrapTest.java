@@ -42,4 +42,32 @@ public class RdsBootstrapTest {
         }
         assertEquals(6, sql.size());
     }
+
+    @Test
+    public void testBatch() {
+        InputStream bootstrapSQL = Thread.currentThread().getContextClassLoader().getResourceAsStream("large.sql");
+        Scanner sqlScanner = new Scanner(bootstrapSQL, "UTF-8");
+        sqlScanner.useDelimiter(Pattern.compile(RdsBootstrap.SQL_STATEMENT_DELIMITER));
+        List<String> sql = new ArrayList<>();
+        int batch = 0;
+        int executedBatches = 0;
+        while (sqlScanner.hasNext()) {
+            String ddl = sqlScanner.next().trim();
+            if (!ddl.isEmpty()) {
+                sql.add(ddl);
+                batch++;
+                if (batch % 25 == 0) {
+                    executedBatches++;
+                    //System.out.println("Executing batch of " + sql.size());
+                    assertEquals(25, sql.size());
+                    sql.clear();
+                    assertEquals(0, sql.size());
+                }
+            }
+        }
+        executedBatches++;
+        assertEquals(2, sql.size());
+        //System.out.println("Executing batch of " + sql.size());
+        assertEquals(3, executedBatches);
+    }
 }
