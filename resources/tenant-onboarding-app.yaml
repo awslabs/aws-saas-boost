@@ -454,9 +454,14 @@ Resources:
       Volumes:
         Fn::If:
           - ProvisionFSx
-          - - Name: !GetAtt fsx.Outputs.FileSystemId
-              Host:
-                SourcePath: !Sub '${FSxWindowsMountDrive}\'
+          - !If
+            - LinuxOS
+            - - Name: !GetAtt fsx.Outputs.FileSystemId
+                Host:
+                  SourcePath: !Sub '/${fsx.Outputs.FileSystemId}'
+            - - Name: !GetAtt fsx.Outputs.FileSystemId
+                Host:
+                  SourcePath: !Sub '${FSxWindowsMountDrive}\'
           - !If
             - ProvisionEFS
             - - Name: !GetAtt efs.Outputs.FileSystemId
@@ -972,19 +977,40 @@ Resources:
         SecurityGroupIds:
           - !Ref ECSSecurityGroup
         UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash -xe
-            yum install -y aws-cfn-bootstrap amazon-cloudwatch-agent
+          Fn::If:
+          - ProvisionFSx
+          - Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                yum install -y aws-cfn-bootstrap amazon-cloudwatch-agent
 
-            # Setup the CloudWatch logs agent
-            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a fetch-config -s
+                # Setup the CloudWatch logs agent
+                /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a fetch-config -s
 
-            # Setup the ECS agent to point to our cluster
-            echo ECS_CLUSTER="${ECSCluster}" >> /etc/ecs/ecs.config
+                # Mount the FSx Volume
+                if [ "${FSxFileSystemType}" == "FSX_ONTAP" ]; then
+                  mkdir /${fsx.Outputs.FileSystemId}
+                  mount -t nfs ${fsx.Outputs.FSxDnsName}:/vol1 /${fsx.Outputs.FileSystemId}
+                fi
 
-            # Signal CloudFormation that we're done setting up
-            /opt/aws/bin/cfn-init -v -s ${AWS::StackName} -r LinuxLaunchTemplate --region ${AWS::Region}
-            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+                # Setup the ECS agent to point to our cluster
+                echo ECS_CLUSTER="${ECSCluster}" >> /etc/ecs/ecs.config
+
+                # Signal CloudFormation that we're done setting up
+                /opt/aws/bin/cfn-init -v -s ${AWS::StackName} -r LinuxLaunchTemplate --region ${AWS::Region}
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+          - Fn::Base64: !Sub |
+                #!/bin/bash -xe
+                yum install -y aws-cfn-bootstrap amazon-cloudwatch-agent
+
+                # Setup the CloudWatch logs agent
+                /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a fetch-config -s
+
+                # Setup the ECS agent to point to our cluster
+                echo ECS_CLUSTER="${ECSCluster}" >> /etc/ecs/ecs.config
+
+                # Signal CloudFormation that we're done setting up
+                /opt/aws/bin/cfn-init -v -s ${AWS::StackName} -r LinuxLaunchTemplate --region ${AWS::Region}
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -1189,6 +1215,7 @@ Resources:
         VPC: !Ref VPC
         SaaSBoostBucket: !Sub '{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}'
         FileSystemType: !Ref FSxFileSystemType
+        ContainerOS: !Ref ContainerOS
         BackupRetention: !Ref FSxBackupRetention
         DailyBackupTime: !Ref FSxDailyBackupTime
         WeeklyMaintenanceTime: !Ref FSxWeeklyMaintenanceTime
