@@ -71,7 +71,7 @@ public class QuotasServiceDAL {
         deployedCountMap.clear();
         deployedCountMap.put("DB clusters", Double.valueOf(getRdsClusters()));
         deployedCountMap.put("DB instances", Double.valueOf(getRdsInstances()));
-        getQuotas(serviceCode);
+        quotasMap = getQuotas(serviceCode);
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
 
