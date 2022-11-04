@@ -194,7 +194,7 @@ public class KeycloakUserDataAccessLayer implements SystemUserDataAccessLayer {
             user = new SystemUser();
             user.setId((String) keycloakUser.get("id"));
             user.setCreated(LocalDateTime.ofInstant(Instant.ofEpochSecond(
-                    (Integer) keycloakUser.get("createdTimestamp")), ZoneId.of("UTC")
+                    ((Number) keycloakUser.get("createdTimestamp")).longValue()), ZoneId.of("UTC")
             ));
             // Keycloak doesn't track when a user was last modified
             user.setModified(null);

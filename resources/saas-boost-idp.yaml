@@ -59,6 +59,15 @@ Parameters:
   AdminWebUrl:
     Description: The SaaS Boost admin web URL.
     Type: String
+  CustomDomainName:
+    Description: FQDN custom domain name for the identity provider (e.g. auth.example.com)
+    Type: String
+  CustomDomainHostedZone:
+    Description: Route53 hosted zone id for the custom domain name to create the ALB record set alias under
+    Type: String
+  CustomDomainCertificate:
+    Description: ACM certificate ARN for the custom domain name
+    Type: String
   VPC:
     Type: String
     Description: The SaaS Boost VPC ID.
@@ -255,6 +264,9 @@ Resources:
         CloudFormationWaitHandleCallback: !Ref CloudFormationWaitHandleCallback
         AdminCredentials: !Ref SaaSBoostAdminCredentials
         AdminWebUrl: !Ref AdminWebUrl
+        CustomDomainName: !Ref CustomDomainName
+        CustomDomainHostedZone: !Ref CustomDomainHostedZone
+        CustomDomainCertificate: !Ref CustomDomainCertificate
         VPC: !Ref VPC
         PublicSubnets: !Ref PublicSubnets
         PrivateSubnets: !Ref PrivateSubnets
