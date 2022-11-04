@@ -24,10 +24,11 @@ import {
   selectLoading,
   selectError,
   selectErrorName,
+  dismissError,
 } from './ducks'
 import { useDispatch, useSelector } from 'react-redux'
 import { selectConfig } from '../settings/ducks'
-import { selectAllPlans } from '../billing/ducks'
+import { selectAllPlans, fetchPlans, selectPlanLoading } from '../billing/ducks'
 import { saveToPresignedBucket } from '../settings/ducks'
 import { selectAllTiers } from '../tier/ducks'
 
@@ -39,9 +40,20 @@ export default function OnboardingCreateContainer() {
   const errorName = useSelector(selectErrorName)
   const loading = useSelector(selectLoading)
   const plans = useSelector(selectAllPlans)
+  const plansLoading = useSelector(selectPlanLoading)
   const tiers = useSelector(selectAllTiers)
 
   const [file, setFile] = useState({})
+
+  useEffect(() => {
+    const fetchPlansThunk = dispatch(fetchPlans())
+    return () => {
+      if (fetchPlansThunk.PromiseStatus === 'pending') {
+        fetchPlansThunk.abort()
+      }
+      dispatch(dismissError())
+    }
+  }, [dispatch])
 
   const nullBlankProps = (obj) => {
     const ret = { ...obj }
@@ -94,6 +106,7 @@ export default function OnboardingCreateContainer() {
     <LoadingOverlay active={!loading} spinner text="Loading...">
       <OnboardingFormComponent
         billingPlans={plans}
+        plansLoading={plansLoading === 'pending'}
         cancel={cancel}
         config={config}
         error={error}
