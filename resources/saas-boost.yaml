@@ -857,6 +857,8 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
   # To Do - merge this stuff into the billing template
   metering:
     Type: AWS::CloudFormation::Stack

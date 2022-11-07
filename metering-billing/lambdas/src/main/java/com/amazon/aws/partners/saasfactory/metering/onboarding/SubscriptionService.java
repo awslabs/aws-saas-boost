@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.metering.onboarding;
 
-import com.amazon.aws.partners.saasfactory.metering.common.SubscriptionPlan;
+import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
@@ -24,48 +25,77 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Product;
+import com.stripe.model.ProductCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SubscriptionService {
-    private final static Map<String, String> CORS = Stream
-            .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    private final static Logger LOGGER = LoggerFactory.getLogger(SubscriptionService.class);
+    private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
+    private static final Logger LOGGER = LoggerFactory.getLogger(SubscriptionService.class);
+    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
+    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
+    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
 
     public SubscriptionService() {
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
+        if (Utils.isBlank(API_GATEWAY_HOST)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
+        }
+        if (Utils.isBlank(API_GATEWAY_STAGE)) {
+            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
+        }
+        if (Utils.isBlank(API_TRUST_ROLE)) {
+            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        }
     }
-    public APIGatewayProxyResponseEvent getPlans(Map<String, Object> event, Context context) throws JsonProcessingException {
+
+    public APIGatewayProxyResponseEvent getPlans(Map<String, Object> event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SubscriptionService::getPlans starting");
+        final long startTimeMillis = System.currentTimeMillis();
+        Utils.logRequestEvent(event);
 
-        // create an array of key-value pairs
-        //ObjectMapper MAPPER = new ObjectMapper();
+        APIGatewayProxyResponseEvent response;
 
-        //Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
-        ArrayNode plans = JsonNodeFactory.instance.arrayNode();
-        for (SubscriptionPlan plan : SubscriptionPlan.values()) {
-            ObjectNode planN = JsonNodeFactory.instance.objectNode();
-            planN.put("planId", plan.name());
-            planN.put("planName", plan.getLabel());
-            plans.add(planN);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+        try {
+            ArrayNode plans = JsonNodeFactory.instance.arrayNode();
+            ProductCollection products = Product.list(new HashMap<>());
+            for (Product product : products.getData()) {
+                // TODO in the eventual refactor the Plan returned by this function should be a POJO we construct
+                if (product.getActive()) {
+                    ObjectNode productNode = JsonNodeFactory.instance.objectNode();
+                    productNode.put("planId", product.getId());
+                    productNode.put("planName", product.getName());
+                    plans.add(productNode);
+                }
+            }
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(200)
+                    .withBody(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(plans));
+        } catch (StripeException se) {
+            LOGGER.error("Error listing products {}", se);
+            LOGGER.error(Utils.getFullStackTrace(se));
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(500)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(Map.of("message", "Error listing products from Stripe")));
+        } catch (JsonProcessingException jpe) {
+            LOGGER.error("Unable to generate JSON list of plans {}", jpe);
+            LOGGER.error(Utils.getFullStackTrace(jpe));
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(500)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(Map.of("message", "Error retrieving products, view logs for details.")));
         }
-
-        response = new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(plans));
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("SubscriptionService::getPlans exec " + totalTimeMillis);
