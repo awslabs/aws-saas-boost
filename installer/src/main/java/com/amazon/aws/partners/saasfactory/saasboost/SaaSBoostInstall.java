@@ -503,7 +503,48 @@ public class SaaSBoostInstall {
                 }
             } else {
                 // In the AWS China regions, CloudFront can only be associated with certificates in IAM
-
+                List<ServerCertificateMetadata> serverCertificates = new ArrayList<>();
+                ListServerCertificatesResponse serverCertificateResponse;
+                String marker = null;
+                do {
+                    serverCertificateResponse = iam.listServerCertificates(ListServerCertificatesRequest.builder()
+                            .maxItems(100)
+                            .marker(marker)
+                            .build()
+                    );
+                    marker = serverCertificateResponse.marker();
+                    if (serverCertificateResponse.hasServerCertificateMetadataList()) {
+                        serverCertificates.addAll(serverCertificateResponse.serverCertificateMetadataList());
+                    }
+                } while (serverCertificateResponse.isTruncated());
+                if (serverCertificates.isEmpty()) {
+                    System.out.println("Error. Unable to find IAM server certificates. Import a 3rd party certificate "
+                            + "for the domain " + adminWebAppCustomDomain + " to IAM.");
+                    cancel();
+                } else {
+                    while (true) {
+                        System.out.println("Select the IAM Server Certificate for the domain "
+                                + adminWebAppCertificate + ":");
+                        for (ListIterator<ServerCertificateMetadata> iter = serverCertificates.listIterator();
+                                iter.hasNext(); ) {
+                            int index = iter.nextIndex();
+                            ServerCertificateMetadata certificate = iter.next();
+                            System.out.printf("%d. %s%n",
+                                    (index + 1),
+                                    certificate.serverCertificateName()
+                            );
+                        }
+                        System.out.print("Type the number of the certificate to use and press enter: ");
+                        Integer choice = Keyboard.readInt();
+                        try {
+                            adminWebAppCertificate = serverCertificates.get((choice - 1)).arn();
+                            LOGGER.info("Setting admin web app certificate = [{}]", adminWebAppCertificate);
+                            break;
+                        } catch (NullPointerException | IndexOutOfBoundsException e) {
+                            System.out.println("Invalid choice, please try again. Enter the number of the certificate to use.");
+                        }
+                    }
+                }
             }
         }
 

@@ -132,9 +132,16 @@ public class AwsClientBuilderFactory {
 
     public IamClientBuilder iamBuilder() {
         if (cachedIamBuilder == null) {
-            // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
-            // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
-            cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+            Region region = Region.of(System.getenv("AWS_REGION"));
+            if (Utils.isChinaRegion(region)) {
+                // China's IAM endpoints are regional
+                // See https://docs.amazonaws.cn/en_us/aws/latest/userguide/iam.html
+                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder());
+            } else {
+                // IAM in the commercial regions use the AWS_GLOBAL
+                // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+            }
         }
         return cachedIamBuilder;
     }
