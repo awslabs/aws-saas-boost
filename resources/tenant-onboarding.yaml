@@ -41,6 +41,11 @@ Parameters:
     Description: The tier this tenant is onboading into
     Type: String
     Default: ''
+  PrivateServices:
+    Description: True if the appConfig for this tenant contains private services
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
 Conditions:
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
   HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
@@ -51,6 +56,7 @@ Conditions:
     - !Condition HasDomainName
     - !Condition HasHostedZone
     - !Condition HasSubDomainName
+  HasPrivateServices: !Equals [!Ref PrivateServices, 'true']
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -66,6 +72,12 @@ Resources:
             Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
         - Key: Tier
           Value: !Ref Tier
+  ServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Condition: HasPrivateServices
+    Properties:
+        Name: local
+        Vpc: !Ref VPC
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
