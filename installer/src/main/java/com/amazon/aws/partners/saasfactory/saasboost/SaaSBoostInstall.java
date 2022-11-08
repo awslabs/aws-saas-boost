@@ -476,12 +476,12 @@ public class SaaSBoostInstall {
                         AcmClient.builder().region(Region.US_EAST_1).build(), adminWebAppCustomDomain);
                 if (certificates == null || certificates.isEmpty()) {
                     System.out.println("Error. Unable to find an ACM certificate in us-east-1 for the domain "
-                            + adminWebAppCertificate + ". Create or import a public certificate in us-east-1.");
+                            + adminWebAppCustomDomain + ". Create or import a public certificate in us-east-1.");
                     cancel();
                 } else {
                     while (true) {
                         System.out.println("Select the ACM Certificate for the domain "
-                                + adminWebAppCertificate + ":");
+                                + adminWebAppCustomDomain + ":");
                         for (ListIterator<CertificateSummary> iter = certificates.listIterator(); iter.hasNext(); ) {
                             int index = iter.nextIndex();
                             CertificateSummary certificate = iter.next();
@@ -1552,9 +1552,9 @@ public class SaaSBoostInstall {
             if (response.hasHostedZones()) {
                 LOGGER.info("Found {} existing hosted zones", response.hostedZones().size());
                 for (HostedZone hostedZone : response.hostedZones()) {
-                    // If there are multiple hosted zones for a given domain name, what should we do?
-                    // We could sort the response by "CallerReference" which appears to be a timestamp.
-                    if (hostedZone.name().contains(domain)
+                    // The full domain name should be longer than or equal to the name
+                    // of the hosted zone
+                    if (domain.contains(hostedZone.name())
                             && hostedZone.config() != null && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
                         hostedZones.add(hostedZone);
                     } else {
@@ -1563,6 +1563,8 @@ public class SaaSBoostInstall {
                 }
             }
         } while (response.isTruncated());
+        // If there are multiple hosted zones for a given domain name, we will sort them
+        // by "CallerReference" which appears to be a timestamp.
         Collections.sort(hostedZones, Comparator.comparing(HostedZone::callerReference));
         return hostedZones;
     }
@@ -1580,6 +1582,8 @@ public class SaaSBoostInstall {
                 if (response.hasCertificateSummaryList()) {
                     certificateSummaries.addAll(
                             response.certificateSummaryList().stream()
+                                    // This works because the certificate domain will be equal to or shorter
+                                    // than the full domain name
                                     .filter(cert -> {
                                         String certDomain = cert.domainName();
                                         if (certDomain.startsWith("*.")) {
@@ -1645,7 +1649,7 @@ public class SaaSBoostInstall {
                                 .collect(Collectors.toSet());
                         for (Path zipFile : lambdaSourcePackage) {
                             LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
-                            System.out.printf("%02d. %s%n", progress, zipFile.getFileName().toString());
+                            System.out.printf("%2d. %s%n", (progress + 1), zipFile.getFileName().toString());
                             saasBoostArtifactsBucket.putFile(s3, zipFile,
                                     Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
                         }
