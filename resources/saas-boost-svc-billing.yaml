@@ -92,7 +92,6 @@ Resources:
         - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          SAAS_BOOST_ENV: !Ref Environment
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
