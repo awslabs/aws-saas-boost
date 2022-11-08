@@ -281,7 +281,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
 
         // We need the realm admin role that's owned by the realm management client
         List<Map<String, Object>> roles = getClientRoles(keycloakHost, bearerToken, realmName, clientId);
-        Map<String, Object> manageRealmRole = roles.stream()
+        Map<String, Object> realmAdminRole = roles.stream()
                 .filter(role -> "realm-admin".equals(role.get("name")))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Can't find realm-admin role in client " + clientId));
@@ -289,12 +289,12 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
         // We need the id of the realm admin user (not the keycloak master realm super user)
         Map<String, Object> adminUser = getUser(keycloakHost, bearerToken, realmName, username);
         String userId = (String) adminUser.get("id");
-        List<Map<String, Object>> userRoles = (List<Map<String, Object>>) adminUser.get("roles");
+        //List<Map<String, Object>> userRoles = (List<Map<String, Object>>) adminUser.get("roles");
 
         // Finally we can map the manage realm role to our admin user so that access tokens retrieved by that
         // user will have permissions to do things like add and edit users
-        userRoles.add(manageRealmRole);
-        return postUserClientRoleMapping(keycloakHost, bearerToken, realmName, userId, clientId, userRoles);
+        //userRoles.add(realmAdminRole);
+        return postUserClientRoleMapping(keycloakHost, bearerToken, realmName, userId, clientId, realmAdminRole);
     }
 
     protected List<Map<String, Object>> getClients(String keycloakHost, String bearerToken, String realmName) {
@@ -408,7 +408,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
     }
 
     protected int postUserClientRoleMapping(String keycloakHost, String bearerToken, String realmName, String userId,
-                                            String clientId, List<Map<String, Object>> roles) {
+                                            String clientId, Map<String, Object> role) {
         try {
             URI endpoint = new URI(keycloakHost + "/admin"
                     + "/realms/" + realmName
@@ -416,7 +416,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                     + "/role-mappings"
                     + "/clients/" + clientId
             );
-            String body = Utils.toJson(roles);
+            String body = Utils.toJson(role);
             HttpRequest request = HttpRequest.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1) // EOF reached while reading due to chunked transfer-encoding
                     .uri(endpoint)

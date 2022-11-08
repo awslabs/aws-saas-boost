@@ -1554,7 +1554,11 @@ public class SaaSBoostInstall {
                 for (HostedZone hostedZone : response.hostedZones()) {
                     // The full domain name should be longer than or equal to the name
                     // of the hosted zone
-                    if (domain.contains(hostedZone.name())
+                    String hostedZoneDomain = hostedZone.name();
+                    if (hostedZoneDomain.endsWith(".")) {
+                        hostedZoneDomain = hostedZoneDomain.substring(0, (hostedZoneDomain.length() - 1));
+                    }
+                    if (domain.contains(hostedZoneDomain)
                             && hostedZone.config() != null && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
                         hostedZones.add(hostedZone);
                     } else {
