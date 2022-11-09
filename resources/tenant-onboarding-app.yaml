@@ -66,6 +66,9 @@ Parameters:
   PrivateRouteTable:
     Description: Route table for the private subnets in this tenant's VPC
     Type: String
+  ServiceDiscoveryNamespace:
+    Description: ID of the existing Private Service Discovery Namespace for this tenant's VPC
+    Type: String
   ECSLoadBalancerHttpListener:
     Description: The ARN of the ALB listener for HTTP traffic
     Type: String
@@ -1095,12 +1098,6 @@ Resources:
             - !Ref PublicPathRoute
       ListenerArn: !Ref ECSLoadBalancerHttpsListener
       Priority: !Ref PublicPathRulePriority
-  ServiceDiscoveryNamespace:
-      Type: AWS::ServiceDiscovery::PrivateDnsNamespace
-      Condition: IsPrivate
-      Properties:
-          Name: local
-          Vpc: !Ref VPC
   ServiceDiscovery:
     Type: AWS::ServiceDiscovery::Service
     Condition: IsPrivate
