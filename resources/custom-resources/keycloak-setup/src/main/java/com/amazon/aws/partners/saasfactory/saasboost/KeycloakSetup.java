@@ -416,7 +416,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                     + "/role-mappings"
                     + "/clients/" + clientId
             );
-            String body = Utils.toJson(role);
+            String body = Utils.toJson(List.of(role));
             HttpRequest request = HttpRequest.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1) // EOF reached while reading due to chunked transfer-encoding
                     .uri(endpoint)

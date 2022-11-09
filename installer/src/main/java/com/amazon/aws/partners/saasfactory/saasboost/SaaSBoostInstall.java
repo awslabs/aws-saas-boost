@@ -421,7 +421,7 @@ public class SaaSBoostInstall {
             } else {
                 System.out.println("You must provide a verified TLS (SSL) certificate from the IAM certificate store "
                         + " to use a custom domain name for the SaaS Boost admin web console.");
-                System.out.println("You must also have an ICP registration for the domain. See https://www.amazonaws.cn/en/about-aws/china/#ICP_ for more information.");
+                System.out.println("You must also have an ICP registration for the domain. See https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China for more information.");
             }
             // TODO Does this work the same way in AWS China?
             System.out.println("You must have an existing Route53 Hosted Zone for the domain name, and DNS resolution must work.");
