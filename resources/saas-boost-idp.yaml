@@ -56,8 +56,17 @@ Parameters:
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
     Type: String
-  AdminWebDomainName:
-    Description: The FQDN (do not include the protocol) where the SaaS Boost admin web console is hosted.
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+  CustomDomainName:
+    Description: FQDN custom domain name for the identity provider (e.g. auth.example.com)
+    Type: String
+  CustomDomainHostedZone:
+    Description: Route53 hosted zone id for the custom domain name to create the ALB record set alias under
+    Type: String
+  CustomDomainCertificate:
+    Description: ACM certificate ARN for the custom domain name
     Type: String
   VPC:
     Type: String
@@ -105,18 +114,18 @@ Resources:
           EmailMessage: !Sub |
             <b>Welcome to AWS SaaS Boost!</b> <br>
             <br>
-            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="https://${AdminWebDomainName}">https://${AdminWebDomainName}</a>.
+            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="${AdminWebUrl}">${AdminWebUrl}</a>.
             <br>
             Your username is:  <b>{username}</b>
             <br>
             Your temporary password is:  <b>{####}</b>
             <br>
           EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
-  UserPoolClient:
+  AdminWebAppClient:
     Type: AWS::Cognito::UserPoolClient
     Condition: UseCognito
     Properties:
-      ClientName: !Sub sb-${Environment}-system-users-client
+      ClientName: !Sub sb-${Environment}-admin-webapp-client
       UserPoolId: !Ref UserPool
       SupportedIdentityProviders:
         - COGNITO
@@ -130,14 +139,12 @@ Resources:
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
-        - email
         - openid
-        - profile
       CallbackURLs:
-        - !Sub https://${AdminWebDomainName}
+        - !Ref AdminWebUrl
         - http://localhost:3000
       LogoutURLs:
-        - !Sub https://${AdminWebDomainName}
+        - !Ref AdminWebUrl
         - http://localhost:3000
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -256,32 +263,67 @@ Resources:
         StartCodeBuildLambda: !Ref StartCodeBuildLambda
         CloudFormationWaitHandleCallback: !Ref CloudFormationWaitHandleCallback
         AdminCredentials: !Ref SaaSBoostAdminCredentials
+        AdminWebUrl: !Ref AdminWebUrl
+        CustomDomainName: !Ref CustomDomainName
+        CustomDomainHostedZone: !Ref CustomDomainHostedZone
+        CustomDomainCertificate: !Ref CustomDomainCertificate
         VPC: !Ref VPC
         PublicSubnets: !Ref PublicSubnets
         PrivateSubnets: !Ref PrivateSubnets
         ClearEcrRepoArn: !Ref ClearEcrRepoArn
+  AdminWebAppClientName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ADMIN_WEB_APP_CLIENT
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientName]
+  AdminWebAppClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ADMIN_WEB_APP_CLIENT_ID
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
+  ApiAppClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_ID
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.ApiAppClientId]
+  ApiAppClient:
+    Type: AWS::SecretsManager::Secret
+    Condition: UseKeycloak
+    Properties:
+      Name: !Sub sb-${Environment}-api-app-client
+      SecretString: !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}"'
 Outputs:
-  SBUserPool:
+  OidcIssuerUrl:
+    Description: OIDC issuer for System User IdP
+    Value: !If
+      - UseCognito
+      - !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+      - !GetAtt keycloak.Outputs.KeycloakIssuer
+  AdminWebAppClient:
+    Description: Admin Web App Public App Client for authorization code grants with PKCE
+    Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
+  ApiAppClient:
+    Condition: UseKeycloak
+    Description: Private App Client secret for client credentials grants
+    Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientName]
+  # The following outputs are used conditionally by the system user service
+  CognitoUserPool:
     Condition: UseCognito
-    Description: SaaS Boost User Pool Id
+    Description: Cognito User Pool ID
     Value: !Ref UserPool
-  SBUserPoolClient:
-    Condition: UseCognito
-    Description: SaaS Boost User Pool Client id
-    Value: !Ref UserPoolClient
   KeycloakHost:
     Condition: UseKeycloak
-    Description: URL for the Keycloak install
+    Description: Keycloak database hostname
     Value: !GetAtt keycloak.Outputs.KeycloakHost
   KeycloakRealm:
     Condition: UseKeycloak
-    Description: URL for the Keycloak install
+    Description: Keycloak database hostname
     Value: !GetAtt keycloak.Outputs.KeycloakRealm
   KeycloakDatabaseEndpoint:
     Condition: UseKeycloak
     Description: Keycloak database hostname
     Value: !GetAtt keycloak.Outputs.KeycloakDatabaseEndpoint
-  OidcIssuerUrl:
-    Description: URL to access authority for configured IDP
-    Value: !If [UseCognito, !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}", !GetAtt keycloak.Outputs.KeycloakIssuer]
 ...

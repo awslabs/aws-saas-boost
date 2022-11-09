@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
@@ -21,26 +22,29 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.AbstractMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class UserService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
+public class SystemUserService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(UserService.class);
-    private final static Map<String, String> CORS = Stream
-            .of(new AbstractMap.SimpleEntry<String, String>("Access-Control-Allow-Origin", "*"))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    private final UserServiceDAL dal;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SystemUserService.class);
+    private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
+    private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String IDENTITY_PROVIDER = System.getenv("IDENTITY_PROVIDER");
+    private final SystemUserDataAccessLayer dal;
 
-    public UserService() {
-        long startTimeMillis = System.currentTimeMillis();
+    public SystemUserService() {
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
-        this.dal = new UserServiceDAL();
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
+        if (Utils.isBlank(AWS_REGION)) {
+            throw new IllegalStateException("Missing required environment variable AWS_REGION");
+        }
+        if (Utils.isBlank(IDENTITY_PROVIDER)) {
+            throw new IllegalStateException("Missing required environment variable IDENTITY_PROVIDER");
+        }
+        dal = SystemUserDataAccessLayerFactory.getInstance().getDataAccessLayer(IDENTITY_PROVIDER);
+        if (dal == null) {
+            throw new UnsupportedOperationException("No implementation for IdP " + IDENTITY_PROVIDER);
+        }
     }
 
     @Override
@@ -55,14 +59,23 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
+        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::getUsers");
         //Utils.logRequestEvent(event);
-        List<User> users = dal.getUsers();
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
-                .withHeaders(CORS)
-                .withBody(Utils.toJson(users));
+        APIGatewayProxyResponseEvent response;
+        try {
+            List<SystemUser> users = dal.getUsers(event);
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(200)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(users));
+        } catch (Exception e) {
+            LOGGER.error(Utils.getFullStackTrace(e));
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(400)
+                    .withBody("{\"message\":\"Get users failed\"}");
+        }
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
         LOGGER.info("UserService::getUsers exec " + totalTimeMillis);
         return response;
@@ -74,14 +87,13 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::getUser");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
         String username = params.get("id");
         LOGGER.info("UserService::getUser " + username);
-        User user = dal.getUser(username);
+        SystemUser user = dal.getUser(event, username);
         if (user != null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(200)
@@ -90,8 +102,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
         } else {
             response = new APIGatewayProxyResponseEvent().withStatusCode(404).withHeaders(CORS);
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::getUser exec " + totalTimeMillis);
         return response;
     }
 
@@ -101,14 +111,13 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::updateUser");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
         String username = params.get("id");
         LOGGER.info("UserService::updateUser " + username);
-        User user = Utils.fromJson((String) event.get("body"), User.class);
+        SystemUser user = Utils.fromJson((String) event.get("body"), SystemUser.class);
         if (user == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
@@ -123,15 +132,13 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                         .withHeaders(CORS)
                         .withBody("{\"message\": \"" + error + "\"}");
             } else {
-                user = dal.updateUser(user);
+                user = dal.updateUser(event, user);
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
                         .withHeaders(CORS)
                         .withBody(Utils.toJson(user));
             }
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::updateUser exec " + totalTimeMillis);
         return response;
     }
 
@@ -141,7 +148,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::enableUser");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -155,7 +161,7 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                     .withBody("{\"message\": \"Empty username\"}");
         } else {
             try {
-                User user = dal.enableUser(username);
+                SystemUser user = dal.enableUser(event, username);
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
                         .withHeaders(CORS)
@@ -168,8 +174,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                         .withBody("{\"message\": \"Users enable failed\"}");
             }
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::enableUser exec " + totalTimeMillis);
         return response;
     }
 
@@ -179,7 +183,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::disableUser");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
@@ -187,9 +190,14 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
         String username = params.get("id");
         LOGGER.info("UserService::disableUser " + username);
 
+        // Get the currently signed in user from the request context
+        // to make sure they aren't trying to disable themselves
         String authorizedUser = null;
         try {
-            authorizedUser = (String) ((Map) ((Map) ((Map) event.get("requestContext")).get("authorizer")).get("claims")).get("username");
+            Map<String, Object> requestContext = (Map<String, Object>) event.get("requestContext");
+            Map<String, Object> authorizer = (Map<String, Object>) requestContext.get("authorizer");
+            Map<String, Object> claims = (Map<String, Object>) authorizer.get("claims");
+            authorizedUser = (String) claims.get("username");
         } catch (Exception e) {
             LOGGER.error("Can't get authorizer claims from requestContext");
             Utils.logRequestEvent(event);
@@ -206,7 +214,7 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                     .withBody("{\"message\": \"Users cannot disable themselves\"}");
         } else {
             try {
-                User user = dal.disableUser(username);
+                SystemUser user = dal.disableUser(event, username);
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
                         .withHeaders(CORS)
@@ -219,8 +227,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                         .withBody("{\"message\": \"Users disable failed\"}");
             }
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::disableUser exec " + totalTimeMillis);
         return response;
     }
 
@@ -230,19 +236,18 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::insertUser");
         Utils.logRequestEvent(event);
-        APIGatewayProxyResponseEvent response = null;
+        APIGatewayProxyResponseEvent response;
 
-        User user = Utils.fromJson((String) event.get("body"), User.class);
+        SystemUser user = Utils.fromJson((String) event.get("body"), SystemUser.class);
         if (user == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Invalid user object\"}");
         } else {
-            user = dal.insertUser(user);
+            user = dal.insertUser(event, user);
             if (null == user) {
                 response = new APIGatewayProxyResponseEvent()
                         .withStatusCode(400)
@@ -256,8 +261,6 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                         .withBody(Utils.toJson(user));
             }
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::insertUser exec " + totalTimeMillis);
         return response;
     }
 
@@ -267,14 +270,13 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
         }
 
-        long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("UserService::deleteUser");
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response = null;
         Map<String, String> params = (Map) event.get("pathParameters");
         String username = params.get("id");
         LOGGER.info("UserService::deleteUser " + username);
-        User user = Utils.fromJson((String) event.get("body"), User.class);
+        SystemUser user = Utils.fromJson((String) event.get("body"), SystemUser.class);
         if (user == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withStatusCode(400)
@@ -290,59 +292,20 @@ public class UserService implements RequestHandler<Map<String, Object>, APIGatew
                         .withBody("{\"message\": \"" + error + "\"}");
             } else {
                 try {
-                    dal.deleteUser(username);
+                    dal.deleteUser(event, username);
                     response = new APIGatewayProxyResponseEvent()
                             .withHeaders(CORS)
                             .withStatusCode(200);
-                }catch (Exception e) {
-                        LOGGER.error("Unable to delete user: " + e.getMessage());
-                        response = new APIGatewayProxyResponseEvent()
-                                .withStatusCode(400)
-                                .withHeaders(CORS)
-                                .withBody("{\"message\": \"User delete failed\"}");
-                    }
+                } catch (Exception e) {
+                    LOGGER.error("Unable to delete user: " + e.getMessage());
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(400)
+                            .withHeaders(CORS)
+                            .withBody("{\"message\": \"User delete failed\"}");
+                }
             }
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("UserService::deleteUser exec " + totalTimeMillis);
         return response;
     }
 
-    public APIGatewayProxyResponseEvent getToken(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        long startTimeMillis = System.currentTimeMillis();
-        APIGatewayProxyResponseEvent response = null;
-        Map<String, String> error = new HashMap<>();
-        try {
-            Map<String, String> signIn = Utils.fromJson((String) event.get("body"), Map.class);
-            if (signIn != null && !signIn.isEmpty()) {
-                String username = signIn.get("username");
-                String password = signIn.get("password");
-                Map<String, String> retVals = dal.getToken(username, password);
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withBody(retVals.get("body"))
-                        .withStatusCode(Integer.valueOf(retVals.get("statuscode")));
-            } else {
-                error.put("message", "request body invalid");
-                response = new APIGatewayProxyResponseEvent()
-                        .withHeaders(CORS)
-                        .withStatusCode(400)
-                        .withBody(Utils.toJson(error));
-            }
-        } catch (Exception e) {
-            //don't output details as it may contain password.
-            //LOGGER.error(Utils.getFullStackTrace(e));
-            error.put("message", e.getMessage());
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withBody(Utils.toJson(error))
-                    .withStatusCode(400);
-        }
-        return response;
-    }
 }

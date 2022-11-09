@@ -32,6 +32,28 @@ Parameters:
     Type: String
     Default: COGNITO
     AllowedValues: [COGNITO, KEYCLOAK]
+  SystemIdentityProviderDomain:
+    Description: Custom domain name for the SaaS Boost control plane IdP (e.g. auth.example.com)
+    Type: String
+    Default: ''
+  SystemIdentityProviderHostedZone:
+    Description: Route53 hosted zone id for SystemIdentityProviderDomain to create the ALB record set alias
+    Type: String
+    Default: ''
+  SystemIdentityProviderCertificate:
+    Description: TLS/SSL certificate ARN for SystemIdentityProviderDomain to use with the ALB
+    Type: String
+  AdminWebAppDomain:
+    Description: Custom donain name for the SaaS Boost admin web app (e.g. saas-boost.example.com)
+    Type: String
+    Default: ''
+  AdminWebAppHostedZone:
+    Description: Route53 hosted zone id for AdminWebAppDomain to create the CloudFront record set alias
+    Type: String
+    Default: ''
+  AdminWebAppCertificate:
+    Description: TLS/SSL certificate ARN for AdminWebAppDomain to use with CloudFront
+    Type: String
   AdminUsername:
     Description: Initial administrative user name for SaaS Boost admin web app
     Type: String
@@ -41,12 +63,12 @@ Parameters:
     Type: String
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
-  DomainName:
-    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
+  ApplicationDomainName:
+    Description: The root domain name your workload is hosted at (e.g. example.com)
     Type: String
     Default: ''
-  HostedZone:
-    Description: The existing Route53 hosted zone id for the domain name
+  ApplicationHostedZone:
+    Description: Route53 hosted zone id for the ApplicationDomainName. SaaS Boost will create one if necessary.
     Type: String
     Default: ''
   PublicApiStage:
@@ -83,7 +105,9 @@ Conditions:
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
-  IsCNRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
+  IsChinaRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
+  HasAdminWebAppCustomDomain: !Not [!Equals [!Ref AdminWebAppDomain, '']]
+  HasSystemIdPCustomDomain: !Not [!Equals [!Ref SystemIdentityProviderDomain, '']]
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -265,11 +289,12 @@ Resources:
           EventBridgeEnabled: true
       CorsConfiguration:
         CorsRules:
-          - AllowedOrigins:
-              - http://localhost:3000
-              - !GetAtt AdminWebCloudFrontDistribution.DomainName
-            AllowedMethods:
-              - PUT
+          Fn::If:
+            - HasAdminWebAppCustomDomain
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebAppDomain}']
+                AllowedMethods: [PUT]
+            - - AllowedOrigins: [http://localhost:3000, !GetAtt AdminWebCloudFrontDistribution.DomainName]
+                AllowedMethods: [PUT]
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -302,6 +327,7 @@ Resources:
         Version: 2012-10-17
         Statement:
           - Effect: Allow
+          # TODO I think we have to set this differently for AWS China?
             Principal:
               CanonicalUser:
                 !GetAtt AdminWebOriginAccessIdentity.S3CanonicalUserId
@@ -315,6 +341,18 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}
             Condition:
               Bool: {'aws:SecureTransport': false}
+  AdminWebRecordSetAlias:
+     Type: AWS::Route53::RecordSet
+     Condition: HasAdminWebAppCustomDomain
+     Properties:
+       HostedZoneId: !Ref AdminWebAppHostedZone
+       Name: !Ref AdminWebAppDomain
+       Type: 'A'
+       AliasTarget:
+         DNSName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+         # TODO Does this change for AWS China?
+         HostedZoneId: Z2FDTNDATAQYW2 # Static value for CloudFront
+         EvaluateTargetHealth: false
   AdminWebOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
@@ -338,6 +376,10 @@ Resources:
             Id: !Sub sb-${Environment}-s3-website
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${AdminWebOriginAccessIdentity}
+        Aliases: !If
+          - HasAdminWebAppCustomDomain
+          - - !Ref AdminWebAppDomain
+          - !Ref 'AWS::NoValue'
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -359,29 +401,23 @@ Resources:
           TargetOriginId: !Sub sb-${Environment}-s3-website
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
-          ForwardedValues:
-            'Fn::If':
-              - IsCNRegion
+          ForwardedValues: !If
+              - IsChinaRegion
               - QueryString: true
                 Cookies:
                   Forward: none
-              - !Ref AWS::NoValue
+              - !Ref 'AWS::NoValue'
           # CachingOptimized managed cache policy
-          CachePolicyId:
-            'Fn::If':
-              - IsCNRegion
-              - !Ref AWS::NoValue
-              - 658327ea-f89d-4fab-a63d-7e88639e58f6
+          CachePolicyId: !If [IsChinaRegion, !Ref 'AWS::NoValue', 658327ea-f89d-4fab-a63d-7e88639e58f6]
           # CORS-S3Origin managed origin request policy
-          OriginRequestPolicyId:
-            'Fn::If':
-              - IsCNRegion
-              - !Ref AWS::NoValue
-              - 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          OriginRequestPolicyId: !If [IsChinaRegion, !Ref 'AWS::NoValue', 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf]
           # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
           ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+          CloudFrontDefaultCertificate: !If [HasAdminWebAppCustomDomain, !Ref 'AWS::NoValue', true]
+          AcmCertificateArn: !If [HasAdminWebAppCustomDomain, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
+          MinimumProtocolVersion: !If [HasAdminWebAppCustomDomain, TLSv1, !Ref 'AWS::NoValue']
+          SslSupportMethod: !If [HasAdminWebAppCustomDomain, sni-only, !Ref 'AWS::NoValue']
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -797,7 +833,13 @@ Resources:
         CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
         AdminUsername: !Ref AdminUsername
         AdminEmailAddress: !Ref AdminEmailAddress
-        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        AdminWebUrl: !If
+          - HasAdminWebAppCustomDomain
+          - !Sub 'https://${AdminWebAppDomain}'
+          - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
+        CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
+        CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
+        CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
         VPC: !GetAtt network.Outputs.EgressVpc
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
@@ -819,9 +861,12 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
         AdminWebBucket: !Ref AdminWeb
-        AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
-        ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
-        AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
+        AdminWebUrl: !If
+          - HasAdminWebAppCustomDomain
+          - !Sub 'https://${AdminWebAppDomain}'
+          - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
   core:
     Type: AWS::CloudFormation::Stack
@@ -841,8 +886,8 @@ Resources:
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
-        DomainName: !Ref DomainName
-        HostedZone: !Ref HostedZone
+        DomainName: !Ref ApplicationDomainName
+        HostedZone: !Ref ApplicationHostedZone
         EventBus: !Ref SaaSBoostEventBus
       NotificationARNs:
         - !Ref CoreStackListenerTopic
@@ -954,18 +999,21 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-  user:
+  sysuser:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-user.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        IdentityProvider: !Ref SystemIdentityProvider
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -1005,14 +1053,13 @@ Resources:
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
         TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
-        UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
-        UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
-        UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
-        UserServiceUpdate: !GetAtt user.Outputs.UserServiceUpdateArn
-        UserServiceDelete: !GetAtt user.Outputs.UserServiceDeleteArn
-        UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
-        UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
-        UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        SystemUserServiceGetAll: !GetAtt sysuser.Outputs.SystemUserServiceGetAllArn
+        SystemUserServiceInsert: !GetAtt sysuser.Outputs.SystemUserServiceInsertArn
+        SystemUserServiceById: !GetAtt sysuser.Outputs.SystemUserServiceByIdArn
+        SystemUserServiceUpdate: !GetAtt sysuser.Outputs.SystemUserServiceUpdateArn
+        SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
+        SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
+        SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -1095,7 +1142,10 @@ Outputs:
     Value: !Ref AdminWeb
   AdminWebUrl:
     Description: Saas Boost admin web app URL
-    Value: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
+    Value: !If
+      - HasAdminWebAppCustomDomain
+      - !Sub 'https://${AdminWebAppDomain}'
+      - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Value: !Ref Pipelines
