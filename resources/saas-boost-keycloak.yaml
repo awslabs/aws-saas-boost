@@ -45,6 +45,18 @@ Parameters:
   AdminCredentials:
     Description: Secrets Manager secret for the SaaS Boost initial admin user
     Type: String
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+  CustomDomainName:
+    Description: FQDN custom domain name for this Keycloak install (e.g. auth.example.com)
+    Type: String
+  CustomDomainHostedZone:
+    Description: Route53 hosted zone id for the custom domain name to create the ALB record set alias under
+    Type: String
+  CustomDomainCertificate:
+    Description: ACM certificate ARN for the custom domain name
+    Type: String
   VPC:
     Type: String
     Description: The SaaS Boost VPC ID.
@@ -57,6 +69,8 @@ Parameters:
   ClearEcrRepoArn:
     Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
     Type: String
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomainName, '']]
 Resources:
   KeycloakRepo:
     Type: AWS::ECR::Repository
@@ -175,14 +189,12 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
-            - Name: DB_DATABASE
-              Value: keycloak
-            - Name: DB_VENDOR
+            - Name: KC_HOSTNAME
+              Value: !Ref CustomDomainName
+            - Name: KC_DB
               Value: mysql
-            - Name: DB_ADDR
-              Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
-            - Name: DB_PORT
-              Value: '3306'
+            - Name: KC_DB_URL
+              Value: !Sub jdbc:mysql://${KeycloakDatabaseInstance.Endpoint.Address}:3306/keycloak
             - Name: JDBC_PARAMS
               Value: useSSL=false
             - Name: JGROUPS_DISCOVERY_PROTOCOL
@@ -192,9 +204,9 @@ Resources:
               ValueFrom: !Sub '${KeyCloakAdminCredentials}:username::'
             - Name: KEYCLOAK_ADMIN_PASSWORD
               ValueFrom: !Sub '${KeyCloakAdminCredentials}:password::'
-            - Name: DB_USER
+            - Name: KC_DB_USERNAME
               ValueFrom: !Sub '${KeyCloakAdminCredentials}:username::'
-            - Name: DB_PASSWORD
+            - Name: KC_DB_PASSWORD
               ValueFrom: !Sub '${KeyCloakAdminCredentials}:password::'
   KeycloakSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -271,10 +283,17 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: !Sub sb-${Environment}-keycloak
+      Type: application
       Scheme: internet-facing
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
           Value: '30'
+        - Key: routing.http.preserve_host_header.enabled
+          Value: 'true'
+        - Key: routing.http.xff_header_processing.mode
+          Value: append
+        - Key: routing.http.xff_client_port.enabled
+          Value: 'false'
       Subnets: !Ref PublicSubnets
       SecurityGroups:
         - !Ref KeycloakLoadBalancerSecurityGroup
@@ -287,7 +306,7 @@ Resources:
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
-      Port: 8080
+      Port: 8080 # Needs to match Keycloak HTTP port
       Protocol: HTTP
       TargetType: ip
       TargetGroupAttributes:
@@ -307,6 +326,21 @@ Resources:
           Value: !Ref Environment
         - Key: Name
           Value: !Sub sb-${Environment}-keycloak
+  KeycloakRedirectToHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref KeycloakLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: HTTP_301
   KeycloakLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -314,8 +348,10 @@ Resources:
       DefaultActions:
         - TargetGroupArn: !Ref KeycloakTargetGroup
           Type: forward
-      Port: 80
-      Protocol: HTTP
+      Certificates:
+        - CertificateArn: !Ref CustomDomainCertificate
+      Port: 443
+      Protocol: HTTPS
   KeycloakLoadBalancerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
@@ -327,6 +363,16 @@ Resources:
           Values: ['*']
       ListenerArn: !Ref KeycloakLoadBalancerListener
       Priority: 1
+  KeycloakRecordSetAlias:
+     Type: AWS::Route53::RecordSet
+     Properties:
+       HostedZoneId: !Ref CustomDomainHostedZone
+       Name: !Ref CustomDomainName
+       Type: 'A'
+       AliasTarget:
+         DNSName: !Sub dualstack.${KeycloakLoadBalancer.DNSName}
+         HostedZoneId: !GetAtt KeycloakLoadBalancer.CanonicalHostedZoneID
+         EvaluateTargetHealth: false
   KeycloakService:
     Type: AWS::ECS::Service
     Properties:
@@ -368,6 +414,7 @@ Resources:
       SourceSecurityGroupId: !Ref KeycloakSecurityGroup
   KeycloakDatabaseInstance:
     Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
     Properties:
       DBInstanceIdentifier: !Sub sb-${Environment}-keycloak
       DBInstanceClass: db.t3.small
@@ -455,7 +502,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/codebuild/sb-${Environment}-keycloak
-      RetentionInDays: 14
+      RetentionInDays: 30
   KeycloakCodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -515,7 +562,7 @@ Resources:
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
-        # Do AWS managed IAM policies use the local partition?
+        # TODO Do AWS managed IAM policies use the local partition?
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonECS_FullAccess
       Policies:
         - PolicyName: !Sub sb-${Environment}-keycloak-pipeline-policy
@@ -687,6 +734,11 @@ Resources:
     Properties:
       ServiceToken: !Ref StartCodeBuildLambda
       Project: !Ref KeycloakCodeBuildProject
+  # Creates a wait handle so we know that
+  # 1. CodeBuild has finished creating the Docker image and pushed to ECR
+  # 2. CodePipeline has update the desired count of the ECS service and triggered a rolling deployment
+  # 3. ALB is reporting healthy keycloak instance(s)
+  # all finish before we invoke our setup Lambda to configure the new Keycloak instance for SaaS Boost
   KeycloakDeployWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
   KeycloakDeployWaitCondition:
@@ -694,7 +746,7 @@ Resources:
     DependsOn: InvokeStartCodeBuild
     Properties:
       Handle: !Ref KeycloakDeployWaitHandle
-      Timeout: '600'
+      Timeout: '900'
   KeycloakSetupLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -767,24 +819,40 @@ Resources:
       - KeycloakDeployWaitCondition
     Properties:
       ServiceToken: !GetAtt KeycloakSetupLambda.Arn
-      KeycloakHost: !Sub http://${KeycloakLoadBalancer.DNSName}
+      KeycloakHost: !If [HasCustomDomain, !Sub 'https://${CustomDomainName}', !Sub 'http://${KeycloakLoadBalancer.DNSName}']
       KeycloakCredentials: !Ref KeyCloakAdminCredentials
       AdminUserCredentials: !Ref AdminCredentials
       Realm: !Sub sb-${Environment}
+      AdminWebAppUrl: !Ref AdminWebUrl
 Outputs:
   KeycloakHost:
-    # If you update this, also update KeycloakIssuer
     Description: URL for the Keycloak install
-    Value: !Sub http://${KeycloakLoadBalancer.DNSName}
+    Value: !If [HasCustomDomain, !Sub 'https://${CustomDomainName}', !Sub 'http://${KeycloakLoadBalancer.DNSName}']
   KeycloakRealm:
-    # If you update this, also update KeycloakIssuer
     Description: Configured realm for the Keycloak install
-    Value: !Sub sb-${Environment}
+    Value: !GetAtt InvokeKeycloakSetup.KeycloakRealm
   KeycloakIssuer:
-    # Unfortunately we can't reference Outputs from other Outputs
-    Description: Issuer endpoint for OIDC configuration
-    Value: !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
+    Description: The OIDC issuer for this Keycloak install
+    Value: !If
+      - HasCustomDomain
+      - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}
+      - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
   KeycloakDatabaseEndpoint:
     Description: Keycloak database hostname
     Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
+  AdminWebAppClientName:
+    Description: Public OAuth app client with PKCE for authorization code grant
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientName
+  AdminWebAppClientId:
+    Description: Public OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientId
+  ApiAppClientName:
+    Description: Private OAuth app client for client credentials grant
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientName
+  ApiAppClientId:
+    Description: Private OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientId
+  ApiAppClientSecret:
+    Description: Private OAuth app client secret
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientSecret
 ...
