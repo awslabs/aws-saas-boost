@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.time.LocalDateTime;
 
-public class User {
+public class SystemUser {
 
+    private String id;
     private String username;
     private LocalDateTime created;
     private LocalDateTime modified;
@@ -28,6 +30,14 @@ public class User {
     private String email;
     private Boolean emailVerified = Boolean.FALSE;
     private String status;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     public String getUsername() {
         return username;
@@ -58,7 +68,7 @@ public class User {
     }
 
     public void setActive(Boolean active) {
-        this.active = active;
+        this.active = active != null ? active : Boolean.FALSE;
     }
 
     public String getFirstName() {

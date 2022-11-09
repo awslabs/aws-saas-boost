@@ -93,7 +93,7 @@ public class AwsClientBuilderFactoryTest {
                 try {
                     AwsSyncClientBuilder b = (AwsSyncClientBuilder) m.invoke(factory);
                     // invoking the builder function again should not create a new builder
-                    assertEquals(b, (AwsSyncClientBuilder) m.invoke(factory));
+                    assertEquals(b, m.invoke(factory));
                 } catch (Exception e) {
                     throw new RuntimeException("test failed", e);
                 }

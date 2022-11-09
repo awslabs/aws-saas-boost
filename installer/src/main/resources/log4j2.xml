@@ -30,6 +30,6 @@ limitations under the License.
         </Root>
         <Logger name="software.amazon.awssdk" level="ERROR"/>
         <Logger name="software.amazon.awssdk.request" level="ERROR"/>
-        <Logger name="com.amazon.aws.partners.saasfactory" level="DEBUG"/>
+        <Logger name="com.amazon.aws.partners.saasfactory.saasboost" level="DEBUG"/>
     </Loggers>
 </Configuration>
