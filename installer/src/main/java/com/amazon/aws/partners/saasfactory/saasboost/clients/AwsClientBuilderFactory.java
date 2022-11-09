@@ -16,12 +16,19 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.clients;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.retry.AwsRetryPolicy;
 import software.amazon.awssdk.core.SdkClient;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.acm.AcmClient;
+import software.amazon.awssdk.services.acm.AcmClientBuilder;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClientBuilder;
 import software.amazon.awssdk.services.apigateway.model.CreateDeploymentRequest;
@@ -35,6 +42,8 @@ import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.LambdaClientBuilder;
 import software.amazon.awssdk.services.quicksight.QuickSightClient;
 import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
+import software.amazon.awssdk.services.route53.Route53Client;
+import software.amazon.awssdk.services.route53.Route53ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
@@ -44,6 +53,7 @@ import software.amazon.awssdk.services.ssm.SsmClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.StsClientBuilder;
 
+import java.net.URI;
 import java.time.Duration;
 
 public class AwsClientBuilderFactory {
@@ -64,6 +74,8 @@ public class AwsClientBuilderFactory {
     private SsmClientBuilder cachedSsmBuilder;
     private StsClientBuilder cachedStsBuilder;
     private SecretsManagerClientBuilder cachedSecretsManagerClientBuilder;
+    private Route53ClientBuilder cachedRoute53ClientBuilder;
+    private AcmClientBuilder cachedAcmClientBuilder;
 
     AwsClientBuilderFactory() {
         // for testing
@@ -120,9 +132,16 @@ public class AwsClientBuilderFactory {
 
     public IamClientBuilder iamBuilder() {
         if (cachedIamBuilder == null) {
-            // IAM is not regionalized: all endpoints except us-gov and aws-cn use the AWS_GLOBAL region
-            // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
-            cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+            Region region = Region.of(System.getenv("AWS_REGION"));
+            if (Utils.isChinaRegion(region)) {
+                // China's IAM endpoints are regional
+                // See https://docs.amazonaws.cn/en_us/aws/latest/userguide/iam.html
+                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder());
+            } else {
+                // IAM in the commercial regions use the AWS_GLOBAL
+                // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html
+                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_GLOBAL);
+            }
         }
         return cachedIamBuilder;
     }
@@ -167,6 +186,36 @@ public class AwsClientBuilderFactory {
             cachedSecretsManagerClientBuilder = decorateBuilderWithDefaults(SecretsManagerClient.builder());
         }
         return cachedSecretsManagerClientBuilder;
+    }
+
+    public Route53ClientBuilder route53Builder() {
+        if (cachedRoute53ClientBuilder == null) {
+            // Route53 is a global service and uses a different region setting than the default
+            Region region;
+            String endpoint;
+            Builder factory = builder()
+                    .region(Region.of(System.getenv("AWS_REGION")))
+                    .credentialsProvider(DEFAULT_CREDENTIALS_PROVIDER);
+            if (!Utils.isChinaRegion(factory.defaultRegion)) {
+                region = Region.US_EAST_1;
+                endpoint = "https://route53.amazonaws.com";
+            } else {
+                region = Region.CN_NORTHWEST_1;
+                endpoint = "https://route53.amazonaws.com.cn";
+            }
+            cachedRoute53ClientBuilder = Route53Client.builder()
+                    .region(region)
+                    .endpointOverride(URI.create(endpoint))
+                    .credentialsProvider(factory.awsCredentialsProvider);
+        }
+        return cachedRoute53ClientBuilder;
+    }
+
+    public AcmClientBuilder acmBuilder() {
+        if (cachedAcmClientBuilder == null) {
+            cachedAcmClientBuilder = decorateBuilderWithDefaults(AcmClient.builder());
+        }
+        return cachedAcmClientBuilder;
     }
 
     public static Builder builder() {
