@@ -105,9 +105,12 @@ Conditions:
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
-  IsChinaRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
+  InChinaRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
+  NotInChinaRegion: !Not [!Equals [!Ref AWS::Partition, 'aws-cn']]
   HasAdminWebAppCustomDomain: !Not [!Equals [!Ref AdminWebAppDomain, '']]
   HasSystemIdPCustomDomain: !Not [!Equals [!Ref SystemIdentityProviderDomain, '']]
+  AdminWebAppCustomDomainInChina: !And [!Condition InChinaRegion, !Condition HasAdminWebAppCustomDomain]
+  AdminWebAppCustomDomainNotInChina: !And [!Condition NotInChinaRegion, !Condition HasAdminWebAppCustomDomain]
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -402,20 +405,21 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
           ForwardedValues: !If
-              - IsChinaRegion
+              - InChinaRegion
               - QueryString: true
                 Cookies:
                   Forward: none
               - !Ref 'AWS::NoValue'
           # CachingOptimized managed cache policy
-          CachePolicyId: !If [IsChinaRegion, !Ref 'AWS::NoValue', 658327ea-f89d-4fab-a63d-7e88639e58f6]
+          CachePolicyId: !If [InChinaRegion, !Ref 'AWS::NoValue', 658327ea-f89d-4fab-a63d-7e88639e58f6]
           # CORS-S3Origin managed origin request policy
-          OriginRequestPolicyId: !If [IsChinaRegion, !Ref 'AWS::NoValue', 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf]
+          OriginRequestPolicyId: !If [InChinaRegion, !Ref 'AWS::NoValue', 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf]
           # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
           ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
           CloudFrontDefaultCertificate: !If [HasAdminWebAppCustomDomain, !Ref 'AWS::NoValue', true]
-          AcmCertificateArn: !If [HasAdminWebAppCustomDomain, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
+          AcmCertificateArn: !If [AdminWebAppCustomDomainNotInChina, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
+          IamCertificateId: !If [AdminWebAppCustomDomainInChina, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
           MinimumProtocolVersion: !If [HasAdminWebAppCustomDomain, TLSv1, !Ref 'AWS::NoValue']
           SslSupportMethod: !If [HasAdminWebAppCustomDomain, sni-only, !Ref 'AWS::NoValue']
   SaaSBoostUtilsLayer:
