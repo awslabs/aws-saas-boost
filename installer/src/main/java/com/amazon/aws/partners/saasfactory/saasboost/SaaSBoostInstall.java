@@ -537,7 +537,7 @@ public class SaaSBoostInstall {
                         System.out.print("Type the number of the certificate to use and press enter: ");
                         Integer choice = Keyboard.readInt();
                         try {
-                            adminWebAppCertificate = serverCertificates.get((choice - 1)).arn();
+                            adminWebAppCertificate = serverCertificates.get((choice - 1)).serverCertificateId();
                             LOGGER.info("Setting admin web app certificate = [{}]", adminWebAppCertificate);
                             break;
                         } catch (NullPointerException | IndexOutOfBoundsException e) {
