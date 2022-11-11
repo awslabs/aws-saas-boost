@@ -1029,7 +1029,7 @@ Resources:
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
         IdentityProvider: !Ref SystemIdentityProvider
-        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
