@@ -140,4 +140,37 @@ public class SaaSBoostArtifactsBucketTest {
                 "    ]\n" +
                 "}", capturedPutBucketPolicyRequest.policy());
     }
+
+    @Test
+    public void createBucketBucketPolicyTest_china() {
+        ArgumentCaptor<PutBucketPolicyRequest> putBucketPolicyArgumentCaptor =
+                ArgumentCaptor.forClass(PutBucketPolicyRequest.class);
+        SaaSBoostArtifactsBucket createdBucket =
+                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.CN_NORTHWEST_1);
+        Mockito.verify(mockS3).putBucketPolicy(putBucketPolicyArgumentCaptor.capture());
+        PutBucketPolicyRequest capturedPutBucketPolicyRequest = putBucketPolicyArgumentCaptor.getValue();
+        assertEquals("Put bucket policy to the wrong bucket.",
+                createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket());
+        assertNotNull(capturedPutBucketPolicyRequest.policy());
+        assertEquals("{\n" +
+                "    \"Version\": \"2012-10-17\",\n" +
+                "    \"Statement\": [\n" +
+                "        {\n" +
+                "            \"Sid\": \"DenyNonHttps\",\n" +
+                "            \"Effect\": \"Deny\",\n" +
+                "            \"Principal\": \"*\",\n" +
+                "            \"Action\": \"s3:*\",\n" +
+                "            \"Resource\": [\n" +
+                "                \"arn:aws-cn:s3:::" + createdBucket.getBucketName() + "/*\",\n" +
+                "                \"arn:aws-cn:s3:::" + createdBucket.getBucketName() + "\"\n" +
+                "            ],\n" +
+                "            \"Condition\": {\n" +
+                "                \"Bool\": {\n" +
+                "                    \"aws:SecureTransport\": \"false\"\n" +
+                "                }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    ]\n" +
+                "}", capturedPutBucketPolicyRequest.policy());
+    }
 }
