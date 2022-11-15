@@ -103,6 +103,7 @@ public class SaaSBoostArtifactsBucket {
                                     .build())
                             .build())
                     .build());
+            final String partitionName = awsRegion.metadata().partition().id();
             s3.putBucketPolicy(PutBucketPolicyRequest.builder()
                     .policy("{\n"
                             + "    \"Version\": \"2012-10-17\",\n"
@@ -113,8 +114,8 @@ public class SaaSBoostArtifactsBucket {
                             + "            \"Principal\": \"*\",\n"
                             + "            \"Action\": \"s3:*\",\n"
                             + "            \"Resource\": [\n"
-                            + "                \"arn:aws:s3:::" + s3ArtifactBucketName + "/*\",\n"
-                            + "                \"arn:aws:s3:::" + s3ArtifactBucketName + "\"\n"
+                            + "                \"arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "/*\",\n"
+                            + "                \"arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "\"\n"
                             + "            ],\n"
                             + "            \"Condition\": {\n"
                             + "                \"Bool\": {\n"
