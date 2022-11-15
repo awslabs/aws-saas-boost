@@ -24,6 +24,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CognitoIdentityProviderException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.DomainStatusType;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -67,6 +68,7 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String sourceBucket = (String) resourceProperties.get("SourceBucket");
         final String userPoolId = (String) resourceProperties.get("UserPoolId");
+        final String userPoolDomain = (String) resourceProperties.get("UserPoolDomain");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -80,12 +82,13 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                                 .bucket(sourceBucket)
                                 .key(ADMIN_WEB_SOURCE_KEY)
                                 .build());
-                        // Extract just the logo image from the ZIP archive
-                        SdkBytes logo = SdkBytes.fromByteArray(unzip(responseInputStream, ADMIN_WEB_LOGO));
                         // Customize the background colors to match the SaaS Boost branding
                         StringBuilder css = new StringBuilder();
                         css.append(".banner-customizable {background-color: " + ADMIN_WEB_BG_COLOR + ";}\n");
                         css.append(".submitButton-customizable {background-color: " + ADMIN_WEB_BG_COLOR + ";}");
+                        // Extract just the logo image from the ZIP archive
+                        SdkBytes logo = SdkBytes.fromByteArray(unzip(responseInputStream, ADMIN_WEB_LOGO));
+                        waitForActiveDomain(userPoolDomain);
                         // Set our UI customizations in Cognito
                         cognito.setUICustomization(request -> request
                                 .userPoolId(userPoolId)
@@ -132,6 +135,34 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
             service.shutdown();
         }
         return null;
+    }
+
+    protected void waitForActiveDomain(String userPoolDomain) {
+        // Cognito cannot set UI customization until UserPoolDomain is ACTIVE
+        // ACTIVE, CREATING, DELETING, FAILED, UPDATING, UNKNOWN_TO_SDK_VERSION
+        DomainStatusType domainStatus = DomainStatusType.CREATING;
+        List<DomainStatusType> terminalStatuses = List.of(
+                DomainStatusType.ACTIVE,
+                DomainStatusType.FAILED,
+                DomainStatusType.UNKNOWN_TO_SDK_VERSION);
+        do {
+            domainStatus = cognito.describeUserPoolDomain(request -> request.domain(userPoolDomain))
+                    .domainDescription().status();
+            if (!terminalStatuses.contains(domainStatus)) {
+                // we're allowed 20 calls per second
+                try {
+                    // sleep half a second between calls
+                    Thread.sleep(500);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        } while (!terminalStatuses.contains(domainStatus));
+        if (domainStatus != DomainStatusType.ACTIVE) {
+            String errorMessage = String.format(
+                    "UserPoolDomain %s reached %s instead of ACTIVE", userPoolDomain, domainStatus);
+            throw new RuntimeException(errorMessage);
+        }
     }
 
     protected static byte[] unzip(InputStream archive, String logoPath) {
