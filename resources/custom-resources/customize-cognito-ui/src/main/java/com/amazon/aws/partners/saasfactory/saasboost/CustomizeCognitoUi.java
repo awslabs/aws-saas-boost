@@ -137,7 +137,7 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
         return null;
     }
 
-    protected void waitForActiveDomain(String userPoolDomain) throws Exception {
+    protected void waitForActiveDomain(String userPoolDomain) {
         // Cognito cannot set UI customization until UserPoolDomain is ACTIVE
         // ACTIVE, CREATING, DELETING, FAILED, UPDATING, UNKNOWN_TO_SDK_VERSION
         DomainStatusType domainStatus = DomainStatusType.CREATING;
@@ -148,11 +148,20 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
         do {
             domainStatus = cognito.describeUserPoolDomain(request -> request.domain(userPoolDomain))
                     .domainDescription().status();
+            if (!terminalStatuses.contains(domainStatus)) {
+                // we're allowed 20 calls per second
+                try {
+                    // sleep half a second between calls
+                    Thread.sleep(500);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         } while (!terminalStatuses.contains(domainStatus));
         if (domainStatus != DomainStatusType.ACTIVE) {
             String errorMessage = String.format(
                     "UserPoolDomain %s reached %s instead of ACTIVE", userPoolDomain, domainStatus);
-            throw new Exception(errorMessage);
+            throw new RuntimeException(errorMessage);
         }
     }
 
