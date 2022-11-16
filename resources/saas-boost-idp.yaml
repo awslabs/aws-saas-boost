@@ -260,7 +260,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: UseKeycloak
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-keycloak.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-keycloak.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
