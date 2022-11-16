@@ -140,6 +140,8 @@ Resources:
         - code
       AllowedOAuthScopes:
         - openid
+        - email
+        - profile
       CallbackURLs:
         - !Ref AdminWebUrl
         - http://localhost:3000
@@ -150,7 +152,9 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Condition: UseCognito
     Properties:
-      Domain: !Sub sb-${Environment}-saas-boost
+      Domain: !Sub
+        - sb-${Environment}-saas-boost-${RandomString}
+        - RandomString: !Select [2, !Split ['/', !Ref AWS::StackId]]
       UserPoolId: !Ref UserPool
   UserPoolAdminUser:
     Type: AWS::Cognito::UserPoolUser
@@ -170,13 +174,13 @@ Resources:
     Type: AWS::Logs::LogGroup
     Condition: UseCognito
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-customize-congito-ui
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-customize-cognito-ui
       RetentionInDays: 30
   CustomizeCognitoUiExecRole:
     Type: AWS::IAM::Role
     Condition: UseCognito
     Properties:
-      RoleName: !Sub sb-${Environment}-customize-congito-ui-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-customize-cognito-ui-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -188,7 +192,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-customize-congito-ui-policy
+        - PolicyName: !Sub sb-${Environment}-customize-cognito-ui-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -211,12 +215,16 @@ Resources:
                 Action:
                   - cognito-idp:SetUICustomization
                 Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolDomain
+                Resource: '*'
   CustomizeCognitoUiLambda:
     Type: AWS::Lambda::Function
     Condition: UseCognito
     DependsOn: CustomizeCognitoUiLogs
     Properties:
-      FunctionName: !Sub sb-${Environment}-customize-congito-ui
+      FunctionName: !Sub sb-${Environment}-customize-cognito-ui
       Role: !GetAtt CustomizeCognitoUiExecRole.Arn
       Runtime: java11
       Timeout: 600
@@ -246,12 +254,13 @@ Resources:
     Properties:
       ServiceToken: !GetAtt CustomizeCognitoUiLambda.Arn
       UserPoolId: !Ref UserPool
+      UserPoolDomain: !Ref UserPoolDomain
       SourceBucket: !Ref SaaSBoostBucket
   keycloak:
     Type: AWS::CloudFormation::Stack
     Condition: UseKeycloak
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.amazonaws.com/saas-boost-keycloak.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-keycloak.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
