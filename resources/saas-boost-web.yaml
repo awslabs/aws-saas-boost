@@ -136,6 +136,7 @@ Resources:
                 - unzip src.zip
             build:
               commands:
+                - if [ "$REACT_APP_AWS_REGION" = "cn-northwest-1" ] || [ "$REACT_APP_AWS_REGION" = "cn-north-1" ]; then npm config set registry https://registry.npm.taobao.org; fi
                 - cd ./client/web
                 - yarn
                 - yarn build
