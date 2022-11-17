@@ -296,7 +296,7 @@ Resources:
             - HasAdminWebAppCustomDomain
             - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebAppDomain}']
                 AllowedMethods: [PUT]
-            - - AllowedOrigins: [http://localhost:3000, !GetAtt AdminWebCloudFrontDistribution.DomainName]
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}']
                 AllowedMethods: [PUT]
       Tags:
         - Key: SaaS Boost
