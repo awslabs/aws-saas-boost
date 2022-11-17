@@ -774,7 +774,7 @@ public class OnboardingService {
                     String httpListenerArn;
                     String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
-                    String serviceDiscoveryNamespaceId;
+                    String serviceDiscoveryNamespaceId; // Might not have private services
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
                         vpc = tenantResources.get("VPC").get("name");
@@ -784,8 +784,13 @@ public class OnboardingService {
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
-                        serviceDiscoveryNamespaceId = Objects.toString(
-                                tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        // Will only exist if private services are defined
+                        if (tenantResources.containsKey("PRIVATE_SERVICE_DISCOVERY_NAMESPACE")) {
+                            serviceDiscoveryNamespaceId = Objects.toString(
+                                    tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        } else {
+                            serviceDiscoveryNamespaceId = "";
+                        }
                         // Depending on the SSL certificate configuration, one of these 2 listeners must exist
                         if (tenantResources.containsKey("HTTP_LISTENER")) {
                             httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
