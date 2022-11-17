@@ -3,9 +3,6 @@ FROM quay.io/keycloak/keycloak:19.0.3 as builder
 ENV KC_FEATURES=token-exchange
 ENV KC_DB=mysql
 
-# Install custom providers
-COPY metrics-spi/keycloak-metrics-spi-2.5.3.jar /opt/keycloak/providers/keycloak-metrics-spi-2.5.3.jar
-
 # Build the customized Keycloak setup with MySQL, token exchange, and the metrics service provider interface
 RUN /opt/keycloak/bin/kc.sh build
 
