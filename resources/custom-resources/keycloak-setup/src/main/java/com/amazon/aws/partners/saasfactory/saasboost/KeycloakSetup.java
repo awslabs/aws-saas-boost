@@ -201,15 +201,30 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                 }
             }
 
-            // Now setup the realm management permissions for the admin user
-            int mapAdminUserServiceRolesResponse = mapAdminUserServiceRoles(keycloakHost, bearerToken, realmName,
-                    username, clients);
-            // The POST to map client roles to user returns a 204 instead of a 201 created...
-            if (HttpURLConnection.HTTP_NO_CONTENT == mapAdminUserServiceRolesResponse) {
-                LOGGER.info("Successfully mapped service roles to user " + username);
+            final String adminGroupName = "admin";
+            String adminGroupId = createAdminGroup(keycloakHost, bearerToken, realmName, adminGroupName);
+
+            // Map realm management permissions to admin group
+            int mapAdminGroupServiceRolesResponse = mapAdminGroupServiceRoles(keycloakHost, bearerToken, realmName,
+                    adminGroupId, clients);
+            if (HttpURLConnection.HTTP_NO_CONTENT == mapAdminGroupServiceRolesResponse) {
+                LOGGER.info("Successfully mapped admin service role to group");
             } else {
-                throw new RuntimeException("Keycloak service role mapping for admin user failed with HTTP "
-                        + mapAdminUserServiceRolesResponse);
+                throw new RuntimeException("Keycloak service role mapping for admin group failed with HTTP "
+                        + mapAdminGroupServiceRolesResponse);
+            }
+
+            // Finally, attach the admin user to the admin group
+            String adminUserId = (String) getUser(keycloakHost, bearerToken, realmName, username).get("id");
+            int attachUserToGroupResponse = attachUserToGroup(keycloakHost, bearerToken,
+                    realmName, adminUserId, adminGroupId);
+
+            // The POST to map client roles to user returns a 204 instead of a 201 created...
+            if (HttpURLConnection.HTTP_NO_CONTENT == attachUserToGroupResponse) {
+                LOGGER.info("Successfully attached user " + username + " to admin group");
+            } else {
+                throw new RuntimeException("Keycloak admin user group attachment failed with HTTP "
+                        + mapAdminGroupServiceRolesResponse);
             }
         } else {
             throw new RuntimeException("Keycloak import realm failed with HTTP " + importRealmResponse);
@@ -270,7 +285,72 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
         }
     }
 
-    protected int mapAdminUserServiceRoles(String keycloakHost, String bearerToken, String realmName, String username,
+    protected String createAdminGroup(String keycloakHost, String bearerToken, String realm, String groupName) {
+        try {
+            URI endpoint = new URI(keycloakHost + "/admin/realms/" + realm + "/groups");
+            HttpRequest request = HttpRequest.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .uri(endpoint)
+                    .setHeader("Authorization", "Bearer " + bearerToken)
+                    .setHeader("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(Utils.toJson(Map.of("name", groupName))))
+                    .build();
+            LOGGER.info("Invoking Keycloak group create endpoint {}", request.uri());
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == HttpURLConnection.HTTP_CREATED) {
+                // let's return the group id we just created
+                Map<String, Object> group = findGroupByName(keycloakHost, bearerToken, realm, groupName);
+                String id = (String) group.get("id");
+                if (id != null) {
+                    return id;
+                }
+                throw new RuntimeException("Unexpected error: created group did not have id: " + Utils.toJson(group));
+            } else {
+                LOGGER.error("Expected HTTP_CREATED ({}) from group create, but got {}",
+                        HttpURLConnection.HTTP_CREATED, response.statusCode());
+                throw new RuntimeException("Unexpected error while creating group: " + groupName);
+            }
+        } catch (URISyntaxException | IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected Map<String, Object> findGroupByName(String keycloakHost, String bearerToken,
+                                                    String realm, String groupName) {
+        try {
+            URI endpoint = new URI(keycloakHost + "/admin/realms/" + realm + "/groups");
+            HttpRequest request = HttpRequest.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .uri(endpoint)
+                    .setHeader("Authorization", "Bearer " + bearerToken)
+                    .setHeader("Content-Type", "application/json")
+                    .GET()
+                    .build();
+            LOGGER.info("Invoking Keycloak list groups endpoint {}", request.uri());
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == HttpURLConnection.HTTP_OK) {
+                LOGGER.info("Found groups: {}", response.body());
+                List<Map<String, Object>> groups = Utils.fromJson(response.body(), ArrayList.class);
+                for (Map<String, Object> group : groups) {
+                    String name = (String) group.get("name");
+                    if (name != null && name.equals(groupName)) {
+                        return group;
+                    }
+                }
+                throw new RuntimeException("Could not find group with name " + groupName);
+            } else {
+                LOGGER.error("Expected HTTP_CREATED ({}) from group create, but got {}",
+                        HttpURLConnection.HTTP_CREATED, response.statusCode());
+                throw new RuntimeException("Unexpected error while creating group: " + groupName);
+            }
+        } catch (URISyntaxException | IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected int mapAdminGroupServiceRoles(String keycloakHost, String bearerToken, String realmName, String groupId,
                                            List<Map<String, Object>> clients) {
         // We need the realm management client that's auto generated with every new realm in Keycloak
         Map<String, Object> realmManagementClient = clients.stream()
@@ -286,15 +366,9 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Can't find realm-admin role in client " + clientId));
 
-        // We need the id of the realm admin user (not the keycloak master realm super user)
-        Map<String, Object> adminUser = getUser(keycloakHost, bearerToken, realmName, username);
-        String userId = (String) adminUser.get("id");
-        //List<Map<String, Object>> userRoles = (List<Map<String, Object>>) adminUser.get("roles");
-
-        // Finally we can map the manage realm role to our admin user so that access tokens retrieved by that
-        // user will have permissions to do things like add and edit users
-        //userRoles.add(realmAdminRole);
-        return postUserClientRoleMapping(keycloakHost, bearerToken, realmName, userId, clientId, realmAdminRole);
+        // Finally we can map the manage realm role to our admin group so that users in that group
+        // will have permissions to do things like add and edit users
+        return postGroupRoleMapping(keycloakHost, bearerToken, realmName, groupId, clientId, realmAdminRole);
     }
 
     protected List<Map<String, Object>> getClients(String keycloakHost, String bearerToken, String realmName) {
@@ -407,12 +481,37 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
         }
     }
 
-    protected int postUserClientRoleMapping(String keycloakHost, String bearerToken, String realmName, String userId,
-                                            String clientId, Map<String, Object> role) {
+    protected int attachUserToGroup(String keycloakHost, String bearerToken, String realmName,
+                                    String userId, String groupId) {
         try {
             URI endpoint = new URI(keycloakHost + "/admin"
                     + "/realms/" + realmName
                     + "/users/" + userId
+                    + "/groups/" + groupId
+            );
+            HttpRequest request = HttpRequest.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1) // EOF reached while reading due to chunked transfer-encoding
+                    .uri(endpoint)
+                    .setHeader("Authorization", "Bearer " + bearerToken)
+                    .setHeader("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.noBody())
+                    .build();
+
+            LOGGER.info("Invoking Keycloak user group attach endpoint {}", request.uri());
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            return response.statusCode();
+        } catch (URISyntaxException | IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected int postGroupRoleMapping(String keycloakHost, String bearerToken, String realmName, String groupId,
+                                            String clientId, Map<String, Object> role) {
+        try {
+            URI endpoint = new URI(keycloakHost + "/admin"
+                    + "/realms/" + realmName
+                    + "/groups/" + groupId
                     + "/role-mappings"
                     + "/clients/" + clientId
             );
@@ -425,7 +524,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
 
-            LOGGER.info("Invoking Keycloak user client role mapping endpoint {}", request.uri());
+            LOGGER.info("Invoking Keycloak group role mapping endpoint {}", request.uri());
             LOGGER.info("POST body");
             LOGGER.info(body);
             HttpResponse<String> response = httpClient.send(request,
@@ -439,7 +538,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
     protected Map<String, Object> buildKeycloakUser(String username, String email, String password) {
         LinkedHashMap<String, Object> user = new LinkedHashMap<>();
         user.put("enabled", true);
-        user.put("createdTimestamp", LocalDateTime.now().toEpochSecond(ZoneOffset.UTC));
+        user.put("createdTimestamp", LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli());
         user.put("username", username);
         user.put("email", email);
         user.put("emailVerified", true);
