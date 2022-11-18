@@ -63,7 +63,7 @@ export default function OnboardingCreateContainer() {
     let onboardingResponse
     try {
       onboardingResponse = await dispatch(createOnboarding(valsToSend))
-      const presignedS3url = onboardingResponse.payload.zipFileUrl
+      const presignedS3url = onboardingResponse.payload.zipFile
       if (presignedS3url && !!file && file.name) {
         await dispatch(
           saveToPresignedBucket({ dbFile: file, url: presignedS3url })
