@@ -296,7 +296,7 @@ Resources:
             - HasAdminWebAppCustomDomain
             - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebAppDomain}']
                 AllowedMethods: [PUT]
-            - - AllowedOrigins: [http://localhost:3000, !GetAtt AdminWebCloudFrontDistribution.DomainName]
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}']
                 AllowedMethods: [PUT]
       Tags:
         - Key: SaaS Boost
@@ -871,7 +871,7 @@ Resources:
           - HasAdminWebAppCustomDomain
           - !Sub 'https://${AdminWebAppDomain}'
           - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
   core:
