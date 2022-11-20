@@ -71,12 +71,12 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
     - Amazon QuickSight 在 GCR 区域中不可用。
 
 要准备安装过程，请根据需要执行以下步骤：
-1. 您有一个域名，并且您的域名经过 [ICP备案]（https://www.amazonaws.cn/en/about-aws/china/#ICP_）。
+1. 您有一个域名，并且您的域名经过 [ICP备案](https://www.amazonaws.cn/en/about-aws/china/#ICP_)。
 2. 您需要一个根域名和单个域名来安装 Keycloak 和管理 Web UI。作为其中的一部分，您需要在 ACM 中为 keycloak 域提供一个证书，在 IAM 中为 Admin Web UI 域提供一个证书。可以为通配符证书（例如 *.example.com）或特定证书（例如 keycloak.example.com）。
     - 您需要在 AWS Route53 中为您的域创建一个公有托管区域。
     - 请求或上传 [证书至 ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
     - 上传 [证书至 IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html)
-    - 如果没有可用的证书，[letsencrypt.org]（https://letsencrypt.org/） 提供免费的 TLS 证书。
+    - 如果没有可用的证书，[letsencrypt.org](https://letsencrypt.org/) 提供免费的 TLS 证书。
        ```
         brew install certbot
         ```
