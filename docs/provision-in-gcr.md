@@ -4,7 +4,7 @@
 [Introduction](#introduction)\
 [Feature Availability and Implementation Differences](#feature-availability-and-implementation-differences)\
 [Provision AWS SaaS Boost into your AWS GCR Account](#provision-aws-saas-boost-into-your-aws-gcr-account)\
-[References]
+[References](#references)
 
 ## Introduction
 Amazon Web Services China (Beijing) Region and Amazon Web Services China (Ningxia) Region are the two Amazon Web Services Regions located within China. To provide the best experience for customers in China and to comply with China’s legal and regulatory requirements, Amazon Web Services has collaborated with China local partners with proper telecom licenses for delivering cloud services. The service operator and provider for Amazon Web Services China (Beijing) Region based out of Beijing and adjacent areas is Beijing Sinnet Technology Co., Ltd. (Sinnet), and the service operator and provider for Amazon Web Services (Ningxia) Region based out of Ningxia is Ningxia Western Cloud Data Technology Co., Ltd. (NWCD).
@@ -13,7 +13,7 @@ As Amazon Web Services China operates seperately from Amazon Web Services Global
 
 ## Feature Availability and Implementation Differences
 1. Amazon Cognito is unique in the following ways:
-    - Amazon Cognito is available in the following regions in China  
+    - Amazon Cognito is available in Beijing regions in China.
     - Amazon Cognito User Pools are not currently available in the Beijing Region.
     - Keycloak(Open Source Identity and Access Management) is provided as another identity provider.
 2. Amazon CloudFront is unique in the following ways:
@@ -25,10 +25,10 @@ As Amazon Web Services China operates seperately from Amazon Web Services Global
 ## Provision AWS SaaS Boost into your AWS GCR Account
 To prepare the installation process, perform the following steps as needed:
 1. You have a domain and your domain is [ICP registrated](https://www.amazonaws.cn/en/about-aws/china/#ICP_).
-2. You need a root domain name and individual domain names for your keycloak installation and the admin web UI. As part of this you need one certificate in ACM for kecloak domain, and one certificate in IAM that covers admin web UI domain. Either wildcard certificates (e.g. *.example.com) or specific certificates (e.g. keycloak.example.com). 
-    - You need to create a public zone in AWS Route53 for your domain.
-    - Request or upload [certificate in ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
-    - Upload [certificate in IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html). 
+2. You need a root domain name and individual domain names for your keycloak installation and the admin web UI. As part of this you need one certificate in ACM for keycloak domain, and one certificate in IAM that covers admin web UI domain. Either wildcard certificates (e.g. *.example.com) or specific certificates (e.g. keycloak.example.com). 
+    - You need to create a public hosted zone in AWS Route53 for your domain.
+    - Request or upload [certificate to ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
+    - Upload [certificate to IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html). 
     - If you don't have a certificate availible, [letsencrypt.org](https://letsencrypt.org/) provides free TLS certificates.
         ```
         brew install certbot
@@ -66,7 +66,7 @@ To start the installation process, perform the following steps:
 3. Select the option for a new installation.
 4. Enter the full path to your AWS SaaS Boost directory (hit enter for the current directory): /\<mydir\>/aws-saas-boost.
 5. Enter the name for this SaaS Boost environment (dev, QA, test, sandbox, etc.).
-6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password.
+6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password. In AWS GCR region, the base password for your admin installation will be stored in SecretsManager in the secret 'sb-{env}-admin'
 7. Enter `Keycloak` as identity provider to use for system users.
 8. Select Route53 hosted zone and ACM certificate for Keycloak domain.
 9. Enter domain name for SaaS Boost admin web console.

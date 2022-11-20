@@ -59,6 +59,52 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 1. 在您的亚马逊云科技账户中设置具有完全管理员权限的 IAM 用户。
 2. 使用亚马逊云科技访问密钥和默认区域设置您的 CLI 凭证。
 
+北京区域和宁夏区域是两个位于中国境内提供服务的 亚马逊云科技 区域。为保证更好的用户体验并遵守中国的法律法规, 亚马逊在中国与持有相关电信牌照的本地合作伙伴开展技术合作，由本地合作伙伴向客户提供云服务。北京光环新网科技股份有限公司是 亚马逊云科技 北京区域云的服务运营方和提供方，宁夏西云数据科技有限公司是 亚马逊云科技 宁夏区域云的服务运营方和提供方。由于亚马逊云科技中国与亚马逊云科技全球区域分开运营，由于功能可用性和法规要求，GCR 中的 SaaS Boost 预置体验是独一无二的。本文档提供了在 GCR 中预置 AWS SaaS Boost 的指南。
+1. Amazon Cognito 在以下方面是独一无二的：
+    - Amazon Cognito 已在中国北京区域推出.
+    - Amazon Cognito 用户池目前在北京区域不可用。
+    - Keycloak（开源身份和访问管理）作为另一个身份提供程序。
+2. Amazon Cloudfront 在以下方面是独一无二的：
+    - 您不能使用默认 CloudFront 域*.cloudfront.cn,来提供内容。您必须向 CloudFront 分配添加备用域名（也称为别名记录），然后在内容 URL 中使用该域名。此外，您还必须[注册 ICP](https://www.amazonaws.cn/en/about-aws/china/#ICP_)。此外，与全球 CloudFront 服务一样，要通过 HTTPS 提供内容，您必须使用带有备用域名的 SSL/TLS 证书。
+    - 中国 CloudFront 地区的亚马逊目前不支持Amazon Certificate Manager。您必须从其他第三方证书颁发机构 (CA) 获取 SSL/TLS 证书，然后将其上传到 IAM 证书存储。
+3. Amazon QuickSight 在以下方面是独一无二的：
+    - Amazon QuickSight 在 GCR 区域中不可用。
+
+要准备安装过程，请根据需要执行以下步骤：
+1. 您有一个域名，并且您的域名经过 [ICP备案]（https://www.amazonaws.cn/en/about-aws/china/#ICP_）。
+2. 您需要一个根域名和单个域名来安装 Keycloak 和管理 Web UI。作为其中的一部分，您需要在 ACM 中为 keycloak 域提供一个证书，在 IAM 中为 Admin Web UI 域提供一个证书。可以为通配符证书（例如 *.example.com）或特定证书（例如 keycloak.example.com）。
+    - 您需要在 AWS Route53 中为您的域创建一个公有托管区域。
+    - 请求或上传 [证书至 ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
+    - 上传 [证书至 IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html)
+    - 如果没有可用的证书，[letsencrypt.org]（https://letsencrypt.org/） 提供免费的 TLS 证书。
+       ```
+        brew install certbot
+        ```
+        ```
+        sudo certbot certonly --manual --preferred-challenges dns -d "*.example.com"
+        ```
+        会像下面这样提示:
+        ```
+        Please deploy a DNS TXT record under the name
+        *_acme-challenge.example.com* with the following value:
+        F1GrseCyEboH_PzuHH9V_oyifx8BPcKk********
+        ```
+        添加“*_acme-challenge.example.com*”** Route 53 TXT 类型条目，并将值设置为“F1GrseCyEboH_PzuHH9V_oyifx8BPcKk******”。
+        按回车键继续，您将获得签名证书。
+        您可以通过 CloudFront 用户界面或使用以下命令进行上传。
+        ```
+        aws iam list-server-certificates --region cn-north-1
+        ```
+        ```
+        $ sudo aws iam upload-server-certificate \
+        --path '/cloudfront/' \
+        --server-certificate-name '+.example.com' \
+        --certificate-body file:///etc/letsencrypt/live/example.com/cert.pem \
+        --private-key file:///etc/letsencrypt/live/example.com/privkey.pem \
+        --certificate-chain file:///etc/letsencrypt/live/example.com/chain.pem \
+        --region cn-north-1
+        ```
+
 要开始安装过程，请执行以下步骤：
 1. 从终端窗口中，导航到您下载了 SaaS Boost（AWS-SaaS-Boost）的目录。
 2. 调用安装命令。
@@ -67,12 +113,16 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 3. 选择新安装的选项。
 4. 输入您的 SaaS Boost 目录的完整路径（点击当前目录的回车键） (hit enter for the current directory): /\<mydir\>/aws-saas-boost。
 5. 输入此 SaaS Boost 环境的名称 （dev、QA、 test、 sandbox等）。
-6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。
-7. 指示您是否希望安装 SaaS Boost 的指标和分析功能。
+6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。在亚马逊云科技中国区，管理员的初始临时密码将存储在 SecretsManager 中的密钥“sb-{env}-admin”里.
+7. 输入“Keycloak”作为身份提供程序，供系统用户使用。
+8. 为 Keycloak 域选择 Route53 托管区域和 ACM 证书。
+9. 输入 SaaS Boost 管理控制台的域名。
+10. 为 SaaS Boost Admin UI 域选择 Route53 托管区域和 IAM 证书。
+11. 指示您是否希望安装 SaaS Boost 的指标和分析功能。
 此步骤是 ***可选的***，并将预配置一个[Redshift](https://aws.amazon.com/redshift)集群。
-    - 如果您输入 **Y**, 系统将提示您进行 [QuickSight](https://aws.amazon.com/quicksight/) 设置。要使用 Quicksight，在您的亚马逊云科技账户内 _您必须预先注册_ 标准版或者企业版的QuickSight账户，详细信息包含在[https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
-8. 如果您的应用程序是基于 Windows 的并且需要共享文件系统，则必须部署 [托管 Active Directory](https://aws.amazon.com/directoryservice/) 以支持 [适用于 Windows 文件服务器的 Amazon FSx](https://aws.amazon.com/fsx/windows/) 或 [适用于 NetApp 的 Amazon ONTAP](https://aws.amazon.com/fsx/netapp-ontap/)。根据需要选择 y 或 n。
-9. 查看安装的设置。仔细检查您将要在其中安装 SaaS Boost 的亚马逊云科技账号和区域。输入 **y** 继续，或输入 **n** 重新输入或调整值。
+    - 您可以输入**N**，QuickSight目前在GCR中不可用。
+12. 如果您的应用程序是基于 Windows 的并且需要共享文件系统，则必须部署 [托管 Active Directory](https://aws.amazon.com/directoryservice/) 以支持 [适用于 Windows 文件服务器的 Amazon FSx](https://aws.amazon.com/fsx/windows/) 或 [适用于 NetApp 的 Amazon ONTAP](https://aws.amazon.com/fsx/netapp-ontap/)。根据需要选择 y 或 n。
+13. 查看安装的设置。仔细检查您将要在其中安装 SaaS Boost 的亚马逊云科技账号和区域。输入 **y** 继续，或输入 **n** 重新输入或调整值。
 
 安装过程需要 30-45 分钟来配置和预配所有资源（这将根据所选的选项而有所不同）。安装过程中的详细日志存储在 **saas-boost-install.log**中。
 
