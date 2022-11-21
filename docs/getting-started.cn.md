@@ -67,7 +67,9 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 2. Amazon Cloudfront 在以下方面是独一无二的：
     - 您不能使用默认 CloudFront 域*.cloudfront.cn,来提供内容。您必须向 CloudFront 分配添加备用域名（也称为别名记录），然后在内容 URL 中使用该域名。此外，您还必须[注册 ICP](https://www.amazonaws.cn/en/about-aws/china/#ICP_)。此外，与全球 CloudFront 服务一样，要通过 HTTPS 提供内容，您必须使用带有备用域名的 SSL/TLS 证书。
     - 中国 CloudFront 地区的亚马逊目前不支持Amazon Certificate Manager。您必须从其他第三方证书颁发机构 (CA) 获取 SSL/TLS 证书，然后将其上传到 IAM 证书存储。
-3. Amazon QuickSight 在以下方面是独一无二的：
+3. Amazon SES 在以下方面是独一无二的：
+    - Amazon SES 在 GCR 区域中不可用。
+4. Amazon QuickSight 在以下方面是独一无二的：
     - Amazon QuickSight 在 GCR 区域中不可用。
 
 要准备安装过程，请根据需要执行以下步骤：

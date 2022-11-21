@@ -19,7 +19,9 @@ As Amazon Web Services China operates seperately from Amazon Web Services Global
 2. Amazon CloudFront is unique in the following ways:
     - You can’t use the default CloudFront domain, `*.cloudfront.cn`, to serve content. You must add an alternate domain name, also known as a CNAME, to your CloudFront distributions, and then use that domain name in the URLs for your content. You also must have [an ICP registration](https://www.amazonaws.cn/en/about-aws/china/#ICP_). In addition, just as with the global CloudFront service, to serve content over HTTPS, you must use an SSL/TLS certificate with your alternate domain name.
     - Amazon CloudFront in the China Regions currently does not support Amazon Certificate Manager. You must get an SSL/TLS certificate from a different third-party certificate authority (CA) and then upload it to the IAM certificate store.
-3. Amazon QuickSight is unique in the following ways:
+3. Amazon SES is unique in the following ways:
+    - Amazon SES is not availible in GCR regions.
+4. Amazon QuickSight is unique in the following ways:
     - Amazon QuickSight is not availible in GCR regions.
 
 ## Provision AWS SaaS Boost into your AWS GCR Account
