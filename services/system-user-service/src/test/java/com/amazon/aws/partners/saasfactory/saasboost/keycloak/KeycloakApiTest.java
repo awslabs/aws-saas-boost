@@ -192,13 +192,13 @@ public final class KeycloakApiTest {
 
     @Test
     public void getAdminGroupPath_basic() throws IOException, InterruptedException {
+        final String adminGroupName = "admin";
         String expectedPath = "/admin";
-        Map<String, Object> mockAdminGroup = Map.of("name", "admin", "path", expectedPath);
-        Map<String, Object> anotherGroup = Map.of("name", "operator", "path", "/operator");
-        doReturn(mockResponse(HttpURLConnection.HTTP_OK, Utils.toJson(List.of(mockAdminGroup, anotherGroup))))
+        Map<String, Object> mockAdminGroup = Map.of("name", adminGroupName, "path", expectedPath);
+        doReturn(mockResponse(HttpURLConnection.HTTP_OK, Utils.toJson(List.of(mockAdminGroup))))
                 .when(mockClient).send(requestCaptor.capture(), any(BodyHandler.class));
         String actualPath = api.getAdminGroupPath(TEST_EVENT);
-        assertRequest(requestCaptor.getValue(), "GET", endpoint("/groups"), null);
+        assertRequest(requestCaptor.getValue(), "GET", endpoint("/groups?search=" + adminGroupName), null);
         assertEquals("Path should match", expectedPath, actualPath);
     }
 

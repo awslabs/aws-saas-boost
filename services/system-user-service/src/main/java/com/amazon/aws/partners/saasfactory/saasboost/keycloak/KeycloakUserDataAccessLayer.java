@@ -146,7 +146,11 @@ public class KeycloakUserDataAccessLayer implements SystemUserDataAccessLayer {
             keycloakUser.setEnabled(user.getActive());
             keycloakUser.setEmail(user.getEmail());
             keycloakUser.setEmailVerified(Boolean.TRUE.equals(user.getEmailVerified()));
-            keycloakUser.setCreatedTimestamp(LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli());
+            if (user.getCreated() == null) {
+                keycloakUser.setCreatedTimestamp(LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli());
+            } else {
+                keycloakUser.setCreatedTimestamp(user.getCreated().toInstant(ZoneOffset.UTC).toEpochMilli());
+            }
             // TODO should we attempt to map Cognito UserStatusType to Keycloak Required Actions?
             if ("FORCE_CHANGE_PASSWORD".equals(user.getStatus())) {
                 keycloakUser.setRequiredActions(List.of("UPDATE_PASSWORD"));

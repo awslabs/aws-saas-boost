@@ -28,9 +28,7 @@ import static org.junit.Assert.assertEquals;
 
 public final class KeycloakTestUtils {
     public static void assertUserListsEqual(List<UserRepresentation> expected, List<UserRepresentation> actual) {
-        // if expected and actual are not equal in existence
-        if (expected == null ^ actual == null) {
-            // will be like expected [null] but was [List[UserRepresentation@abc123]], or vice versa
+        if ((expected == null && actual != null) || (expected != null && actual == null)) {
             assertEquals("User lists do not match", expected, actual);
         }
         if (expected != null && actual != null) {

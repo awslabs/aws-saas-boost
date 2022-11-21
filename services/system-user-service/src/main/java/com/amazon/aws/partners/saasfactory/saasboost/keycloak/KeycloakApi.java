@@ -97,7 +97,7 @@ public class KeycloakApi {
 
     public UserRepresentation getUser(Map<String, Object> event, String username) {
         try {
-            HttpRequest getUsers = keycloakRequest(event, searchEndpoint(username)).GET().build();
+            HttpRequest getUsers = keycloakRequest(event, userSearchEndpoint(username)).GET().build();
             LOGGER.info("Invoking Keycloak realm users endpoint {}", getUsers.uri());
             HttpResponse<String> response = client.send(getUsers,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -150,7 +150,7 @@ public class KeycloakApi {
     public String getAdminGroupPath(Map<String, Object> event) {
         // GET /{realm}/groups
         try {
-            HttpRequest getGroups = keycloakRequest(event, URI.create(groupEndpoint)).GET().build();
+            HttpRequest getGroups = keycloakRequest(event, groupSearchEndpoint("admin")).GET().build();
             LOGGER.info("Invoking Keycloak realm group endpoint {}", getGroups.uri());
             HttpResponse<String> response = client.send(getGroups,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -158,11 +158,12 @@ public class KeycloakApi {
                 LOGGER.info("getGroups response: {}", response.body());
                 List<Map<String, Object>> groups = Utils.fromJson(response.body(), ArrayList.class);
                 if (groups != null) {
-                    return (String) groups.stream()
-                            .filter(group -> ((String) group.get("name")).equals("admin"))
-                            .collect(Collectors.toList())
-                            .get(0)
-                            .get("path");
+                    if (groups.size() == 1) {
+                        return (String) groups.get(0).get("path");
+                    } else {
+                        LOGGER.error("Expected only exactly one group {}", response.body());
+                        throw new RuntimeException("Unexpected response from " + getGroups.uri());
+                    }
                 } else {
                     LOGGER.error("Can't parse realm groups response {}", response.body());
                     throw new RuntimeException("Invalid response from " + getGroups.uri());
@@ -305,7 +306,11 @@ public class KeycloakApi {
         return URI.create(userEndpoint);
     }
 
-    private URI searchEndpoint(String username) {
+    private URI groupSearchEndpoint(String groupName) {
+        return URI.create(groupEndpoint + "?search=" + groupName);
+    }
+
+    private URI userSearchEndpoint(String username) {
         return URI.create(userEndpoint
                 + "?exact=true"
                 + "&username=" + URLEncoder.encode(username, StandardCharsets.UTF_8));
