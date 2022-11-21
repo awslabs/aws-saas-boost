@@ -37,6 +37,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
     private static final Logger LOGGER = LoggerFactory.getLogger(RdsBootstrap.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     static final String SQL_STATEMENT_DELIMITER = ";\r?\n";
+    static final int MAX_SQL_BATCH_SIZE = 25;
     private final S3Client s3;
     private final SsmClient ssm;
 
@@ -128,6 +129,7 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                                     jdbcUrl(type, driverClassName, host, port, database), username, password);
                                     Statement sql = conn.createStatement()) {
                                 conn.setAutoCommit(false);
+                                int batch = 0;
                                 Scanner sqlScanner = new Scanner(bootstrapSql, StandardCharsets.UTF_8);
                                 sqlScanner.useDelimiter(Pattern.compile(SQL_STATEMENT_DELIMITER));
                                 while (sqlScanner.hasNext()) {
@@ -135,6 +137,12 @@ public class RdsBootstrap implements RequestHandler<Map<String, Object>, Object>
                                     if (!ddl.isEmpty()) {
                                         //LOGGER.info(String.format("%02d %s", ++batch, ddl));
                                         sql.addBatch(ddl);
+                                        batch++;
+                                        if (batch % MAX_SQL_BATCH_SIZE == 0) {
+                                            sql.executeBatch();
+                                            conn.commit();
+                                            sql.clearBatch();
+                                        }
                                     }
                                 }
                                 sql.executeBatch();

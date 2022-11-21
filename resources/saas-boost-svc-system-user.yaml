@@ -1,0 +1,364 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost System User Service
+Parameters:
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  Environment:
+    Description: Environment name
+    Type: String
+  IdentityProvider:
+    Description: Identity Provider for the SaaS Boost system users and control plane API authorization
+    Type: String
+    Default: COGNITO
+    AllowedValues: [COGNITO, KEYCLOAK]
+  CognitoUserPoolId:
+    Description: Cognito User Pool Id when using Cognito as the identity provider
+    Type: String
+  KeycloakHost:
+    Description: Keycloak URL when using Keycloak as the identity provider
+    Type: String
+  KeycloakRealm:
+    Description: Keycloak realm configured for this SaaS Boost environment's system users
+    Type: String
+Conditions:
+  UseCognito: !Equals [!Ref IdentityProvider, 'COGNITO']
+  UseKeycloak: !Equals [!Ref IdentityProvider, 'KEYCLOAK']
+Resources:
+  SystemUserServiceCognitoPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: UseCognito
+    Properties:
+      Description: System User Service Cognito User Pool policy
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminCreateUser
+              - cognito-idp:AdminGetUser
+              - cognito-idp:AdminEnableUser
+              - cognito-idp:AdminDisableUser
+              - cognito-idp:AdminUpdateUserAttributes
+              - cognito-idp:AdminDeleteUser
+              - cognito-idp:ListUsers
+              - cognito-idp:AdminInitiateAuth
+              - cognito-idp:ListUserPoolClients
+            Resource:
+              - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+  SystemUserServiceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-sysuser-svc-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        Fn::If:
+          - UseCognito
+          - - !Ref SystemUserServiceCognitoPolicy
+          - !Ref 'AWS::NoValue'
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-sys-user-svc-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  SystemUserServiceGetByIdLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-get-by-id
+      RetentionInDays: 30
+  SystemUserServiceGetById:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-get-by-id
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceGetAllLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-get-all
+      RetentionInDays: 30
+  SystemUserServiceGetAll:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-get-all
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUsers
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceUpdateLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-update
+      RetentionInDays: 30
+  SystemUserServiceUpdate:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-update
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::updateUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceInsertLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-insert
+      RetentionInDays: 30
+  SystemUserServiceInsert:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-insert
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::insertUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceDeleteLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-delete
+      RetentionInDays: 30
+  SystemUserServiceDelete:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-delete
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::deleteUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceEnableLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-enable
+      RetentionInDays: 30
+  SystemUserServiceEnable:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-enable
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::enableUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+  SystemUserServiceDisableLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-sys-user-disable
+      RetentionInDays: 30
+  SystemUserServiceDisable:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-sys-user-disable
+      Role: !GetAtt SystemUserServiceExecutionRole.Arn
+      Runtime: java11
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::disableUser
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
+          KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
+          KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: System User
+Outputs:
+  SystemUserServiceGetAllArn:
+    Description: System User Service get all users Lambda ARN
+    Value: !GetAtt SystemUserServiceGetAll.Arn
+  SystemUserServiceInsertArn:
+    Description: System User Service insert new user Lambda ARN
+    Value: !GetAtt SystemUserServiceInsert.Arn
+  SystemUserServiceByIdArn:
+    Description: System User Service get user by id Lambda ARN
+    Value: !GetAtt SystemUserServiceGetById.Arn
+  SystemUserServiceUpdateArn:
+    Description: System User Service update user Lambda ARN
+    Value: !GetAtt SystemUserServiceUpdate.Arn
+  SystemUserServiceDeleteArn:
+    Description: System User Service delete user Lambda ARN
+    Value: !GetAtt SystemUserServiceDelete.Arn
+  SystemUserServiceEnableArn:
+    Description: System User Service enable user Lambda ARN
+    Value: !GetAtt SystemUserServiceEnable.Arn
+  SystemUserServiceDisableArn:
+    Description: System User Service disable user Lambda ARN
+    Value: !GetAtt SystemUserServiceDisable.Arn
+...

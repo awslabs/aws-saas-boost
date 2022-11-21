@@ -32,6 +32,28 @@ Parameters:
     Type: String
     Default: COGNITO
     AllowedValues: [COGNITO, KEYCLOAK]
+  SystemIdentityProviderDomain:
+    Description: Custom domain name for the SaaS Boost control plane IdP (e.g. auth.example.com)
+    Type: String
+    Default: ''
+  SystemIdentityProviderHostedZone:
+    Description: Route53 hosted zone id for SystemIdentityProviderDomain to create the ALB record set alias
+    Type: String
+    Default: ''
+  SystemIdentityProviderCertificate:
+    Description: TLS/SSL certificate ARN for SystemIdentityProviderDomain to use with the ALB
+    Type: String
+  AdminWebAppDomain:
+    Description: Custom donain name for the SaaS Boost admin web app (e.g. saas-boost.example.com)
+    Type: String
+    Default: ''
+  AdminWebAppHostedZone:
+    Description: Route53 hosted zone id for AdminWebAppDomain to create the CloudFront record set alias
+    Type: String
+    Default: ''
+  AdminWebAppCertificate:
+    Description: TLS/SSL certificate ARN for AdminWebAppDomain to use with CloudFront
+    Type: String
   AdminUsername:
     Description: Initial administrative user name for SaaS Boost admin web app
     Type: String
@@ -41,12 +63,12 @@ Parameters:
     Type: String
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
-  DomainName:
-    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
+  ApplicationDomainName:
+    Description: The root domain name your workload is hosted at (e.g. example.com)
     Type: String
     Default: ''
-  HostedZone:
-    Description: The existing Route53 hosted zone id for the domain name
+  ApplicationHostedZone:
+    Description: Route53 hosted zone id for the ApplicationDomainName. SaaS Boost will create one if necessary.
     Type: String
     Default: ''
   PublicApiStage:
@@ -83,6 +105,12 @@ Conditions:
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
+  InChinaRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
+  NotInChinaRegion: !Not [!Equals [!Ref AWS::Partition, 'aws-cn']]
+  HasAdminWebAppCustomDomain: !Not [!Equals [!Ref AdminWebAppDomain, '']]
+  HasSystemIdPCustomDomain: !Not [!Equals [!Ref SystemIdentityProviderDomain, '']]
+  AdminWebAppCustomDomainInChina: !And [!Condition InChinaRegion, !Condition HasAdminWebAppCustomDomain]
+  AdminWebAppCustomDomainNotInChina: !And [!Condition NotInChinaRegion, !Condition HasAdminWebAppCustomDomain]
 Resources:
   SSMSaaSBoostEnvironment:
     Type: AWS::SSM::Parameter
@@ -160,6 +188,9 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref Logging
         LogFilePrefix: codepipeline-logs
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -261,11 +292,12 @@ Resources:
           EventBridgeEnabled: true
       CorsConfiguration:
         CorsRules:
-          - AllowedOrigins:
-              - http://localhost:3000
-              - !GetAtt AdminWebCloudFrontDistribution.DomainName
-            AllowedMethods:
-              - PUT
+          Fn::If:
+            - HasAdminWebAppCustomDomain
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebAppDomain}']
+                AllowedMethods: [PUT]
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}']
+                AllowedMethods: [PUT]
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
@@ -298,6 +330,7 @@ Resources:
         Version: 2012-10-17
         Statement:
           - Effect: Allow
+          # TODO I think we have to set this differently for AWS China?
             Principal:
               CanonicalUser:
                 !GetAtt AdminWebOriginAccessIdentity.S3CanonicalUserId
@@ -311,6 +344,20 @@ Resources:
               - !Sub arn:${AWS::Partition}:s3:::${AdminWeb}
             Condition:
               Bool: {'aws:SecureTransport': false}
+  AdminWebRecordSetAlias:
+     Type: AWS::Route53::RecordSet
+     Condition: HasAdminWebAppCustomDomain
+     Properties:
+       HostedZoneId: !Ref AdminWebAppHostedZone
+       Name: !Ref AdminWebAppDomain
+       Type: 'A'
+       AliasTarget:
+         DNSName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+         HostedZoneId: !If
+           - InChinaRegion
+           - Z3RFFRIM2A3IF5
+           - Z2FDTNDATAQYW2
+         EvaluateTargetHealth: false
   AdminWebOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
@@ -334,6 +381,10 @@ Resources:
             Id: !Sub sb-${Environment}-s3-website
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${AdminWebOriginAccessIdentity}
+        Aliases: !If
+          - HasAdminWebAppCustomDomain
+          - - !Ref AdminWebAppDomain
+          - !Ref 'AWS::NoValue'
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -355,14 +406,24 @@ Resources:
           TargetOriginId: !Sub sb-${Environment}-s3-website
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
+          ForwardedValues: !If
+              - InChinaRegion
+              - QueryString: true
+                Cookies:
+                  Forward: none
+              - !Ref 'AWS::NoValue'
           # CachingOptimized managed cache policy
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          CachePolicyId: !If [InChinaRegion, !Ref 'AWS::NoValue', 658327ea-f89d-4fab-a63d-7e88639e58f6]
           # CORS-S3Origin managed origin request policy
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          OriginRequestPolicyId: !If [InChinaRegion, !Ref 'AWS::NoValue', 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf]
           # CORS-with-preflight-and-SecurityHeadersPolicy managed response headers policy
           ResponseHeadersPolicyId: eaab4381-ed33-4a86-88ca-d9558dc6cd63
         ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+          CloudFrontDefaultCertificate: !If [HasAdminWebAppCustomDomain, !Ref 'AWS::NoValue', true]
+          AcmCertificateArn: !If [AdminWebAppCustomDomainNotInChina, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
+          IamCertificateId: !If [AdminWebAppCustomDomainInChina, !Ref AdminWebAppCertificate, !Ref 'AWS::NoValue']
+          MinimumProtocolVersion: !If [HasAdminWebAppCustomDomain, TLSv1, !Ref 'AWS::NoValue']
+          SslSupportMethod: !If [HasAdminWebAppCustomDomain, sni-only, !Ref 'AWS::NoValue']
   SaaSBoostUtilsLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -490,6 +551,70 @@ Resources:
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref Resources
+  ClearEcrRepoExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-clear-ecr-repo-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-clear-ecr-repo-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                  - ecr:BatchDeleteImage
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-*
+  ClearEcrRepoLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-clear-ecr-repo
+      RetentionInDays: 30
+  ClearEcrRepo:
+    Type: AWS::Lambda::Function
+    DependsOn: ClearEcrRepoLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-clear-ecr-repo
+      Role: !GetAtt ClearEcrRepoExecutionRole.Arn
+      Runtime: java11
+      Timeout: 900
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearEcrRepo
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ClearEcrRepo-lambda.zip
+      Layers:
+         - !Ref SaaSBoostUtilsLayer
+         - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
   ApplicationServicesMacroExecutionRole:
     Type: AWS::IAM::Role
     Condition: ShouldCreateMacroResources
@@ -680,14 +805,14 @@ Resources:
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-network.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
         Environment: !Ref Environment
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
       Parameters:
         Environment: !Ref Environment
         Subnets:
@@ -700,34 +825,62 @@ Resources:
   idp:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-idp.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-idp.yaml
       Parameters:
-        Environment: !Ref Environment
         IdentityProvider: !Ref SystemIdentityProvider
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        CodePipelineBucket: !Ref Pipelines
+        CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
+        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
         AdminUsername: !Ref AdminUsername
         AdminEmailAddress: !Ref AdminEmailAddress
-        AdminWebDomainName: !GetAtt AdminWebCloudFrontDistribution.DomainName
+        AdminWebUrl: !If
+          - HasAdminWebAppCustomDomain
+          - !Sub 'https://${AdminWebAppDomain}'
+          - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
+        CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
+        CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
+        CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
+        VPC: !GetAtt network.Outputs.EgressVpc
+        ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
+        PrivateSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PrivateSubnet1
+              - !GetAtt network.Outputs.PrivateSubnet2
+        PublicSubnets:
+          !Join
+            - ','
+            - - !GetAtt network.Outputs.PublicSubnet1
+              - !GetAtt network.Outputs.PublicSubnet2
   web:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
         AdminWebBucket: !Ref AdminWeb
-        AdminWebUrl: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
-        ApiGatewayUrl: !Sub 'https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage}' #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
-        AdminWebClientId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPoolClient, '']
-        UserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
-        UserPoolBaseUri: !If [UseCognito, !GetAtt idp.Outputs.CognitoSignOnBaseUri, '']
+        AdminWebUrl: !If
+          - HasAdminWebAppCustomDomain
+          - !Sub 'https://${AdminWebAppDomain}'
+          - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
+        OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
       - MacroWaitCondition
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-core.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-core.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -739,8 +892,8 @@ Resources:
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
-        DomainName: !Ref DomainName
-        HostedZone: !Ref HostedZone
+        DomainName: !Ref ApplicationDomainName
+        HostedZone: !Ref ApplicationHostedZone
         EventBus: !Ref SaaSBoostEventBus
       NotificationARNs:
         - !Ref CoreStackListenerTopic
@@ -748,7 +901,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -759,7 +912,7 @@ Resources:
   metering:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -777,7 +930,7 @@ Resources:
       - InvokeClearAthenaBucket
       - InvokeClearAccessLogsBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -791,7 +944,7 @@ Resources:
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -807,7 +960,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -817,7 +970,7 @@ Resources:
   settings:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -831,7 +984,7 @@ Resources:
   tenant:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -843,29 +996,32 @@ Resources:
   tier:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-  user:
+  sysuser:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-user.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        IdentityProvider: !Ref SystemIdentityProvider
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-public-api.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -874,7 +1030,10 @@ Resources:
         PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
         RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
         PublicApiStage: !Ref PublicApiStage
-        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.SBUserPool, '']
+        IdentityProvider: !Ref SystemIdentityProvider
+        CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
+        KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
+        KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -898,18 +1057,17 @@ Resources:
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
         TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
-        UserServiceGetAll: !GetAtt user.Outputs.UserServiceGetAllArn
-        UserServiceInsert: !GetAtt user.Outputs.UserServiceInsertArn
-        UserServiceById: !GetAtt user.Outputs.UserServiceByIdArn
-        UserServiceUpdate: !GetAtt user.Outputs.UserServiceUpdateArn
-        UserServiceDelete: !GetAtt user.Outputs.UserServiceDeleteArn
-        UserServiceEnable: !GetAtt user.Outputs.UserServiceEnableArn
-        UserServiceDisable: !GetAtt user.Outputs.UserServiceDisableArn
-        UserServiceToken: !GetAtt user.Outputs.UserServiceTokenArn
+        SystemUserServiceGetAll: !GetAtt sysuser.Outputs.SystemUserServiceGetAllArn
+        SystemUserServiceInsert: !GetAtt sysuser.Outputs.SystemUserServiceInsertArn
+        SystemUserServiceById: !GetAtt sysuser.Outputs.SystemUserServiceByIdArn
+        SystemUserServiceUpdate: !GetAtt sysuser.Outputs.SystemUserServiceUpdateArn
+        SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
+        SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
+        SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-private-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-private-api.yaml
       Parameters:
         Environment: !Ref Environment
         PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
@@ -988,7 +1146,10 @@ Outputs:
     Value: !Ref AdminWeb
   AdminWebUrl:
     Description: Saas Boost admin web app URL
-    Value: !Sub https://${AdminWebCloudFrontDistribution.DomainName}
+    Value: !If
+      - HasAdminWebAppCustomDomain
+      - !Sub 'https://${AdminWebAppDomain}'
+      - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Value: !Ref Pipelines

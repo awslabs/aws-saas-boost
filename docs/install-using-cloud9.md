@@ -31,20 +31,16 @@ sudo alternatives --config java
 
 sudo alternatives --config javac
 ```
-7.	Upgrade to node 14
+
+7. If you plan on running the sample app, you need to install `jq` for use in our sample build scripts
 ```
-nvm install 14
+sudo yum install jq
 ```
 
-8.	Install yarn
-```
-npm install --global yarn
-```
-
-9.	Run AWS SaaS Boost install script
+8.	Run AWS SaaS Boost install script
 ```
 cd ~/environment/aws-saas-boost
 ./install.sh
 ```
 
-10. Follow the install script prompts to install AWS SaaS Boost!
+9. Follow the install script prompts to install AWS SaaS Boost!

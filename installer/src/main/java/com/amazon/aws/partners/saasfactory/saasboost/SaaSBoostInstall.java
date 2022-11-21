@@ -28,6 +28,8 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.acm.AcmClient;
+import software.amazon.awssdk.services.acm.model.*;
 import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
@@ -47,6 +49,10 @@ import software.amazon.awssdk.services.quicksight.model.ListUsersRequest;
 import software.amazon.awssdk.services.quicksight.model.ListUsersResponse;
 import software.amazon.awssdk.services.quicksight.model.Tag;
 import software.amazon.awssdk.services.quicksight.model.User;
+import software.amazon.awssdk.services.route53.Route53Client;
+import software.amazon.awssdk.services.route53.model.HostedZone;
+import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameRequest;
+import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
@@ -64,6 +70,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.Constants.AWS_REGION;
 import static com.amazon.aws.partners.saasfactory.saasboost.Constants.OS;
@@ -87,6 +95,8 @@ public class SaaSBoostInstall {
     private final SsmClient ssm;
     private final LambdaClient lambda;
     private final SecretsManagerClient secretsManager;
+    private final Route53Client route53;
+    private final AcmClient acm;
 
     private final String accountId;
     private Environment environment;
@@ -108,7 +118,7 @@ public class SaaSBoostInstall {
         UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
         DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
         CANCEL(6, "Exit installer.", false);
-//        DEBUG(7, "Debug", false);
+        //DEBUG(7, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -154,6 +164,8 @@ public class SaaSBoostInstall {
         s3 = awsClientBuilderFactory.s3Builder().build();
         ssm = awsClientBuilderFactory.ssmBuilder().build();
         secretsManager = awsClientBuilderFactory.secretsManagerBuilder().build();
+        route53 = awsClientBuilderFactory.route53Builder().build();
+        acm = awsClientBuilderFactory.acmBuilder().build();
 
         accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
     }
@@ -174,9 +186,8 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void debug() {
-//        getExistingSaaSBoostLambdasFolder();
-//        processLambdas();
+    protected void debug(String existingBucket) {
+        copyAdminWebAppSourceToS3(workingDir, null, null);
     }
 
     public void start(String existingBucket) {
@@ -220,7 +231,11 @@ public class SaaSBoostInstall {
                 installSaaSBoost(existingBucket);
                 break;
             case UPDATE:
-                workflow = new UpdateWorkflow(this.workingDir, this.environment, this.awsClientBuilderFactory);
+                workflow = new UpdateWorkflow(
+                    this.workingDir, 
+                    this.environment, 
+                    this.awsClientBuilderFactory, 
+                    doesCfnMacroResourceExist());
                 break;
             case UPDATE_WEB_APP:
                 SaaSBoostInstall.copyAdminWebAppSourceToS3(this.workingDir,
@@ -228,7 +243,8 @@ public class SaaSBoostInstall {
                 break;
             case ADD_ANALYTICS:
                 this.useAnalyticsModule = true;
-                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module? You must have already registered for Quicksight in your account (y or n)? ");
+                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module?"
+                        + "You must have already registered for Quicksight in your account (y or n)? ");
                 this.useQuickSight = Keyboard.readBoolean();
                 if (this.useQuickSight) {
                     getQuickSightUsername();
@@ -241,9 +257,9 @@ public class SaaSBoostInstall {
             case CANCEL:
                 cancel();
                 break;
-//            case DEBUG:
-//                debug();
-//                break;
+            //case DEBUG:
+            //    debug(existingBucket);
+            //    break;
             default:
                 cancel();
         }
@@ -260,6 +276,7 @@ public class SaaSBoostInstall {
             System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
             this.envName = Keyboard.readString();
             if (validateEnvironmentName(this.envName)) {
+                LOGGER.info("Setting SaaS Boost environment = [{}]", this.envName);
                 break;
             } else {
                 outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
@@ -274,12 +291,260 @@ public class SaaSBoostInstall {
                 System.out.print("Enter the email address address again to confirm: ");
                 String emailAddress2 = Keyboard.readString();
                 if (emailAddress.equals(emailAddress2)) {
+                    LOGGER.info("Setting SaaS Boost admin email = [{}]", emailAddress);
                     break;
                 } else {
                     outputMessage("Entered value for email address does not match " + emailAddress);
                 }
             } else {
                 outputMessage("Entered value for email address is incorrect or wrong format, please try again.");
+            }
+        }
+
+        String systemIdentityProvider;
+        while (true) {
+            System.out.print("Enter the identity provider to use for system users (Cognito or Keycloak) Press Enter for 'Cognito': ");
+            systemIdentityProvider = Keyboard.readString();
+            if (isNotBlank(systemIdentityProvider)) {
+                if (systemIdentityProvider.toUpperCase().equals("COGNITO")
+                        || systemIdentityProvider.toUpperCase().equals("KEYCLOAK")) {
+                    systemIdentityProvider = systemIdentityProvider.toUpperCase();
+                    LOGGER.info("Setting Identity Provider = [{}]", systemIdentityProvider);
+                    break;
+                } else {
+                    outputMessage("Invalid identity provider. Enter either Cognito or Keycloak.");
+                }
+            } else {
+                systemIdentityProvider = "COGNITO";
+                LOGGER.info("Setting Identity Provider = [{}]", systemIdentityProvider);
+                break;
+            }
+        }
+
+        // TODO support custom domains for Cognito hosted UI?
+        // https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-add-custom-domain.html
+        String identityProviderCustomDomain = null;
+        String identityProviderHostedZone = null;
+        String identityProviderCertificate = null;
+        if ("KEYCLOAK".equals(systemIdentityProvider)) {
+            if ("KEYCLOAK".equals(systemIdentityProvider)) {
+                System.out.println("You must provide a custom domain name with a verified TLS (SSL) certificate to install Keycloak.");
+                System.out.println("You must have an existing Route53 Hosted Zone for the domain name, and DNS resolution must work.");
+            }
+            while (true) {
+                System.out.print("Enter the domain name for the SaaS Boost control plane identity provider (e.g. keycloak.example.com): ");
+                identityProviderCustomDomain = Keyboard.readString();
+                if (validateDomainName(identityProviderCustomDomain)) {
+                    System.out.print("Using " + identityProviderCustomDomain + " for the SaaS Boost identity provider. Continue? (y or n)? ");
+                    boolean continueInstall = Keyboard.readBoolean();
+                    if (continueInstall) {
+                        LOGGER.info("Setting identity provider domain = [{}]", identityProviderCustomDomain);
+                        break;
+                    }
+                } else {
+                    outputMessage("Invalid domain name, please try again.");
+                }
+            }
+
+            List<HostedZone> hostedZones = existingHostedZones(route53, identityProviderCustomDomain);
+            if (hostedZones == null || hostedZones.isEmpty()) {
+                System.out.println("Error. No Route53 Hosted Zone for the domain " + identityProviderCustomDomain);
+                cancel();
+            }
+            while (true) {
+                System.out.println("Select the Route53 Hosted Zone for the domain "
+                        + identityProviderCustomDomain + ":");
+                for (ListIterator<HostedZone> iter = hostedZones.listIterator(); iter.hasNext(); ) {
+                    int index = iter.nextIndex();
+                    HostedZone hostedZone = iter.next();
+                    System.out.printf("%d. (%s) %s%n",
+                            (index + 1),
+                            hostedZone.id().replace("/hostedzone/", ""),
+                            hostedZone.name()
+                    );
+                }
+                System.out.print("Type the number of the hosted zone to use and press enter: ");
+                Integer choice = Keyboard.readInt();
+                try {
+                    HostedZone zone = hostedZones.get((choice - 1));
+                    // Hosted zone id will be prefixed with /hostedzone/
+                    identityProviderHostedZone = zone.id().replace("/hostedzone/", "");
+                    LOGGER.info("Setting identity provider domain hosted zone = [{}]", identityProviderHostedZone);
+                    break;
+                } catch (NullPointerException | IndexOutOfBoundsException e) {
+                    outputMessage("Invalid choice, please try again. Enter the number of the hosted zone to use.");
+                }
+            }
+
+            List<CertificateSummary> certificates = existingCertificates(acm, identityProviderCustomDomain);
+            if (certificates == null || certificates.isEmpty()) {
+                System.out.println("Error. Unable to find an ACM certificate for the domain "
+                        + identityProviderCustomDomain + ". Create or import a public certificate in this Region.");
+                cancel();
+            } else {
+                while (true) {
+                    System.out.println("Select the ACM Certificate for the domain "
+                            + identityProviderCustomDomain + ":");
+                    for (ListIterator<CertificateSummary> iter = certificates.listIterator(); iter.hasNext(); ) {
+                        int index = iter.nextIndex();
+                        CertificateSummary certificate = iter.next();
+                        System.out.printf("%d. %s%n",
+                                (index + 1),
+                                certificate.domainName()
+                        );
+                    }
+                    System.out.print("Type the number of the certificate to use and press enter: ");
+                    Integer choice = Keyboard.readInt();
+                    try {
+                        identityProviderCertificate = certificates.get((choice - 1)).certificateArn();
+                        LOGGER.info("Setting identity provider certificate = [{}]", identityProviderCertificate);
+                        break;
+                    } catch (NullPointerException | IndexOutOfBoundsException e) {
+                        outputMessage("Invalid choice, please try again. Enter the number of the certificate to use.");
+                    }
+                }
+            }
+        }
+
+        boolean useCustomDomainForAdminWebApp = Utils.isChinaRegion(AWS_REGION);
+        if (!useCustomDomainForAdminWebApp) {
+            System.out.print("Would you like to use a custom domain name for the SaaS Boost admin web console (y or n)? ");
+            useCustomDomainForAdminWebApp = Keyboard.readBoolean();
+        }
+        String adminWebAppCustomDomain = null;
+        String adminWebAppHostedZone = null;
+        String adminWebAppCertificate = null;
+        if (useCustomDomainForAdminWebApp) {
+            if (!Utils.isChinaRegion(AWS_REGION)) {
+                System.out.println("You must provide a verified TLS (SSL) certificate from ACM in the us-east-1 "
+                        + " region to use a custom domain name for the SaaS Boost admin web console.");
+            } else {
+                System.out.println("You must provide a verified TLS (SSL) certificate from the IAM certificate store "
+                        + " to use a custom domain name for the SaaS Boost admin web console.");
+                System.out.println("You must also have an ICP registration for the domain. See https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China for more information.");
+            }
+            // TODO Does this work the same way in AWS China?
+            System.out.println("You must have an existing Route53 Hosted Zone for the domain name, and DNS resolution must work.");
+            while (true) {
+                System.out.print("Enter the domain name for the SaaS Boost admin web console (e.g. saas-boost.example.com): ");
+                adminWebAppCustomDomain = Keyboard.readString();
+                if (validateDomainName(adminWebAppCustomDomain)) {
+                    System.out.print("Using " + adminWebAppCustomDomain + " for the SaaS Boost admin web console. Continue? (y or n)? ");
+                    boolean continueInstall = Keyboard.readBoolean();
+                    if (continueInstall) {
+                        LOGGER.info("Setting admin web console domain = [{}]", adminWebAppCustomDomain);
+                        break;
+                    }
+                } else {
+                    outputMessage("Invalid domain name, please try again.");
+                }
+            }
+
+            List<HostedZone> hostedZones = existingHostedZones(route53, adminWebAppCustomDomain);
+            if (hostedZones == null || hostedZones.isEmpty()) {
+                System.out.println("Error. No Route53 Hosted Zone for the domain " + adminWebAppCustomDomain);
+                cancel();
+            }
+            while (true) {
+                System.out.println("Select the Route53 Hosted Zone for the domain "
+                        + adminWebAppCustomDomain + ":");
+                for (ListIterator<HostedZone> iter = hostedZones.listIterator(); iter.hasNext(); ) {
+                    int index = iter.nextIndex();
+                    HostedZone hostedZone = iter.next();
+                    System.out.printf("%d. (%s) %s%n",
+                            (index + 1),
+                            hostedZone.id().replace("/hostedzone/", ""),
+                            hostedZone.name()
+                    );
+                }
+                System.out.print("Type the number of the hosted zone to use and press enter: ");
+                Integer choice = Keyboard.readInt();
+                try {
+                    HostedZone zone = hostedZones.get((choice - 1));
+                    // Hosted zone id will be prefixed with /hostedzone/
+                    adminWebAppHostedZone = zone.id().replace("/hostedzone/", "");
+                    LOGGER.info("Setting identity provider domain hosted zone = [{}]", adminWebAppHostedZone);
+                    break;
+                } catch (NullPointerException | IndexOutOfBoundsException e) {
+                    outputMessage("Invalid choice, please try again. Enter the number of the hosted zone to use.");
+                }
+            }
+
+            if (!Utils.isChinaRegion(AWS_REGION)) {
+                // CloudFront distributions can only be associated with ACM certificates in us-east-1
+                List<CertificateSummary> certificates = existingCertificates(
+                        AcmClient.builder().region(Region.US_EAST_1).build(), adminWebAppCustomDomain);
+                if (certificates == null || certificates.isEmpty()) {
+                    System.out.println("Error. Unable to find an ACM certificate in us-east-1 for the domain "
+                            + adminWebAppCustomDomain + ". Create or import a public certificate in us-east-1.");
+                    cancel();
+                } else {
+                    while (true) {
+                        System.out.println("Select the ACM Certificate for the domain "
+                                + adminWebAppCustomDomain + ":");
+                        for (ListIterator<CertificateSummary> iter = certificates.listIterator(); iter.hasNext(); ) {
+                            int index = iter.nextIndex();
+                            CertificateSummary certificate = iter.next();
+                            System.out.printf("%d. %s%n",
+                                    (index + 1),
+                                    certificate.domainName()
+                            );
+                        }
+                        System.out.print("Type the number of the certificate to use and press enter: ");
+                        Integer choice = Keyboard.readInt();
+                        try {
+                            adminWebAppCertificate = certificates.get((choice - 1)).certificateArn();
+                            LOGGER.info("Setting admin web app certificate = [{}]", adminWebAppCertificate);
+                            break;
+                        } catch (NullPointerException | IndexOutOfBoundsException e) {
+                            System.out.println("Invalid choice, please try again. Enter the number of the certificate to use.");
+                        }
+                    }
+                }
+            } else {
+                // In the AWS China regions, CloudFront can only be associated with certificates in IAM
+                List<ServerCertificateMetadata> serverCertificates = new ArrayList<>();
+                ListServerCertificatesResponse serverCertificateResponse;
+                String marker = null;
+                do {
+                    serverCertificateResponse = iam.listServerCertificates(ListServerCertificatesRequest.builder()
+                            .maxItems(100)
+                            .marker(marker)
+                            .build()
+                    );
+                    marker = serverCertificateResponse.marker();
+                    if (serverCertificateResponse.hasServerCertificateMetadataList()) {
+                        serverCertificates.addAll(serverCertificateResponse.serverCertificateMetadataList());
+                    }
+                } while (serverCertificateResponse.isTruncated());
+                if (serverCertificates.isEmpty()) {
+                    System.out.println("Error. Unable to find IAM server certificates. Import a 3rd party certificate "
+                            + "for the domain " + adminWebAppCustomDomain + " to IAM.");
+                    cancel();
+                } else {
+                    while (true) {
+                        System.out.println("Select the IAM Server Certificate for the domain "
+                                + adminWebAppCertificate + ":");
+                        for (ListIterator<ServerCertificateMetadata> iter = serverCertificates.listIterator();
+                                iter.hasNext(); ) {
+                            int index = iter.nextIndex();
+                            ServerCertificateMetadata certificate = iter.next();
+                            System.out.printf("%d. %s%n",
+                                    (index + 1),
+                                    certificate.serverCertificateName()
+                            );
+                        }
+                        System.out.print("Type the number of the certificate to use and press enter: ");
+                        Integer choice = Keyboard.readInt();
+                        try {
+                            adminWebAppCertificate = serverCertificates.get((choice - 1)).serverCertificateId();
+                            LOGGER.info("Setting admin web app certificate = [{}]", adminWebAppCertificate);
+                            break;
+                        } catch (NullPointerException | IndexOutOfBoundsException e) {
+                            System.out.println("Invalid choice, please try again. Enter the number of the certificate to use.");
+                        }
+                    }
+                }
             }
         }
 
@@ -307,6 +572,11 @@ public class SaaSBoostInstall {
         outputMessage("AWS Region: " + AWS_REGION.toString());
         outputMessage("AWS SaaS Boost Environment Name: " + this.envName);
         outputMessage("Admin Email Address: " + emailAddress);
+        outputMessage("System Identity Provider: " + systemIdentityProvider);
+        outputMessage("Custom Domain for System Identity Provider: "
+                + (isNotBlank(identityProviderCustomDomain) ? identityProviderCustomDomain : "N/A"));
+        outputMessage("Custom Domain for SaaS Boost Admin Web Console: "
+                + (isNotBlank(adminWebAppCustomDomain) ? adminWebAppCustomDomain : "N/A"));
         outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
         if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
             outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
@@ -339,7 +609,7 @@ public class SaaSBoostInstall {
 
             // Copy the CloudFormation templates
             outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-            copyTemplateFilesToS3();
+            copyResourcesToS3();
 
             // Compile all the source code
             outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
@@ -347,6 +617,8 @@ public class SaaSBoostInstall {
         } else {
             outputMessage("Reusing existing artifacts bucket " + existingBucket);
             saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyResourcesToS3();
             try {
                 s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
             } catch (SdkServiceException s3error) {
@@ -382,7 +654,8 @@ public class SaaSBoostInstall {
                 LOGGER.error(getFullStackTrace(smError));
                 throw smError;
             }
-            outputMessage("Active Directory admin user password stored in secure SSM Parameter: " + activeDirectoryPasswordParameterName);
+            outputMessage("Active Directory admin user password stored in secure SSM Parameter: "
+                    + activeDirectoryPasswordParameterName);
         }
 
         // Copy the source files up to S3 where CloudFormation resources expect them to be
@@ -392,21 +665,24 @@ public class SaaSBoostInstall {
         // Run CloudFormation create stack
         outputMessage("Running CloudFormation");
         this.stackName = "sb-" + envName;
-        createSaaSBoostStack(stackName, emailAddress, setupActiveDirectory, activeDirectoryPasswordParameterName);
+        createSaaSBoostStack(stackName, emailAddress, systemIdentityProvider, identityProviderCustomDomain,
+                identityProviderHostedZone, identityProviderCertificate, adminWebAppCustomDomain,
+                adminWebAppHostedZone, adminWebAppCertificate, setupActiveDirectory,
+                activeDirectoryPasswordParameterName);
 
+        this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
+                ssm, cfn, this.envName, this.accountId);
+        this.baseStackDetails = environment.getBaseCloudFormationStackInfo();
         if (useAnalyticsModule) {
             LOGGER.info("Install metrics and analytics module");
             // The analytics module stack reads baseStackDetails for its CloudFormation template parameters
             // because we're not yet creating the analytics resources as a nested child stack of the main stack
-            this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
-                ssm, cfn, this.envName, this.accountId);
-            this.baseStackDetails = environment.getBaseCloudFormationStackInfo();
             installAnalyticsModule();
         }
 
         outputMessage("Check the admin email box for the temporary password.");
         outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
-        //outputMessage("AWS SaaS Boost Console URL is: " + webUrl);
+        outputMessage("AWS SaaS Boost Console URL is: " + baseStackDetails.get("AdminWebUrl"));
     }
 
     protected void deleteSaasBoostInstallation() {
@@ -875,7 +1151,7 @@ public class SaaSBoostInstall {
                     .payload(SdkBytes.fromByteArray(payload))
             );
             if (response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.debug("got response back: {}", response);
+                LOGGER.info("got response back: {}", response);
                 // wait for tenant to reach deleted
                 final String DELETED = "deleted";
                 LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
@@ -1120,14 +1396,14 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void copyTemplateFilesToS3() {
-        final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.{yaml,yml}");
+    protected void copyResourcesToS3() {
         final Path resourcesDir = workingDir.resolve(Path.of("resources"));
         try (Stream<Path> stream = Files.list(resourcesDir)) {
             Set<Path> cloudFormationTemplates = stream
-                    .filter(filter::matches)
+                    .filter(file -> Files.isRegularFile(file)
+                            && file.getFileName().toString().endsWith(".yaml"))
                     .collect(Collectors.toSet());
-            outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation templates to S3");
+            outputMessage("Uploading " + cloudFormationTemplates.size() + " CloudFormation resources to S3");
             for (Path cloudFormationTemplate : cloudFormationTemplates) {
                 LOGGER.info("Uploading CloudFormation template to S3 " + cloudFormationTemplate.toString() + " -> "
                         + cloudFormationTemplate.getFileName().toString());
@@ -1137,6 +1413,20 @@ public class SaaSBoostInstall {
         } catch (IOException ioe) {
             LOGGER.error("Error listing resources directory", ioe);
             LOGGER.error(getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
+        try (Stream<Path> stream = Files.walk(resourcesDir.resolve("keycloak"))) {
+            Set<Path> keycloakResources = stream.filter(file -> Files.isRegularFile(file)).collect(Collectors.toSet());
+            for (Path keycloakResource : keycloakResources) {
+                Path remotePath = resourcesDir.relativize(keycloakResource);
+                LOGGER.info("Uploading Keycloak resource to S3 " + keycloakResource.toString() + " -> " + remotePath);
+                saasBoostArtifactsBucket.putFile(s3, keycloakResource, remotePath);
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error walking keycloak directory", ioe);
+            LOGGER.error(getFullStackTrace(ioe));
+            // TODO while this is an invalid state, maybe we only want to fail out if
+            //      KEYCLOAK actually needs to be installed for this environment
             throw new RuntimeException(ioe);
         }
     }
@@ -1237,6 +1527,85 @@ public class SaaSBoostInstall {
         return valid;
     }
 
+    protected static boolean validateDomainName(String domain) {
+        boolean valid = false;
+        if (domain != null) {
+            valid = domain.matches("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$");
+        }
+        return valid;
+    }
+
+    protected static List<HostedZone> existingHostedZones(Route53Client route53, String domain) {
+        List<HostedZone> hostedZones = new ArrayList<>();
+        String nextDnsName = null;
+        String nextHostedZone = null;
+        ListHostedZonesByNameResponse response;
+        do {
+            response = route53.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
+                    .dnsName(nextDnsName)
+                    .hostedZoneId(nextHostedZone)
+                    .maxItems("100")
+                    .build()
+            );
+            nextDnsName = response.nextDNSName();
+            nextHostedZone = response.nextHostedZoneId();
+            if (response.hasHostedZones()) {
+                LOGGER.info("Found {} existing hosted zones", response.hostedZones().size());
+                for (HostedZone hostedZone : response.hostedZones()) {
+                    // The full domain name should be longer than or equal to the name
+                    // of the hosted zone
+                    String hostedZoneDomain = hostedZone.name();
+                    if (hostedZoneDomain.endsWith(".")) {
+                        hostedZoneDomain = hostedZoneDomain.substring(0, (hostedZoneDomain.length() - 1));
+                    }
+                    if (domain.contains(hostedZoneDomain)
+                            && hostedZone.config() != null && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
+                        hostedZones.add(hostedZone);
+                    } else {
+                        LOGGER.info("Ignoring hosted zone with name {}", hostedZone.name());
+                    }
+                }
+            }
+        } while (response.isTruncated());
+        // If there are multiple hosted zones for a given domain name, we will sort them
+        // by "CallerReference" which appears to be a timestamp.
+        Collections.sort(hostedZones, Comparator.comparing(HostedZone::callerReference));
+        return hostedZones;
+    }
+
+    protected static List<CertificateSummary> existingCertificates(AcmClient acm, String domain) {
+        List<CertificateSummary> certificateSummaries = new ArrayList<>();
+        String nextToken = null;
+        do {
+            try {
+                // only list certificates that aren't expired, invalid, revoked, or otherwise unusable
+                ListCertificatesResponse response = acm.listCertificates(ListCertificatesRequest.builder()
+                        .certificateStatuses(List.of(CertificateStatus.PENDING_VALIDATION, CertificateStatus.ISSUED))
+                        .nextToken(nextToken)
+                        .build());
+                if (response.hasCertificateSummaryList()) {
+                    certificateSummaries.addAll(
+                            response.certificateSummaryList().stream()
+                                    // This works because the certificate domain will be equal to or shorter
+                                    // than the full domain name
+                                    .filter(cert -> {
+                                        String certDomain = cert.domainName();
+                                        if (certDomain.startsWith("*.")) {
+                                            certDomain = certDomain.substring(2);
+                                        }
+                                        return domain.contains(certDomain);
+                                    })
+                                    .collect(Collectors.toList())
+                    );
+                }
+                nextToken = response.nextToken();
+            } catch (InvalidArgsException iae) {
+                LOGGER.error("Error retrieving certificates", iae);
+            }
+        } while (nextToken != null);
+        return certificateSummaries;
+    }
+
     protected void processLambdas() {
         try {
             List<Path> sourceDirectories = new ArrayList<>();
@@ -1272,7 +1641,9 @@ public class SaaSBoostInstall {
 
             final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.zip");
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
-            for (Path sourceDirectory : sourceDirectories) {
+            for (ListIterator<Path> iter = sourceDirectories.listIterator(); iter.hasNext();) {
+                int progress = iter.nextIndex();
+                Path sourceDirectory = iter.next();
                 if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
                     executeCommand("mvn", null, sourceDirectory.toFile());
                     final Path targetDir = sourceDirectory.resolve("target");
@@ -1282,6 +1653,7 @@ public class SaaSBoostInstall {
                                 .collect(Collectors.toSet());
                         for (Path zipFile : lambdaSourcePackage) {
                             LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
+                            System.out.printf("%2d. %s%n", (progress + 1), zipFile.getFileName().toString());
                             saasBoostArtifactsBucket.putFile(s3, zipFile,
                                     Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
                         }
@@ -1297,13 +1669,27 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void createSaaSBoostStack(final String stackName, String adminEmail, Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
+    protected void createSaaSBoostStack(final String stackName, String adminEmail, String systemIdentityProvider,
+                                        String identityProviderCustomDomain, String identityProviderHostedZone,
+                                        String identityProviderCertificate, String adminWebAppCustomDomain,
+                                        String adminWebAppHostedZone, String adminWebAppCertificate,
+                                        Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
         // Note - most params the default is used from the CloudFormation stack
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
         templateParameters.add(Parameter.builder().parameterKey("AdminEmailAddress").parameterValue(adminEmail).build());
         templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
         templateParameters.add(Parameter.builder().parameterKey("Version").parameterValue(VERSION).build());
+        templateParameters.add(Parameter.builder().parameterKey("SystemIdentityProvider").parameterValue(systemIdentityProvider).build());
+        templateParameters.add(Parameter.builder().parameterKey("SystemIdentityProviderDomain").parameterValue(Objects.toString(identityProviderCustomDomain, "")).build());
+        templateParameters.add(Parameter.builder().parameterKey("SystemIdentityProviderHostedZone").parameterValue(Objects.toString(identityProviderHostedZone, "")).build());
+        templateParameters.add(Parameter.builder().parameterKey("SystemIdentityProviderCertificate").parameterValue(Objects.toString(identityProviderCertificate, "")).build());
+        templateParameters.add(Parameter.builder().parameterKey("AdminWebAppDomain").parameterValue(Objects.toString(adminWebAppCustomDomain, "")).build());
+        templateParameters.add(Parameter.builder().parameterKey("AdminWebAppHostedZone").parameterValue(Objects.toString(adminWebAppHostedZone, "")).build());
+        templateParameters.add(Parameter.builder().parameterKey("AdminWebAppCertificate").parameterValue(Objects.toString(adminWebAppCertificate, "")).build());
+        //templateParameters.add(Parameter.builder().parameterKey("ApiDomain").parameterValue(Objects.toString(apiCustomDomaine, "")).build());
+        //templateParameters.add(Parameter.builder().parameterKey("ApiHostedZone").parameterValue(Objects.toString(apiHostedZone, "")).build());
+        //templateParameters.add(Parameter.builder().parameterKey("ApiCertificate").parameterValue(Objects.toString(apiCertificate, "")).build());
         templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
         templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
         templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
@@ -1498,8 +1884,6 @@ public class SaaSBoostInstall {
 
         // Sync files to the web bucket
         outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
-        // First, clear out any files that are currently in the artifacts bucket
-        cleanUpS3(s3, artifactsBucket, "client/web/");
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(webDir)) {
             filesToUpload = stream
@@ -1512,24 +1896,39 @@ public class SaaSBoostInstall {
                     )
                     .collect(Collectors.toList());
             outputMessage("Uploading " + filesToUpload.size() + " files to S3");
-            for (Path fileToUpload : filesToUpload) {
+
+            // Create a ZIP archive of the source files so we only call s3 put object once
+            // and so we can trigger the CodeBuild project off of that single s3 event
+            // (instead of triggering CodeBuild 180+ times -- once for each file put to s3).
+            try {
+                ByteArrayOutputStream src = new ByteArrayOutputStream();
+                ZipOutputStream zip = new ZipOutputStream(src);
+                for (Path fileToUpload : filesToUpload) {
+                    // java.nio.file.Path will use OS dependent file separators
+                    String fileName = fileToUpload.toFile().toString().replace('\\', '/');
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zip.putNextEntry(entry);
+                    zip.write(Files.readAllBytes(fileToUpload)); // all of our files are very small
+                    zip.closeEntry();
+                }
+                zip.close();
                 try {
                     // Now copy the admin web app source files up to the artifacts bucket
                     // This will trigger a CodeBuild project to build and deploy the app
-                    String key = fileToUpload.toFile().toString();
+                    // if done after the initial install of SaaS Boost
                     s3.putObject(PutObjectRequest.builder()
                             .bucket(artifactsBucket)
-                            // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
-                            // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
-                            // definitions of the Lambda functions will always use forward slashes for the S3Key property.
-                            .key(key.replace('\\', '/'))
-                            .build(), RequestBody.fromFile(fileToUpload)
+                            .key("client/web/src.zip")
+                            .build(), RequestBody.fromBytes(src.toByteArray())
                     );
                 } catch (SdkServiceException s3Error) {
                     LOGGER.error("s3:PutObject error", s3Error);
                     LOGGER.error(getFullStackTrace(s3Error));
                     throw s3Error;
                 }
+            } catch (IOException ioe) {
+                LOGGER.error("ZIP archive generation failed");
+                throw new RuntimeException(Utils.getFullStackTrace(ioe));
             }
         } catch (IOException ioe) {
             LOGGER.error("Error walking client/web directory", ioe);
@@ -1734,7 +2133,7 @@ public class SaaSBoostInstall {
                         .stackName(stackName)
                         .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
                 if (stackResourceDetail.resourceStatus() != ResourceStatus.DELETE_COMPLETE) {
-                    LOGGER.debug("Found the ApplicationServicesMacro resource in {}", stackName);
+                    LOGGER.info("Found the ApplicationServicesMacro resource in {}", stackName);
                     return true;
                 }
             } catch (CloudFormationException cfne) {
@@ -1743,7 +2142,7 @@ public class SaaSBoostInstall {
                 }
             }
         }
-        LOGGER.debug("Could not find any ApplicationServicesMacro resource");
+        LOGGER.info("Could not find any ApplicationServicesMacro resource");
         return false;
     }
 

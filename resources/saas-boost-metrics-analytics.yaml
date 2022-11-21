@@ -504,7 +504,7 @@ Resources:
       RedshiftDestinationConfiguration:
         ClusterJDBCURL: !Sub "jdbc:redshift://${RedshiftCluster.Endpoint.Address}:${RedshiftCluster.Endpoint.Port}/${DatabaseName}"
         CopyCommand:
-          CopyOptions: !Sub "GZIP COMPUPDATE OFF STATUPDATE ON TIMEFORMAT 'epochsecs' JSON s3://${MetricsBucket}/metrics_redshift_jsonpath.json"
+          CopyOptions: !Sub "GZIP COMPUPDATE OFF STATUPDATE ON TIMEFORMAT 'epochsecs' JSON 's3://${MetricsBucket}/metrics_redshift_jsonpath.json'"
           DataTableName: !Ref 'MetricsTableName'
         Username: !Ref 'MetricUser'
         Password: !Sub '{{resolve:ssm-secure:${MetricUserPasswordSSMParameter}}}'

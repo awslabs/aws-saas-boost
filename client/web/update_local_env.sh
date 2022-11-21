@@ -23,20 +23,14 @@ fi
 rm .env
 
 myRegion=$(aws configure list | grep region | awk '{print $2}')
-echo "AWS_DEFAULT_REGION=$myRegion" >> .env
-echo "REACT_APP_AWS_REGION=$myRegion" >> .env
-echo "REACT_APP_ENVIRONMENT=$myEnv" >> .env
-echo "REACT_APP_AWS_ACCOUNT=786938756705" >> .env
 echo "DEBUG=true" >> .env
 
-userPoolId=$(aws cognito-idp list-user-pools --max-results 20 | jq -c '.UserPools[] | select (.Name == "'sb-${myEnv}-users'").Id' | cut -d\" -f2)
-echo "REACT_APP_COGNITO_USERPOOL=$userPoolId" >> .env
+codeBuildBuildId=$(aws codebuild list-builds-for-project --project-name sb-$myEnv-admin-web | jq -r '.ids[0]')
 
-poolClientId=$(aws cognito-idp list-user-pool-clients --user-pool-id ${userPoolId} | jq '.UserPoolClients[0].ClientId' | cut -d\" -f2)
-echo "REACT_APP_CLIENT_ID=$poolClientId" >> .env
-
-publicApiName="sb-${myEnv}-public-api"
-publicApiGId=$(aws apigateway get-rest-apis | jq --arg publicApiName "$publicApiName" '.items[] | select (.name == $publicApiName).id' | cut -d\" -f2)
-echo "REACT_APP_API_URI=https://${publicApiGId}.execute-api.${myRegion}.amazonaws.com/v1" >> .env
+aws codebuild batch-get-builds --ids "$codeBuildBuildId" | jq -c '.builds[0].environment.environmentVariables[]' | while read var ; do 
+    name=$(echo $var | jq -r '.name')
+    value=$(echo $var | jq -r '.value')
+    echo "${name}=${value}" >> .env
+done
 
 cat .env

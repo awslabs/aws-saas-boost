@@ -1,0 +1,858 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Keycloak
+Parameters:
+  Environment:
+    Description: SaaS Boost environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  CodePipelineUpdateEcsService:
+    Description: Lambda ARN to update ECS desired count
+    Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  CloudFormationWaitHandleCallback:
+    Description: CodePipelineWaitHandler Lambda ARN
+    Type: String
+  AdminCredentials:
+    Description: Secrets Manager secret for the SaaS Boost initial admin user
+    Type: String
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+  CustomDomainName:
+    Description: FQDN custom domain name for this Keycloak install (e.g. auth.example.com)
+    Type: String
+  CustomDomainHostedZone:
+    Description: Route53 hosted zone id for the custom domain name to create the ALB record set alias under
+    Type: String
+  CustomDomainCertificate:
+    Description: ACM certificate ARN for the custom domain name
+    Type: String
+  VPC:
+    Type: String
+    Description: The SaaS Boost VPC ID.
+  PublicSubnets:
+    Description: SaaS Boost VPC public subnets
+    Type: List<AWS::EC2::Subnet::Id>
+  PrivateSubnets:
+    Description: SaaS Boost VPC public subnets
+    Type: List<AWS::EC2::Subnet::Id>
+  ClearEcrRepoArn:
+    Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
+    Type: String
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomainName, '']]
+Resources:
+  KeycloakRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub sb-${Environment}-keycloak
+  InvokeClearKeycloakRepo:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Ref ClearEcrRepoArn
+      Repo: !Ref KeycloakRepo
+  KeycloakCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub sb-${Environment}-keycloak
+  KeycloakLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/sb-${Environment}-keycloak
+      RetentionInDays: 30
+  KeyCloakTaskExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-exec-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-keycloak-exec-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${KeycloakRepo}
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref KeyCloakAdminCredentials
+  KeyCloakTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-task-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  KeyCloakAdminCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub sb-${Environment}-keycloak-admin
+      GenerateSecretString:
+        IncludeSpace: false
+        ExcludePunctuation: true
+        PasswordLength: 12
+        GenerateStringKey: password
+        SecretStringTemplate: '{"username": "keycloak"}'
+  KeyCloakTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: keycloak
+      ExecutionRoleArn: !GetAtt KeyCloakTaskExecRole.Arn
+      TaskRoleArn: !GetAtt KeyCloakTaskRole.Arn
+      RequiresCompatibilities:
+        - FARGATE
+      Memory: '2048'
+      Cpu: '1024'
+      NetworkMode: awsvpc
+      ContainerDefinitions:
+        - Name: keycloak
+          Image: !Sub ${KeycloakRepo.RepositoryUri}:latest
+          PortMappings:
+            - ContainerPort: 8443 # HTTPS port
+            - ContainerPort: 8080 # HTTP port
+            - ContainerPort: 7600 # JGroups TCP port
+            - ContainerPort: 57600 # JGroups TCP failure detection port
+            - ContainerPort: 55200 # JGroups UDP port
+              Protocol: udp
+            - ContainerPort: 54200 # JGroups UDP failure detection port
+              Protocol: udp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref KeycloakLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: KC_HOSTNAME
+              Value: !Ref CustomDomainName
+            - Name: KC_DB
+              Value: mysql
+            - Name: KC_DB_URL
+              Value: !Sub jdbc:mysql://${KeycloakDatabaseInstance.Endpoint.Address}:3306/keycloak
+            - Name: JDBC_PARAMS
+              Value: useSSL=false
+            - Name: JGROUPS_DISCOVERY_PROTOCOL
+              Value: JDBC_PING
+          Secrets:
+            - Name: KEYCLOAK_ADMIN
+              ValueFrom: !Sub '${KeyCloakAdminCredentials}:username::'
+            - Name: KEYCLOAK_ADMIN_PASSWORD
+              ValueFrom: !Sub '${KeyCloakAdminCredentials}:password::'
+            - Name: KC_DB_USERNAME
+              ValueFrom: !Sub '${KeyCloakAdminCredentials}:username::'
+            - Name: KC_DB_PASSWORD
+              ValueFrom: !Sub '${KeyCloakAdminCredentials}:password::'
+  KeycloakSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub sb-${Environment}-keycloak
+      GroupDescription: Keycloak containers
+      VpcId: !Ref VPC
+  KeycloakLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub sb-${Environment}-keycloak-alb
+      GroupDescription: HTTP/S access to the Keycloak load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+  KeycloakLoadBalancerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow traffic from the Keycloak load balancer
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakLoadBalancerSecurityGroup
+      IpProtocol: '-1'
+  KeycloakIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow traffic from other resources in the Keycloak security group
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+      IpProtocol: '-1'
+  KeycloakJGroupsTcpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: JGroups
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+      IpProtocol: tcp
+      FromPort: 7600
+      ToPort: 7600
+  KeycloakJGroupsFailureTcpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: JGroups Failure Detection
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+      IpProtocol: tcp
+      FromPort: 57600
+      ToPort: 57600
+  KeycloakJGroupsUdpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: JGroups
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+      IpProtocol: udp
+      FromPort: 55200
+      ToPort: 55200
+  KeycloakJGroupsFailureUdpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: JGroups Failure Detection
+      GroupId: !Ref KeycloakSecurityGroup
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+      IpProtocol: udp
+      FromPort: 54200
+      ToPort: 54200
+  KeycloakLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub sb-${Environment}-keycloak
+      Type: application
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '30'
+        - Key: routing.http.preserve_host_header.enabled
+          Value: 'true'
+        - Key: routing.http.xff_header_processing.mode
+          Value: append
+        - Key: routing.http.xff_client_port.enabled
+          Value: 'false'
+      Subnets: !Ref PublicSubnets
+      SecurityGroups:
+        - !Ref KeycloakLoadBalancerSecurityGroup
+  KeycloakTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: '/health'
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Port: 8080 # Needs to match Keycloak HTTP port
+      Protocol: HTTP
+      TargetType: ip
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '10'
+        - Key: slow_start.duration_seconds
+          Value: '60'
+        - Key: stickiness.enabled
+          Value: 'true'
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: '86400'
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Name
+          Value: !Sub sb-${Environment}-keycloak
+  KeycloakRedirectToHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref KeycloakLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: HTTP_301
+  KeycloakLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref KeycloakLoadBalancer
+      DefaultActions:
+        - TargetGroupArn: !Ref KeycloakTargetGroup
+          Type: forward
+      Certificates:
+        - CertificateArn: !Ref CustomDomainCertificate
+      Port: 443
+      Protocol: HTTPS
+  KeycloakLoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref KeycloakTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values: ['*']
+      ListenerArn: !Ref KeycloakLoadBalancerListener
+      Priority: 1
+  KeycloakRecordSetAlias:
+     Type: AWS::Route53::RecordSet
+     Properties:
+       HostedZoneId: !Ref CustomDomainHostedZone
+       Name: !Ref CustomDomainName
+       Type: 'A'
+       AliasTarget:
+         DNSName: !Sub dualstack.${KeycloakLoadBalancer.DNSName}
+         HostedZoneId: !GetAtt KeycloakLoadBalancer.CanonicalHostedZoneID
+         EvaluateTargetHealth: false
+  KeycloakService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: keycloak
+      Cluster: !Ref KeycloakCluster
+      TaskDefinition: !Ref KeyCloakTaskDefinition
+      PropagateTags: TASK_DEFINITION
+      LaunchType: FARGATE
+      DesiredCount: 0
+      HealthCheckGracePeriodSeconds: 120
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref KeycloakSecurityGroup
+          Subnets: !Ref PrivateSubnets
+      LoadBalancers:
+          - ContainerName: keycloak
+            ContainerPort: 8080
+            TargetGroupArn: !Ref KeycloakTargetGroup
+  KeycloakDatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub sb-${Environment}-keycloak
+      DBSubnetGroupName: !Sub sb-${Environment}-keycloak
+      SubnetIds: !Ref PrivateSubnets
+  KeycloakDatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub sb-${Environment}-keycloak-rds
+      GroupDescription: Keycloak RDS Security Group
+      VpcId: !Ref VPC
+  KeycloakDatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref KeycloakDatabaseSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !Ref KeycloakSecurityGroup
+  KeycloakDatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub sb-${Environment}-keycloak
+      DBInstanceClass: db.t3.small
+      VPCSecurityGroups:
+        - !Ref KeycloakDatabaseSecurityGroup
+      DBSubnetGroupName: !Ref KeycloakDatabaseSubnetGroup
+      BackupRetentionPeriod: 14
+      DeleteAutomatedBackups: true
+      MultiAZ: false
+      Engine: mysql
+      EngineVersion: 8.0.28
+      StorageEncrypted: true
+      DBName: keycloak
+      MasterUsername: !Sub '{{resolve:secretsmanager:${KeyCloakAdminCredentials}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${KeyCloakAdminCredentials}:SecretString:password}}'
+      AllocatedStorage: '100'
+      StorageType: gp2
+  KeycloakCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-keycloak-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:listBucket
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/keycloak/*
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/*
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                Resource:
+                  - !GetAtt KeycloakRepo.Arn
+  KeycloakCodeBuildLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/sb-${Environment}-keycloak
+      RetentionInDays: 30
+  KeycloakCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub sb-${Environment}-keycloak
+      ServiceRole: !Ref KeycloakCodeBuildRole
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: S3
+        Location: !Ref CodePipelineBucket
+        Path: /keycloak
+        Name: keycloak
+        Packaging: ZIP
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:4.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value: !GetAtt KeycloakRepo.RepositoryUri
+          - Name: SOURCE_BUCKET
+            Value: !Ref SaaSBoostBucket
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - aws s3 cp --recursive s3://$SOURCE_BUCKET/keycloak ./keycloak
+                - aws ecr get-login-password | docker login --username AWS --password-stdin $REPOSITORY_URI
+            build:
+              commands:
+                - cd keycloak
+                - docker image build -t keycloak -f Dockerfile .
+                - docker tag keycloak:latest ${REPOSITORY_URI}:latest
+                - cd ../
+            post_build:
+              commands:
+                - docker push "${REPOSITORY_URI}:latest"
+                - printf '[{"name":"keycloak","imageUri":"%s"}]' "${REPOSITORY_URI}:latest" > imagedefinitions.json
+          artifacts:
+            files: imagedefinitions.json
+            discard-paths: yes
+  KeycloakCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-pipeline-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        # TODO Do AWS managed IAM policies use the local partition?
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonECS_FullAccess
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-keycloak-pipeline-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+                Condition:
+                  StringEqualsIfExists:
+                    iamPassedToService:
+                      - ecs-tasks.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/*
+              - Effect: Allow
+                Action:
+                  - lambda:ListFunctions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CodePipelineUpdateEcsService}
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CloudFormationWaitHandleCallback}
+  KeycloakCodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub sb-${Environment}-keycloak
+      RoleArn: !GetAtt KeycloakCodePipelineRole.Arn
+      ArtifactStore:
+        Location: !Ref CodePipelineBucket
+        Type: S3
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref CodePipelineBucket
+                S3ObjectKey: keycloak/keycloak
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: imgdef
+        - Name: Deploy
+          Actions:
+            - Name: PreDeployAction
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: '1'
+              RunOrder: 1
+              Configuration:
+                FunctionName: !Ref CodePipelineUpdateEcsService
+                UserParameters: !Sub '{"cluster":"${KeycloakCluster}","service":"${KeycloakService.Name}","desiredCount":1}'
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ECS
+                Version: '1'
+              RunOrder: 2
+              Configuration:
+                ClusterName: !Ref KeycloakCluster
+                ServiceName: !GetAtt KeycloakService.Name
+                FileName: imagedefinitions.json
+              InputArtifacts:
+                - Name: imgdef
+            - Name: PostDeployAction
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: '1'
+              RunOrder: 3
+              Configuration:
+                FunctionName: !Ref CloudFormationWaitHandleCallback
+                UserParameters: !Sub '{"waitHandle":"${KeycloakDeployWaitHandle}"}'
+  KeyCloakCodePipelinePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CodePipelineUpdateEcsService
+      Principal: codepipeline.amazonaws.com
+      Action: lambda:InvokeFunction
+  KeyCloakDeployWaitHandlePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CloudFormationWaitHandleCallback
+      Principal: codepipeline.amazonaws.com
+      Action: lambda:InvokeFunction
+  KeyCloakCodePipelineEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-event-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-keycloak-event-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:StartPipelineExecution
+                Resource: !Sub arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${KeycloakCodePipeline}
+  KeycloakCodePipelineRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-keycloak-build
+      Description: SaaS Boost Keycloak System IdP build event
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created"
+          ],
+          "detail": {
+            "reason": [
+              "PutObject", "CopyObject", "CompleteMultipartUpload"
+            ],
+            "bucket": {
+              "name": [
+                "${CodePipelineBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "keycloak/"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !Sub arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${KeycloakCodePipeline}
+          RoleArn: !GetAtt KeyCloakCodePipelineEventRole.Arn
+          Id: !Sub sb-${Environment}-keycloak-build
+  InvokeStartCodeBuild:
+    Type: Custom::CustomResource
+    DependsOn:
+      - KeycloakCodePipelineRule
+    Properties:
+      ServiceToken: !Ref StartCodeBuildLambda
+      Project: !Ref KeycloakCodeBuildProject
+  # Creates a wait handle so we know that
+  # 1. CodeBuild has finished creating the Docker image and pushed to ECR
+  # 2. CodePipeline has update the desired count of the ECS service and triggered a rolling deployment
+  # 3. ALB is reporting healthy keycloak instance(s)
+  # all finish before we invoke our setup Lambda to configure the new Keycloak instance for SaaS Boost
+  KeycloakDeployWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  KeycloakDeployWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: InvokeStartCodeBuild
+    Properties:
+      Handle: !Ref KeycloakDeployWaitHandle
+      Timeout: '900'
+  KeycloakSetupLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-keycloak-setup
+      RetentionInDays: 30
+  KeycloakSetupExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-keycloak-setup-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-keycloak-setup-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref KeyCloakAdminCredentials
+                  - !Ref AdminCredentials
+  KeycloakSetupLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: KeycloakSetupLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-keycloak-setup
+      Role: !GetAtt KeycloakSetupExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.KeycloakSetup
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/KeycloakSetup-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+  InvokeKeycloakSetup:
+    Type: Custom::CustomResource
+    DependsOn:
+      - KeycloakDeployWaitCondition
+    Properties:
+      ServiceToken: !GetAtt KeycloakSetupLambda.Arn
+      KeycloakHost: !If [HasCustomDomain, !Sub 'https://${CustomDomainName}', !Sub 'http://${KeycloakLoadBalancer.DNSName}']
+      KeycloakCredentials: !Ref KeyCloakAdminCredentials
+      AdminUserCredentials: !Ref AdminCredentials
+      Realm: !Sub sb-${Environment}
+      AdminWebAppUrl: !Ref AdminWebUrl
+Outputs:
+  KeycloakHost:
+    Description: URL for the Keycloak install
+    Value: !If [HasCustomDomain, !Sub 'https://${CustomDomainName}', !Sub 'http://${KeycloakLoadBalancer.DNSName}']
+  KeycloakRealm:
+    Description: Configured realm for the Keycloak install
+    Value: !GetAtt InvokeKeycloakSetup.KeycloakRealm
+  KeycloakIssuer:
+    Description: The OIDC issuer for this Keycloak install
+    Value: !If
+      - HasCustomDomain
+      - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}
+      - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
+  KeycloakDatabaseEndpoint:
+    Description: Keycloak database hostname
+    Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
+  AdminWebAppClientName:
+    Description: Public OAuth app client with PKCE for authorization code grant
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientName
+  AdminWebAppClientId:
+    Description: Public OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientId
+  ApiAppClientName:
+    Description: Private OAuth app client for client credentials grant
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientName
+  ApiAppClientId:
+    Description: Private OAuth app client id
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientId
+  ApiAppClientSecret:
+    Description: Private OAuth app client secret
+    Value: !GetAtt InvokeKeycloakSetup.ApiAppClientSecret
+...

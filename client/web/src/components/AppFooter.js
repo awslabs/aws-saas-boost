@@ -32,12 +32,14 @@ const AppFooter = (props) => {
   const prettyVersion = (versionParameter) => {
     let versionString = versionParameter?.value
     try {
-        let versionObject = JSON.parse(versionString)
-        if (versionObject?.tag && versionObject?.describe && versionObject?.commit) {
-            if (versionObject.tag === versionObject.describe) {
-                versionString = versionObject.tag
-            } else {
-                versionString = versionObject.describe + "@" + versionObject.commit
+        if (!!versionString) {
+            let versionObject = JSON.parse(versionString)
+            if (versionObject?.tag && versionObject?.describe && versionObject?.commit) {
+                if (versionObject.tag === versionObject.describe) {
+                    versionString = versionObject.tag
+                } else {
+                    versionString = versionObject.describe + "@" + versionObject.commit
+                }
             }
         }
     } catch (e) {

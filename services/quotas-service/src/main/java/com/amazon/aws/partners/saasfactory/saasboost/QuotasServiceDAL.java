@@ -26,7 +26,9 @@ import software.amazon.awssdk.services.ec2.model.DescribeNatGatewaysResponse;
 import software.amazon.awssdk.services.ec2.model.NatGateway;
 import software.amazon.awssdk.services.ec2.model.NatGatewayState;
 import software.amazon.awssdk.services.elasticloadbalancingv2.ElasticLoadBalancingV2Client;
+import software.amazon.awssdk.services.elasticloadbalancingv2.model.Limit;
 import software.amazon.awssdk.services.rds.RdsClient;
+import software.amazon.awssdk.services.rds.model.AccountQuota;
 import software.amazon.awssdk.services.servicequotas.ServiceQuotasClient;
 import software.amazon.awssdk.services.servicequotas.model.ListServiceQuotasRequest;
 import software.amazon.awssdk.services.servicequotas.model.ListServiceQuotasResponse;
@@ -69,7 +71,7 @@ public class QuotasServiceDAL {
         deployedCountMap.clear();
         deployedCountMap.put("DB clusters", Double.valueOf(getRdsClusters()));
         deployedCountMap.put("DB instances", Double.valueOf(getRdsInstances()));
-        getQuotas(serviceCode);
+        quotasMap = getQuotas(serviceCode);
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
 
@@ -84,8 +86,12 @@ public class QuotasServiceDAL {
         // fargate
         serviceCode = "fargate";
         deployedCountMap.clear();
-        deployedCountMap.put("Fargate On-Demand resource count", getFargateResourceCount());
+        deployedCountMap.put("Fargate On-Demand vCPU resource count", getFargateResourceCount());
+        deployedCountMap.put("Fargate Spot vCPU resource count", getFargateSpotResourceCount());
         quotasMap = getQuotas(serviceCode);
+        // Remove old on demand quota that have been replaced with the new vCPU quota
+        quotasMap.remove("Fargate On-Demand resource count");
+        quotasMap.remove("Fargate Spot resource count");
         exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
         reportBackError = reportBackError || exceedsLimit;
 
@@ -236,9 +242,9 @@ public class QuotasServiceDAL {
                     .namespace("AWS/Usage")
                     .dimensions(Arrays.asList(
                             Dimension.builder().name("Type").value("Resource").build(),
-                            Dimension.builder().name("Resource").value("OnDemand").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
                             Dimension.builder().name("Service").value("Fargate").build(),
-                            Dimension.builder().name("Class").value("None").build()
+                            Dimension.builder().name("Class").value("Standard/OnDemand").build()
                     ))
                     .build();
 
@@ -280,7 +286,59 @@ public class QuotasServiceDAL {
         }
         return count;
     }
+    private Double getFargateSpotResourceCount() {
+        final long startTime = System.currentTimeMillis();
+        Double count = 0d;
+        try {
+            Metric metric = Metric.builder()
+                    .metricName("ResourceCount")
+                    .namespace("AWS/Usage")
+                    .dimensions(Arrays.asList(
+                            Dimension.builder().name("Type").value("Resource").build(),
+                            Dimension.builder().name("Resource").value("vCPU").build(),
+                            Dimension.builder().name("Service").value("Fargate").build(),
+                            Dimension.builder().name("Class").value("Standard/Spot").build()
+                    ))
+                    .build();
 
+            MetricStat metricStat = MetricStat.builder()
+                    .stat("Maximum")
+                    .period(600)
+                    .metric(metric)
+                    .build();
+
+            MetricDataQuery dataQuery = MetricDataQuery.builder()
+                    .metricStat(metricStat)
+                    .id("fargate")
+                    .returnData(true)
+                    .build();
+
+            Instant end = Instant.now();
+            Instant start = end.minus(600, ChronoUnit.SECONDS);
+
+            GetMetricDataRequest getMetricDataRequest = GetMetricDataRequest.builder()
+                    .maxDatapoints(10000)
+                    .startTime(start)
+                    .endTime(end)
+                    .metricDataQueries(Arrays.asList(dataQuery))
+                    .build();
+
+            GetMetricDataResponse response = cloudWatch.getMetricData(getMetricDataRequest);
+            for (MetricDataResult item : response.metricDataResults()) {
+                //get the last value as it is the most current
+                if (!item.values().isEmpty()) {
+                    count = item.values().get(item.values().size() - 1);
+                    break;
+                }
+            }
+            LOGGER.info("Time to process: " + (System.currentTimeMillis() - startTime));
+        } catch (CloudWatchException cloudWatchError) {
+            LOGGER.error("cloudwatch::GetMetricData", cloudWatchError);
+            LOGGER.error(Utils.getFullStackTrace(cloudWatchError));
+            throw cloudWatchError;
+        }
+        return count;
+    }
     private Double getVCpuCount() {
         final long startTime = System.currentTimeMillis();
         Double count = 0d;
@@ -365,6 +423,76 @@ public class QuotasServiceDAL {
             LOGGER.error((Utils.getFullStackTrace(e)));
             throw e;
         }
+    }
+
+    // AWS Service Quotas is currently unavailable in the GCR regions, so we use the quota from service itself for check.
+    public QuotaCheck checkQuotasForCNRegion() {
+        String serviceCode;
+        Map<String, Double> deployedCountMap = new LinkedHashMap<>();
+        Map<String, Double> quotasMap = new LinkedHashMap<>();
+        StringBuilder builder = new StringBuilder();
+
+        boolean reportBackError = false;
+        boolean exceedsLimit = false;
+        List<Service> retList = new ArrayList<>();
+        // RDS
+        serviceCode = "rds";
+        deployedCountMap.clear();
+        deployedCountMap.put("DB clusters", Double.valueOf(getRdsClusters()));
+        deployedCountMap.put("DB instances", Double.valueOf(getRdsInstances()));
+        quotasMap = getRdsInstancesQuota();
+        exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
+        reportBackError = reportBackError || exceedsLimit;
+
+        // load balancers
+        serviceCode = "elasticloadbalancing";
+        deployedCountMap.clear();
+        deployedCountMap.put("Application Load Balancers per Region", Double.valueOf(getAlbs()));
+        quotasMap = getELBQuota();
+        exceedsLimit = compareValues(retList, deployedCountMap, serviceCode, quotasMap, builder);
+        reportBackError = reportBackError || exceedsLimit;
+
+        QuotaCheck quotaCheck = new QuotaCheck();
+        quotaCheck.setPassed(!reportBackError);
+        quotaCheck.setServiceList(retList);
+        quotaCheck.setMessage(builder.toString());
+        return quotaCheck;
+    }
+
+    private Map<String, Double> getRdsInstancesQuota() {
+        long instances;
+        long clusters;
+        try {
+            List<AccountQuota> accountQuotas = rds.describeAccountAttributes().accountQuotas();
+            clusters = accountQuotas.stream().filter(quota -> quota.accountQuotaName().equals("DBClusters"))
+                    .findFirst().map(AccountQuota::max).orElse(40L);
+            instances = accountQuotas.stream().filter(quota -> quota.accountQuotaName().equals("DBInstances"))
+                    .findFirst().map(AccountQuota::max).orElse(40L);
+        } catch (SdkServiceException rdsError) {
+            LOGGER.error("rds::describeAccountAttributes", rdsError);
+            LOGGER.error(Utils.getFullStackTrace(rdsError));
+            throw rdsError;
+        }
+        Map<String, Double> retVals = new LinkedHashMap<>();
+        retVals.put("DB clusters", Double.valueOf(clusters));
+        retVals.put("DB instances", Double.valueOf(instances));
+        return retVals;
+    }
+
+    private Map<String, Double> getELBQuota() {
+        long instances;
+        try {
+            instances = elb.describeAccountLimits().limits().stream()
+                    .filter(x -> x.name().equals("application-load-balancers"))
+                    .findFirst().map(Limit::max).map(Long::valueOf).orElse(50L);
+        } catch (SdkServiceException elbError) {
+            LOGGER.error("elb::describeAccountLimits", elbError);
+            LOGGER.error(Utils.getFullStackTrace(elbError));
+            throw elbError;
+        }
+        Map<String, Double> retVals = new LinkedHashMap<>();
+        retVals.put("Application Load Balancers per Region", Double.valueOf(instances));
+        return retVals;
     }
 
 //    // Get the List of Available Trusted Advisor Checks
