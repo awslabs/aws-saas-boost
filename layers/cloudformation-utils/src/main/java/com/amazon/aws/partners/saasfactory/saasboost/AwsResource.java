@@ -51,7 +51,10 @@ public enum AwsResource {
             "AWS::CloudFormation::Stack", true),
     ECS_SECURITY_GROUP("https://%s.console.aws.amazon.com/ec2/v2/home?region=%s#SecurityGroup:groupId=%s",
             "arn:%s:ec2:%s:%s:security-group/%s",
-            "AWS::EC2::SecurityGroup", true);
+            "AWS::EC2::SecurityGroup", true),
+    PRIVATE_SERVICE_DISCOVERY_NAMESPACE("https://%s.console.aws.amazon.com/cloudmap/home/namespaces/%s",
+            "arn:%s:servicediscovery:%s:%s:namespace/%s",
+            "AWS::ServiceDiscovery::PrivateDnsNamespace", false);
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AwsResource.class);
 

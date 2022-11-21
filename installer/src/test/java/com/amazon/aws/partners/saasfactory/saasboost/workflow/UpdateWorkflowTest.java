@@ -64,7 +64,7 @@ public class UpdateWorkflowTest {
         } catch (URISyntaxException urise) {
             throw new RuntimeException("Failed to determine installation directory for test");
         }
-        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, clientBuilderFactory);
+        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, clientBuilderFactory, true);
     }
 
     @After

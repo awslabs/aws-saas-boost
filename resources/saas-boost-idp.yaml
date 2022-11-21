@@ -18,6 +18,30 @@ Parameters:
   Environment:
     Description: SaaS Boost environment name
     Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  CodePipelineUpdateEcsService:
+    Description: Lambda ARN to update ECS desired count
+    Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  CloudFormationWaitHandleCallback:
+    Description: CodePipelineWaitHandler Lambda ARN
+    Type: String
   IdentityProvider:
     Description: Identity Provider for the SaaS Boost system users and Control Plane API authorization
     Type: String
@@ -32,12 +56,44 @@ Parameters:
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
     Type: String
-  AdminWebDomainName:
-    Description: The FQDN (do not include the protocol) where the SaaS Boost admin web console is hosted.
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+  CustomDomainName:
+    Description: FQDN custom domain name for the identity provider (e.g. auth.example.com)
+    Type: String
+  CustomDomainHostedZone:
+    Description: Route53 hosted zone id for the custom domain name to create the ALB record set alias under
+    Type: String
+  CustomDomainCertificate:
+    Description: ACM certificate ARN for the custom domain name
+    Type: String
+  VPC:
+    Type: String
+    Description: The SaaS Boost VPC ID.
+  PublicSubnets:
+    Description: SaaS Boost VPC public subnets
+    Type: String
+  PrivateSubnets:
+    Description: SaaS Boost VPC public subnets
+    Type: String
+  ClearEcrRepoArn:
+    Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
     Type: String
 Conditions:
   UseCognito: !Equals [!Ref IdentityProvider, 'COGNITO']
+  UseKeycloak: !Equals [!Ref IdentityProvider, 'KEYCLOAK']
 Resources:
+  SaaSBoostAdminCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub sb-${Environment}-admin
+      GenerateSecretString:
+        IncludeSpace: false
+        ExcludePunctuation: true
+        PasswordLength: 12
+        GenerateStringKey: password
+        SecretStringTemplate: !Sub '{"username": "${AdminUsername}", "email": "${AdminEmailAddress}"}'
   UserPool:
     Type: AWS::Cognito::UserPool
     Condition: UseCognito
@@ -58,18 +114,18 @@ Resources:
           EmailMessage: !Sub |
             <b>Welcome to AWS SaaS Boost!</b> <br>
             <br>
-            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="https://${AdminWebDomainName}">https://${AdminWebDomainName}</a>.
+            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="${AdminWebUrl}">${AdminWebUrl}</a>.
             <br>
             Your username is:  <b>{username}</b>
             <br>
             Your temporary password is:  <b>{####}</b>
             <br>
           EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
-  UserPoolClient:
+  AdminWebAppClient:
     Type: AWS::Cognito::UserPoolClient
     Condition: UseCognito
     Properties:
-      ClientName: !Sub sb-${Environment}-system-users-client
+      ClientName: !Sub sb-${Environment}-admin-webapp-client
       UserPoolId: !Ref UserPool
       SupportedIdentityProviders:
         - COGNITO
@@ -79,6 +135,27 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH
       GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs:
+        - !Ref AdminWebUrl
+        - http://localhost:3000
+      LogoutURLs:
+        - !Ref AdminWebUrl
+        - http://localhost:3000
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Condition: UseCognito
+    Properties:
+      Domain: !Sub
+        - sb-${Environment}-saas-boost-${RandomString}
+        - RandomString: !Select [2, !Split ['/', !Ref AWS::StackId]]
+      UserPoolId: !Ref UserPool
   UserPoolAdminUser:
     Type: AWS::Cognito::UserPoolUser
     Condition: UseCognito
@@ -93,17 +170,169 @@ Resources:
           Value: 'true'
       Username: !Ref AdminUsername
       UserPoolId: !Ref UserPool
+  CustomizeCognitoUiLogs:
+    Type: AWS::Logs::LogGroup
+    Condition: UseCognito
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-customize-cognito-ui
+      RetentionInDays: 30
+  CustomizeCognitoUiExecRole:
+    Type: AWS::IAM::Role
+    Condition: UseCognito
+    Properties:
+      RoleName: !Sub sb-${Environment}-customize-cognito-ui-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-customize-cognito-ui-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:SetUICustomization
+                Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolDomain
+                Resource: '*'
+  CustomizeCognitoUiLambda:
+    Type: AWS::Lambda::Function
+    Condition: UseCognito
+    DependsOn: CustomizeCognitoUiLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-customize-cognito-ui
+      Role: !GetAtt CustomizeCognitoUiExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.CustomizeCognitoUi
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CustomizeCognitoUi-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          ADMIN_WEB_SOURCE_KEY: client/web/src.zip
+          ADMIN_WEB_LOGO: client/web/public/saas-boost-login.png
+          ADMIN_WEB_BG_COLOR: rgb(50, 31, 219)
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+  CustomizeCognitoUi:
+    Type: Custom::CustomResource
+    Condition: UseCognito
+    Properties:
+      ServiceToken: !GetAtt CustomizeCognitoUiLambda.Arn
+      UserPoolId: !Ref UserPool
+      UserPoolDomain: !Ref UserPoolDomain
+      SourceBucket: !Ref SaaSBoostBucket
+  keycloak:
+    Type: AWS::CloudFormation::Stack
+    Condition: UseKeycloak
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-keycloak.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        CodePipelineBucket: !Ref CodePipelineBucket
+        CodePipelineUpdateEcsService: !Ref CodePipelineUpdateEcsService
+        StartCodeBuildLambda: !Ref StartCodeBuildLambda
+        CloudFormationWaitHandleCallback: !Ref CloudFormationWaitHandleCallback
+        AdminCredentials: !Ref SaaSBoostAdminCredentials
+        AdminWebUrl: !Ref AdminWebUrl
+        CustomDomainName: !Ref CustomDomainName
+        CustomDomainHostedZone: !Ref CustomDomainHostedZone
+        CustomDomainCertificate: !Ref CustomDomainCertificate
+        VPC: !Ref VPC
+        PublicSubnets: !Ref PublicSubnets
+        PrivateSubnets: !Ref PrivateSubnets
+        ClearEcrRepoArn: !Ref ClearEcrRepoArn
+  AdminWebAppClientName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ADMIN_WEB_APP_CLIENT
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientName]
+  AdminWebAppClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/ADMIN_WEB_APP_CLIENT_ID
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
+  ApiAppClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_ID
+      Type: String
+      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.ApiAppClientId]
+  ApiAppClient:
+    Type: AWS::SecretsManager::Secret
+    Condition: UseKeycloak
+    Properties:
+      Name: !Sub sb-${Environment}-api-app-client
+      SecretString: !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}"'
 Outputs:
-  SBUserPool:
+  OidcIssuerUrl:
+    Description: OIDC issuer for System User IdP
+    Value: !If
+      - UseCognito
+      - !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+      - !GetAtt keycloak.Outputs.KeycloakIssuer
+  AdminWebAppClient:
+    Description: Admin Web App Public App Client for authorization code grants with PKCE
+    Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
+  ApiAppClient:
+    Condition: UseKeycloak
+    Description: Private App Client secret for client credentials grants
+    Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientName]
+  # The following outputs are used conditionally by the system user service
+  CognitoUserPool:
     Condition: UseCognito
-    Description: SaaS Boost User Pool Id
+    Description: Cognito User Pool ID
     Value: !Ref UserPool
-  SBUserPoolClient:
-    Condition: UseCognito
-    Description: SaaS Boost User Pool Client id
-    Value: !Ref UserPoolClient
-  CognitoSignOnBaseUri:
-    Condition: UseCognito
-    Description: URL for Cognito Hosted signon base URI
-    Value: !Sub saas-boost-${Environment}.auth.${AWS::Region}.amazoncognito.com
+  KeycloakHost:
+    Condition: UseKeycloak
+    Description: Keycloak database hostname
+    Value: !GetAtt keycloak.Outputs.KeycloakHost
+  KeycloakRealm:
+    Condition: UseKeycloak
+    Description: Keycloak database hostname
+    Value: !GetAtt keycloak.Outputs.KeycloakRealm
+  KeycloakDatabaseEndpoint:
+    Condition: UseKeycloak
+    Description: Keycloak database hostname
+    Value: !GetAtt keycloak.Outputs.KeycloakDatabaseEndpoint
 ...

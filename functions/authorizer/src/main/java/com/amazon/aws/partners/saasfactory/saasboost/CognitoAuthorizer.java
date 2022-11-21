@@ -16,7 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
@@ -24,23 +23,9 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-
 public class CognitoAuthorizer implements Authorizer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CognitoAuthorizer.class);
-    private static final String AWS_REGION = System.getenv("AWS_REGION");
-    private static final String USER_POOL_ID = System.getenv("USER_POOL_ID");
-
-    public CognitoAuthorizer() {
-        LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
-        if (Utils.isBlank(AWS_REGION)) {
-            throw new IllegalStateException("Missing required environment variable AWS_REGION");
-        }
-        if (Utils.isBlank(USER_POOL_ID)) {
-            throw new IllegalStateException("Missing required environment variable USER_POOL_ID");
-        }
-    }
 
     @Override
     public boolean verifyToken(TokenAuthorizerRequest request) {

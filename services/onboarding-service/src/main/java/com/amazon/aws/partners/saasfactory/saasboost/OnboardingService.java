@@ -560,12 +560,20 @@ public class OnboardingService {
                 // And parameters specific to this tenant
                 String tenantSubdomain = Objects.toString(tenant.get("subdomain"), "");
                 String tier = Objects.toString(tenant.get("tier"), "default");
-
                 String domainName = Objects.toString(appConfig.get("domainName"), "");
                 String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
                 String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
+                Map<String, Map<String, Object>> services =
+                        (Map<String, Map<String, Object>>) appConfig.get("services");
+                boolean privateServices = false;
+                for (Map<String, Object> service : services.values()) {
+                    privateServices = privateServices || !(Boolean) service.get("public");
+                }
 
                 List<Parameter> templateParameters = new ArrayList<>();
+                templateParameters.add(Parameter.builder()
+                        .parameterKey("PrivateServices")
+                        .parameterValue(Boolean.toString(privateServices)).build());
                 templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
                 templateParameters.add(Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build());
                 templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").parameterValue(hostedZone).build());
@@ -766,6 +774,7 @@ public class OnboardingService {
                     String httpListenerArn;
                     String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
+                    String serviceDiscoveryNamespaceId; // Might not have private services
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
                         vpc = tenantResources.get("VPC").get("name");
@@ -775,6 +784,13 @@ public class OnboardingService {
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
+                        // Will only exist if private services are defined
+                        if (tenantResources.containsKey("PRIVATE_SERVICE_DISCOVERY_NAMESPACE")) {
+                            serviceDiscoveryNamespaceId = Objects.toString(
+                                    tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        } else {
+                            serviceDiscoveryNamespaceId = "";
+                        }
                         // Depending on the SSL certificate configuration, one of these 2 listeners must exist
                         if (tenantResources.containsKey("HTTP_LISTENER")) {
                             httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
@@ -962,10 +978,19 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder()
                                 .parameterKey("OnboardingDdbTable")
                                 .parameterValue(ONBOARDING_TABLE).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PubliclyAddressable")
+                                .parameterValue(isPublic.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PublicPathRoute")
+                                .parameterValue(pathPart).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PublicPathRulePriority")
+                                .parameterValue(publicPathRulePriority.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("ServiceDiscoveryNamespace")
+                                .parameterValue(serviceDiscoveryNamespaceId).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
                         templateParameters.add(Parameter.builder().parameterKey("PrivateRouteTable").parameterValue(privateRouteTable).build());
@@ -1804,14 +1829,22 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProvider").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderDomain").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderHostedZone").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderCertificate").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppDomain").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppHostedZone").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppCertificate").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminUsername").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build(),
-                            Parameter.builder().parameterKey("HostedZone").parameterValue(hostedZone).build(),
+                            Parameter.builder().parameterKey("ApplicationDomainName").parameterValue(domainName).build(),
+                            Parameter.builder().parameterKey("ApplicationHostedZone").parameterValue(hostedZone).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
                                     String.join(",", services.keySet())).build(),
                             Parameter.builder().parameterKey("CreateMacroResources").usePreviousValue(Boolean.TRUE).build()
