@@ -5,17 +5,17 @@
 [目标体验](#目标体验)\
 [步骤 1 - 设置工具](#步骤-1---设置工具)\
 [步骤 2 - 克隆 SaaS Boost 存储库](#步骤-2---克隆-saas-boost-存储库)\
-[步骤 3 - 将 SaaS Boost 配置到您的 AWS 账户中](#步骤-3---将-saas-boost-配置到您的亚马逊云科技账户中)\
+[步骤 3 - 将 SaaS Boost 配置到您的亚马逊云科技账户中](#步骤-3---将-saas-boost-配置到您的亚马逊云科技账户中)\
 [步骤 4 - 登录 SaaS Boost](#步骤-4---登录-saas-boost)\
 [步骤 5 - 配置层级和应用程序设置](#步骤-5---配置层级和应用程序设置)\
 [步骤 6 - 上传您的应用程序服务](#步骤-6---上传您的应用程序服务)\
 [步骤 7 -（可选）部署示例应用程序](#步骤-7---可选部署示例应用程序)\
-[将您的应用程序映射到 SaaS Boost](#将您的应用程序映射到-saas-boost)
+[将您的应用程序迁移到 SaaS Boost](#将您的应用程序迁移到-saas-boost)
 
 ## 简介
-本文档介绍了在亚马逊云科技 AWS SaaS 中安装、配置和开始运行工作负载的基本步骤。请参阅其他 AWS SaaS 加速文档，以更全面地了解系统。
+本文档介绍了在亚马逊云科技 SaaS Boost 中安装、配置和开始运行工作负载的基本步骤。请参阅其他 SaaS Boost 文档，以更全面地了解系统。
 
-虽然本文档概述了设置亚马逊云科技 SaaS Boost 的步骤，但并不深入探讨用户体验或底层技术。相关详细信息包含在 [用户指南](user-guide.md)和 [开发人员指南](developer-guide.md)中。
+虽然本文档概述了设置亚马逊云科技 SaaS Boost 的步骤，但并不深入探讨用户体验或底层技术。相关详细信息包含在 [用户指南](user-guide.md) 和 [开发人员指南](developer-guide.md)中。
 
 ## 目标体验
 在深入研究设置亚马逊云科技 SaaS Boost 所需的步骤之前，让我们先了解一下环境的基本元素，以便更好地了解 SaaS Boost 支持的功能。下图按设置流程的顺序显示了 SaaS Boost 体验的关键组件。
@@ -25,10 +25,10 @@
 以下是每个步骤的细分：
 1. 为安装过程设置所需的工具
 2. 克隆 SaaS Boost 存储库
-3. 将 SaaS Boost 功能预置到您的亚马逊云科技账户中
-4. 访问 SaaS Boost 管理网络应用程序
-5. 根据您的要求配置层和应用程序设置
-6. 为应用程序中的每个服务上传 Docker 映像
+3. 将 SaaS Boost 功能安装到您的亚马逊云科技账户中
+4. 访问 SaaS Boost 管理控制台
+5. 根据您的要求配置分层和应用程序设置
+6. 为应用程序中的每个服务上传 Docker 镜像
 
 在此阶段，环境的所有组成部分现在都已准备就绪，可以开始载入租户。您可以使用 SaaS Boost 应用程序载入新租户，也可以从应用程序进行 API 调用以触发新租户的载入。
 
@@ -59,23 +59,22 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 1. 在您的亚马逊云科技账户中设置具有完全管理员权限的 IAM 用户。
 2. 使用亚马逊云科技访问密钥和默认区域设置您的 CLI 凭证。
 
-北京区域和宁夏区域是两个位于中国境内提供服务的 亚马逊云科技 区域。为保证更好的用户体验并遵守中国的法律法规, 亚马逊在中国与持有相关电信牌照的本地合作伙伴开展技术合作，由本地合作伙伴向客户提供云服务。北京光环新网科技股份有限公司是 亚马逊云科技 北京区域云的服务运营方和提供方，宁夏西云数据科技有限公司是 亚马逊云科技 宁夏区域云的服务运营方和提供方。由于亚马逊云科技中国与亚马逊云科技全球区域分开运营，由于功能可用性和法规要求，GCR 中的 SaaS Boost 预置体验是独一无二的。本文档提供了在 GCR 中预置 AWS SaaS Boost 的指南。
+北京区域和宁夏区域是两个位于中国境内提供服务的 亚马逊云科技 区域。为保证更好的用户体验并遵守中国的法律法规, 亚马逊在中国与持有相关电信牌照的本地合作伙伴开展技术合作，由本地合作伙伴向客户提供云服务。北京光环新网科技股份有限公司是 亚马逊云科技 北京区域云的服务运营方和提供方，宁夏西云数据科技有限公司是 亚马逊云科技 宁夏区域云的服务运营方和提供方。由于亚马逊云科技中国与亚马逊云科技全球区域分开运营，由于功能可用性和法规要求，GCR 中的 SaaS Boost 预置体验是独一无二的。本文档提供了在 GCR 中预置 SaaS Boost 的指南。
 1. 系统用户服务在以下方面有所不同：
-    - Amazon Cognito 已在中国北京区域推出.
-    - Amazon Cognito 用户池目前在北京区域不可用。
+    - Amazon Cognito 用户池目前在中国区域不可用。
     - Keycloak（开源身份和访问管理）作为另一个身份提供程序。
 2. 管理员 Web UI 在以下方面有所不同：
-    - 您不能使用默认 CloudFront 域*.cloudfront.cn,来提供内容。您必须向 CloudFront 分配添加备用域名（也称为别名记录），然后在内容 URL 中使用该域名。此外，您还必须[注册 ICP](https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China)。此外，与全球 CloudFront 服务一样，要通过 HTTPS 提供内容，您必须使用带有备用域名的 SSL/TLS 证书。
+    - 您不能使用默认 CloudFront 域*.cloudfront.cn,来提供内容。您必须向 CloudFront 分配添加备用域名（也称为别名记录），然后在内容 URL 中使用该域名。此外，由于中国地区合规原因，您还必须[ICP备案](https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China)。此外，与全球 CloudFront 服务一样，要通过 HTTPS 提供内容，您必须使用带有备用域名的 SSL/TLS 证书。
     - 中国 CloudFront 地区的亚马逊目前不支持Amazon Certificate Manager。您必须从其他第三方证书颁发机构 (CA) 获取 SSL/TLS 证书，然后将其上传到 IAM 证书存储。
-3. Amazon SES 在以下方面是独一无二的：
+3. Amazon SES 在以下方面有所不同：
     - Amazon SES 在 GCR 区域中不可用。
-4. Amazon QuickSight 在以下方面是独一无二的：
+4. Amazon QuickSight 在以下方面有所不同：
     - Amazon QuickSight 在 GCR 区域中不可用。
 
 要准备安装过程，请根据需要执行以下步骤：
 1. 您有一个域名，并且您的域名经过 [ICP备案](https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China)。
 2. 您需要一个根域名和单个域名来安装 Keycloak 和管理 Web UI。作为其中的一部分，您需要在 ACM 中为 keycloak 域提供一个证书，在 IAM 中为 Admin Web UI 域提供一个证书。可以为通配符证书（例如 *.example.com）或特定证书（例如 keycloak.example.com）。
-    - 您需要在 AWS Route53 中为您的域创建一个公有托管区域。
+    - 您需要在 Route53 中为您的域创建一个公有托管区域。
     - 请求或上传 [证书至 ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
     - 上传 [证书至 IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html)
     - 您拥有诸多免费或者付费的选项去生成 SSL/TLS证书。在这里我们使用[letsencrypt.org](https://letsencrypt.org/) 为例来生成一个免费的 SSL/TLS 证书。
@@ -124,6 +123,7 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 12. 指示您是否希望安装 SaaS Boost 的指标和分析功能。
 此步骤是 ***可选的***，并将预配置一个[Redshift](https://aws.amazon.com/redshift)集群。
     - 您可以输入**N**，QuickSight目前在GCR中不可用。
+    - 暂时您只能输入**N**，因为QuickSight目前在GCR中不可用
 13. 如果您的应用程序是基于 Windows 的并且需要共享文件系统，则必须部署 [托管 Active Directory](https://aws.amazon.com/directoryservice/) 以支持 [适用于 Windows 文件服务器的 Amazon FSx](https://aws.amazon.com/fsx/windows/) 或 [适用于 NetApp 的 Amazon ONTAP](https://aws.amazon.com/fsx/netapp-ontap/)。根据需要选择 y 或 n。
 14. 查看安装的设置。仔细检查您将要在其中安装 SaaS Boost 的亚马逊云科技账号和区域。输入 **y** 继续，或输入 **n** 重新输入或调整值。
 
@@ -155,9 +155,9 @@ SaaS Boost 支持基于 _层级_ 配置您的应用程序设置。层级允许�
 
 ![应用程序设置](images/gs-app-setup.png?raw=true "应用程序设置")
 
-首先为您的应用程序提供一个友好的 **名称**。进行测试过程中您无需填写 **Domain Name** 或 **SSL Certificate** 条目。在生产中，确保您在 [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/) 中为您将托管 SaaS 应用程序的域名定义了一个证书。请注意[注册域名](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) 和[设置 SSL 证书](https://docs.aws.amazon .com/acm/latest/userguide/gs.html）必须在配置 AWS SaaS Boost 之前完成。
+首先为您的应用程序提供一个友好的 **名称**。进行测试过程中您无需填写 **Domain Name** 或 **SSL Certificate** 条目。在生产中，确保您在 [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/) 中为您将托管 SaaS 应用程序的域名定义了一个证书。请注意[注册域名](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) 和[设置 SSL 证书](https://docs.aws.amazon .com/acm/latest/userguide/gs.html）必须在配置 SaaS Boost 之前完成。
 
-SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您的工作负载。您为每个服务提供单独的 Docker 映像。这些服务可以是公共的或私有的，并且彼此独立配置。服务不共享文件系统或数据库等资源，但它们可以在预置的 VPC 网络内相互通信。可公开访问的服务通过应用负载均衡器公开，并可通过互联网上的 DNS 访问。私有服务无法从互联网访问。请参阅开发人员和用户指南，深入了解如何使用服务来最好地代表您的 SaaS 应用程序。
+SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您的工作负载。您为每个服务提供单独的 Docker 镜像。这些服务可以是公共的或私有的，并且彼此独立配置。服务之间不共享文件系统或数据库等基础设施资源，但它们可以在预置的 VPC 网络内相互通信。可公开访问的服务通过应用负载均衡器公开，并可通过互联网上的 DNS 访问。私有服务无法从互联网访问。请参阅开发人员和用户指南，深入了解如何使用服务来最好地代表您的 SaaS 应用程序。
 
 通过单击 **New Service** 按钮创建您的第一个服务。将出现类似于以下的弹出对话框：
 
@@ -174,7 +174,7 @@ SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您
 虽然本_入门指南_ 并未记录配置屏幕中的每个字段，但您选择的选项对于使您的应用程序正常运行至关重要。
 
 ## 步骤 6 - 上传您的应用程序服务
-为您定义的每一层配置每项服务后，SaaS Boost 将自动创建一个 [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) 每个服务的映像存储库。在将任何租户加入系统之前，您必须为应用程序中的每个服务上传 Docker 映像。在 **Summary** 页面中，单击每个服务的 `ECR Repository URL` 列表旁边的 **View details** 链接，以查看上传图像的正确 Docker 推送命令。您还可以参考示例应用程序中包含的构建 shell 脚本，以了解一种自动化 Docker 推送过程的方法。
+为您定义的每一层配置每项服务后，SaaS Boost 将自动创建一个 [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) 每个服务的镜像存储库。在将任何租户加入系统之前，您必须为应用程序中的每个服务上传 Docker 镜像。在 **Summary** 页面中，单击每个服务的 `ECR Repository URL` 列表旁边的 **View details** 链接，以查看上传图像的正确 Docker 推送命令。您还可以参考示例应用程序中包含的构建 shell 脚本，以了解一种自动化 Docker 推送过程的方法。
 
 ## 步骤 7 - （可选）部署示例应用程序
 本节介绍上传示例应用程序的过程，让您了解此过程的工作原理。作为 SaaS Boost 存储库的一部分，我们提供了一个简单的示例应用程序。
@@ -202,7 +202,7 @@ SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您
 ![示例应用程序配置](images/gs-sample-app-config.png?raw=true "示例应用程序配置")
 
 ### 构建和部署示例应用程序
-保存应用程序设置后，您可以构建和容器化示例应用程序。要创建此示例应用程序的 Docker 映像，您需要在本地计算机上运行 Docker。导航到您的 SaaS Boost 存储库克隆中的 **samples/java/** 目录并执行构建脚本，该脚本将构建、容器化并将您的容器化应用程序推送到 SaaS Boost ECR 存储库。您可以查看此示例 shell 脚本中的步骤，了解如何增强当前构建过程以使您的应用程序与 SaaS Boost 集成。
+保存应用程序设置后，您可以构建和容器化示例应用程序。要创建此示例应用程序的 Docker 镜像，您需要在本地计算机上运行 Docker。导航到您的 SaaS Boost 存储库克隆中的 **samples/java/** 目录并执行构建脚本，该脚本将构建、容器化并将您的容器化应用程序推送到 SaaS Boost ECR 存储库。您可以查看此示例 shell 脚本中的步骤，了解如何增强当前构建过程以使您的应用程序与 SaaS Boost 集成。
 
 ```shell
 cd aws-saas-boost/samples/java
@@ -216,11 +216,11 @@ sh build.sh
 ### 租户入驻
 您现在可以加入一个新租户，将为该租户提供所有必要的基础架构来支持您的应用程序并部署您配置的所有服务。导航到管理应用程序的 **Onboarding** 页面，然后单击 **Provision Tenant** 按钮。入驻流程完成后，您将能够访问该租户的示例应用程序实例，方法是导航到管理应用程序的 **Tenants** 页面，然后转到租户详细信息页面，最后单击 **Load Balancer DNS** 链接。
 
-## 将您的应用程序映射到 SaaS Boost
-本指南简要介绍了设置 SaaS Boost 所需的基本步骤。当您考虑将工作负载转移到 SaaS Boost 中时，请更详细地检查 SaaS Boost 的更广泛功能。这意味着仔细地查看您的应用程序的配置选项以及它们如何映射到不同的 SaaS Boost 应用程序设置。
+## 将您的应用程序迁移到 SaaS Boost
+本指南简要介绍了设置 SaaS Boost 所需的基本步骤。当您考虑将工作负载转移到 SaaS Boost 中时，请更详细地检查 SaaS Boost 的更广泛功能。这意味着仔细地查看您的应用程序的配置选项以及它们如何迁移到不同的 SaaS Boost 应用程序设置。
 
 在熟悉了整体体验之后，您将更好地了解您的应用程序如何适应 SaaS Boost 模型。查看 SaaS Boost [用户指南](user-guide.md) 和 [开发人员指南](developer-guide.md) 还将让您更好地了解如何配置 SaaS Boost 以满足你的解决方案。
 
 容器化工作负载所需的步骤因应用程序的性质而异。您可以使用 SaaS Boost 提供的示例应用程序中的 Dockerfile 示例。以下是一些提供有关容器化应用程序信息的其他资源：
-- [AWS 学习路径：容器化单体应用](https://aws.amazon.com/getting-started/container-microservices-tutorial/module-one/)
-- [AWS App2Container](https://aws.amazon.com/app2container/)
+- [亚马逊云科技学习路径：容器化单体应用](https://aws.amazon.com/getting-started/container-microservices-tutorial/module-one/)
+- [亚马逊云科技 App2Container](https://aws.amazon.com/app2container/)

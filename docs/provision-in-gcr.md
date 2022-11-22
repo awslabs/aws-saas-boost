@@ -13,8 +13,7 @@ As Amazon Web Services China operates seperately from Amazon Web Services Global
 
 ## Feature Availability and Implementation Differences
 1. System User Service is different in the following ways:
-    - Amazon Cognito is available in Beijing regions in China.
-    - Amazon Cognito User Pools are not currently available in the Beijing Region.
+    - Amazon Cognito User Pools are not currently available in the GCR Regions.
     - Keycloak(Open Source Identity and Access Management) is provided as another identity provider.
 2. Admin Web UI is different in the following ways:
     - You can’t use the default CloudFront domain, `*.cloudfront.cn`, to serve content. You must add an alternate domain name, also known as a CNAME, to your CloudFront distributions, and then use that domain name in the URLs for your content. You also must have [an ICP registration](https://www.amazonaws.cn/en/about-aws/china/#ICP_in_China). In addition, just as with the global CloudFront service, to serve content over HTTPS, you must use an SSL/TLS certificate with your alternate domain name.
