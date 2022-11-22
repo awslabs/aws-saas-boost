@@ -114,7 +114,7 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 3. 选择新安装的选项。
 4. 输入您的 SaaS Boost 目录的完整路径（点击当前目录的回车键） (hit enter for the current directory): /\<mydir\>/aws-saas-boost。
 5. 输入此 SaaS Boost 环境的名称 （dev、QA、 test、 sandbox等）。
-6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。在亚马逊云科技中国区，管理员的初始临时密码将存储在 SecretsManager 中的密钥“sb-{env}-admin”里.
+6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。在亚马逊云科技中国区，管理员的初始临时密码将存储在 Secrets Manager 中的密钥“sb-{env}-admin”里.
 7. 输入“Keycloak”作为身份提供程序，供系统用户使用。
 8. 输入控制平面身份提供程序的域名。
 9. 为 Keycloak 域选择 Route53 托管区域和 ACM 证书。
@@ -130,15 +130,11 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 安装过程需要 30-45 分钟来配置和预配所有资源（这将根据所选的选项而有所不同）。安装过程中的详细日志存储在 **saas-boost-install.log**中。
 
 ## 步骤 4 - 登录 SaaS Boost
-作为安装过程的一部分，您将在安装过程中提供的电子邮件地址收到一条消息。此消息包含指向 SaaS Boost 管理应用程序的 URL 链接。消息显示如下：
-
-![欢迎电子邮件](images/gs-welcome-email.png?raw=true "欢迎电子邮件")
-
-复制此处显示的临时密码。安装脚本完成后，它还将打印出 SaaS Boost 管理应用程序的相同 URL。使用您的网络浏览器导航到管理应用程序。出现以下登录：
+作为安装过程的一部分，您将在安装过程最后得到 SaaS Boost 管理控制台的 URL 链接。通过 Secrets Manager, 获取临时密码。使用您的网络浏览器导航到 SaaS Boost 管理控制台。出现以下登录：
 
 ![登录界面](images/gs-login.png?raw=true "登录界面")
 
-输入 `admin` 作为用户名，并输入前面提到的电子邮件中提供的临时密码。由于您使用临时密码登录，因此系统会提示您输入帐户的新密码。屏幕显示如下：
+输入 `admin` 作为用户名，并输入前面提到的临时密码。由于您使用临时密码登录，因此系统会提示您输入帐户的新密码。屏幕显示如下：
 
 ![修改密码](images/gs-change-password.png?raw=true "修改密码")
 
