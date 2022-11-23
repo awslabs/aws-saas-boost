@@ -25,6 +25,7 @@ const initialUser = {
   firstName: '',
   lastName: '',
   email: '',
+  emailVerified: false,
 }
 
 export const UserFormComponent = ({
@@ -34,14 +35,10 @@ export const UserFormComponent = ({
   error,
   handleError,
 }) => {
-  const mutableUser = {
-    ...user,
-    emailVerified: false,
-  }
-  console.log(mutableUser)
+  console.log(user)
   return (
     <Formik
-      initialValues={mutableUser}
+      initialValues={user}
       onSubmit={handleSubmit}
       validationSchema={Yup.object({
         username: Yup.string().max(25, 'Must be 25 characters or less.').required('Required'),
@@ -76,7 +73,7 @@ export const UserFormComponent = ({
                       label="Username"
                       name="username"
                       type="text"
-                      disabled={!!mutableUser.sub}
+                      disabled={!!user.sub}
                     />
                     <Row>
                       <Col md={6}>
@@ -90,14 +87,13 @@ export const UserFormComponent = ({
                     <Row>
                       <Col>
                         <SaasBoostInput label="Email" name="email" type="email" />
-                        {!mutableUser.created && (
-                          <SaasBoostCheckbox
-                            id="emailVerified"
-                            name="emailVerified"
-                            label="Mark email as verified for this user"
-                            value={props.values?.emailVerified}
-                          />
-                        )}
+                        <SaasBoostCheckbox
+                          id="emailVerified"
+                          name="emailVerified"
+                          label="Mark email as verified for this user"
+                          value={user.emailVerified}
+                          disabled={!!user.created}
+                        />
                       </Col>
                     </Row>
                   </CardBody>

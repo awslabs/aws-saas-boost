@@ -29,6 +29,7 @@ import {
   CardBody,
 } from 'reactstrap'
 import { SBMoment } from '../components/SBMoment'
+import Moment from 'react-moment'
 import Display from '../components/Display'
 import UserDeleteConfirmationComponent from './UserDeleteConfirmationComponent'
 
@@ -177,7 +178,8 @@ export class UserViewComponent extends Component {
                       <dt>Created On</dt>
                       <dd>
                         <Display condition={!!user}>
-                          <SBMoment instant="{!!user && user.created}" />
+                          {/* <SBMoment instant="{!!user && user.created}" /> */}
+                          <Moment date={user.created} format="LLL" /> UTC
                         </Display>
                       </dd>
                     </Col>

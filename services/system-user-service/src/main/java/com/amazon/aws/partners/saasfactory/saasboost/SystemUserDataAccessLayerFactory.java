@@ -1,5 +1,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.keycloak.KeycloakUserDataAccessLayer;
+
 public class SystemUserDataAccessLayerFactory {
 
     private SystemUserDataAccessLayerFactory() {
