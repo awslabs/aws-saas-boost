@@ -108,7 +108,7 @@ export const DashboardComponent = (props) => {
   const isCnRegion = awsRegion.startsWith("cn-")
 
   const consoleUrlSuffix = isCnRegion? "amazonaws.cn": "aws.amazon.com"
-  const serviceUrlSuffix = isCnRegion? "amazonaws.cn": "amazon.com"
+  const serviceUrlSuffix = isCnRegion? "amazonaws.cn": "amazonaws.com"
 
   const fileAwsConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/efs/home?region=${awsRegion}#file-systems`
   const rdsAwsConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/rds/home?region=${awsRegion}#databases:`
