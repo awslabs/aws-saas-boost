@@ -77,34 +77,6 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
     - 您需要在 Route53 中为您的域创建一个公有托管区域。
     - 请求或上传 [证书至 ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
     - 上传 [证书至 IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html)
-    - 您拥有诸多免费或者付费的选项去生成 SSL/TLS证书。在这里我们使用[letsencrypt.org](https://letsencrypt.org/) 为例来生成一个免费的 SSL/TLS 证书。
-       ```
-        brew install certbot
-        ```
-        ```
-        sudo certbot certonly --manual --preferred-challenges dns -d "*.example.com"
-        ```
-        会像下面这样提示:
-        ```
-        Please deploy a DNS TXT record under the name
-        *_acme-challenge.example.com* with the following value:
-        F1GrseCyEboH_PzuHH9V_oyifx8BPcKk********
-        ```
-        添加“*_acme-challenge.example.com*”** Route 53 TXT 类型条目，并将值设置为“F1GrseCyEboH_PzuHH9V_oyifx8BPcKk******”。
-        按回车键继续，您将获得签名证书。
-        您可以通过 CloudFront 用户界面或使用以下命令进行上传。
-        ```
-        aws iam list-server-certificates --region cn-north-1
-        ```
-        ```
-        $ sudo aws iam upload-server-certificate \
-        --path '/cloudfront/' \
-        --server-certificate-name '+.example.com' \
-        --certificate-body file:///etc/letsencrypt/live/example.com/cert.pem \
-        --private-key file:///etc/letsencrypt/live/example.com/privkey.pem \
-        --certificate-chain file:///etc/letsencrypt/live/example.com/chain.pem \
-        --region cn-north-1
-        ```
 
 要开始安装过程，请执行以下步骤：
 1. 从终端窗口中，导航到您下载了 SaaS Boost（AWS-SaaS-Boost）的目录。
@@ -114,7 +86,7 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 3. 选择新安装的选项。
 4. 输入您的 SaaS Boost 目录的完整路径（点击当前目录的回车键） (hit enter for the current directory): /\<mydir\>/aws-saas-boost。
 5. 输入此 SaaS Boost 环境的名称 （dev、QA、 test、 sandbox等）。
-6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。在亚马逊云科技中国区，管理员的初始临时密码将存储在 Secrets Manager 中的密钥“sb-{env}-admin”里.
+6. 输入 SaaS Boost 管理员的电子邮件地址，该管理员将收到初始临时密码。在亚马逊云科技中国区，管理员的初始临时密码将存储在 Secrets Manager 中的密钥`sb-{env}-admin`里.
 7. 输入“Keycloak”作为身份提供程序，供系统用户使用。
 8. 输入控制平面身份提供程序的域名。
 9. 为 Keycloak 域选择 Route53 托管区域和 ACM 证书。
@@ -122,7 +94,6 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 11. 为 SaaS Boost Admin UI 域选择 Route53 托管区域和 IAM 证书。
 12. 指示您是否希望安装 SaaS Boost 的指标和分析功能。
 此步骤是 ***可选的***，并将预配置一个[Redshift](https://aws.amazon.com/redshift)集群。
-    - 您可以输入**N**，QuickSight目前在GCR中不可用。
     - 暂时您只能输入**N**，因为QuickSight目前在GCR中不可用
 13. 如果您的应用程序是基于 Windows 的并且需要共享文件系统，则必须部署 [托管 Active Directory](https://aws.amazon.com/directoryservice/) 以支持 [适用于 Windows 文件服务器的 Amazon FSx](https://aws.amazon.com/fsx/windows/) 或 [适用于 NetApp 的 Amazon ONTAP](https://aws.amazon.com/fsx/netapp-ontap/)。根据需要选择 y 或 n。
 14. 查看安装的设置。仔细检查您将要在其中安装 SaaS Boost 的亚马逊云科技账号和区域。输入 **y** 继续，或输入 **n** 重新输入或调整值。
@@ -141,7 +112,7 @@ SaaS Boost 在安装过程中使用了一些技术。为操作系统安装和配
 ## 步骤 5 - 配置层级和应用程序设置
 登录 SaaS Boost 管理应用程序后，您需要做的第一件事是配置环境以使其与应用程序的需求保持一致。
 
-SaaS Boost 支持基于 _层级_ 配置您的应用程序设置。层级允许您为不同的客户群打包您的 SaaS 产品。例如，除了您的标准层级产品之外，您可能还有一个试用层级或高级层级。 SaaS Boost 为您创建一个 ***default***层。如果您想重命名default层或创建其他层，请从屏幕左侧的导航中选择 **Tiers**。页面显示类似于以下内容：
+SaaS Boost 支持基于 _层级_ 配置您的应用程序设置。层级允许您为不同的客户群打包您的 SaaS 产品。例如，除了您的标准层级产品之外，您可能还有一个试用层级或高级层级。 SaaS Boost 为您创建一个 ***default*** 层。如果您想重命名default层或创建其他层，请从屏幕左侧的导航中选择 **Tiers**。页面显示类似于以下内容：
 
 ![应用程序设置](images/gs-tiers.png?raw=true "层级")
 
@@ -151,7 +122,7 @@ SaaS Boost 支持基于 _层级_ 配置您的应用程序设置。层级允许�
 
 ![应用程序设置](images/gs-app-setup.png?raw=true "应用程序设置")
 
-首先为您的应用程序提供一个友好的 **名称**。进行测试过程中您无需填写 **Domain Name** 或 **SSL Certificate** 条目。在生产中，确保您在 [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/) 中为您将托管 SaaS 应用程序的域名定义了一个证书。请注意[注册域名](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) 和[设置 SSL 证书](https://docs.aws.amazon .com/acm/latest/userguide/gs.html）必须在配置 SaaS Boost 之前完成。
+首先为您的应用程序提供一个友好的 **名称**。进行测试过程中您无需填写 **Domain Name** 或 **SSL Certificate** 条目。在生产中，确保您在 [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/)中为您将托管 SaaS 应用程序的域名定义了一个证书。请注意[注册域名](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html)和[设置 SSL 证书](https://docs.aws.amazon.com/acm/latest/userguide/gs.html)必须在配置 SaaS Boost 之前完成。
 
 SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您的工作负载。您为每个服务提供单独的 Docker 镜像。这些服务可以是公共的或私有的，并且彼此独立配置。服务之间不共享文件系统或数据库等基础设施资源，但它们可以在预置的 VPC 网络内相互通信。可公开访问的服务通过应用负载均衡器公开，并可通过互联网上的 DNS 访问。私有服务无法从互联网访问。请参阅开发人员和用户指南，深入了解如何使用服务来最好地代表您的 SaaS 应用程序。
 
@@ -167,7 +138,7 @@ SaaS Boost 让您可以根据需要配置尽可能多的“服务”来支持您
 
 ![应用程序设置](images/gs-service-config.png?raw=true "Service Config")
 
-虽然本_入门指南_ 并未记录配置屏幕中的每个字段，但您选择的选项对于使您的应用程序正常运行至关重要。
+虽然本 _入门指南_ 并未记录配置屏幕中的每个字段，但您选择的选项对于使您的应用程序正常运行至关重要。
 
 ## 步骤 6 - 上传您的应用程序服务
 为您定义的每一层配置每项服务后，SaaS Boost 将自动创建一个 [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) 每个服务的镜像存储库。在将任何租户加入系统之前，您必须为应用程序中的每个服务上传 Docker 镜像。在 **Summary** 页面中，单击每个服务的 `ECR Repository URL` 列表旁边的 **View details** 链接，以查看上传图像的正确 Docker 推送命令。您还可以参考示例应用程序中包含的构建 shell 脚本，以了解一种自动化 Docker 推送过程的方法。

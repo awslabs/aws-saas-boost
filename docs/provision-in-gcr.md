@@ -30,34 +30,6 @@ To prepare the installation process, perform the following steps as needed:
     - You need to create a public hosted zone in AWS Route53 for your domain.
     - Request or upload [certificate to ACM](https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html)
     - Upload [certificate to IAM](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-procedures.html). 
-    - There are many free and paid options you can use to generate a SSL/TLS certificate. The example we use here is [letsencrypt.org](https://letsencrypt.org/) for a free SSL/TLS certificate.
-        ```
-        brew install certbot
-        ```
-        ```
-        sudo certbot certonly --manual --preferred-challenges dns -d "*.example.com"
-        ```
-        It will prompt you like below 
-        ```
-        Please deploy a DNS TXT record under the name
-        *_acme-challenge.example.com* with the following value:
-        F1GrseCyEboH_PzuHH9V_oyifx8BPcKk********
-        ```
-        Add `*_acme-challenge.example.com*` ** Route 53 TXT type entry and set the value to `F1GrseCyEboH_PzuHH9V_oyifx8BPcKk******`.\
-        Press enter to continue and you will get the signed cert.\
-        You can upload through the CloudFront User Interface or using the following command.
-        ```
-        aws iam list-server-certificates --region cn-north-1
-        ```
-        ```
-        $ sudo aws iam upload-server-certificate \
-        --path '/cloudfront/' \
-        --server-certificate-name '+.example.com' \
-        --certificate-body file:///etc/letsencrypt/live/example.com/cert.pem \
-        --private-key file:///etc/letsencrypt/live/example.com/privkey.pem \
-        --certificate-chain file:///etc/letsencrypt/live/example.com/chain.pem \
-        --region cn-north-1
-        ```
 
 To start the installation process, perform the following steps:
 1. From the terminal window, navigate to the directory where you've downloaded AWS SaaS Boost (aws-saas-boost).
