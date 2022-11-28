@@ -25,6 +25,7 @@ const oidcConfig = {
     authority: appConfig.issuer,
     client_id: appConfig.clientId,
     redirect_uri: window.location.origin,
+    post_logout_redirect_uri: window.location.origin,
   }
 
 ReactDOM.render(
