@@ -1187,7 +1187,11 @@ public class OnboardingService {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String pipeline = (String) detail.get("pipeline");
             try {
-                String pipelineArn = resources.get(0);
+                String pipelineArnFromResource = resources.get(0);
+                LOGGER.info("pipelineArnFromResource = {} when handle onboarding pipeline status changed", pipelineArnFromResource);
+                final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
+                final String partition = lambdaArn[1];
+                String pipelineArn = pipelineArnFromResource.replace("arn:aws:", "arn:" + partition + ":");
                 LOGGER.info("Fetching tenant id from CodePipeline tags");
                 ListTagsForResourceResponse tagsResponse = codePipeline.listTagsForResource(request -> request
                         .resourceArn(pipelineArn)
