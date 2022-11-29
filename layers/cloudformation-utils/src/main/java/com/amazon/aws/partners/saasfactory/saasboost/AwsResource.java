@@ -90,6 +90,9 @@ public enum AwsResource {
             } else {
                 url = String.format(this.urlFormat, region, resourceId);
             }
+            if (Utils.isChinaRegion(region)) {
+                url = url.replace("aws.amazon.com", "amazonaws.cn");
+            }
         } catch (IllegalFormatException e) {
             LOGGER.error("Error formatting URL for {}", this.name(), e);
             LOGGER.error(Utils.getFullStackTrace(e));

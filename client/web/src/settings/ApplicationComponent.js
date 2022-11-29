@@ -62,7 +62,10 @@ export function ApplicationComponent(props) {
   const LINUX = 'LINUX'
   const WINDOWS = 'WINDOWS'
   const awsRegion = globalConfig.region
-  const acmConsoleLink = `https://${awsRegion}.console.aws.amazon.com/acm/home?region=${awsRegion}#/certificates/list`
+  const consoleUrlSuffix = awsRegion.startsWith("cn-")? "amazonaws.cn": "aws.amazon.com"
+
+  const acmConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/acm/home?region=${awsRegion}#/certificates/list`
+  const showProvisionBilling = awsRegion.startsWith("cn-")? false : true
 
   const updateConfig = (values) => {
     updateConfiguration(values)
@@ -444,10 +447,11 @@ export function ApplicationComponent(props) {
                     }
                     setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                   ></ServicesComponent>
-                  <BillingSubform
-                    provisionBilling={formik.values.provisionBilling}
-                    values={formik.values?.billing}
+                  {showProvisionBilling && <BillingSubform
+                      provisionBilling={formik.values.provisionBilling}
+                      values={formik.values?.billing}
                   ></BillingSubform>
+                  }
                   <Row>
                     <Col xs={12}>
                       <Card>
