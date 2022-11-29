@@ -59,6 +59,8 @@ Before running the installation, [setup your AWS CLI](https://docs.aws.amazon.co
 1. Setup an IAM user in your AWS account with full admin permissions.
 2. Set up your AWS CLI credentials with an AWS Access Key and default region.
 
+If you are installing SaaS Boost in AWS **China Regions(Beijing/Ningxia)**, please follow instructions of [Provision AWS SaaS Boost in GCR](./provision-in-gcr.md) or the Chinese version of [Getting Started Guide](./getting-started.cn.md).
+
 To start the installation process, perform the following steps:
 1. From the terminal window, navigate to the directory where you've downloaded AWS SaaS Boost (aws-saas-boost).
 2. Invoke the install command. 
