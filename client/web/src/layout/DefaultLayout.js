@@ -23,6 +23,7 @@ import PropTypes from 'prop-types'
 import { connect } from 'react-redux'
 // sidebar nav config
 import navigation from '../_nav'
+import { removeUserInfo } from '../api/common'
 
 const mapStateToProps = (state) => {
   return { settings: state.settings, setup: state.settings.setup }
@@ -41,7 +42,13 @@ class DefaultLayout extends Component {
   }
 
   handleSignOut = async () => {
-    await this.oidcAuth.removeUser()
+    try {
+      await this.oidcAuth.signoutRedirect()
+      await this.oidcAuth.removeUser()
+      removeUserInfo()
+    } catch (e) {
+      // do nothing
+    }
   }
 
   handleProfileClick = () => {
@@ -107,5 +114,4 @@ DefaultLayout.propTypes = {
   location: PropTypes.object,
 }
 
-// export default connect(mapStateToProps, null)(withRouter(DefaultLayout))
 export default connect(mapStateToProps, null)(withRouter(DefaultLayout))
