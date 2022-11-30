@@ -35,7 +35,9 @@ const AppWithAuth = () => {
     try {
       const signOutReason = `Session closed due to ${minutes} minutes of inactivity.`
       setSignOutReason(signOutReason)
-      return auth.removeUser()
+      await auth.signoutRedirect()
+      await auth.removeUser()
+      return removeUserInfo()
     } catch (e) {
       // do nothing
     }

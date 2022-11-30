@@ -96,24 +96,10 @@ If (-not (Ensure-ExecutableExists -Executable "java" -MinimumVersion "11.0.8"))
     Exit 2
 }
 
-# check for yarn
-If (-not (Test-CommandExists -command "yarn"))
-{
-    Write-host "yarn version 1.22 or higher must be installed"
-    Exit 2
-}
-
 # check for maven
 If (-not (Test-CommandExists -command "mvn"))
 {
     Write-host "maven must be installed"
-    Exit 2
-}
-
-# check for node
-If (-not (Test-CommandExists -command "node"))
-{
-    Write-host "node version 14 must be installed"
     Exit 2
 }
 
@@ -168,16 +154,6 @@ if (-not $?)
     Exit 2
 }
 Write-host "Java Installer build completed"
-
-cd ${CURRENT_DIR}\client\web
-Write-host "Downloading Node dependencies for React web app..."
-yarn
-if (-not $?)
-{
-    Write-host "Error with yarn build for dependencies of React Web App. Check node version per documentation."
-    Exit 2
-}
-Write-host "Download dependencies completed for React Web App"
 
 cd $CURRENT_DIR
 Write-host "Launch Java Installer for SaaS Boost"
