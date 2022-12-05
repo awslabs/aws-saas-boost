@@ -115,7 +115,7 @@ public class ProcessBillingEvent implements RequestHandler<Map<String, Object>, 
             billingEvent = new BillingEvent((String) detail.get("TenantId"),
                     Instant.now(),
                     (String) detail.get("ProductCode"),
-                    (Long) detail.get("Quantity"));
+                    ((Integer) detail.get("Quantity")).longValue());
         } catch (NullPointerException npe) {
             LOGGER.error("Billing event not created because a component of the billing event was missing.");
             throw new ProcessBillingEventException("Billing event not created because a component of the billing event was missing.");
