@@ -19,6 +19,7 @@ import { useAuth } from 'react-oidc-context'
 import App from './App'
 import IdleTimer from 'react-idle-timer'
 import { OidcSignIn } from './components/Auth'
+import appConfig from './config/appConfig'
 import { removeUserInfo, saveUserInfo } from './api/common'
 
 const AppWithAuth = () => {
@@ -32,10 +33,22 @@ const AppWithAuth = () => {
   )
 
   const onIdle = async () => {
+    const signOutReason = `Session closed due to ${minutes} minutes of inactivity.`
+    signout(signOutReason)
+  }
+
+  const signout = async (signOutReason) => {
+    setSignOutReason(signOutReason)
     try {
-      const signOutReason = `Session closed due to ${minutes} minutes of inactivity.`
-      setSignOutReason(signOutReason)
-      await auth.signoutRedirect()
+      if (appConfig.idp.toUpperCase() === 'COGNITO') {
+        // since Cognito doesn't support the end_session_endpoint in openid-configuration,
+        // we need to send a manual redirect to log out
+        const path = `${appConfig.idpDomain}/logout?client_id=${appConfig.clientId}&logout_uri=${auth.settings.post_logout_redirect_uri}`
+        window.location.href = path
+      } else {
+        // assume we're using an IDP that supports end_session_endpoint
+        await auth.signoutRedirect()
+      }
       await auth.removeUser()
       return removeUserInfo()
     } catch (e) {
@@ -55,14 +68,14 @@ const AppWithAuth = () => {
     return (
       <Fragment>
         <Suspense fallback={loading()}>
-          <App authState={'signedIn'} oidcAuth={auth} />
+          <App authState={'signedIn'} oidcAuth={auth} signout={() => signout('Successfully signed out.')} />
         </Suspense>
         <IdleTimer onIdle={onIdle} debounce={250} timeout={timeout} />
       </Fragment>
     )
   } else {
     removeUserInfo()
-    return <OidcSignIn signOutReason={signOutReason} />
+    return <OidcSignIn signOutReason={signOutReason} auth={auth} />
   }
 }
 

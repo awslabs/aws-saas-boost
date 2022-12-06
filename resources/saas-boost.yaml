@@ -874,6 +874,8 @@ Resources:
         ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
+        OidcDomainUrl: !GetAtt idp.Outputs.OidcDomainUrl
+        SystemIdentityProvider: !Ref SystemIdentityProvider
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
