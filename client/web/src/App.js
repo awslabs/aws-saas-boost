@@ -31,6 +31,7 @@ App.propTypes = {
 
 function App(props) {
   const oidcAuth = props.oidcAuth
+  const signout = props.signout
   if (props.authState === 'signedIn') {
     return (
       <Provider store={store}>
@@ -38,7 +39,7 @@ function App(props) {
           <ScrollToTop>
             <FetchSettings>
               <Switch>
-              <Route path="/" name="Home" render={(props) => <DefaultLayout {...props} oidcAuth={oidcAuth} />} />
+              <Route path="/" name="Home" render={(props) => <DefaultLayout oidcAuth={oidcAuth} signout={signout} {...props} />} />
               </Switch>
             </FetchSettings>
           </ScrollToTop>

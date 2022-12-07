@@ -311,6 +311,14 @@ Outputs:
       - UseCognito
       - !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
       - !GetAtt keycloak.Outputs.KeycloakIssuer
+  # OidcDomainUrl is explicitly different for Cognito and is needed for manual 
+  # logout calls since Cognito does not support OIDC end_session_endpoint
+  OidcDomainUrl:
+    Description: Domain System User IdP sits behind
+    Value: !If
+      - UseCognito
+      - !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+      - ''
   AdminWebAppClient:
     Description: Admin Web App Public App Client for authorization code grants with PKCE
     Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
