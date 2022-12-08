@@ -68,6 +68,9 @@ Parameters:
   CustomDomainCertificate:
     Description: ACM certificate ARN for the custom domain name
     Type: String
+  ApiGatewayUrl:
+    Description: SaaS Boost API Gateway invoke URL
+    Type: String
   VPC:
     Type: String
     Description: The SaaS Boost VPC ID.
@@ -87,7 +90,7 @@ Resources:
   SaaSBoostAdminCredentials:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub sb-${Environment}-admin
+      Name: !Sub /saas-boost/${Environment}/ADMIN
       GenerateSecretString:
         IncludeSpace: false
         ExcludePunctuation: true
@@ -121,6 +124,20 @@ Resources:
             Your temporary password is:  <b>{####}</b>
             <br>
           EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
+  UserPoolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Condition: UseCognito
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: !Ref ApiGatewayUrl
+      Name: !Sub sb-${Environment}-api
+      Scopes:
+        - ScopeName: read
+          ScopeDescription: Read Public API Access
+        - ScopeName: write
+          ScopeDescription: Write Public API Access
+        - ScopeName: private
+          ScopeDescription: Read/Write Private API Access
   AdminWebAppClient:
     Type: AWS::Cognito::UserPoolClient
     Condition: UseCognito
@@ -148,6 +165,43 @@ Resources:
       LogoutURLs:
         - !Ref AdminWebUrl
         - http://localhost:3000
+  ApiAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: UseCognito
+    DependsOn: UserPoolResourceServer
+    Properties:
+      ClientName: !Sub sb-${Environment}-api-client
+      UserPoolId: !Ref UserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      GenerateSecret: true
+      AccessTokenValidity: 5
+      TokenValidityUnits: minutes
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - client_credentials
+      AllowedOAuthScopes:
+        - !Sub ${ApiGatewayUrl}/read
+        - !Sub ${ApiGatewayUrl}/write
+  PrivateApiAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: UseCognito
+    DependsOn: UserPoolResourceServer
+    Properties:
+      ClientName: !Sub sb-${Environment}-private-api-client
+      UserPoolId: !Ref UserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      GenerateSecret: true
+      AccessTokenValidity: 5
+      TokenValidityUnits: minutes
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - client_credentials
+      AllowedOAuthScopes:
+        - !Sub ${ApiGatewayUrl}/read
+        - !Sub ${ApiGatewayUrl}/write
+        - !Sub ${ApiGatewayUrl}/private
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Condition: UseCognito
@@ -244,9 +298,9 @@ Resources:
           ADMIN_WEB_LOGO: client/web/public/saas-boost-login.png
           ADMIN_WEB_BG_COLOR: rgb(50, 31, 219)
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
   CustomizeCognitoUi:
     Type: Custom::CustomResource
@@ -292,18 +346,15 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/ADMIN_WEB_APP_CLIENT_ID
       Type: String
       Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
-  ApiAppClientId:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_ID
-      Type: String
-      Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.ApiAppClientId]
-  ApiAppClient:
+  ApiAppClientSecret:
     Type: AWS::SecretsManager::Secret
     Condition: UseKeycloak
     Properties:
-      Name: !Sub sb-${Environment}-api-app-client
-      SecretString: !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}"'
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT
+      SecretString: !If
+        - UseCognito
+        - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}"}'
+        - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}"}'
 Outputs:
   OidcIssuerUrl:
     Description: OIDC issuer for System User IdP
@@ -322,10 +373,6 @@ Outputs:
   AdminWebAppClient:
     Description: Admin Web App Public App Client for authorization code grants with PKCE
     Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
-  ApiAppClient:
-    Condition: UseKeycloak
-    Description: Private App Client secret for client credentials grants
-    Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientName]
   # The following outputs are used conditionally by the system user service
   CognitoUserPool:
     Condition: UseCognito
