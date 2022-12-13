@@ -129,7 +129,7 @@ Resources:
     Condition: UseCognito
     Properties:
       UserPoolId: !Ref UserPool
-      Identifier: !Ref ApiGatewayUrl
+      Identifier: !Sub saas-boost/${Environment}
       Name: !Sub sb-${Environment}-api
       Scopes:
         - ScopeName: read
@@ -176,13 +176,14 @@ Resources:
         - COGNITO
       GenerateSecret: true
       AccessTokenValidity: 5
-      TokenValidityUnits: minutes
+      TokenValidityUnits:
+        AccessToken: minutes
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - client_credentials
       AllowedOAuthScopes:
-        - !Sub ${ApiGatewayUrl}/read
-        - !Sub ${ApiGatewayUrl}/write
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
   PrivateApiAppClient:
     Type: AWS::Cognito::UserPoolClient
     Condition: UseCognito
@@ -194,14 +195,15 @@ Resources:
         - COGNITO
       GenerateSecret: true
       AccessTokenValidity: 5
-      TokenValidityUnits: minutes
+      TokenValidityUnits:
+        AccessToken: minutes
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - client_credentials
       AllowedOAuthScopes:
-        - !Sub ${ApiGatewayUrl}/read
-        - !Sub ${ApiGatewayUrl}/write
-        - !Sub ${ApiGatewayUrl}/private
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
+        - !Sub saas-boost/${Environment}/private
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Condition: UseCognito
@@ -349,7 +351,7 @@ Resources:
                 Action:
                   - cognito-idp:DescribeUserPoolClient
                 Resource:
-                  - !Ref UserPool
+                  - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
   CognitoAppClientDetailsLambda:
     Type: AWS::Lambda::Function
     Condition: UseCognito
@@ -428,13 +430,12 @@ Resources:
       Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
   ApiAppClientSecret:
     Type: AWS::SecretsManager::Secret
-    Condition: UseKeycloak
     Properties:
       Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT
       SecretString: !If
         - UseCognito
-        - !Sub '{"client_name": "${InvokeApiAppClientDetails.ClientName}", "client_id": "${InvokeApiAppClientDetails.ClientId}", "client_secret": "${InvokeApiAppClientDetails.ClientSecret}", "token_endpoint": "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"}'
-        - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}"}'
+        - !Sub '{"client_name": "${InvokeApiAppClientDetails.ClientName}", "client_id": "${InvokeApiAppClientDetails.ClientId}", "client_secret": "${InvokeApiAppClientDetails.ClientSecret}", "token_endpoint": "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/token", "api_endpoint": "${ApiGatewayUrl}"}'
+        - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}", "api_endpoint": "${ApiGatewayUrl}"}'
 Outputs:
   OidcIssuerUrl:
     Description: OIDC issuer for System User IdP
