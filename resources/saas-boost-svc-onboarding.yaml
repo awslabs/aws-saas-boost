@@ -314,7 +314,7 @@ Resources:
             Action:
               - apigateway:GET
             Resource:
-              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*/resources
+              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*
           - Effect: Allow
             Action:
               - lambda:AddPermission
