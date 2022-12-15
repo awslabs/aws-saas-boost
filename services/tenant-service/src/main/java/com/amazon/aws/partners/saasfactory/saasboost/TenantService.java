@@ -345,44 +345,26 @@ public class TenantService implements RequestHandler<Map<String, Object>, APIGat
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String tenantId = (String) detail.get("tenantId");
             String hostname = (String) detail.get("hostname");
-            Tenant tenant = dal.getTenant(tenantId);
-            if (tenant != null) {
-                LOGGER.info("Updating tenant {} hostname to {}", tenantId, hostname);
-                tenant.setHostname(hostname);
-                dal.updateTenant(tenant);
-            } else {
-                // Can't find an tenant record for this id
-                LOGGER.error("Can't find tenant record for {}", tenantId);
-                // TODO Throw here? Would end up in DLQ.
-            }
+            LOGGER.info("Updating tenant {} hostname to {}", tenantId, hostname);
+            dal.updateTenantHostname(tenantId, hostname);
         } else {
-            LOGGER.error("Missing tenantId or onboardingStatus in event detail {}", Utils.toJson(event.get("detail")));
+            LOGGER.error("Missing tenantId or hostname in event detail {}", Utils.toJson(event.get("detail")));
             // TODO Throw here? Would end up in DLQ.
         }
     }
 
     protected void handleTenantResourcesChanged(Map<String, Object> event, Context context) {
-        //Utils.logRequestEvent(event);
+        Utils.logRequestEvent(event);
         if (TenantEvent.validate(event, "resources")) {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String tenantId = (String) detail.get("tenantId");
-            Tenant tenant = dal.getTenant(tenantId);
-            if (tenant != null) {
-                Map<String, Tenant.Resource> updatedResources = fromTenantResourcesChangedEvent(event);
-                if (updatedResources != null) {
-                    Map<String, Tenant.Resource> tenantResources = tenant.getResources();
-                    // Merge the updated resources with the existing ones. This helps the calling code not have to
-                    // pull the current tenant before invoking this method. If you want to replace/delete resources
-                    // from a tenant, you'll have to build the resources map you want and call updateTenant.
-                    tenantResources.putAll(updatedResources);
-                    tenant.setResources(tenantResources);
-                    dal.updateTenant(tenant);
-                    LOGGER.info("Resources updated for tenant: {}", tenantId);
-                }
-            } else {
-                // Can't find an tenant record for this id
-                LOGGER.error("Can't find tenant record for {}", tenantId);
-                // TODO Throw here? Would end up in DLQ.
+            Map<String, Tenant.Resource> resources = fromTenantResourcesChangedEvent(event);
+            if (resources != null) {
+                // Merge the updated resources with any existing ones. This helps the calling code not have to
+                // pull the current tenant before invoking this method. If you want to delete resources
+                // from a tenant, you'll have to build the resources map you want and call updateTenant.
+                dal.updateTenantResources(tenantId, resources);
+                LOGGER.info("Resources updated for tenant: {}", tenantId);
             }
         } else {
             LOGGER.error("Missing tenantId or resources in event detail {}", Utils.toJson(event.get("detail")));
