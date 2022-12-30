@@ -242,9 +242,6 @@ Parameters:
   WIN2019CORE:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-windows-latest/Windows_Server-2019-English-Core-ECS_Optimized/image_id
-  WIN20H2CORE:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-windows-latest/Windows_Server-20H2-English-Core-ECS_Optimized/image_id
   WIN2016FULL:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-windows-latest/Windows_Server-2016-English-Full-ECS_Optimized/image_id
