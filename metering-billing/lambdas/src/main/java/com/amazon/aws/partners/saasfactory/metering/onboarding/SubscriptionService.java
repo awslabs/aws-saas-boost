@@ -63,38 +63,44 @@ public class SubscriptionService {
         Utils.logRequestEvent(event);
 
         APIGatewayProxyResponseEvent response;
-
         Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
-        try {
-            ArrayNode plans = JsonNodeFactory.instance.arrayNode();
-            ProductCollection products = Product.list(new HashMap<>());
-            for (Product product : products.getData()) {
-                // TODO in the eventual refactor the Plan returned by this function should be a POJO we construct
-                if (product.getActive()) {
-                    ObjectNode productNode = JsonNodeFactory.instance.objectNode();
-                    productNode.put("planId", product.getId());
-                    productNode.put("planName", product.getName());
-                    plans.add(productNode);
+        if (Stripe.apiKey != null) {
+            try {
+                ArrayNode plans = JsonNodeFactory.instance.arrayNode();
+                ProductCollection products = Product.list(new HashMap<>());
+                for (Product product : products.getData()) {
+                    // TODO in the eventual refactor the Plan returned by this function should be a POJO we construct
+                    if (product.getActive()) {
+                        ObjectNode productNode = JsonNodeFactory.instance.objectNode();
+                        productNode.put("planId", product.getId());
+                        productNode.put("planName", product.getName());
+                        plans.add(productNode);
+                    }
                 }
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(200)
+                        .withBody(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(plans));
+            } catch (StripeException se) {
+                LOGGER.error("Error listing products {}", se);
+                LOGGER.error(Utils.getFullStackTrace(se));
+                response = new APIGatewayProxyResponseEvent()
+                        .withStatusCode(500)
+                        .withHeaders(CORS)
+                        .withBody(Utils.toJson(Map.of("message", "Error listing products from Stripe")));
+            } catch (JsonProcessingException jpe) {
+                LOGGER.error("Unable to generate JSON list of plans {}", jpe);
+                LOGGER.error(Utils.getFullStackTrace(jpe));
+                response = new APIGatewayProxyResponseEvent()
+                        .withStatusCode(500)
+                        .withHeaders(CORS)
+                        .withBody(Utils.toJson(Map.of("message", "Error retrieving products, view logs for details.")));
             }
+        } else {
             response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(404)
                     .withHeaders(CORS)
-                    .withStatusCode(200)
-                    .withBody(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(plans));
-        } catch (StripeException se) {
-            LOGGER.error("Error listing products {}", se);
-            LOGGER.error(Utils.getFullStackTrace(se));
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(500)
-                    .withHeaders(CORS)
-                    .withBody(Utils.toJson(Map.of("message", "Error listing products from Stripe")));
-        } catch (JsonProcessingException jpe) {
-            LOGGER.error("Unable to generate JSON list of plans {}", jpe);
-            LOGGER.error(Utils.getFullStackTrace(jpe));
-            response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(500)
-                    .withHeaders(CORS)
-                    .withBody(Utils.toJson(Map.of("message", "Error retrieving products, view logs for details.")));
+                    .withBody(Utils.toJson(Map.of("message", "No Stripe API key configured")));
         }
 
         long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;

@@ -25,6 +25,7 @@ import software.amazon.awssdk.http.SdkHttpFullRequest;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 public final class BillingUtils {
 
@@ -32,7 +33,7 @@ public final class BillingUtils {
 
     public static String getBillingApiKey(String apiGatewayHost, String apiGatewayStage, String apiGatewayRole) {
         //invoke SaaS Boost private API to get API Key for Billing
-        String apiKey;
+        String apiKey = null;
         ApiRequest billingApiKeySecret = ApiRequest.builder()
                 .resource("settings/BILLING_API_KEY/secret")
                 .method("GET")
@@ -47,8 +48,11 @@ public final class BillingUtils {
                 throw new RuntimeException("responseBody is invalid");
             }            
             apiKey = setting.get("value");
+        } catch (NoSuchElementException nsee) {
+            LOGGER.error("Error retrieving Stripe API key, AppConfig does not exist or has no api key");
+            LOGGER.error(Utils.getFullStackTrace(nsee));
         } catch (Exception e) {
-            LOGGER.error("getBillingApiKey: Error invoking API settings/BILLING_API/ref");
+            LOGGER.error("getBillingApiKey: Error invoking API settings/BILLING_API/secret");
             LOGGER.error(Utils.getFullStackTrace(e));
             throw new RuntimeException(e);
         }
