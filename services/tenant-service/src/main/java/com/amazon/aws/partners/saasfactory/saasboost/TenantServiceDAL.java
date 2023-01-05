@@ -172,13 +172,9 @@ public class TenantServiceDAL {
     public Tenant updateTenantOnboardingStatus(UUID tenantId, String onboardingStatus) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("TenantServiceDAL::updateTenantOnboarding {} {}", tenantId.toString(), onboardingStatus);
-        Tenant updated = new Tenant();
-        updated.setId(tenantId);
-        updated.setOnboardingStatus(onboardingStatus);
-        updated.setModified(LocalDateTime.now());
-        String modified = updated.getModified().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         try {
             Map<String, AttributeValue> key = new HashMap<>();
+            String modified = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
             key.put("id", AttributeValue.builder().s(tenantId.toString()).build());
             UpdateItemResponse response = ddb.updateItem(request -> request
                     .tableName(TENANTS_TABLE)
@@ -190,25 +186,20 @@ public class TenantServiceDAL {
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );
-            updated = fromAttributeValueMap(response.attributes());
+            long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
+            LOGGER.info("TenantServiceDAL::updateTenantOnboarding exec {}", totalTimeMillis);
+            return fromAttributeValueMap(response.attributes());
         } catch (DynamoDbException e) {
             LOGGER.error("TenantServiceDAL::updateTenantOnboarding {}", Utils.getFullStackTrace(e));
             throw e;
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TenantServiceDAL::updateTenantOnboarding exec {}", totalTimeMillis);
-        return updated;
     }
 
-    public Tenant updateTenantHostname(UUID tenantId, String hostname) {
-        Tenant updated = new Tenant();
-        updated.setId(tenantId);
-        updated.setHostname(hostname);
-        updated.setModified(LocalDateTime.now());
-        String modified = updated.getModified().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    public Tenant updateTenantHostname(String tenantId, String hostname) {
         try {
             Map<String, AttributeValue> key = new HashMap<>();
-            key.put("id", AttributeValue.builder().s(tenantId.toString()).build());
+            String modified = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            key.put("id", AttributeValue.builder().s(tenantId).build());
             UpdateItemResponse response = ddb.updateItem(request -> request
                     .tableName(TENANTS_TABLE)
                     .key(key)
@@ -219,13 +210,62 @@ public class TenantServiceDAL {
                     )
                     .returnValues(ReturnValue.ALL_NEW)
             );
-            updated = fromAttributeValueMap(response.attributes());
+            return fromAttributeValueMap(response.attributes());
         } catch (DynamoDbException e) {
             LOGGER.error("TenantServiceDAL::updateTenantHostname {}", e.awsErrorDetails().errorMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             throw e;
         }
-        return updated;
+    }
+
+    public Tenant updateTenantResources(String tenantId, Map<String, Tenant.Resource> resources) {
+        try {
+            Map<String, AttributeValue> key = new HashMap<>();
+            Map<String, String> expressionAttributeNames = new HashMap<>();
+            Map<String, AttributeValue> expressionAttributeValues = new HashMap<>();
+
+            StringBuilder updateExpression = new StringBuilder("SET modified = :modified");
+            String modified = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            expressionAttributeValues.put(":modified", AttributeValue.builder().s(modified).build());
+
+            for (Map.Entry<String, Tenant.Resource> tenantResource : resources.entrySet()) {
+                String resourceKey = tenantResource.getKey();
+                Tenant.Resource resourceValue = tenantResource.getValue();
+
+                updateExpression.append(", ");
+                updateExpression.append(mapAttributeUpdateExpression("resources", resourceKey, resourceKey));
+                expressionAttributeNames.put(mapAttributeExpressionName(resourceKey), resourceKey);
+                expressionAttributeValues.put(
+                        mapAttributeExpressionValue(resourceKey),
+                        AttributeValue.builder().m(
+                                Map.of(
+                                    "name", AttributeValue.builder().s(resourceValue.getName()).build(),
+                                    "arn", AttributeValue.builder().s(resourceValue.getArn()).build(),
+                                    "consoleUrl", AttributeValue.builder().s(resourceValue.getConsoleUrl()).build()
+                                )
+                        ).build()
+                );
+            }
+
+            key.put("id", AttributeValue.builder().s(tenantId).build());
+            //LOGGER.debug(updateExpression.toString());
+            //LOGGER.debug(Utils.toJson(expressionAttributeNames));
+            //LOGGER.debug(Utils.toJson(expressionAttributeValues));
+            UpdateItemResponse response = ddb.updateItem(UpdateItemRequest.builder()
+                    .tableName(TENANTS_TABLE)
+                    .key(key)
+                    .updateExpression(updateExpression.toString())
+                    .expressionAttributeNames(expressionAttributeNames)
+                    .expressionAttributeValues(expressionAttributeValues)
+                    .returnValues(ReturnValue.ALL_NEW)
+                    .build()
+            );
+            return fromAttributeValueMap(response.attributes());
+        } catch (DynamoDbException e) {
+            LOGGER.error("TenantServiceDAL::updateTenantResources {}", e.awsErrorDetails().errorMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw e;
+        }
     }
 
     public Tenant disableTenant(String tenantId) {
@@ -352,15 +392,15 @@ public class TenantServiceDAL {
         }
         if (tenant.getResources() != null) {
             item.put("resources", AttributeValue.builder().m(tenant.getResources().entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(
-                            entry -> entry.getKey(),
-                            entry -> AttributeValue.builder().m(
-                                    Map.of(
-                                            "name", AttributeValue.builder().s(entry.getValue().getName()).build(),
-                                            "arn", AttributeValue.builder().s(entry.getValue().getArn()).build(),
-                                            "consoleUrl", AttributeValue.builder().s(entry.getValue().getConsoleUrl()).build()
-                                    )).build()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    entry -> entry.getKey(),
+                                    entry -> AttributeValue.builder().m(
+                                            Map.of(
+                                                    "name", AttributeValue.builder().s(entry.getValue().getName()).build(),
+                                                    "arn", AttributeValue.builder().s(entry.getValue().getArn()).build(),
+                                                    "consoleUrl", AttributeValue.builder().s(entry.getValue().getConsoleUrl()).build()
+                                            )).build()
                             ))
                     ).build()
             );
@@ -451,5 +491,21 @@ public class TenantServiceDAL {
             }
         }
         return tenant;
+    }
+
+    protected static String mapAttributeExpressionName(String keyName) {
+        if (Utils.isBlank(keyName)) {
+            throw new IllegalArgumentException("Missing arguments");
+        }
+        return "#" + keyName;
+    }
+
+    protected static String mapAttributeExpressionValue(String valueName) {
+        return ":" + valueName;
+    }
+
+    protected static String mapAttributeUpdateExpression(String mapAttribute, String keyName, String valueName) {
+        return mapAttribute + "." + mapAttributeExpressionName(keyName)
+                + " = " + mapAttributeExpressionValue(valueName);
     }
 }
