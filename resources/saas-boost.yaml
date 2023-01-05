@@ -979,6 +979,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage

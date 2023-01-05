@@ -32,7 +32,7 @@ limitations under the License.
         </license>
     </licenses>
     <properties>
-        <checkstyle.maxAllowedViolations>37</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>10</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -61,6 +61,13 @@ limitations under the License.
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>Utils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>CloudFormationUtils</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>

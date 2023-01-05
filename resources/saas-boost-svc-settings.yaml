@@ -30,6 +30,9 @@ Parameters:
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
@@ -120,6 +123,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsOptions
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
       Environment:
         Variables:
           JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
