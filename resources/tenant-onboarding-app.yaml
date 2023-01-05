@@ -82,7 +82,7 @@ Parameters:
     Description: Operating System to use for the Docker host
     Type: String
     # Can't have dashes or underscores in Mappings keys :(
-    AllowedValues: [WIN2019FULL, WIN2019CORE, WIN2022FULL, WIN2022CORE, WIN20H2CORE, WIN2016FULL, LINUX]
+    AllowedValues: [WIN2019FULL, WIN2019CORE, WIN2022FULL, WIN2022CORE, WIN2016FULL, LINUX]
   ClusterInstanceType:
     Description: EC2 instance type to use for non Fargate Docker hosts
     Type: String
@@ -278,7 +278,6 @@ Conditions:
   IsWin2019Core: !Equals [WIN2019CORE, !Ref ContainerOS]
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
-  IsWin20H2Core: !Equals [WIN20H2CORE, !Ref ContainerOS]
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -793,10 +792,7 @@ Resources:
                 - !If
                   - IsWin2022Core
                   - !Ref WIN2022CORE
-                  - !If
-                    - IsWin20H2Core
-                    - !Ref WIN20H2CORE
-                    - !Ref WIN2016FULL
+                  - !Ref WIN2016FULL
         InstanceType: !Ref ClusterInstanceType
         IamInstanceProfile:
           Arn: !GetAtt ECSInstanceProfile.Arn
