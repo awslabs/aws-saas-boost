@@ -22,7 +22,7 @@ limitations under the License.
         <artifactId>saasboost-custom-resources</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>ApplicationServicesEcrMacro</artifactId>
+    <artifactId>ApplicationServicesMacro</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
     <licenses>

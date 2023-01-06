@@ -109,12 +109,12 @@ public class AppConfig {
         }
         final AppConfig other = (AppConfig) obj;
         return (
-                ((name == null && other.name == null) || (name != null && name.equals(other.name)))
-                && ((domainName == null && other.domainName == null) || (domainName != null && domainName.equals(other.domainName)))
-                && ((hostedZone == null && other.hostedZone == null) || (hostedZone != null && hostedZone.equals(other.hostedZone)))
-                && ((sslCertificate == null && other.sslCertificate == null) || (sslCertificate != null && sslCertificate.equals(other.sslCertificate)))
+                Utils.nullableEquals(name, other.getName())
+                && Utils.nullableEquals(domainName, other.getDomainName())
+                && Utils.nullableEquals(hostedZone, other.getHostedZone())
+                && Utils.nullableEquals(sslCertificate, other.getSslCertificate())
                 && ((services == null && other.services == null) || (servicesEqual(services, other.services)))
-                && ((billing == null && other.billing == null) || (billing != null && billing.equals(other.billing)))
+                && Utils.nullableEquals(billing, other.getBilling())
         );
     }
 

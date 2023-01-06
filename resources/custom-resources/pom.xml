@@ -14,7 +14,7 @@
     <packaging>pom</packaging>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
-        <module>app-services-ecr-macro</module>
+        <module>app-services-macro</module>
         <module>attach-ecs-capacity-provider</module>
         <module>cidr-dynamodb</module>
         <module>clear-ecr-repo</module>

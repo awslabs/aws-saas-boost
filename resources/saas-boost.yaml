@@ -95,6 +95,10 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  AppExtensions:
+    Description: Comma separated list of extension names to apply to the entire application
+    Type: String
+    Default: ''
   CreateMacroResources:
     Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
     Type: String
@@ -521,6 +525,12 @@ Resources:
           Value: SaaSBoost
         - Key: Environment
           Value: !Ref Environment
+  ClearBucketLambdaArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/CLEAR_BUCKET_ARN
+      Type: String
+      Value: !GetAtt ClearBucket.Arn
   InvokeClearCodePipelineBucket:
     Type: Custom::CustomResource
     Properties:
@@ -663,10 +673,10 @@ Resources:
       Runtime: java11
       Timeout: 900
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesEcrMacro
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesMacro
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesEcrMacro-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesMacro-lambda.zip
       Layers:
          - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -891,12 +901,14 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         CodePipelineBucket: !Ref Pipelines
+        LoggingBucket: !Ref Logging
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
         DomainName: !Ref ApplicationDomainName
         HostedZone: !Ref ApplicationHostedZone
         EventBus: !Ref SaaSBoostEventBus
+        AppExtensions: !Ref AppExtensions
       NotificationARNs:
         - !Ref CoreStackListenerTopic
   billing:

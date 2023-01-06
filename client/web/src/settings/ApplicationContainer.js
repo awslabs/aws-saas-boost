@@ -202,6 +202,7 @@ export function ApplicationContainer(props) {
           operatingSystem,
           ecsLaunchType,
           provisionDb,
+          provisionObjectStorage,
           tombstone,
           database,
           ...rest
@@ -229,6 +230,7 @@ export function ApplicationContainer(props) {
           operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
           ecsLaunchType: (!!ecsLaunchType) ? ecsLaunchType : (operatingSystem === LINUX ? "FARGATE" : "EC2"),
           database: provisionDb ? cleanedDb : null,
+          s3: provisionObjectStorage ? {} : null,
           tiers: cleanedTiersMap,
         }
       }

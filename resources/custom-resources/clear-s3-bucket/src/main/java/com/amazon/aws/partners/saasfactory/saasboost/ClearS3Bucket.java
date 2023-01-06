@@ -46,6 +46,8 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
         final String requestType = (String) event.get("RequestType");
         Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String bucket = (String) resourceProperties.get("Bucket");
+        final String passedPrefix = (String) resourceProperties.get("Prefix");
+        final String prefix = passedPrefix == null ? "" : passedPrefix;
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -75,17 +77,20 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                             if (Utils.isNotBlank(keyMarker) && Utils.isNotBlank(versionIdMarker)) {
                                 request = ListObjectVersionsRequest.builder()
                                         .bucket(bucket)
+                                        .prefix(prefix)
                                         .keyMarker(keyMarker)
                                         .versionIdMarker(versionIdMarker)
                                         .build();
                             } else if (Utils.isNotBlank(keyMarker)) {
                                 request = ListObjectVersionsRequest.builder()
                                         .bucket(bucket)
+                                        .prefix(prefix)
                                         .keyMarker(keyMarker)
                                         .build();
                             } else {
                                 request = ListObjectVersionsRequest.builder()
                                         .bucket(bucket)
+                                        .prefix(prefix)
                                         .build();
                             }
                             response = s3.listObjectVersions(request);
@@ -110,11 +115,13 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                             if (Utils.isNotBlank(token)) {
                                 request = ListObjectsV2Request.builder()
                                         .bucket(bucket)
+                                        .prefix(prefix)
                                         .continuationToken(token)
                                         .build();
                             } else {
                                 request = ListObjectsV2Request.builder()
                                         .bucket(bucket)
+                                        .prefix(prefix)
                                         .build();
                             }
                             response = s3.listObjectsV2(request);

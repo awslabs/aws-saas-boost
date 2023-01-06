@@ -168,6 +168,7 @@ export function ApplicationComponent(props) {
       operatingSystem: os,
       database: db,
       provisionDb: !!thisService?.database,
+      provisionObjectStorage: !!thisService?.s3,
       windowsVersion: windowsVersion,
       tiers: initialTierValues,
       tombstone: false,
@@ -340,6 +341,7 @@ export function ApplicationComponent(props) {
           }),
           otherwise: Yup.object(),
         }),
+        provisionObjectStorage: Yup.boolean(),
         tiers: Yup.object().when(['tombstone'], (tombstone) => {
           return allTiersValidationSpec(tombstone)
         }),
