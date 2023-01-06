@@ -1144,6 +1144,16 @@ public class OnboardingService {
                             )
                     );
                 }
+
+                // Publish an event to subscribe this tenant to the billing system if needed
+                // TODO Onboarding probably shouldn't be sending the plan in -- just the tier and/or tenant
+                LOGGER.info("Publishing billing setup event for tenant {}", onboarding.getTenantId());
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        "Billing Tenant Setup",
+                        Map.of("tenantId", onboarding.getTenantId(),
+                                "planId", onboarding.getRequest().getBillingPlan()
+                        )
+                );
             } else {
                 LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
             }
