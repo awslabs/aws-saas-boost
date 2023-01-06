@@ -17,9 +17,8 @@ package com.amazon.aws.partners.saasfactory.metering.aggregation;
 
 
 import com.amazon.aws.partners.saasfactory.metering.common.AggregationEntry;
+import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
 import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiRequest;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
@@ -30,7 +29,6 @@ import com.stripe.net.RequestOptions;
 import com.stripe.param.UsageRecordCreateOnSubscriptionItemParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
@@ -146,41 +144,6 @@ public class StripeBillingPublish implements RequestStreamHandler {
         return aggregationEntries;
     }
 
-    private String getStripeAPIKey() {
-
-        //invoke SaaS Boost private API to get API Key for Billing
-        String apiKey;
-        try {
-            // CloudFormation needs the Parameter Store reference key (version number) to properly
-            // decode secure string parameters... So we need to call the private API to get it.
-            ApiRequest paramStoreRef = ApiRequest.builder()
-                    .resource("settings/BILLING_API_KEY/secret")
-                    .method("GET")
-                    .build();
-            SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, paramStoreRef);
-            String responseBody = null;
-            try {
-                responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, "BillingIntegration");
-                Map<String, String> refsMap = Utils.fromJson(responseBody, HashMap.class);
-                if (null == refsMap) {
-                    throw new RuntimeException("responseBody is invalid");
-                }                
-                apiKey = refsMap.get("value");
-            } catch (Exception e) {
-                LOGGER.error("getStripeAPIKey: Error invoking API settings/BILLING_API/ref");
-                LOGGER.error(Utils.getFullStackTrace(e));
-                throw new RuntimeException(e);
-            }
-
-        } catch (Exception e) {
-            LOGGER.error("getStripeAPIKey: Can't invoke {} lambda", System.getenv("PARAM_STORE_REF_FUNCTION"));
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-
-        return apiKey;
-    }
-
     private void addUsageToSubscriptionItem(String subscriptionItemId, AggregationEntry aggregationEntry) {
         UsageRecord usageRecord = null;
 
@@ -261,7 +224,7 @@ public class StripeBillingPublish implements RequestStreamHandler {
 
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) {
-        Stripe.apiKey = getStripeAPIKey();
+        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
         LOGGER.info("Fetching tenant IDs in table {}", TABLE_NAME);
         List<TenantConfiguration> tenantConfigurations = TenantConfiguration.getTenantConfigurations(TABLE_NAME, ddb, LOGGER);
         if (tenantConfigurations == null || tenantConfigurations.isEmpty()) {

@@ -449,7 +449,6 @@ Resources:
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-          SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -591,7 +590,6 @@ Resources:
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-          SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupBillingSystemListener
       Code:
@@ -697,7 +695,6 @@ Resources:
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-          SAAS_BOOST_ENV: !Ref Environment
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupTenantBillingListener
       Code:
@@ -799,7 +796,6 @@ Resources:
           API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
           API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
           API_GATEWAY_STAGE: !Ref PrivateApiStage
-          SAAS_BOOST_ENV: !Ref Environment
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::disableTenantBillingListener
       Code:
         S3Bucket: !Ref SaaSBoostBucket
