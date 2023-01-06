@@ -344,6 +344,9 @@ public class OnboardingServiceDAL {
             if (Utils.isNotBlank(request.getSubdomain())) {
                 requestMap.put("subdomain", AttributeValue.builder().s(request.getSubdomain()).build());
             }
+            if (Utils.isNotBlank(request.getBillingPlan())) {
+                requestMap.put("billing_plan", AttributeValue.builder().s(request.getBillingPlan()).build());
+            }
             if (request.getAttributes() != null && !request.getAttributes().isEmpty()) {
                 requestMap.put("attributes", AttributeValue.builder().m(request.getAttributes().entrySet()
                         .stream()
@@ -443,6 +446,9 @@ public class OnboardingServiceDAL {
                 }
                 if (requestMap.containsKey("subdomain")) {
                     request.setSubdomain(requestMap.get("subdomain").s());
+                }
+                if (requestMap.containsKey("billing_plan")) {
+                    request.setBillingPlan(requestMap.get("billing_plan").s());
                 }
                 if (requestMap.containsKey("attributes")) {
                     request.setAttributes(requestMap.get("attributes").m().entrySet().stream()
