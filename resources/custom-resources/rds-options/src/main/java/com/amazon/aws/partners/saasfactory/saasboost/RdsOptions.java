@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -19,8 +19,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.amazon.aws.partners.saasfactory.saasboost.Database.RdsInstance;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -29,10 +27,6 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.rds.RdsClient;
 import software.amazon.awssdk.services.rds.model.*;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -41,18 +35,16 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RdsOptions.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
-    private RdsClient rds;
-    private DynamoDbClient ddb;
+    private final RdsClient rds;
+    private final DynamoDbClient ddb;
 
     public RdsOptions() {
-        final long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.rds = Utils.sdkClient(RdsClient.builder(), RdsClient.SERVICE_NAME);
         this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
     @Override
@@ -64,21 +56,17 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
         final String table = (String) resourceProperties.get("Table");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
-        ObjectNode responseData = JsonNodeFactory.instance.objectNode();
+        Map<String, Object> responseData = new HashMap<>();
         try {
             Runnable r = () -> {
                 if ("Create".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE");
-
-                    // The same RDS engine version will be available for multiple EC2 instance types so we'll
-                    // keep a working set of them to limit the number of describeDBEngineVersions calls
-                    LOGGER.info("Building options for {}", AWS_REGION);
-                    List<Object> engines = new ArrayList();
-
-                    // For every RDS engine
+                    // For every RDS engine we support via the Database enum
                     for (Database.RdsEngine engine : Database.RdsEngine.values()) {
                         LOGGER.info("RDS engine {}", engine.name());
                         List<Object> versions = new ArrayList();
+                        // The same RDS engine version will be available for multiple EC2 instance types so we'll
+                        // keep a working set of them to limit the number of describeDBEngineVersions calls
                         Set<String> seenVersions = new HashSet<>();
 
                         // load the versions
@@ -89,20 +77,17 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
                                     .build());
                         } catch (RdsException rdsException) {
                             if (rdsException.getMessage().contains("Unrecognized engine name")) {
-                                LOGGER.info("{} is unrecognized when getting engine versions, skipping", engine);
+                                LOGGER.warn("Unrecognized engine {}", engine);
                                 continue;
                             }
-                            LOGGER.error("rds:DescribeDbEngineVersions error {}", rdsException.getMessage());
-                            String stackTrace = Utils.getFullStackTrace(rdsException);
-                            LOGGER.error(stackTrace);
-                            responseData.put("Reason", stackTrace);
-                            sendResponse(event, "FAILED", responseData);
+                            LOGGER.error("rds:DescribeDbEngineVersions error {}", rdsException);
+                            throw rdsException;
                         }
 
                         // for each version, find instances
                         for (DBEngineVersion dbVersion : versionsResponse.dbEngineVersions()) {
                             if (seenVersions.contains(dbVersion.engineVersion())) {
-                                LOGGER.info("Skipping version we've already seen: {} {}", engine, dbVersion.engineVersion());
+                                LOGGER.info("Skipping duplicate version: {} {}", engine, dbVersion.engineVersion());
                                 continue;
                             }
                             EnumMap<Database.RdsInstance, Map<String, String>> instanceMap = new EnumMap(Database.RdsInstance.class);
@@ -112,35 +97,53 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
                             do {
                                 DescribeOrderableDbInstanceOptionsResponse orderableResponse = null;
                                 try {
-                                    LOGGER.info("orderableOptions request {} for {} {}", requestNumber, engine.getEngine(), dbVersion.engineVersion());
-                                    orderableResponse = rds.describeOrderableDBInstanceOptions(DescribeOrderableDbInstanceOptionsRequest.builder()
-                                            .engine(engine.getEngine())
-                                            .engineVersion(dbVersion.engineVersion())
-                                            .vpc(Boolean.TRUE)
-                                            .marker(marker)
-                                            .maxRecords(maxRecords)
-                                            .build()
+                                    LOGGER.info("orderableOptions request {} for {} {}",
+                                            requestNumber, engine.getEngine(), dbVersion.engineVersion());
+                                    orderableResponse = rds.describeOrderableDBInstanceOptions(
+                                            DescribeOrderableDbInstanceOptionsRequest.builder()
+                                                    .engine(engine.getEngine())
+                                                    .engineVersion(dbVersion.engineVersion())
+                                                    .vpc(Boolean.TRUE)
+                                                    .marker(marker)
+                                                    .maxRecords(maxRecords)
+                                                    .build()
                                     );
-                                } catch (RdsException rdsException) {
-                                    LOGGER.error("rds:DescribeOrderableDBInstanceOptions error {}", rdsException.getMessage());
-                                    String stackTrace = Utils.getFullStackTrace(rdsException);
-                                    LOGGER.error(stackTrace);
-                                    responseData.put("Reason", stackTrace);
-                                    sendResponse(event, "FAILED", responseData);
-                                }
-                                LOGGER.info("{} {} {} has {} orderable instance options", AWS_REGION, engine.getEngine(), dbVersion.engineVersion(), orderableResponse.orderableDBInstanceOptions().size());
-                                marker = orderableResponse.marker();
+                                    marker = orderableResponse.marker();
+                                    String size = Objects.toString(orderableResponse.orderableDBInstanceOptions().size());
+                                    String numOrderableOptions = (Utils.isNotEmpty(marker) ? size + "+" : size);
+                                    LOGGER.info("{} {} {} has {} orderable instance options",
+                                            AWS_REGION, engine.getEngine(), dbVersion.engineVersion(), numOrderableOptions
+                                    );
 
-                                for (OrderableDBInstanceOption option : orderableResponse.orderableDBInstanceOptions()) {
-                                    RdsInstance validInstance = RdsInstance.ofInstanceClass(option.dbInstanceClass());
-                                    if (validInstance != null) {
-                                        LOGGER.info("found {} instance option for {} {} ({})", validInstance, engine, dbVersion.engineVersion(), AWS_REGION);
-                                        Map<String, String> instanceDetails = new HashMap<>();
-                                        instanceDetails.put("class", validInstance.getInstanceClass());
-                                        instanceDetails.put("description", validInstance.getDescription());
-                                        instanceMap.put(validInstance, instanceDetails);
+                                    Set<String> unknownInstanceTypes = new HashSet<>();
+                                    for (OrderableDBInstanceOption option : orderableResponse.orderableDBInstanceOptions()) {
+                                        RdsInstance validInstance = RdsInstance.ofInstanceClass(option.dbInstanceClass());
+                                        if (validInstance != null) {
+                                            if (!instanceMap.containsKey(validInstance)) {
+                                                LOGGER.info("Found {} instance option for {} {} ({})",
+                                                        validInstance, engine, dbVersion.engineVersion(), AWS_REGION);
+                                                instanceMap.put(validInstance, Map.of(
+                                                        "class", validInstance.getInstanceClass(),
+                                                        "description", validInstance.getDescription()
+                                                ));
+                                            } else {
+                                                LOGGER.debug("Skipping duplicate orderable instance type {}", validInstance);
+                                            }
+                                        } else {
+                                            if (!unknownInstanceTypes.contains(option.dbInstanceClass())) {
+                                                unknownInstanceTypes.add(option.dbInstanceClass());
+                                                LOGGER.debug("Skipping unknown orderable instance type {}",
+                                                        option.dbInstanceClass());
+                                            }
+                                        }
+                                    }
+                                } catch (RdsException rdsException) {
+                                    String message = Objects.toString(rdsException.getMessage(), "");
+                                    if (message.startsWith("Cannot find version " +  dbVersion.engineVersion())) {
+                                        LOGGER.warn("Skipping non orderable version {}", dbVersion.engineVersion());
                                     } else {
-                                        LOGGER.info("skipping option that doesn't match enum of instance types: {}", option);
+                                        LOGGER.error("rds:DescribeOrderableDBInstanceOptions error", rdsException);
+                                        throw rdsException;
                                     }
                                 }
                                 requestNumber++;
@@ -166,7 +169,6 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
                             engineDetails.put("description", engine.getDescription());
                             engineDetails.put("versions", versions);
                             LOGGER.info("Adding engine {}", engineDetails);
-                            engines.add(engineDetails);
 
                             // Save this engine's options for this region to our database for fast lookup
                             try {
@@ -175,29 +177,26 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
                                 item.put("engine", AttributeValue.builder().s(engine.name()).build());
                                 item.put("options", AttributeValue.builder().m(toAttributeValueMap(engineDetails)).build());
                                 ddb.putItem(request -> request.tableName(table).item(item));
-                            } catch(SdkServiceException ddbError) {
-                                LOGGER.error("dynamodb:putItem error {}", ddbError.getMessage());
-                                String stackTrace = Utils.getFullStackTrace(ddbError);
-                                LOGGER.error(stackTrace);
-                                responseData.put("Reason", stackTrace);
-                                sendResponse(event, "FAILED", responseData);
+                            } catch (SdkServiceException ddbError) {
+                                LOGGER.error("dynamodb:putItem error {}", ddbError);
+                                throw ddbError;
                             }
                         } else {
                             LOGGER.info("Skipping engine {} ({}) with no valid versions", engine.getEngine(), AWS_REGION);
                         }
                     }
                     // Tell CloudFormation we're done
-                    sendResponse(event, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else if ("Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("UPDATE");
-                    sendResponse(event, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else if ("Delete".equalsIgnoreCase(requestType)) {
                     LOGGER.info("DELETE");
-                    sendResponse(event, "SUCCESS", responseData);
+                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
                 } else {
                     LOGGER.error("FAILED unknown requestType " + requestType);
                     responseData.put("Reason", "Unknown RequestType " + requestType);
-                    sendResponse(event, "FAILED", responseData);
+                    CloudFormationResponse.send(event, context, "FAILED", responseData);
                 }
             };
             Future<?> f = service.submit(r);
@@ -205,61 +204,13 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
         } catch (final TimeoutException | InterruptedException | ExecutionException e) {
             // Timed out
             LOGGER.error("FAILED unexpected error or request timed out " + e.getMessage());
-            String stackTrace = Utils.getFullStackTrace(e);
-            LOGGER.error(stackTrace);
-            responseData.put("Reason", stackTrace);
-            sendResponse(event, "FAILED", responseData);
+            LOGGER.error(Utils.getFullStackTrace(e));
+            responseData.put("Reason", e.getMessage());
+            CloudFormationResponse.send(event, context, "FAILED", responseData);
         } finally {
             service.shutdown();
         }
         return null;
-    }
-
-    /**
-     * Send a response to CloudFormation regarding progress in creating resource.
-     *
-     * @param event
-     * @param responseStatus
-     * @param responseData
-     */
-    public final void sendResponse(final Map<String, Object> event, final String responseStatus, ObjectNode responseData) {
-        String responseUrl = (String) event.get("ResponseURL");
-        LOGGER.info("ResponseURL: " + responseUrl + "\n");
-
-        URL url;
-        try {
-            url = new URL(responseUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "");
-            connection.setRequestMethod("PUT");
-
-            ObjectNode responseBody = JsonNodeFactory.instance.objectNode();
-            responseBody.put("Status", responseStatus);
-            responseBody.put("RequestId", (String) event.get("RequestId"));
-            responseBody.put("LogicalResourceId", (String) event.get("LogicalResourceId"));
-            responseBody.put("StackId", (String) event.get("StackId"));
-            responseBody.put("PhysicalResourceId", (String) event.get("LogicalResourceId"));
-            if (!"FAILED".equals(responseStatus)) {
-                responseBody.set("Data", responseData);
-            } else {
-                responseBody.put("Reason", responseData.get("Reason").asText());
-            }
-            LOGGER.info("Response Body: " + responseBody.toString());
-
-            try (OutputStreamWriter response = new OutputStreamWriter(connection.getOutputStream())) {
-                response.write(responseBody.toString());
-            } catch (IOException ioe) {
-                LOGGER.error("Failed to call back to CFN response URL");
-                LOGGER.error(Utils.getFullStackTrace(ioe));
-            }
-
-            LOGGER.info("Response Code: " + connection.getResponseCode());
-            connection.disconnect();
-        } catch (IOException e) {
-            LOGGER.error("Failed to open connection to CFN response URL");
-            LOGGER.error(Utils.getFullStackTrace(e));
-        }
     }
 
     // Convert our data to DynamoDB attribute values
@@ -267,8 +218,6 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
         Map<String, AttributeValue> options = new HashMap<>();
         options.put("name", AttributeValue.builder().s((String) engineDetails.get("name")).build());
         options.put("description", AttributeValue.builder().s((String) engineDetails.get("description")).build());
-
-        LOGGER.info("attempting to convert {} to ddb attribute value map", engineDetails);
 
         List<AttributeValue> versions = new ArrayList<>();
         for (Map<String, Object> version : (List<Map<String, Object>>) engineDetails.get("versions")) {
@@ -279,7 +228,8 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
 
             Map<String, AttributeValue> instancesMap = new HashMap<>();
             // instances for the version AttributeValue is a map of RdsInstance -> map of String, String
-            for (Map.Entry<RdsInstance, Map<String, String>> instanceEntry : ((EnumMap<RdsInstance, Map<String, String>>) version.get("instances")).entrySet()) {
+            for (Map.Entry<RdsInstance, Map<String, String>> instanceEntry :
+                    ((EnumMap<RdsInstance, Map<String, String>>) version.get("instances")).entrySet()) {
                 AttributeValue instanceDetails = AttributeValue.builder().m(
                         instanceEntry.getValue().entrySet().stream()
                             .collect(Collectors.toMap(
@@ -293,8 +243,6 @@ public class RdsOptions implements RequestHandler<Map<String, Object>, Object> {
             versions.add(AttributeValue.builder().m(versionAttributeValue).build());
         }
         options.put("versions", AttributeValue.builder().l(versions).build());
-
-        LOGGER.debug("created AttributeValue map for {}: {}", engineDetails, options);
 
         return options;
     }

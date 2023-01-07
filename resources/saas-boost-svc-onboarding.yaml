@@ -303,6 +303,9 @@ Resources:
               - ecr:ListImages
               - ecr:CreateRepository
               - ecr:DeleteRepository
+              - ecr:TagResource
+              - ecr:UntagResource
+              - ecr:ListTagsForResource
             Resource:
               - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
           - Effect: Allow
