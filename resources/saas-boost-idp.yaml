@@ -314,11 +314,13 @@ Resources:
       SourceBucket: !Ref SaaSBoostBucket
   CognitoAppClientDetailsLogs:
     Type: AWS::Logs::LogGroup
+    Condition: UseCognito
     Properties:
       LogGroupName: !Sub /aws/lambda/sb-${Environment}-cognito-client-details
       RetentionInDays: 30
   CognitoAppClientDetailsExecRole:
     Type: AWS::IAM::Role
+    Condition: UseCognito
     Properties:
       RoleName: !Sub sb-${Environment}-cognito-client-details-role-${AWS::Region}
       Path: '/'
