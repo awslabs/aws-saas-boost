@@ -35,18 +35,20 @@ public class OnboardingRequest {
     }
 
     public OnboardingRequest(String name, String tier) {
-        this(name, tier, null);
+        this(name, tier, null, null);
     }
 
     @JsonCreator
     public OnboardingRequest(@JsonProperty("name") String name, @JsonProperty("tier") String tier,
-                             @JsonProperty("subdomain") String subdomain) {
+                             @JsonProperty("subdomain") String subdomain,
+                             @JsonProperty("billingPlan") String billingPlan) {
         if (name == null) {
             throw new IllegalArgumentException("name is required");
         }
         this.name = name;
         this.tier = tier != null ? tier : "default";
         this.subdomain = subdomain;
+        this.billingPlan = Utils.isBlank(billingPlan) ? null : billingPlan;
     }
 
     public String getName() {

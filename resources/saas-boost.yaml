@@ -856,6 +856,7 @@ Resources:
         CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
         CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
         CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         VPC: !GetAtt network.Outputs.EgressVpc
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:

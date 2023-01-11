@@ -15,26 +15,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-        <artifactId>saasboost-metering-billing</artifactId>
+        <artifactId>saasboost-custom-resources</artifactId>
         <version>1.0.0</version>
     </parent>
-    <artifactId>BillingService</artifactId>
-    <version>1.0</version>
+    <artifactId>CognitoAppClientDetails</artifactId>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
-
     <licenses>
         <license>
             <name>Apache-2.0</name>
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
-
     <properties>
-        <checkstyle.maxAllowedViolations>123</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -53,17 +51,13 @@ limitations under the License.
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>io.github.git-commit-id</groupId>
-                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>Utils</artifactId>
@@ -73,14 +67,14 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>ApiGatewayHelper</artifactId>
+            <artifactId>CloudFormationUtils</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>lambda</artifactId>
+            <artifactId>cognitoidentityprovider</artifactId>
             <version>${aws.java.sdk.version}</version>
             <exclusions>
                 <exclusion>
@@ -92,42 +86,7 @@ limitations under the License.
                     <artifactId>apache-client</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>eventbridge</artifactId>
-            <version>${aws.java.sdk.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>netty-nio-client</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>apache-client</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>dynamodb</artifactId>
-            <version>${aws.java.sdk.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>netty-nio-client</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>software.amazon.awssdk</groupId>
-                    <artifactId>apache-client</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.stripe</groupId>
-            <artifactId>stripe-java</artifactId>
-            <version>22.5.0</version>
-        </dependency>
+      </dependency>
     </dependencies>
 
 </project>
