@@ -218,9 +218,10 @@ Parameters:
   OntapVolumeSize:
     Description: Specify the size of the ONTAP volume to create inside the Storage Virtual Machine in MB
     Type: Number
-    Default: 40
-    MinValue: 20
-    MaxValue: 104857600
+    # Below values updated to represent volume size in MB from 1GB to 100GB
+    Default: 1024
+    MinValue: 1024
+    MaxValue: 102400
   Disable:
     Description: Disable the tenant's access to the application
     Type: String
@@ -854,8 +855,9 @@ Resources:
                 $credential = New-Object System.Management.Automation.PSCredential("$directoryName\$username", $password)
                 Add-Computer -DomainName $directoryName -Credential $credential -Verbose -WarningAction Ignore
 
+                #Updating path to make use of new volume share instead of root volume
                 If ('${FSxFileSystemType}' -eq 'FSX_ONTAP')  {
-                    $fileServerPath = "\\{0}\C$" -f "${fsx.Outputs.FSxDnsName}"
+                    $fileServerPath = "\\{0}\vol1share" -f "${fsx.Outputs.FSxDnsName}"
                 }
                 Else {
                     $fileServerPath = "\\{0}\share" -f "${fsx.Outputs.FSxDnsName}"

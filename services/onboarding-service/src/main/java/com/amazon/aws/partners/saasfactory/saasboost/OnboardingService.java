@@ -886,7 +886,7 @@ public class OnboardingService {
                         String fsxDailyBackupTime = "02:00";
                         String fsxWeeklyMaintenanceTime = "7:01:00";
                         String fsxWindowsMountDrive = "G:";
-                        Integer ontapVolumeSize = 40;
+                        Integer ontapVolumeSize = 0;
                         String fileSystemType = "FSX_WINDOWS";
                         Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
@@ -929,9 +929,9 @@ public class OnboardingService {
                                     fsxWindowsMountDrive = "G:";
                                 }
                                 if ("FSX_ONTAP".equals(fileSystemType)) {
-                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize");
+                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize") * 1024;
                                     if (ontapVolumeSize == null) {
-                                        ontapVolumeSize = 40;
+                                        ontapVolumeSize = 1024;
                                     }
                                 }
                             }

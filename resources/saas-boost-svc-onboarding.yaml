@@ -325,9 +325,14 @@ Resources:
               - lambda:InvokeFunction
               - lambda:GetFunction
               - lambda:GetFunctionConfiguration
+              # Added below 2 permissions to allow lambda function creation and deleteion for FSx ONTAP CIFS share creation function
+              - lambda:CreateFunction
+              - lambda:DeleteFunction
             Resource:
-              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
-              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*
+
   OnboardingServiceTenantProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
