@@ -59,15 +59,19 @@ public class ApplicationServicesMacro implements RequestHandler<Map<String, Obje
 
         String ecrError = updateTemplateForEcr(templateParameters, template);
         if (ecrError != null) {
+            LOGGER.error("Encountered error updating template for ECR repositories: {}");
             response.put(ERROR_MSG, ecrError);
             return response;
         }
+        LOGGER.info("Successfully altered template for ECR repositories");
         
         String extensionsError = updateTemplateForPooledExtensions(templateParameters, template);
         if (extensionsError != null) {
+            LOGGER.error("Encountered error updating template for pooled extensions: {}");
             response.put(ERROR_MSG, extensionsError);
             return response;
         }
+        LOGGER.info("Successfully altered template for extensions");
 
         response.put(FRAGMENT, template);
         response.put(STATUS, SUCCESS);
@@ -94,6 +98,7 @@ public class ApplicationServicesMacro implements RequestHandler<Map<String, Obje
                                 LOGGER.error("Processing S3 extension failed: {}", s3Error);
                                 return s3Error;
                             }
+                            LOGGER.info("Successfully processed s3 extension");
                             break;
                         }
                         default: {
@@ -120,28 +125,28 @@ public class ApplicationServicesMacro implements RequestHandler<Map<String, Obje
             // Bucket Resource
             Map<String, Object> s3Resource = s3Resource(environmentName,
                     (String) templateParameters.get("LoggingBucket"));
-            ((Map<String, Object>) template.get("Resources")).put("S3Extension", s3Resource);
+            ((Map<String, Object>) template.get("Resources")).put("TenantStorage", s3Resource);
 
             // SSM Parameter to easily pass around bucket name
             Map<String, Object> bucketParameter = Map.of(
                     "Type", "AWS::SSM::Parameter",
                     "Properties", Map.of(
-                            "Name", "/saas-boost/" + environmentName + "/EXTENSION_BUCKET",
+                            "Name", "/saas-boost/" + environmentName + "/TENANT_STORAGE_BUCKET",
                             "Type", "String",
-                            "Value", Map.of("Ref", "S3Extension")
+                            "Value", Map.of("Ref", "TenantStorage")
                 )
             );
-            ((Map<String, Object>) template.get("Resources")).put("S3ExtensionParam", bucketParameter);
+            ((Map<String, Object>) template.get("Resources")).put("TenantStorageParam", bucketParameter);
 
             // Custom Resource to clear the bucket before we delete it
             Map<String, Object> clearBucketResource = Map.of(
                     "Type", "Custom::CustomResource",
                     "Properties", Map.of(
                             "ServiceToken", "{{resolve:ssm:/saas-boost/" + environmentName + "/CLEAR_BUCKET_ARN}}",
-                            "Bucket", Map.of("Ref", "S3Extension")
+                            "Bucket", Map.of("Ref", "TenantStorage")
                     )
             );
-            ((Map<String, Object>) template.get("Resources")).put("ClearS3ExtensionBucket", clearBucketResource);
+            ((Map<String, Object>) template.get("Resources")).put("ClearTenantStorageBucket", clearBucketResource);
         } else {
             return "Invalid template, missing parameter Environment or LoggingBucket";
         }

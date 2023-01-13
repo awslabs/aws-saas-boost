@@ -1030,8 +1030,8 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
                         templateParameters.add(Parameter.builder()
-                                .parameterKey("S3ExtensionBucket")
-                                .parameterValue(getSetting(context, "EXTENSION_BUCKET"))
+                                .parameterKey("TenantStorageBucket")
+                                .parameterValue(getSetting(context, "TENANT_STORAGE_BUCKET"))
                                 .build());
                         // TODO rework these last 2?
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream")

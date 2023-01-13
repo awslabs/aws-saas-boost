@@ -229,7 +229,7 @@ Parameters:
   OnboardingDdbTable:
     Description: Internal DDB table used to store Onboarding Metadata
     Type: String
-  S3ExtensionBucket:
+  TenantStorageBucket:
     Description: Name of bucket provisioned as part of the S3 Storage extension
     Type: String
     Default: ''
@@ -282,7 +282,7 @@ Conditions:
   IsWin2019Core: !Equals [WIN2019CORE, !Ref ContainerOS]
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
-  UseS3: !Not [!Equals [!Ref S3ExtensionBucket, '']]
+  UseS3: !Not [!Equals [!Ref TenantStorageBucket, '']]
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -438,9 +438,35 @@ Resources:
                   - !Sub arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
               - Effect: Allow
                 Action:
-                  - s3:*
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
                 Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${S3ExtensionBucket}/${ServiceResourceName}/${TenantId}/*
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub ${ServiceResourceName}/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - s3:GetBucket*
+                  - s3:GetAccelerateConfiguration
+                  - s3:GetAnalyticsConfiguration
+                  - s3:GetEncryptionConfiguration
+                  - s3:GetIntelligentTieringConfiguration
+                  - s3:GetInventoryConfiguration
+                  - s3:GetLifecycleConfiguration
+                  - s3:GetMetricsConfiguration
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject*
+                  - s3:PutObject*
+                  - s3:DeleteObject*
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}/${ServiceResourceName}/${TenantId}/*
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -513,9 +539,9 @@ Resources:
               - Name: DB_USER
                 Value: !If [ProvisionRDS, !Ref RDSUsername, !Ref AWS::NoValue]
               - Name: S3_BUCKET
-                Value: !If [UseS3, !Ref S3ExtensionBucket, !Ref AWS::NoValue]
+                Value: !If [UseS3, !Ref TenantStorageBucket, !Ref AWS::NoValue]
               - Name: S3_ROOT_PREFIX
-                Value: !If [UseS3, !Sub '${ServiceResourceName}/${TenantId}/', !Ref AWS::NoValue]
+                Value: !If [UseS3, !Sub '${ServiceResourceName}/', !Ref AWS::NoValue]
           EnvironmentFiles:
             - Type: s3
               Value: !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
@@ -540,12 +566,12 @@ Resources:
               - - Name: DB_PASSWORD
                   ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
-  InvokeClearS3ExtensionBucketPrefix:
+  InvokeClearTenantStorageBucketPrefix:
     Condition: UseS3
     Type: Custom::CustomResource
     Properties:
       ServiceToken: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
-      Bucket: !Ref S3ExtensionBucket
+      Bucket: !Ref TenantStorageBucket
       Prefix: !Sub '${ServiceResourceName}/${TenantId}/'
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline

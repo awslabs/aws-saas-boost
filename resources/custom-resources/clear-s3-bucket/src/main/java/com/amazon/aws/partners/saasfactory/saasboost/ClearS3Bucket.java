@@ -47,7 +47,7 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
         Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String bucket = (String) resourceProperties.get("Bucket");
         final String passedPrefix = (String) resourceProperties.get("Prefix");
-        final String prefix = passedPrefix == null ? "" : passedPrefix;
+        final String prefix = passedPrefix == null ? "" : passedPrefix.replaceFirst("^/", "");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
