@@ -20,10 +20,20 @@ import { Label, Tooltip } from 'reactstrap'
 export const SaasBoostTooltippedLabel = ({ field, label, tooltip, id, ...props }) => {
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const toggle = () => setTooltipOpen(!tooltipOpen)
-  const tooltipId = id ?? `${field.name}-tooltiptarget`
+  // for some reason it looks like [] are invalid characters in the id selector, 
+  // causing a tooltipId like `services[0].provisionObjectStorage-tooltiptarget` to
+  // be invalid, while something like `services0.provisionObjectStorage-tooltiptarget`
+  // is valid. so we remove invalid characters from the field name before using it
+  // as a tooltipId. also, `.` is considered a query string parameter in the target, and
+  // since we're pulling field names we shouldn't be using it
+  let fieldName = field.name.replaceAll('[', '').replaceAll(']', '').replaceAll('.', '')
+  const tooltipId = id ?? `${fieldName}-tooltiptarget`
 
   return tooltip && label ? (
     <>
+      <Label htmlFor={field.name} id={tooltipId} style={{ borderBottom: '1px dotted black' }}>
+        {label}
+      </Label>
       <Tooltip
         placement="top"
         isOpen={tooltipOpen}
@@ -33,9 +43,6 @@ export const SaasBoostTooltippedLabel = ({ field, label, tooltip, id, ...props }
       >
         {tooltip}
       </Tooltip>
-      <Label htmlFor={field.name} id={tooltipId} style={{ borderBottom: '1px dotted black' }}>
-        {label}
-      </Label>
     </>
   ) : (
     <Label htmlFor={field.name}>{label}</Label>

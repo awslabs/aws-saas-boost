@@ -25,48 +25,48 @@ import java.util.*;
 
 import static org.junit.Assert.*;
 
-public class ApplicationServicesEcrMacroTest {
+public class ApplicationServicesMacroTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameNullServiceName() {
-        ApplicationServicesEcrMacro.ecrResourceName(null);
+        ApplicationServicesMacro.ecrResourceName(null);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameEmptyServiceName() {
-        ApplicationServicesEcrMacro.ecrResourceName("");
+        ApplicationServicesMacro.ecrResourceName("");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testResourceNameBlankServiceName() {
-        ApplicationServicesEcrMacro.ecrResourceName(" ");
+        ApplicationServicesMacro.ecrResourceName(" ");
     }
 
     @Test
     public void testResourceName() {
         String serviceName = "foo";
         String expected = "foo";
-        String actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
+        String actual = ApplicationServicesMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo";
         expected = "Foo";
-        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
+        actual = ApplicationServicesMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo Bar";
         expected = "FooBar";
-        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
+        actual = ApplicationServicesMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo_Bar";
         expected = "FooBar";
-        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
+        actual = ApplicationServicesMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
 
         serviceName = "Foo-Bar";
         expected = "FooBar";
-        actual = ApplicationServicesEcrMacro.ecrResourceName(serviceName);
+        actual = ApplicationServicesMacro.ecrResourceName(serviceName);
         assertEquals(expected, actual);
     }
 
@@ -75,7 +75,7 @@ public class ApplicationServicesEcrMacroTest {
         try (InputStream json = Files.newInputStream(Path.of(this.getClass().getClassLoader().getResource("template.json").toURI()))) {
             LinkedHashMap<String, Object> template = Utils.fromJson(json, LinkedHashMap.class);
 
-            ApplicationServicesEcrMacro macro = new ApplicationServicesEcrMacro();
+            ApplicationServicesMacro macro = new ApplicationServicesMacro();
 
             // Blank ApplicationServices parameter should return the same template
             Map<String, Object> response = macro.handleRequest(buildEvent(template), null);

@@ -22,6 +22,7 @@ import { PropTypes } from 'prop-types'
 import { cibWindows, cibLinux } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import DatabaseSubform from './DatabaseSubform'
+import ObjectStoreSubform from './components/ObjectStoreSubform'
 
 const ServiceSettingsSubform = (props) => {
   const { formikErrors, serviceValues, osOptions, dbOptions, serviceName, onFileSelected, isLocked, serviceIndex } = props
@@ -221,6 +222,10 @@ const ServiceSettingsSubform = (props) => {
                     onFileSelected={(file) => onFileSelected(serviceName, file)}
                     setFieldValue={props.setFieldValue}
                   ></DatabaseSubform>
+                  <ObjectStoreSubform
+                    isLocked={isLocked}
+                    formikServicePrefix={'services[' + serviceIndex + ']'}
+                  ></ObjectStoreSubform>
                 </Col>
               </Row>
             </CardBody>

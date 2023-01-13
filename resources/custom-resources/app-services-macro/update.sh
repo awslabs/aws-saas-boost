@@ -26,7 +26,7 @@ LAMBDA_STAGE_FOLDER=$2
 if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
-LAMBDA_CODE=ApplicationServicesEcrMacro-lambda.zip
+LAMBDA_CODE=ApplicationServicesMacro-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
