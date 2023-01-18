@@ -570,16 +570,30 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         String changedServiceName = changedService.getKey();
                         ServiceConfig changedServiceConfig = changedService.getValue();
                         ServiceConfig requestedService = existingAppConfig.getServices().get(changedServiceName);
+                        ServiceConfig.Builder newServiceConfigBuilder = ServiceConfig.builder(requestedService);
                         if (requestedService != null) {
+                            // change container repo if passed
                             String changedContainerRepo = changedServiceConfig.getContainerRepo();
                             String existingContainerRepo = requestedService.getContainerRepo();
                             if (!Utils.nullableEquals(existingContainerRepo, changedContainerRepo)) {
                                 LOGGER.info("Updating service {} ECR repo from {} to {}", changedServiceName,
                                         requestedService.getContainerRepo(), changedServiceConfig.getContainerRepo());
-                                ServiceConfig editedService = ServiceConfig.builder(requestedService)
-                                        .containerRepo(changedServiceConfig.getContainerRepo())
-                                        .build();
-                                dal.setServiceConfig(editedService);
+                                newServiceConfigBuilder = newServiceConfigBuilder
+                                        .containerRepo(changedServiceConfig.getContainerRepo());
+                            }
+                            // change s3 bucket name if passed (and if s3 already exists in service config)
+                            if (requestedService.getS3() != null && changedServiceConfig.getS3() != null) {
+                                String existingBucketName = requestedService.getS3().getBucketName();
+                                String newBucketName = changedServiceConfig.getS3().getBucketName();
+                                if (!Utils.nullableEquals(existingBucketName, newBucketName)) {
+                                    newServiceConfigBuilder = newServiceConfigBuilder.s3(changedServiceConfig.getS3());
+                                }
+                            }
+                            ServiceConfig newServiceConfig = newServiceConfigBuilder.build();
+                            if (!newServiceConfig.equals(requestedService)) {
+                                LOGGER.info("Updating serviceConfig from {} to {}", 
+                                        requestedService, newServiceConfig);
+                                dal.setServiceConfig(newServiceConfig);
                             }
                         } else {
                             LOGGER.error("Can't find app config service {}", changedServiceName);

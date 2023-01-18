@@ -127,17 +127,6 @@ public class ApplicationServicesMacro implements RequestHandler<Map<String, Obje
                     (String) templateParameters.get("LoggingBucket"));
             ((Map<String, Object>) template.get("Resources")).put("TenantStorage", s3Resource);
 
-            // SSM Parameter to easily pass around bucket name
-            Map<String, Object> bucketParameter = Map.of(
-                    "Type", "AWS::SSM::Parameter",
-                    "Properties", Map.of(
-                            "Name", "/saas-boost/" + environmentName + "/TENANT_STORAGE_BUCKET",
-                            "Type", "String",
-                            "Value", Map.of("Ref", "TenantStorage")
-                )
-            );
-            ((Map<String, Object>) template.get("Resources")).put("TenantStorageParam", bucketParameter);
-
             // Custom Resource to clear the bucket before we delete it
             Map<String, Object> clearBucketResource = Map.of(
                     "Type", "Custom::CustomResource",
