@@ -852,6 +852,11 @@ public class OnboardingService {
                         String tenantStorageBucketName = "";
                         if (s3 != null) {
                             tenantStorageBucketName = (String) s3.get("bucketName");
+                            if (tenantStorageBucketName == null) {
+                                LOGGER.error("S3 exists in AppConfig, but bucketName is not configured.");
+                                failOnboarding(onboarding.getId(), "Invalid S3 configuration for AppConfig.");
+                                return;
+                            }
                         }
 
                         // If there are any private services, we will create an environment variables called
