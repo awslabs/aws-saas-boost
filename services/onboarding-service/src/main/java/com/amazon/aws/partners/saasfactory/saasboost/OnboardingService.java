@@ -848,6 +848,17 @@ public class OnboardingService {
                         String containerRepo = (String) service.get("containerRepo");
                         String imageTag = (String) service.getOrDefault("containerTag", "latest");
 
+                        Map<String, Object> s3 = (Map<String, Object>) service.getOrDefault("s3", null);
+                        String tenantStorageBucketName = "";
+                        if (s3 != null) {
+                            tenantStorageBucketName = (String) s3.get("bucketName");
+                            if (tenantStorageBucketName == null) {
+                                LOGGER.error("S3 exists in AppConfig, but bucketName is not configured.");
+                                failOnboarding(onboarding.getId(), "Invalid S3 configuration for AppConfig.");
+                                return;
+                            }
+                        }
+
                         // If there are any private services, we will create an environment variables called
                         // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
                         String serviceEnvName = Utils.toUpperSnakeCase(serviceName);
@@ -1031,7 +1042,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
                         templateParameters.add(Parameter.builder()
                                 .parameterKey("TenantStorageBucket")
-                                .parameterValue(getSetting(context, "TENANT_STORAGE_BUCKET"))
+                                .parameterValue(tenantStorageBucketName)
                                 .build());
                         // TODO rework these last 2?
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream")

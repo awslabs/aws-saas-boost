@@ -92,41 +92,54 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                 );
                 Map<String, Object> appConfig = new HashMap<>();
                 Map<String, Object> services = new HashMap<>();
+                String tenantStorageBucketName = null;
                 for (StackResourceSummary resource : resources.stackResourceSummaries()) {
-//                    LOGGER.debug("Processing resource {} {} {} {}", resource.resourceType(),
-//                            resource.resourceStatusAsString(), resource.logicalResourceId(),
-//                            resource.physicalResourceId());
-                    // TODO or UPDATE_COMPLETE?
-                    if (ResourceStatus.CREATE_COMPLETE == resource.resourceStatus()
-                            && AwsResource.ECR_REPO.getResourceType().equals(resource.resourceType())) {
-                        String ecrRepo = resource.physicalResourceId();
-                        String ecrResourceArn = AwsResource.ECR_REPO.formatArn(partition, region, accountId, ecrRepo);
-                        LOGGER.info("Listing tags for ECR repo {}", ecrRepo);
-                        ListTagsForResourceResponse response = ecr.listTagsForResource(request -> request
-                                .resourceArn(ecrResourceArn));
-                        String serviceName = resource.logicalResourceId();
-                        String serviceNameContext = "Read from Template";
-                        if (response.hasTags()) {
-                            for (Tag tag : response.tags()) {
-                                if ("Name".equalsIgnoreCase(tag.key())) {
-                                    serviceName = tag.value();
-                                    serviceNameContext = "Read from Tag";
+                    if (ResourceStatus.CREATE_COMPLETE.equals(resource.resourceStatus())
+                            || ResourceStatus.UPDATE_COMPLETE.equals(resource.resourceStatus())) {
+                        if (AwsResource.ECR_REPO.getResourceType().equals(resource.resourceType())) {
+                            String ecrRepo = resource.physicalResourceId();
+                            String ecrResourceArn = AwsResource.ECR_REPO.formatArn(
+                                    partition, region, accountId, ecrRepo);
+                            LOGGER.info("Listing tags for ECR repo {}", ecrRepo);
+                            ListTagsForResourceResponse response = ecr.listTagsForResource(request -> request
+                                    .resourceArn(ecrResourceArn));
+                            String serviceName = resource.logicalResourceId();
+                            String serviceNameContext = "Read from Template";
+                            if (response.hasTags()) {
+                                for (Tag tag : response.tags()) {
+                                    if ("Name".equalsIgnoreCase(tag.key())) {
+                                        serviceName = tag.value();
+                                        serviceNameContext = "Read from Tag";
+                                    }
                                 }
                             }
+                            LOGGER.info("Publishing appConfig update event for ECR repository {}({}) {}",
+                                    serviceName,
+                                    serviceNameContext,
+                                    ecrRepo);
+                            services.put(serviceName, Map.of("containerRepo", ecrRepo));
                         }
-                        LOGGER.info("Publishing appConfig update event for ECR repository {}({}) {}",
-                                serviceName,
-                                serviceNameContext,
-                                ecrRepo);
-                        services.put(serviceName, Map.of("containerRepo", ecrRepo));
-                    } else if (ResourceStatus.CREATE_COMPLETE.equals(resource.resourceStatus())
-                            || ResourceStatus.UPDATE_COMPLETE.equals(resource.resourceStatus())) {
+                        if ("AWS::S3::Bucket".equals(resource.resourceType())
+                                && "TenantStorage".equals(resource.logicalResourceId())) {
+                            // S3 extension
+                            tenantStorageBucketName = resource.physicalResourceId();
+                            LOGGER.info("Updating appConfig for TenantStorageBucket {}",
+                                    tenantStorageBucketName);
+                        }
                         if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
                             // When CloudFormation stack first completes, the Settings Service won't even exist yet.
                             String hostedZoneId = resource.physicalResourceId();
                             LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZoneId);
                             appConfig.put("hostedZone", hostedZoneId);
                         }
+                    }
+                }
+                // add the tenantStorageBucketName to each ServiceConfig
+                if (tenantStorageBucketName != null) {
+                    for (String serviceName : services.keySet()) {
+                        Map<String, Object> service = new HashMap((Map<String, Object>) services.get(serviceName));
+                        service.put("s3", Map.of("bucketName", tenantStorageBucketName));
+                        services.put(serviceName, service);
                     }
                 }
                 // Only fire one event for all the app config resources changes by this stack

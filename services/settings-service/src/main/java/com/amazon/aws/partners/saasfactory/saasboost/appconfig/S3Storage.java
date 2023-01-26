@@ -16,14 +16,21 @@
 
  package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 @JsonDeserialize(builder = S3Storage.Builder.class)
 public final class S3Storage {
 
+    private final String bucketName;
+
     public S3Storage(Builder b) {
-        
+        this.bucketName = b.bucketName;
+    }
+
+    public String getBucketName() {
+        return this.bucketName;
     }
 
     @Override
@@ -40,7 +47,9 @@ public final class S3Storage {
             return false;
         }
 
-        return true;
+        S3Storage other = (S3Storage) obj;
+
+        return Utils.nullableEquals(this.getBucketName(), other.getBucketName());
     }
 
     @Override
@@ -58,6 +67,13 @@ public final class S3Storage {
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {
+
+        private String bucketName;
+
+        public Builder bucketName(String bucketName) {
+            this.bucketName = bucketName;
+            return this;
+        }
 
         public S3Storage build() {
             return new S3Storage(this);
