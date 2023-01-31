@@ -91,6 +91,8 @@ Mappings:
       AccountId: '507241528517'
     cn-north-1:
       AccountId: '638102146993'
+    cn-northwest-1:
+      AccountId: '037604701340'
 Resources:
   # Publish access logs data to S3 bucket for graphing
   ALBLogsBucketPolicy:
