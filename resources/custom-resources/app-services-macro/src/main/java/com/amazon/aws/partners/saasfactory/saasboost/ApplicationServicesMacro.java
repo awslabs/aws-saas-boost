@@ -23,9 +23,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-public class ApplicationServicesEcrMacro implements RequestHandler<Map<String, Object>, Map<String, Object>> {
+public class ApplicationServicesMacro implements RequestHandler<Map<String, Object>, Map<String, Object>> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationServicesEcrMacro.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationServicesMacro.class);
     private static final String FRAGMENT = "fragment";
     private static final String REQUEST_ID = "requestId";
     private static final String TEMPLATE_PARAMETERS = "templateParameterValues";
@@ -35,9 +35,12 @@ public class ApplicationServicesEcrMacro implements RequestHandler<Map<String, O
     private static final String ERROR_MSG = "errorMessage";
 
     /**
-     * CloudFormation macro to create a lists of ECR repository resources based on the length of the comma separated
-     * list of application services passed as a template parameter. Returns failure if either "ApplicationServicse"
-     * template parameter is missing.
+     * CloudFormation macro to create resources based on SaaS Boost appConfig objects:
+     *  1/ ECR repository resources for each application service passed as a template parameter. 
+     *     Returns failure if the "ApplicationServices" template parameter is missing.
+     *  2/ S3 bucket resource for all application services if enabled via a template parameter.
+     *     Assumes a missing `AppExtension` parameter means S3 support is not enabled.
+     * 
      * @param event Lambda event containing the CloudFormation request id, fragment, and template parameters
      * @param context Lambda execution context
      * @return CloudFormation macro response of success or failure and the modified template fragment
@@ -52,8 +55,140 @@ public class ApplicationServicesEcrMacro implements RequestHandler<Map<String, O
         response.put(STATUS, FAILURE);
 
         Map<String, Object> templateParameters = (Map<String, Object>) event.get(TEMPLATE_PARAMETERS);
+        Map<String, Object> template = (Map<String, Object>) event.get(FRAGMENT);
+
+        String ecrError = updateTemplateForEcr(templateParameters, template);
+        if (ecrError != null) {
+            LOGGER.error("Encountered error updating template for ECR repositories: {}");
+            response.put(ERROR_MSG, ecrError);
+            return response;
+        }
+        LOGGER.info("Successfully altered template for ECR repositories");
+        
+        String extensionsError = updateTemplateForPooledExtensions(templateParameters, template);
+        if (extensionsError != null) {
+            LOGGER.error("Encountered error updating template for pooled extensions: {}");
+            response.put(ERROR_MSG, extensionsError);
+            return response;
+        }
+        LOGGER.info("Successfully altered template for extensions");
+
+        response.put(FRAGMENT, template);
+        response.put(STATUS, SUCCESS);
+        return response;
+    }
+
+    protected static String updateTemplateForPooledExtensions(
+            final Map<String, Object> templateParameters,
+            Map<String, Object> template) {
+        Set<String> processedExtensions = new HashSet<String>();
+        if (templateParameters.containsKey("AppExtensions") && template.containsKey("Resources")) {
+            String applicationExtensions = (String) templateParameters.get("AppExtensions");
+            if (Utils.isNotEmpty(applicationExtensions)) {
+                String[] extensions = applicationExtensions.split(",");
+                for (String extension : extensions) {
+                    if (processedExtensions.contains(extension)) {
+                        LOGGER.warn("Skipping duplicate extension {}", extension);
+                        continue;
+                    }
+                    switch (extension) {
+                        case "s3": {
+                            String s3Error = updateTemplateForS3(templateParameters, template);
+                            if (s3Error != null) {
+                                LOGGER.error("Processing S3 extension failed: {}", s3Error);
+                                return s3Error;
+                            }
+                            LOGGER.info("Successfully processed s3 extension");
+                            break;
+                        }
+                        default: {
+                            LOGGER.warn("Skipping unknown extension {}", extension);
+                        }
+                    }
+                    processedExtensions.add(extension);
+                }
+            } else {
+                LOGGER.debug("Empty AppExtensions parameter, skipping updating template for extensions");
+            }
+        } else {
+            LOGGER.error("Invalid template, missing AppExtensions parameter or missing Resources");
+            return "Invalid template, missing AppExtensions parameter or missing Resources";
+        }
+        return null;
+    }
+
+    protected static String updateTemplateForS3(final Map<String, Object> templateParameters,
+            Map<String, Object> template) {
+        if (templateParameters.containsKey("Environment")
+                && templateParameters.containsKey("LoggingBucket")) {
+            String environmentName = (String) templateParameters.get("Environment");
+            // Bucket Resource
+            Map<String, Object> s3Resource = s3Resource(environmentName,
+                    (String) templateParameters.get("LoggingBucket"));
+            ((Map<String, Object>) template.get("Resources")).put("TenantStorage", s3Resource);
+
+            // Custom Resource to clear the bucket before we delete it
+            Map<String, Object> clearBucketResource = Map.of(
+                    "Type", "Custom::CustomResource",
+                    "Properties", Map.of(
+                            "ServiceToken", "{{resolve:ssm:/saas-boost/" + environmentName + "/CLEAR_BUCKET_ARN}}",
+                            "Bucket", Map.of("Ref", "TenantStorage")
+                    )
+            );
+            ((Map<String, Object>) template.get("Resources")).put("ClearTenantStorageBucket", clearBucketResource);
+        } else {
+            return "Invalid template, missing parameter Environment or LoggingBucket";
+        }
+        return null;
+    }
+
+    protected static Map<String, Object> s3Resource(String environment, String loggingBucket) {
+        Map<String, Object> resourceProperties = new LinkedHashMap<>();
+
+        // tags
+        resourceProperties.put("Tags", List.of(Map.of(
+                "Key", "SaaS Boost",
+                "Value", environment
+        )));
+
+        // encryptionConfiguration
+        resourceProperties.put("BucketEncryption", Map.of(
+                "ServerSideEncryptionConfiguration", List.of(Map.of(
+                        "BucketKeyEnabled", true,
+                        "ServerSideEncryptionByDefault", Map.of("SSEAlgorithm", "AES256")
+                ))
+        ));
+
+        // loggingConfiguration
+        resourceProperties.put("LoggingConfiguration", Map.of(
+                "DestinationBucketName", loggingBucket,
+                "LogFilePrefix", "s3extension-logs"
+        ));
+
+        // ownershipControls
+        resourceProperties.put("OwnershipControls", Map.of(
+                "Rules", List.of(Map.of("ObjectOwnership", "BucketOwnerEnforced"))
+        ));
+
+        // publicAccessBlockConfiguration
+        resourceProperties.put("PublicAccessBlockConfiguration", Map.of(
+                "BlockPublicAcls", true,
+                "BlockPublicPolicy", true,
+                "IgnorePublicAcls", true,
+                "RestrictPublicBuckets", true
+        ));
+
+        Map<String, Object> resource = new LinkedHashMap<>();
+        resource.put("Type", "AWS::S3::Bucket");
+        resource.put("Properties", resourceProperties);
+
+        return resource;
+    }
+
+    protected static String updateTemplateForEcr(
+            final Map<String, Object> templateParameters,
+            Map<String, Object> template) {
         if (templateParameters.containsKey("ApplicationServices")) {
-            Map<String, Object> template = (Map<String, Object>) event.get(FRAGMENT);
             if (template.containsKey("Resources")) {
                 String servicesList = (String) templateParameters.get("ApplicationServices");
                 if (Utils.isNotEmpty(servicesList)) {
@@ -79,13 +214,12 @@ public class ApplicationServicesEcrMacro implements RequestHandler<Map<String, O
             } else {
                 LOGGER.warn("CloudFormation template fragment does not have Resources");
             }
-            response.put(FRAGMENT, template);
-            response.put(STATUS, SUCCESS);
         } else {
             LOGGER.error("Invalid template, missing parameter ApplicationServices");
-            response.put(ERROR_MSG, "Invalid template, missing parameter ApplicationServices");
+            return "Invalid template, missing parameter ApplicationServices";
         }
-        return response;
+        // no error message implies success?
+        return null;
     }
 
     protected static String cloudFormationResourceName(String name) {

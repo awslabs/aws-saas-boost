@@ -328,6 +328,7 @@ Resources:
             Resource:
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
   OnboardingServiceTenantProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -834,6 +835,18 @@ Resources:
               - ds:DeleteDirectory
             Resource:
               - !Sub arn:${AWS::Partition}:ds:${AWS::Region}:${AWS::AccountId}:directory/*
+          # Covers the creation/deletion of S3Extension bucket
+          - Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:PutBucketLogging
+              - s3:PutBucketOwnershipControls
+              - s3:PutBucketPublicAccessBlock
+              - s3:PutBucketTagging
+              - s3:PutEncryptionConfiguration
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::sb-${Environment}-core-*
   OnboardingServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:

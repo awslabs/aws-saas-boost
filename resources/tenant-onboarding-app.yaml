@@ -229,6 +229,10 @@ Parameters:
   OnboardingDdbTable:
     Description: Internal DDB table used to store Onboarding Metadata
     Type: String
+  TenantStorageBucket:
+    Description: Name of bucket provisioned as part of the S3 Storage extension
+    Type: String
+    Default: ''
   # These params are here to read the image values from the public SSM. Leave the defaults.
   WIN2022FULL:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -278,6 +282,7 @@ Conditions:
   IsWin2019Core: !Equals [WIN2019CORE, !Ref ContainerOS]
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
+  UseS3: !Not [!Equals [!Ref TenantStorageBucket, '']]
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -431,6 +436,37 @@ Resources:
                   - s3:GetObjectVersion
                 Resource:
                   - !Sub arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub ${ServiceResourceName}/${TenantId}/*
+              - Effect: Allow
+                Action:
+                  - s3:GetBucket*
+                  - s3:GetAccelerateConfiguration
+                  - s3:GetAnalyticsConfiguration
+                  - s3:GetEncryptionConfiguration
+                  - s3:GetIntelligentTieringConfiguration
+                  - s3:GetInventoryConfiguration
+                  - s3:GetLifecycleConfiguration
+                  - s3:GetMetricsConfiguration
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject*
+                  - s3:PutObject*
+                  - s3:DeleteObject*
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}/${ServiceResourceName}/${TenantId}/*
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -482,40 +518,30 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
-            Fn::If:
-              - ProvisionRDS
-              - - Name: AWS_REGION
-                  Value: !Ref AWS::Region
-                - Name: SAAS_BOOST_ENV
-                  Value: !Ref Environment
-                - Name: TENANT_ID
-                  Value: !Ref TenantId
-                - Name: SAAS_BOOST_RESOURCES_BUCKET
-                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
-                - Name: SAAS_BOOST_EVENT_BUS
-                  Value: !Ref EventBus
-                - Name: METRICS_STREAM
-                  Value: !Ref MetricsStream
-                - Name: DB_HOST
-                  Value: !GetAtt rds.Outputs.RdsEndpoint
-                - Name: DB_PORT
-                  Value: !Ref RDSPort
-                - Name: DB_NAME
-                  Value: !Ref RDSDatabase
-                - Name: DB_USER
-                  Value: !Ref RDSUsername
-              - - Name: AWS_REGION
-                  Value: !Ref AWS::Region
-                - Name: SAAS_BOOST_ENV
-                  Value: !Ref Environment
-                - Name: TENANT_ID
-                  Value: !Ref TenantId
-                - Name: SAAS_BOOST_RESOURCES_BUCKET
-                  Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
-                - Name: SAAS_BOOST_EVENT_BUS
-                  Value: !Ref EventBus
-                - Name: METRICS_STREAM
-                  Value: !Ref MetricsStream
+              - Name: AWS_REGION
+                Value: !Ref AWS::Region
+              - Name: SAAS_BOOST_ENV
+                Value: !Ref Environment
+              - Name: TENANT_ID
+                Value: !Ref TenantId
+              - Name: SAAS_BOOST_RESOURCES_BUCKET
+                Value: !Sub '{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}'
+              - Name: SAAS_BOOST_EVENT_BUS
+                Value: !Ref EventBus
+              - Name: METRICS_STREAM
+                Value: !Ref MetricsStream
+              - Name: DB_HOST
+                Value: !If [ProvisionRDS, !GetAtt rds.Outputs.RdsEndpoint, !Ref AWS::NoValue]
+              - Name: DB_PORT
+                Value: !If [ProvisionRDS, !Ref RDSPort, !Ref AWS::NoValue]
+              - Name: DB_NAME
+                Value: !If [ProvisionRDS, !Ref RDSDatabase, !Ref AWS::NoValue]
+              - Name: DB_USER
+                Value: !If [ProvisionRDS, !Ref RDSUsername, !Ref AWS::NoValue]
+              - Name: S3_BUCKET
+                Value: !If [UseS3, !Ref TenantStorageBucket, !Ref AWS::NoValue]
+              - Name: S3_ROOT_PREFIX
+                Value: !If [UseS3, !Sub '${ServiceResourceName}/', !Ref AWS::NoValue]
           EnvironmentFiles:
             - Type: s3
               Value: !Sub 'arn:${AWS::Partition}:s3:::{{resolve:ssm:/saas-boost/${Environment}/RESOURCES_BUCKET}}/tenants/${TenantId}/ServiceDiscovery.env'
@@ -540,6 +566,13 @@ Resources:
               - - Name: DB_PASSWORD
                   ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RDSPasswordParam}
               - !Ref 'AWS::NoValue'
+  InvokeClearTenantStorageBucketPrefix:
+    Condition: UseS3
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
+      Bucket: !Ref TenantStorageBucket
+      Prefix: !Sub '${ServiceResourceName}/${TenantId}/'
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:

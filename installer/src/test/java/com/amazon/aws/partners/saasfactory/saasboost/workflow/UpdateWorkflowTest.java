@@ -146,7 +146,7 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CUSTOM_RESOURCES, UpdateAction.RESOURCES);
         List<Path> changedPaths = List.of(
             Path.of("resources/saas-boost.yaml"),
-            Path.of("resources/custom-resources/app-services-ecr-macro/pom.xml"));
+            Path.of("resources/custom-resources/app-services-macro/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
@@ -156,7 +156,7 @@ public class UpdateWorkflowTest {
             }
             if (action == UpdateAction.CUSTOM_RESOURCES) {
                 assertEquals(1, action.getTargets().size());
-                assertTrue(action.getTargets().contains("app-services-ecr-macro"));
+                assertTrue(action.getTargets().contains("app-services-macro"));
             }
         });
     }

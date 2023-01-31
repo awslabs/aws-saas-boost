@@ -134,9 +134,9 @@ public class AwsClientBuilderFactory {
         if (cachedIamBuilder == null) {
             Region region = Region.of(System.getenv("AWS_REGION"));
             if (Utils.isChinaRegion(region)) {
-                // China's IAM endpoints are regional
+                // China's IAM endpoints point to Beijing region
                 // See https://docs.amazonaws.cn/en_us/aws/latest/userguide/iam.html
-                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder());
+                cachedIamBuilder = decorateBuilderWithDefaults(IamClient.builder()).region(Region.AWS_CN_GLOBAL);
             } else {
                 // IAM in the commercial regions use the AWS_GLOBAL
                 // ref: https://docs.aws.amazon.com/general/latest/gr/iam-service.html

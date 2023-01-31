@@ -22,7 +22,6 @@ import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Product;
 
@@ -35,7 +34,6 @@ import java.util.regex.Matcher;
 public class MasterData {
 
     public static void main(String[] args) throws Exception {
-        Stripe.apiKey = "sk_test_51H4VPdJdbgnT4OooRD5fI9AVKpDGk4ObZDELk7JmYcoCHLm4hu8LZF6yYr8ATtStp7OpjuwwZoQWV0gWbe8573Da000Bxf0RIH";
         try {
             Product productFetch = Product.retrieve(MeteredProduct.product_requests.name());
             System.out.println("Product found");
@@ -48,14 +46,14 @@ public class MasterData {
                 "    \"id\": \"8a023fbc-2460-a26c-d822-595b2764c21b\",\n" +
                 "    \"detail-type\": \"Tenant Product Onboard\",\n" +
                 "    \"source\": \"saas-boost\",\n" +
-                "    \"account\": \"573838506705\",\n" +
+                "    \"account\": \"\",\n" +
                 "    \"time\": \"2020-08-26T00:10:36Z\",\n" +
                 "    \"region\": \"us-west-2\",\n" +
                 "    \"resources\": [],\n" +
                 "    \"detail\": {\n" +
                 "        \"tenantId\": \"de4123307-a7e8-48ca-a9c4-d457042a7198\",\n" +
                 "        \"internalProductCode\": \"product_requests\",\n" +
-                "        \"externalProductCode\": \"si_Hu0EoSmoyEhGnk\",\n" +
+                "        \"externalProductCode\": \"\",\n" +
                 "        \"timestamp\": 1598400635770\n" +
                 "    }\n" +
                 "}";
