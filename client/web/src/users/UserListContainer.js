@@ -19,6 +19,7 @@ import { UserListComponent } from './UserListComponent'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchUsers, selectAllUsers, dismissError } from './ducks'
 import { useHistory } from 'react-router-dom'
+import { BaseUserRoute } from '.'
 
 export default function UserListContainer() {
   const dispatch = useDispatch()
@@ -29,7 +30,7 @@ export default function UserListContainer() {
   const error = useSelector((state) => state.users.error)
 
   const handleUserClick = (username) => {
-    history.push(`/users/${username}`)
+    history.push(`${BaseUserRoute}/${username}`)
   }
 
   const handleRefresh = () => {
@@ -37,7 +38,7 @@ export default function UserListContainer() {
   }
 
   const handleCreateUser = () => {
-    history.push(`/users/create`)
+    history.push(`${BaseUserRoute}/create`)
   }
 
   const handleError = () => {

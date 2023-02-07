@@ -67,7 +67,7 @@ export const UserFormComponent = ({
             <Row>
               <Col md={6}>
                 <Card>
-                  <CardHeader>User Details</CardHeader>
+                  <CardHeader>System User Details</CardHeader>
                   <CardBody>
                     <SaasBoostInput
                       label="Username"
