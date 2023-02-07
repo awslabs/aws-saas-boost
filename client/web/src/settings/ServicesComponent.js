@@ -43,15 +43,16 @@ const ServicesComponent = (props) => {
   const addService = (serviceName) => {
     let newService = initService(serviceName)
     formik.values.services.push(newService)
-    setServices([...formik.values.services])
+    setServices(formik.values.services) // update local state according to form for accordion
     formik.validateForm()
   }
 
   const deleteService = (index) => {
-    // we can't just remove this service from the list because it'll mess with our indices
-    formik.values.services[index].tombstone = true
-    setServices(formik.values.services)
-    // kick off validation so the schema recognizes the tombstone and clears any pending errors
+    // remove one entry starting from `index` from services
+    formik.values.services.splice(index, 1)
+    // manually remove this entry from errors, since Formik apparently can't do it itself?
+    formik.errors.services.splice(index, 1)
+    setServices(formik.values.services) // update local state according to form for accordion
     formik.validateForm()
   }
 
