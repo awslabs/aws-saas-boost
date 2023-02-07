@@ -20,23 +20,25 @@ const UserListContainer = lazy(() => import('./UserListContainer'))
 const UserViewContainer = lazy(() => import('./UserViewContainer'))
 const UserCreateContainer = lazy(() => import('./UserCreateContainer'))
 
+export const BaseUserRoute = '/sysusers'
+
 export const UserRoutes = [
   {
-    path: '/users',
+    path: BaseUserRoute,
     exact: true,
-    name: 'Users',
+    name: 'System Users',
     component: UserListContainer,
   },
   {
-    path: '/users/create',
+    path: BaseUserRoute + '/create',
     exact: true,
-    name: 'Create a new User',
+    name: 'Create a new System User',
     component: UserCreateContainer,
   },
   {
-    path: '/users/:username',
+    path: BaseUserRoute + '/:username',
     exact: true,
-    name: 'User Detail',
+    name: 'System User Detail',
     component: UserViewContainer,
   },
 ]
