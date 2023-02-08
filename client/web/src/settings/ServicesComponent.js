@@ -103,7 +103,6 @@ const ServicesComponent = (props) => {
                         dbOptions={dbOptions}
                         formikServicePrefix={'services[' + index + ']'}
                         setFieldValue={(k, v) => formik.setFieldValue(k, v)}
-                        validate={formik.validateForm}
                       ></TierServiceSettingsSubform>
                       <Container className="mt-3">
                         <Row>

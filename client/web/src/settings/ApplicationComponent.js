@@ -279,11 +279,6 @@ export function ApplicationComponent(props) {
           .required('Health Check URL is a required field')
           .matches(/^\//, 'Health Check must start with forward slash (/)'),
         operatingSystem: Yup.string().required('Container OS is a required field.'),
-        ecsLaunchType: Yup.string().when('operatingSystem', {
-          is: (containerOs) => containerOs && containerOs === LINUX,
-          then: Yup.string().required('Container launch type must be chosen'),
-          otherwise: Yup.string().nullable(),
-        }),
         windowsVersion: Yup.string().when('operatingSystem', {
           is: (containerOs) => containerOs && containerOs === WINDOWS,
           then: Yup.string().required('Windows version is a required field'),
