@@ -179,7 +179,6 @@ export function ApplicationContainer(props) {
       let cleanedServicesMap = {}
       for (var serviceIndex in services) {
         let thisService = services[serviceIndex]
-        if (thisService.tombstone) continue
         // update the tier config
         let cleanedTiersMap = {}
         for (var tierName in thisService.tiers) {
@@ -203,7 +202,6 @@ export function ApplicationContainer(props) {
           ecsLaunchType,
           provisionDb,
           provisionObjectStorage,
-          tombstone,
           database,
           ...rest
         } = thisService

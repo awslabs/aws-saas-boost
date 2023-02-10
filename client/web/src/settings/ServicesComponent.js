@@ -24,7 +24,6 @@ import { PropTypes } from 'prop-types'
 const ServicesComponent = (props) => {
   const {
     formik,
-    formikErrors,
     hasTenants,
     osOptions,
     dbOptions,
@@ -33,8 +32,8 @@ const ServicesComponent = (props) => {
     initService
   } = props
 
-  const [services, setServices] = useState(formik.values.services)
   const [showModal, setShowModal] = useState(false)
+  const [openAccordionItem, setOpenAccordionItem] = useState()
 
   const toggleModal = () => {
     setShowModal((state) => !state)
@@ -42,16 +41,18 @@ const ServicesComponent = (props) => {
 
   const addService = (serviceName) => {
     let newService = initService(serviceName)
+    setOpenAccordionItem(formik.values.services.length)
     formik.values.services.push(newService)
-    setServices([...formik.values.services])
-    formik.validateForm()
   }
 
   const deleteService = (index) => {
-    // we can't just remove this service from the list because it'll mess with our indices
-    formik.values.services[index].tombstone = true
-    setServices(formik.values.services)
-    // kick off validation so the schema recognizes the tombstone and clears any pending errors
+    // remove one entry starting from `index` from services
+    formik.values.services.splice(index, 1)
+    // manually remove this entry from errors if necessary, since Formik apparently doesn't do it itself
+    formik.errors.services?.splice(index, 1)
+    if (openAccordionItem === index) {
+      setOpenAccordionItem(null)
+    }
     formik.validateForm()
   }
 
@@ -76,10 +77,9 @@ const ServicesComponent = (props) => {
           </Row>
         </Card.Header>
         <Card.Body>
-          <Accordion>
-            {services.map(
-              (service, index) =>
-                !service.tombstone && (
+          <Accordion activeKey={openAccordionItem} onSelect={(index) => setOpenAccordionItem(index)}>
+            {formik.values.services?.map(
+              (service, index) => (
                   <Accordion.Item key={service.name} eventKey={index}>
                     <Accordion.Header>{service.name}</Accordion.Header>
                     <Accordion.Body>
@@ -87,7 +87,6 @@ const ServicesComponent = (props) => {
                         formik={formik}
                         isLocked={hasTenants}
                         serviceValues={formik.values.services[index]}
-                        formikErrors={formikErrors}
                         osOptions={osOptions}
                         dbOptions={dbOptions}
                         onFileSelected={onFileSelected}
