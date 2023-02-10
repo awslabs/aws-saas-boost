@@ -49,8 +49,7 @@ fi
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
 printf "Updating function code for sb-${ENVIRONMENT}-start-build\n"
-FUNCTIONS=("sb-${ENVIRONMENT}-start-build" 
-        )
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-start-build\`)] | [].FunctionName' --output text"\)
 
 for FUNCTION in ${FUNCTIONS[@]}; do
 	#echo $FUNCTION
