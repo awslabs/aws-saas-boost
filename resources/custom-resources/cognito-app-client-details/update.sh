@@ -26,7 +26,7 @@ LAMBDA_STAGE_FOLDER=$2
 if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
-LAMBDA_CODE=CidrDynamoDB-lambda.zip
+LAMBDA_CODE=CognitoAppClientDetails-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
@@ -48,8 +48,9 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-printf "Updating function code for sb-${ENVIRONMENT}-populate-ddb\n"
-FUNCTIONS=("sb-${ENVIRONMENT}-populate-ddb" 
+printf "Updating function code for sb-${ENVIRONMENT}-cognito-client-details\n"
+
+FUNCTIONS=("sb-${ENVIRONMENT}-cognito-client-details" 
         )
 
 for FUNCTION in ${FUNCTIONS[@]}; do

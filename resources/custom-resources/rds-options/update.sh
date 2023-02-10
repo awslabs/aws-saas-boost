@@ -49,4 +49,10 @@ fi
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
 printf "Updating function code for sb-${ENVIRONMENT}-rds-options\n"
-aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "sb-${ENVIRONMENT}-rds-options" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+FUNCTIONS=("sb-${ENVIRONMENT}-rds-options" 
+        )
+
+for FUNCTION in ${FUNCTIONS[@]}; do
+	#echo $FUNCTION
+	aws lambda --region $MY_AWS_REGION update-function-code --function-name $FUNCTION --s3-bucket $SAAS_BOOST_BUCKET --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+done
