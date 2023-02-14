@@ -26,7 +26,7 @@ LAMBDA_STAGE_FOLDER=$2
 if [ -z $LAMBDA_STAGE_FOLDER ]; then
 	LAMBDA_STAGE_FOLDER="lambdas"
 fi
-LAMBDA_CODE=ClearEcrRepo-lambda.zip
+LAMBDA_CODE=CognitoAppClientDetails-lambda.zip
 
 #set this for V2 AWS CLI to disable paging
 export AWS_PAGER=""
@@ -48,7 +48,9 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-clear-ecr-repo\`)] | [].FunctionName' --output text"\)
+printf "Updating function code for sb-${ENVIRONMENT}-cognito-client-details\n"
+
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-cognito-client-details\`)] | [].FunctionName' --output text"\)
 
 for FUNCTION in ${FUNCTIONS[@]}; do
 	#echo $FUNCTION

@@ -171,7 +171,6 @@ export function ApplicationComponent(props) {
       provisionObjectStorage: !!thisService?.s3,
       windowsVersion: windowsVersion,
       tiers: initialTierValues,
-      tombstone: false,
     }
   }
 
@@ -199,15 +198,12 @@ export function ApplicationComponent(props) {
   }
 
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-  const singleTierValidationSpec = (tombstone) => {
+  const singleTierValidationSpec = () => {
     return Yup.object({
-      min: requiredIfNotTombstoned(
-        tombstone,
-        Yup.number()
-          .integer('Minimum count must be an integer value')
-          .min(1, 'Minimum count must be at least ${min}'),
-        'Minimum count is a required field.'
-      ),
+      min: Yup.number()
+        .integer('Minimum count must be an integer value')
+        .min(1, 'Minimum count must be at least ${min}')
+        .required('Minimum count is a required field.'),
       max: Yup.number()
         .required('Maximum count is a required field.')
         .integer('Maximum count must be an integer value')
@@ -215,11 +211,7 @@ export function ApplicationComponent(props) {
         .test('match', 'Max cannot be smaller than min', function (max) {
           return max >= this.parent.min
         }),
-      computeSize: requiredIfNotTombstoned(
-        tombstone,
-        Yup.string(),
-        'Compute size is a required field.'
-      ),
+      computeSize: Yup.string().required('Compute size is a required field.'),
       filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
         if (provisionFS) {
           return FILESYSTEM_TYPES[filesystemType]?.validationSchema || Yup.object()
@@ -229,32 +221,24 @@ export function ApplicationComponent(props) {
     })
   }
 
-  const allTiersValidationSpec = (tombstone) => {
+  const allTiersValidationSpec = () => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      allTiers[tierName] = singleTierValidationSpec(tombstone)
+      allTiers[tierName] = singleTierValidationSpec()
     }
     return Yup.object(allTiers)
   }
 
-  const allTiersDatabaseValidationSpec = (tombstone) => {
+  const allTiersDatabaseValidationSpec = () => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
       allTiers[tierName] = Yup.object({
-        instance: requiredIfNotTombstoned(
-          tombstone,
-          Yup.string(),
-          'Database instance is required.'
-        )
+        instance: Yup.string().required('Database instance is required.')
       })
     }
     return Yup.object(allTiers)
-  }
-
-  const requiredIfNotTombstoned = (tombstone, schema, requiredMessage) => {
-    return tombstone ? schema : schema.required(requiredMessage)
   }
 
   // TODO public service paths cannot match
@@ -268,26 +252,16 @@ export function ApplicationComponent(props) {
       Yup.object({
         public: Yup.boolean().required(),
         name: Yup.string()
-          .when('tombstone', (tombstone, schema) => {
-            return requiredIfNotTombstoned(
-              tombstone,
-              schema,
-              'Service Name is a required field.'
-            )
-          })
+          .required('Service Name is a required field.')
           .matches(
             /^[\.\-_a-zA-Z0-9]+$/,
             'Name must only contain alphanumeric characters or .-_'
           ),
         description: Yup.string(),
         path: Yup.string()
-          .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {
+          .when(['public'], (isPublic, schema) => {
             if (isPublic) {
-              return requiredIfNotTombstoned(
-                tombstone,
-                schema,
-                'Path is required for public services'
-              )
+              return schema.required('Path is required for public services')
             }
             return schema
           })
@@ -304,13 +278,7 @@ export function ApplicationComponent(props) {
         healthCheckUrl: Yup.string()
           .required('Health Check URL is a required field')
           .matches(/^\//, 'Health Check must start with forward slash (/)'),
-        operatingSystem: Yup.string().when('tombstone', (tombstone, schema) => {
-          return requiredIfNotTombstoned(
-            tombstone,
-            schema,
-            'Container OS is a required field.'
-          )
-        }),
+        operatingSystem: Yup.string().required('Container OS is a required field.'),
         windowsVersion: Yup.string().when('operatingSystem', {
           is: (containerOs) => containerOs && containerOs === WINDOWS,
           then: Yup.string().required('Windows version is a required field'),
@@ -322,9 +290,7 @@ export function ApplicationComponent(props) {
           then: Yup.object({
             engine: Yup.string().required('Engine is required'),
             version: Yup.string().required('Version is required'),
-            tiers: Yup.object().when('tombstone', (tombstone, schema) => {
-              return allTiersDatabaseValidationSpec(tombstone)
-            }),
+            tiers: allTiersDatabaseValidationSpec(),
             username: Yup.string()
               .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
               .required('Username is required'),
@@ -342,10 +308,7 @@ export function ApplicationComponent(props) {
           otherwise: Yup.object(),
         }),
         provisionObjectStorage: Yup.boolean(),
-        tiers: Yup.object().when(['tombstone'], (tombstone) => {
-          return allTiersValidationSpec(tombstone)
-        }),
-        tombstone: Yup.boolean(),
+        tiers: allTiersValidationSpec(),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
     provisionBilling: Yup.boolean(),
@@ -404,7 +367,6 @@ export function ApplicationComponent(props) {
             </span>
           </Alert>
         )}
-        {/* {loading !== "idle" && <div>Loading...</div>} */}
         {!!error && (
           <Alert variant="danger" isOpen={!!error} toggle={dismissError}>
             {error}
@@ -419,8 +381,8 @@ export function ApplicationComponent(props) {
           initialValues={initialValues}
           validationSchema={validationSpecs}
           validateOnChange={true}
+          validateOnBlur={false}
           onSubmit={updateConfig}
-          enableReinitialize={true}
         >
           {(formik) => {
             return (
@@ -438,7 +400,6 @@ export function ApplicationComponent(props) {
                   ></AppSettingsSubform>
                   <ServicesComponent
                     formik={formik}
-                    formikErrors={formik.errors}
                     hasTenants={hasTenants}
                     osOptions={osOptions}
                     dbOptions={dbOptions}

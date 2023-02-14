@@ -19,6 +19,7 @@ import UserViewComponent from './UserViewComponent'
 import { UserFormComponent } from './UserFormComponent'
 import { connect } from 'react-redux'
 import { withRouter } from 'react-router'
+import { BaseUserRoute } from '.'
 
 import {
   fetchUser,
@@ -115,7 +116,7 @@ class UserViewContainer extends Component {
     try {
       const deletedUserResponse = await deletedUser(username)
       if (!deletedUserResponse.error) {
-        history.push('/users')
+        history.push(BaseUserRoute)
       } else {
         toggleDeleteModal()
         setSubmitting(false)
