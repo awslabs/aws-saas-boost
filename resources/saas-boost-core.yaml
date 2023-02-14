@@ -61,29 +61,10 @@ Parameters:
     Description: The domain your workload is hosted at formatted as [env].[domain].[com]
     Type: String
     Default: ''
-  HostedZone:
-    Description: The existing Route53 hosted zone id for the domain name
-    Type: String
-    Default: ''
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
-Conditions:
-  CreateHostedZone: !And
-    - !Not [!Equals [!Ref DomainName, '']]
-    - !Equals [!Ref HostedZone, '']
 Resources:
-  # Route 53 hosted zone. This hosted zone's name servers will need to be added to primary
-  PublicDomainHostedZone:
-    Type: AWS::Route53::HostedZone
-    Condition: CreateHostedZone
-    Properties:
-      HostedZoneConfig:
-        Comment: !Sub ${DomainName} Public DNS zone
-      Name: !Ref DomainName
-      HostedZoneTags:
-        - Key: Name
-          Value: !Sub sb-${Environment}-hostedzone
   WorkloadDeployLogs:
     Type: AWS::Logs::LogGroup
     Properties:
