@@ -125,18 +125,13 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                                     "type", "ECS", 
                                     "containerRepo", ecrRepo)));
                         }
+                        // The object storage extension creates a single S3 bucket for the entire application
+                        // with a separate "folder" for each service.
                         if ("AWS::S3::Bucket".equals(resource.resourceType())
                                 && "TenantStorage".equals(resource.logicalResourceId())) {
-                            // S3 extension
                             tenantStorageBucketName = resource.physicalResourceId();
                             LOGGER.info("Updating appConfig for TenantStorageBucket {}",
                                     tenantStorageBucketName);
-                        }
-                        if ("AWS::Route53::HostedZone".equals(resource.resourceType())) {
-                            // When CloudFormation stack first completes, the Settings Service won't even exist yet.
-                            String hostedZoneId = resource.physicalResourceId();
-                            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZoneId);
-                            appConfig.put("hostedZone", hostedZoneId);
                         }
                     }
                 }

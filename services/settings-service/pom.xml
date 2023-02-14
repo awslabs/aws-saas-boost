@@ -33,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>25</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>17</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>
@@ -79,6 +79,21 @@ limitations under the License.
             <plugin>
                 <groupId>io.github.git-commit-id</groupId>
                 <artifactId>git-commit-id-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>medium</threshold>
+                    <plugins>
+                        <plugin>
+                            <groupId>software.amazon.lambda.snapstart</groupId>
+                            <artifactId>aws-lambda-snapstart-java-rules</artifactId>
+                            <version>0.1.0</version>
+                        </plugin>
+                    </plugins>
+                </configuration>
             </plugin>
         </plugins>
     </build>

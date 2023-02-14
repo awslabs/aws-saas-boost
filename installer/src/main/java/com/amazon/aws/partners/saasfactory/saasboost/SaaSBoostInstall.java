@@ -279,7 +279,8 @@ public class SaaSBoostInstall {
                 LOGGER.info("Setting SaaS Boost environment = [{}]", this.envName);
                 break;
             } else {
-                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
+                outputMessage("Entered value is invalid, maximum of 10 alphanumeric characters, and cannot be AWS,"
+                        + " Amazon, or Cognito. Please try again.");
             }
         }
 
@@ -1460,7 +1461,8 @@ public class SaaSBoostInstall {
             System.out.print("Please enter the existing SaaS Boost environment label: ");
             environment = Keyboard.readString();
             if (!validateEnvironmentName(environment)) {
-                outputMessage("Entered value is incorrect, maximum of 10 alphanumeric characters, please try again.");
+                outputMessage("Entered value is invalid, maximum of 10 alphanumeric characters, and cannot be AWS,"
+                        + " Amazon, or Cognito. Please try again.");
                 environment = null;
             }
         }
@@ -1487,6 +1489,11 @@ public class SaaSBoostInstall {
         if (envName != null) {
             // Follows CloudFormation stack name rules but limits to 10 characters
             valid = envName.matches("^[a-zA-Z](?:[a-zA-Z0-9-]){0,9}$");
+            if (valid) {
+                valid = (!envName.equalsIgnoreCase("aws")
+                        && !envName.equalsIgnoreCase("amazon")
+                        && !envName.equalsIgnoreCase("cognito"));
+            }
         }
         return valid;
     }

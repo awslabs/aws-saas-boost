@@ -1184,6 +1184,7 @@ Resources:
               "prefix": "Onboarding "
             },
             "Application Configuration Changed",
+            "Application Configuration Update Completed",
             "Tenant Deleted",
             "Tenant Enabled",
             "Tenant Disabled"

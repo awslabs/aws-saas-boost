@@ -2,6 +2,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 public class OnboardingStack {
 
+    private String service;
     private String name;
     private String arn;
     private boolean baseStack;
@@ -13,6 +14,7 @@ public class OnboardingStack {
     }
 
     private OnboardingStack(Builder builder) {
+        this.service = builder.service;
         this.name = builder.name;
         this.arn = builder.arn;
         this.baseStack = builder.baseStack;
@@ -27,12 +29,17 @@ public class OnboardingStack {
 
     public static Builder builder(OnboardingStack copyMe) {
         return new Builder()
+                .service(copyMe.service)
                 .name(copyMe.name)
                 .arn(copyMe.arn)
                 .baseStack(copyMe.baseStack)
                 .status(copyMe.status)
                 .pipeline(copyMe.pipeline)
                 .pipelineStatus(copyMe.pipelineStatus);
+    }
+
+    public String getService() {
+        return service;
     }
 
     public String getName() {
@@ -110,6 +117,7 @@ public class OnboardingStack {
 
     public static final class Builder {
 
+        private String service;
         private String name;
         private String arn;
         private boolean baseStack;
@@ -118,6 +126,11 @@ public class OnboardingStack {
         private String pipelineStatus;
 
         private Builder() {
+        }
+
+        public Builder service(String service) {
+            this.service = service;
+            return this;
         }
 
         public Builder name(String name) {
