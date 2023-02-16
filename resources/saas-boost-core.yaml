@@ -38,6 +38,9 @@ Parameters:
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Type: String
+  LoggingBucket:
+    Description: S3 bucket for S3 access logging
+    Type: String
   PublicApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost public API
     Type: String
@@ -48,6 +51,10 @@ Parameters:
     Default: v1
   ApplicationServices:
     Description: Comma separated list of application service names to create ECR repositories for
+    Type: String
+    Default: ''
+  AppExtensions:
+    Description: Comma separated list of extension names to apply to the entire application
     Type: String
     Default: ''
   DomainName:
@@ -868,13 +875,13 @@ Resources:
                 Action:
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
               - Effect: Allow
                 Action:
                   - logs:DescribeLogStreams
                   - logs:CreateLogStream
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
                   - dynamodb:Scan

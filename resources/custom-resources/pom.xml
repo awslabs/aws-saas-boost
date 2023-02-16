@@ -14,11 +14,12 @@
     <packaging>pom</packaging>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
-        <module>app-services-ecr-macro</module>
+        <module>app-services-macro</module>
         <module>attach-ecs-capacity-provider</module>
         <module>cidr-dynamodb</module>
         <module>clear-ecr-repo</module>
         <module>clear-s3-bucket</module>
+		<module>cognito-app-client-details</module>
         <module>customize-cognito-ui</module>
         <module>keycloak-setup</module>
         <module>set-instance-protection</module>

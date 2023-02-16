@@ -774,7 +774,7 @@ public class OnboardingService {
                     String httpListenerArn;
                     String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
-                    String serviceDiscoveryNamespaceId;
+                    String serviceDiscoveryNamespaceId; // Might not have private services
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
                         vpc = tenantResources.get("VPC").get("name");
@@ -784,8 +784,13 @@ public class OnboardingService {
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
-                        serviceDiscoveryNamespaceId = Objects.toString(
-                                tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        // Will only exist if private services are defined
+                        if (tenantResources.containsKey("PRIVATE_SERVICE_DISCOVERY_NAMESPACE")) {
+                            serviceDiscoveryNamespaceId = Objects.toString(
+                                    tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        } else {
+                            serviceDiscoveryNamespaceId = "";
+                        }
                         // Depending on the SSL certificate configuration, one of these 2 listeners must exist
                         if (tenantResources.containsKey("HTTP_LISTENER")) {
                             httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
@@ -842,6 +847,17 @@ public class OnboardingService {
                         Integer containerPort = (Integer) service.get("containerPort");
                         String containerRepo = (String) service.get("containerRepo");
                         String imageTag = (String) service.getOrDefault("containerTag", "latest");
+
+                        Map<String, Object> s3 = (Map<String, Object>) service.getOrDefault("s3", null);
+                        String tenantStorageBucketName = "";
+                        if (s3 != null) {
+                            tenantStorageBucketName = (String) s3.get("bucketName");
+                            if (tenantStorageBucketName == null) {
+                                LOGGER.error("S3 exists in AppConfig, but bucketName is not configured.");
+                                failOnboarding(onboarding.getId(), "Invalid S3 configuration for AppConfig.");
+                                return;
+                            }
+                        }
 
                         // If there are any private services, we will create an environment variables called
                         // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
@@ -1024,6 +1040,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("TenantStorageBucket")
+                                .parameterValue(tenantStorageBucketName)
+                                .build());
                         // TODO rework these last 2?
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream")
                                 .parameterValue(Objects.toString(SAAS_BOOST_METRICS_STREAM, "")).build());
@@ -1139,6 +1159,16 @@ public class OnboardingService {
                             )
                     );
                 }
+
+                // Publish an event to subscribe this tenant to the billing system if needed
+                // TODO Onboarding probably shouldn't be sending the plan in -- just the tier and/or tenant
+                LOGGER.info("Publishing billing setup event for tenant {}", onboarding.getTenantId());
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        "Billing Tenant Setup",
+                        Map.of("tenantId", onboarding.getTenantId(),
+                                "planId", onboarding.getRequest().getBillingPlan()
+                        )
+                );
             } else {
                 LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
             }
@@ -1182,7 +1212,11 @@ public class OnboardingService {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String pipeline = (String) detail.get("pipeline");
             try {
-                String pipelineArn = resources.get(0);
+                String pipelineArnFromResource = resources.get(0);
+                LOGGER.info("pipelineArnFromResource = {} when handle onboarding pipeline status changed", pipelineArnFromResource);
+                final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
+                final String partition = lambdaArn[1];
+                String pipelineArn = pipelineArnFromResource.replace("arn:aws:", "arn:" + partition + ":");
                 LOGGER.info("Fetching tenant id from CodePipeline tags");
                 ListTagsForResourceResponse tagsResponse = codePipeline.listTagsForResource(request -> request
                         .resourceArn(pipelineArn)
@@ -1802,6 +1836,7 @@ public class OnboardingService {
 
         String domainName = (String) appConfig.getOrDefault("domainName", "");
         String hostedZone = chooseHostedZoneParameter(stackName, domainName, cfn, route53);
+        String appExtensions = collectAppExtensions(appConfig);
 
         // If there's an existing hosted zone, we need to tell the AppConfig about it
         // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
@@ -1840,6 +1875,7 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ApplicationDomainName").parameterValue(domainName).build(),
                             Parameter.builder().parameterKey("ApplicationHostedZone").parameterValue(hostedZone).build(),
+                            Parameter.builder().parameterKey("AppExtensions").parameterValue(appExtensions).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
                                     String.join(",", services.keySet())).build(),
                             Parameter.builder().parameterKey("CreateMacroResources").usePreviousValue(Boolean.TRUE).build()
@@ -2166,6 +2202,24 @@ public class OnboardingService {
         return appConfig;
     }
 
+    protected String getSetting(Context context, String setting) {
+        LOGGER.info("Calling settings service to fetch setting {}", setting);
+        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings/" + setting + "/secret")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> settingObject = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+        return (String) settingObject.get("value");
+    }
+
     protected Map<String, Object> getTenant(UUID tenantId, Context context) {
         if (tenantId == null) {
             throw new IllegalArgumentException("Can't fetch blank tenant id");
@@ -2328,5 +2382,17 @@ public class OnboardingService {
             }
         }
         return "";
+    }
+
+    protected static String collectAppExtensions(Map<String, Object> appConfig) {
+        Set<String> appExtensions = new HashSet<>();
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        for (String serviceName : services.keySet()) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(serviceName);
+            if (serviceConfig.containsKey("s3") && serviceConfig.get("s3") != null) {
+                appExtensions.add("s3");
+            }
+        }
+        return String.join(",", appExtensions);
     }
 }

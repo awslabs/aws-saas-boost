@@ -32,16 +32,12 @@ class DefaultLayout extends Component {
   constructor(props) {
     super(props)
     this.oidcAuth = props.oidcAuth
+    this.signout = props.signout
     this.state = {
       user: this.oidcAuth.user,
     }
 
-    this.handleSignOut = this.handleSignOut.bind(this)
     this.handleProfileClick = this.handleProfileClick.bind(this)
-  }
-
-  handleSignOut = async () => {
-    await this.oidcAuth.removeUser()
   }
 
   handleProfileClick = () => {
@@ -61,9 +57,10 @@ class DefaultLayout extends Component {
   loading = () => (
     <div className="animated fadeIn pt-1 text-center">Loading...</div>
   )
+
   render() {
     const { user } = this.state
-    const { setup } = this.props   
+    const { setup, signout } = this.props
     if (!setup) {
       navigation.forEach((nav) => {
         if (nav.name === 'Application') {
@@ -85,7 +82,7 @@ class DefaultLayout extends Component {
         <div className="wrapper d-flex flex-column min-vw-100 min-vh-100 bg-light">
           <Suspense fallback={this.loading()}>
             <AppHeader
-              onLogout={this.handleSignOut}
+              onLogout={signout}
               handleProfileClick={this.handleProfileClick}
               user={user}
               router={router}
@@ -107,5 +104,4 @@ DefaultLayout.propTypes = {
   location: PropTypes.object,
 }
 
-// export default connect(mapStateToProps, null)(withRouter(DefaultLayout))
 export default connect(mapStateToProps, null)(withRouter(DefaultLayout))

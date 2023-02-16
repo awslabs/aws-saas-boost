@@ -48,6 +48,9 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTION="sb-${ENVIRONMENT}-clear-ecr-repo"
-printf "Updating function code for ${FUNCTION}\n"
-aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "${FUNCTION}" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-clear-ecr-repo\`)] | [].FunctionName' --output text"\)
+
+for FUNCTION in ${FUNCTIONS[@]}; do
+	#echo $FUNCTION
+	aws lambda --region $MY_AWS_REGION update-function-code --function-name $FUNCTION --s3-bucket $SAAS_BOOST_BUCKET --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
+done

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -86,6 +87,7 @@ public class Database {
         R5_2XL("db.r5.2xlarge", "8 vCPUs 64 GiB RAM"),
         R5_4XL("db.r5.4xlarge", "16 vCPUs 128 GiB RAM"),
         R5_12XL("db.r5.12xlarge", "48 vCPUs 384 GiB RAM"),
+        R5_16XL("db.r5.16xlarge", "64 vCPUs 512 GiB RAM"),
         R5_24XL("db.r5.24xlarge", "96 vCPUs 768 GiB RAM");
 
         private final String instanceClass;

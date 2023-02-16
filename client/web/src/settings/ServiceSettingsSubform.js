@@ -15,16 +15,17 @@
  */
 
 import React from 'react'
-import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label, FormFeedback } from 'reactstrap'
+import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label } from 'reactstrap'
 import { Field } from 'formik'
 import { SaasBoostSelect, SaasBoostCheckbox, SaasBoostInput, SaasBoostTextarea } from '../components/FormComponents'
 import { PropTypes } from 'prop-types'
 import { cibWindows, cibLinux } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import DatabaseSubform from './DatabaseSubform'
+import ObjectStoreSubform from './components/ObjectStoreSubform'
 
 const ServiceSettingsSubform = (props) => {
-  const { formikErrors, serviceValues, osOptions, dbOptions, serviceName, onFileSelected, isLocked, serviceIndex } = props
+  const { serviceValues, osOptions, dbOptions, serviceName, onFileSelected, isLocked, serviceIndex } = props
   const getWinServerOptions = (serviceIndex) => {
     if (!osOptions) {
       return null
@@ -52,8 +53,6 @@ const ServiceSettingsSubform = (props) => {
       </FormGroup>
     ) : null
   }
-
-  const operatingSystemFeedback = !!formikErrors.services ? formikErrors.services[serviceIndex]?.operatingSystem : undefined
 
   const getLaunchTypeOptions = (serviceIndex) => {
     return serviceValues?.operatingSystem === 'LINUX' && (
@@ -85,15 +84,6 @@ const ServiceSettingsSubform = (props) => {
            Fargate
          </Label>
        </FormGroup>
-       <FormFeedback
-         invalid={
-           formikErrors.ecsLaunchType
-             ? formikErrors.ecsLaunchType
-             : undefined
-         }
-       >
-         {formikErrors.ecsLaunchType}
-       </FormFeedback>
      </FormGroup>
     )
   }
@@ -114,6 +104,7 @@ const ServiceSettingsSubform = (props) => {
                         label="Service Name"
                         name={"services[" + serviceIndex + "].name"}
                         type="text"
+                        autoFocus
                       />
                     </Col>
                     <Col className="d-flex align-items-center">
@@ -168,11 +159,6 @@ const ServiceSettingsSubform = (props) => {
                       <CIcon icon={cibWindows} /> Windows
                       </Label>
                     </FormGroup>
-                    <FormFeedback
-                      invalid={!!operatingSystemFeedback}
-                    >
-                      {operatingSystemFeedback}
-                    </FormFeedback>
                   </FormGroup>
                   {getLaunchTypeOptions(serviceIndex)}
                   {getWinServerOptions(serviceIndex)}
@@ -221,6 +207,10 @@ const ServiceSettingsSubform = (props) => {
                     onFileSelected={(file) => onFileSelected(serviceName, file)}
                     setFieldValue={props.setFieldValue}
                   ></DatabaseSubform>
+                  <ObjectStoreSubform
+                    isLocked={isLocked}
+                    formikServicePrefix={'services[' + serviceIndex + ']'}
+                  ></ObjectStoreSubform>
                 </Col>
               </Row>
             </CardBody>
@@ -237,7 +227,6 @@ ServiceSettingsSubform.propTypes = {
   dbOptions: PropTypes.array,
   onFileSelected: PropTypes.func,
   serviceValues: PropTypes.object,
-  formikErrors: PropTypes.object,
   serviceIndex: PropTypes.number,
 }
 

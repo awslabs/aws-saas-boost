@@ -837,6 +837,12 @@ Outputs:
       - HasCustomDomain
       - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}
       - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
+  KeycloakTokenEndpoint:
+    Description: The OIDC token endpoint for this Keycloak install
+    Value: !If
+      - HasCustomDomain
+      - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}/protocol/openid-connect/token
+      - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}/protocol/openid-connect/token
   KeycloakDatabaseEndpoint:
     Description: Keycloak database hostname
     Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address

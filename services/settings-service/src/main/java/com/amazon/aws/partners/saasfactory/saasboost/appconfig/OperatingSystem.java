@@ -23,8 +23,7 @@ public enum OperatingSystem {
     WIN_2019_FULL("Windows Server 2019 Full"),
     WIN_2019_CORE("Windows Server 2019 Core"),
     WIN_2022_FULL("Windows Server 2022 Full"),
-    WIN_2022_CORE("Windows Server 2022 Core"),
-    WIN_20H2_CORE("Windows Server 20H2 Core");
+    WIN_2022_CORE("Windows Server 2022 Core");
 
     private final String description;
 

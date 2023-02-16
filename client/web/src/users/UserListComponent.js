@@ -84,7 +84,7 @@ export const UserListComponent = ({
               </span>
             </Button>
             <Button color="primary" onClick={handleCreateUser}>
-              Create User
+              Create System User
             </Button>
           </div>
         </Col>
@@ -93,7 +93,7 @@ export const UserListComponent = ({
         <Col xl={12}>
           <Card>
             <CardHeader>
-              <CIcon icon={cilListRich} /> Users
+              <CIcon icon={cilListRich} /> System Users
             </CardHeader>
             <CardBody>{table}</CardBody>
           </Card>

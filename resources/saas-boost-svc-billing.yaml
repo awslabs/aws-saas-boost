@@ -27,6 +27,12 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
+  SaaSBoostPrivateApi:
+    Description: SaaS Boost Private API
+    Type: String
+  PrivateApiStage:
+    Description: Private API Stage
+    Type: String
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
@@ -35,7 +41,6 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub sb-${Environment}-billing-service-role-${AWS::Region}
-      Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -61,6 +66,10 @@ Resources:
                   - logs:DescribeLogStreams
                 Resource:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
   BillingServiceGetPlansLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -80,9 +89,12 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/BillingService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          SAAS_BOOST_ENV: !Ref Environment
+          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref PrivateApiStage
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

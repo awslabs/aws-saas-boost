@@ -95,6 +95,10 @@ Parameters:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
     Default: ''
+  AppExtensions:
+    Description: Comma separated list of extension names to apply to the entire application
+    Type: String
+    Default: ''
   CreateMacroResources:
     Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
     Type: String
@@ -296,7 +300,7 @@ Resources:
             - HasAdminWebAppCustomDomain
             - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebAppDomain}']
                 AllowedMethods: [PUT]
-            - - AllowedOrigins: [http://localhost:3000, !GetAtt AdminWebCloudFrontDistribution.DomainName]
+            - - AllowedOrigins: [http://localhost:3000, !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}']
                 AllowedMethods: [PUT]
       Tags:
         - Key: SaaS Boost
@@ -353,8 +357,10 @@ Resources:
        Type: 'A'
        AliasTarget:
          DNSName: !GetAtt AdminWebCloudFrontDistribution.DomainName
-         # TODO Does this change for AWS China?
-         HostedZoneId: Z2FDTNDATAQYW2 # Static value for CloudFront
+         HostedZoneId: !If
+           - InChinaRegion
+           - Z3RFFRIM2A3IF5
+           - Z2FDTNDATAQYW2
          EvaluateTargetHealth: false
   AdminWebOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -519,6 +525,12 @@ Resources:
           Value: SaaSBoost
         - Key: Environment
           Value: !Ref Environment
+  ClearBucketLambdaArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/CLEAR_BUCKET_ARN
+      Type: String
+      Value: !GetAtt ClearBucket.Arn
   InvokeClearCodePipelineBucket:
     Type: Custom::CustomResource
     Properties:
@@ -661,10 +673,10 @@ Resources:
       Runtime: java11
       Timeout: 900
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesEcrMacro
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesMacro
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesEcrMacro-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesMacro-lambda.zip
       Layers:
          - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -803,14 +815,14 @@ Resources:
   network:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-network.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
         Environment: !Ref Environment
   ad:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
       Parameters:
         Environment: !Ref Environment
         Subnets:
@@ -823,7 +835,7 @@ Resources:
   idp:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-idp.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-idp.yaml
       Parameters:
         IdentityProvider: !Ref SystemIdentityProvider
         Environment: !Ref Environment
@@ -844,6 +856,7 @@ Resources:
         CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
         CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
         CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         VPC: !GetAtt network.Outputs.EgressVpc
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
@@ -859,7 +872,7 @@ Resources:
   web:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-web.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-web.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -869,16 +882,18 @@ Resources:
           - HasAdminWebAppCustomDomain
           - !Sub 'https://${AdminWebAppDomain}'
           - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
+        OidcDomainUrl: !GetAtt idp.Outputs.OidcDomainUrl
+        SystemIdentityProvider: !Ref SystemIdentityProvider
   core:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - network
       - MacroWaitCondition
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-core.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-core.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -887,30 +902,34 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         CodePipelineBucket: !Ref Pipelines
+        LoggingBucket: !Ref Logging
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
         DomainName: !Ref ApplicationDomainName
         HostedZone: !Ref ApplicationHostedZone
         EventBus: !Ref SaaSBoostEventBus
+        AppExtensions: !Ref AppExtensions
       NotificationARNs:
         - !Ref CoreStackListenerTopic
   billing:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
+        PrivateApiStage: !Ref PrivateApiStage
   # To Do - merge this stuff into the billing template
   metering:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -928,7 +947,7 @@ Resources:
       - InvokeClearAthenaBucket
       - InvokeClearAccessLogsBucket
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -942,7 +961,7 @@ Resources:
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-onboarding.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -958,7 +977,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -968,13 +987,14 @@ Resources:
   settings:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-settings.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
         SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
         PrivateApiStage: !Ref PrivateApiStage
@@ -982,7 +1002,7 @@ Resources:
   tenant:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tenant.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -994,7 +1014,7 @@ Resources:
   tier:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-tier.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -1006,7 +1026,7 @@ Resources:
     DependsOn:
       - core
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -1019,7 +1039,7 @@ Resources:
   publicapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-public-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-public-api.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
@@ -1065,7 +1085,7 @@ Resources:
   privateapi:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::URLSuffix}/saas-boost-private-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-private-api.yaml
       Parameters:
         Environment: !Ref Environment
         PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi

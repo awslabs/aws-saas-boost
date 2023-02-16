@@ -86,14 +86,12 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt OnboardingValidationDLQ.Arn
         maxReceiveCount: 10
-      KmsMasterKeyId: alias/aws/sqs
-      KmsDataKeyReusePeriodSeconds: 86400
+      SqsManagedSseEnabled: true
   OnboardingValidationDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub sb-${Environment}-onboarding-validation-dlq
-      KmsMasterKeyId: alias/aws/sqs
-      KmsDataKeyReusePeriodSeconds: 86400
+      SqsManagedSseEnabled: true
   OnboardingTenantConfigQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -102,14 +100,12 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt OnboardingTenantConfigDLQ.Arn
         maxReceiveCount: 10
-      KmsMasterKeyId: alias/aws/sqs
-      KmsDataKeyReusePeriodSeconds: 86400
+      SqsManagedSseEnabled: true
   OnboardingTenantConfigDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub sb-${Environment}-onboarding-tenant-config-dlq
-      KmsMasterKeyId: alias/aws/sqs
-      KmsDataKeyReusePeriodSeconds: 86400
+      SqsManagedSseEnabled: true
   OnboardingTenantConfigQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -307,6 +303,9 @@ Resources:
               - ecr:ListImages
               - ecr:CreateRepository
               - ecr:DeleteRepository
+              - ecr:TagResource
+              - ecr:UntagResource
+              - ecr:ListTagsForResource
             Resource:
               - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
           - Effect: Allow
@@ -318,7 +317,7 @@ Resources:
             Action:
               - apigateway:GET
             Resource:
-              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*/resources
+              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*
           - Effect: Allow
             Action:
               - lambda:AddPermission
@@ -329,6 +328,7 @@ Resources:
             Resource:
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*deploy*
               - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:saas-boost-app-services-macro
+              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
   OnboardingServiceTenantProvisionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -835,6 +835,18 @@ Resources:
               - ds:DeleteDirectory
             Resource:
               - !Sub arn:${AWS::Partition}:ds:${AWS::Region}:${AWS::AccountId}:directory/*
+          # Covers the creation/deletion of S3Extension bucket
+          - Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:PutBucketLogging
+              - s3:PutBucketOwnershipControls
+              - s3:PutBucketPublicAccessBlock
+              - s3:PutBucketTagging
+              - s3:PutEncryptionConfiguration
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::sb-${Environment}-core-*
   OnboardingServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:

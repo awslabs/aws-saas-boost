@@ -19,17 +19,14 @@ import {
   Button,
   Card,
   CardBody,
-  CardGroup,
   Col,
   Container,
   Row,
   Alert,
 } from 'reactstrap'
-import { useAuth } from 'react-oidc-context'
 import { Redirect } from 'react-router-dom'
 import config from '../../config/appConfig'
-export default function OidcSignIn({ signOutReason }) {
-  const auth = useAuth()
+export default function OidcSignIn({ signOutReason, auth }) {
 
   const signInClickHandler = () => {
     const signInParams = {

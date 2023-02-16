@@ -32,9 +32,7 @@ const TierServiceSettingsSubform = (props) => {
     setFieldValue
   } = props
 
-  const [selectedTier, setSelectedTier] = useState(
-    !!tiers && !!tiers[0] ? tiers[0].name : ''
-  )
+  const [selectedTier, setSelectedTier] = useState(defaultTier)
 
   const formikTierPrefix = formikServicePrefix + '.tiers[' + selectedTier + ']'
 

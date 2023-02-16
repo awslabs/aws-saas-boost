@@ -45,6 +45,7 @@ Parameters:
 Mappings:
   # Mappings for ELB accounts from
   # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.htm
+  # https://docs.amazonaws.cn/en_us/elasticloadbalancing/latest/application/enable-access-logging.htm
   # Be sure to leave quote marks around the account ids or they'll get transformed to exponential notation by FindInMap
   Region2ELBAccountId:
     us-east-1:
@@ -91,6 +92,8 @@ Mappings:
       AccountId: '507241528517'
     cn-north-1:
       AccountId: '638102146993'
+    cn-northwest-1:
+      AccountId: '037604701340'
 Resources:
   # Publish access logs data to S3 bucket for graphing
   ALBLogsBucketPolicy:
