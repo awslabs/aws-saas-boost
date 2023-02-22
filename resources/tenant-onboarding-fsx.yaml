@@ -58,6 +58,11 @@ Parameters:
     Type: String
     AllowedValues: [FSX_WINDOWS, FSX_ONTAP]
     Default: FSX_WINDOWS
+  ContainerOS:
+    Description: Operating System to use for the Docker host
+    Type: String
+    # Can't have dashes or underscores in Mappings keys :(
+    AllowedValues: [WIN2019FULL, WIN2019CORE, WIN2022FULL, WIN2022CORE, WIN20H2CORE, WIN2016FULL, LINUX]
   FSxEncryptionKey:
     Description: Use the default AWS Key Management Service (AWS KMS) key for Amazon FSx, choose GenerateKey to create a key,
       or choose UseKey to use an existing key for encryption at rest on the Amazon FSx for Windows file system.
@@ -101,6 +106,9 @@ Conditions:
   UseNonDefault: !Not [!Equals [!Ref FSxEncryptionKey, 'Default']]
   FSxWindows: !Equals [!Ref FileSystemType, 'FSX_WINDOWS']
   FSxONTAP: !Equals [!Ref FileSystemType, 'FSX_ONTAP']
+  FSxONTAPLinux: !And
+    - Condition: FSxONTAP
+    - !Equals [!Ref ContainerOS, 'LINUX']
 Resources:
   FSxKMSKey:
     Condition: CreateKey
@@ -442,7 +450,7 @@ Resources:
       FileSystemId: !Ref FSxFileSystem
       Name:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
-      RootVolumeSecurityStyle: NTFS
+      RootVolumeSecurityStyle: !If [FSxONTAPLinux, 'UNIX', 'NTFS']
       ActiveDirectoryConfiguration:
         # Max string length 15. Since this is bound to a SVM and a File System, we don't need the env or service name.
         NetBiosName:
@@ -475,7 +483,7 @@ Resources:
       Name: vol1
       OntapConfiguration:
         JunctionPath: /vol1
-        SecurityStyle: NTFS
+        SecurityStyle: !If [FSxONTAPLinux, 'UNIX', 'NTFS']
         SizeInMegabytes: !Ref OntapVolumeSize
         StorageEfficiencyEnabled: 'false' # Quoted to make cfn-lint happy
         StorageVirtualMachineId: !Ref StorageVirtualMachine
@@ -579,6 +587,8 @@ Resources:
       ServiceToken: !GetAtt FsxDnsNameFunction.Arn
       FsxFileSystemId: !Ref FSxFileSystem
       StorageVirtualMachineId: !If [FSxONTAP, !Ref StorageVirtualMachine, '']
+      VolumeSecurityStyle: !If [FSxONTAP, !If [FSxONTAPLinux, 'UNIX', ''], '']
+
 Outputs:
   FileSystemId:
     Description: FSx File System ID
