@@ -51,6 +51,7 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String fileSystemId = (String) resourceProperties.get("FsxFileSystemId");
         final String storageVirtualMachineId = (String) resourceProperties.get("StorageVirtualMachineId");
+        final String securityStyle = (String) resourceProperties.get("VolumeSecurityStyle");
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -75,7 +76,13 @@ public class FsxDnsName implements RequestHandler<Map<String, Object>, Object> {
                                             )
                             );
                             LOGGER.info("SVM response: " + Objects.toString(response, "null"));
-                            fsxDns = response.storageVirtualMachines().get(0).endpoints().smb().dnsName();
+                            if (Utils.isNotBlank(securityStyle)) {
+                                LOGGER.info("Reading Storage Virtual Machine NFS DNS hostname");
+                                fsxDns = response.storageVirtualMachines().get(0).endpoints().nfs().dnsName();
+                            } else {
+                                LOGGER.info("Reading for Storage Virtual Machine SMB DNS hostname");
+                                fsxDns = response.storageVirtualMachines().get(0).endpoints().smb().dnsName();
+                            }
                         } else {
                             LOGGER.info("Querying for File System DNS hostname");
                             DescribeFileSystemsResponse response = fsx.describeFileSystems(request -> request
