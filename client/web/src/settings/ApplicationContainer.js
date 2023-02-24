@@ -146,23 +146,38 @@ export function ApplicationContainer(props) {
     updateConfiguration(formValues)
   }
 
+  const removeUnwantedKeys = (objectToClean, wantedKeys) => {
+    Object.keys(objectToClean).forEach(k => {
+      if (!wantedKeys.includes(k)) {
+        delete objectToClean[k]
+      }
+    })
+  }
+
   const cleanFilesystemForSubmittal = (provisionFS, filesystemType, filesystem) => {
     if (provisionFS) {
-      let {
-        weeklyMaintenanceDay,
-        weeklyMaintenanceTime,
-        ...cleanedFs
-      } = filesystem
-      cleanedFs.type = FILESYSTEM_TYPES[filesystemType].configId
-      if (weeklyMaintenanceDay && weeklyMaintenanceTime) {
-        cleanedFs.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${weeklyMaintenanceTime}`
+      let cleanedFs = {
+        ...filesystem,
+        type: FILESYSTEM_TYPES[filesystemType].configId
       }
-      let wantedKeys = Object.keys(FILESYSTEM_TYPES[filesystemType].defaults)
-      Object.keys(cleanedFs).forEach(k => {
-        if (!wantedKeys.includes(k) && k !== 'type') {
-          delete cleanedFs[k]
+      // clean tiers if present
+      if (!!filesystem?.tiers) {
+        for (let tierName in filesystem.tiers) {
+          let {
+            weeklyMaintenanceDay,
+            weeklyMaintenanceTime,
+            ...cleanedFsTier
+          } = filesystem.tiers[tierName]
+          if (weeklyMaintenanceDay && weeklyMaintenanceTime) {
+            cleanedFsTier.weeklyMaintenanceTime = `${weeklyMaintenanceDay}:${weeklyMaintenanceTime}`
+          }
+          // get rid of keys that aren't needed for this tier for this filesystem type
+          removeUnwantedKeys(cleanedFsTier, Object.keys(FILESYSTEM_TYPES[filesystemType].tierDefaults))
+          cleanedFs.tiers[tierName] = cleanedFsTier
         }
-      })
+      }
+      // get rid of keys that aren't needed for this filesystem type
+      removeUnwantedKeys(cleanedFs, [...Object.keys(FILESYSTEM_TYPES[filesystemType].defaults), 'type', 'tiers'])
       return cleanedFs
     } else {
       return null
@@ -179,21 +194,6 @@ export function ApplicationContainer(props) {
       let cleanedServicesMap = {}
       for (var serviceIndex in services) {
         let thisService = services[serviceIndex]
-        // update the tier config
-        let cleanedTiersMap = {}
-        for (var tierName in thisService.tiers) {
-          const {
-            filesystem,
-            provisionFS,
-            provisionDb,
-            filesystemType,
-            ...rest
-          } = thisService.tiers[tierName]
-          cleanedTiersMap[tierName] = {
-            ...rest,
-            filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
-          }
-        }
         // update the service config
         const {
           name,
@@ -203,6 +203,9 @@ export function ApplicationContainer(props) {
           provisionDb,
           provisionObjectStorage,
           database,
+          filesystem,
+          provisionFS,
+          filesystemType,
           ...rest
         } = thisService
         const {
@@ -228,8 +231,8 @@ export function ApplicationContainer(props) {
           operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
           ecsLaunchType: (!!ecsLaunchType) ? ecsLaunchType : (operatingSystem === LINUX ? "FARGATE" : "EC2"),
           database: provisionDb ? cleanedDb : null,
-          s3: provisionObjectStorage ? {} : null,
-          tiers: cleanedTiersMap,
+          filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
+          s3: provisionObjectStorage ? {} : null
         }
       }
 

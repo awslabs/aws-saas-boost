@@ -26,7 +26,7 @@ import globalConfig from '../config/appConfig'
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
-import { FILESYSTEM_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
+import { FILESYSTEM_DEFAULTS, FILESYSTEM_TIER_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
 
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
@@ -72,35 +72,16 @@ export function ApplicationComponent(props) {
     window.scrollTo(0, 0)
   }
 
-  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, os) => {
-    let filesystem = {
-      ...FILESYSTEM_DEFAULTS,
-      ...defaultValues.filesystem,
-      ...splitWeeklyMaintenanceTime(tierValues.filesystem)
-    }
-    let defaults = Object.assign({
+  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues) => {
+    return Object.assign({
       min: 0,
       max: 0,
       computeSize: '',
     }, defaultValues, tierValues)
-    let uncleanedInitialTierValues = {
-      ...defaults,
-      filesystem: filesystem,
-    }
-
-    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === tierValues.filesystem?.type)[0]?.id || ''
-
-    return {
-      ...uncleanedInitialTierValues,
-      provisionDb: !!tierValues.database,
-      provisionFS: !!tierValues.filesystem,
-      filesystemType: filesystemType,
-      filesystem: filesystem,
-    }
   }
 
-  const splitWeeklyMaintenanceTime = (fsx) => {
-    if (!!fsx && !!fsx.weeklyMaintenanceTime) {
+  const splitWeeklyMaintenanceTime = (fsxTier) => {
+    if (!!fsxTier && !!fsxTier.weeklyMaintenanceTime) {
       const getParts = (dateTime) => {
         const parts = dateTime.split(':')
         const day = parts[0]
@@ -108,14 +89,14 @@ export function ApplicationComponent(props) {
         const timeStr = times.join(':')
         return [day, timeStr]
       }
-      const [day, time] = getParts(fsx.weeklyMaintenanceTime)
+      const [day, time] = getParts(fsxTier.weeklyMaintenanceTime)
       return {
-        ...fsx,
+        ...fsxTier,
         weeklyMaintenanceTime: time,
         weeklyMaintenanceDay: day,
       }
     }
-    return fsx
+    return fsxTier
   }
 
   const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
@@ -146,15 +127,22 @@ export function ApplicationComponent(props) {
             encryptedPassword: '',
             database: '',
             bootstrapFilename: '',
-            tiers: {},
+            tiers: tiers.reduce((acc, tier) => ({...acc, [tier.name]: {instance: ''}}), {}),
           }
+    const fs = !!thisService?.filesystem
+        ? splitWeeklyMaintenanceTime(thisService.filesystem)
+        : {
+          ...FILESYSTEM_DEFAULTS,
+          tiers: tiers.reduce((acc, tier) => ({ ...acc, [tier.name]: FILESYSTEM_TIER_DEFAULTS}), {})
+        }
+    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === thisService.filesystem?.type)[0]?.id || ''
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
-    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, os)
+    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {})
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues, os)
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues)
     }
     return {
       ...thisService,
@@ -168,6 +156,9 @@ export function ApplicationComponent(props) {
       operatingSystem: os,
       database: db,
       provisionDb: !!thisService?.database,
+      filesystem: fs,
+      provisionFS: !!thisService?.filesystem,
+      filesystemType: filesystemType,
       provisionObjectStorage: !!thisService?.s3,
       windowsVersion: windowsVersion,
       tiers: initialTierValues,
@@ -212,12 +203,6 @@ export function ApplicationComponent(props) {
           return max >= this.parent.min
         }),
       computeSize: Yup.string().required('Compute size is a required field.'),
-      filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
-        if (provisionFS) {
-          return FILESYSTEM_TYPES[filesystemType]?.validationSchema || Yup.object()
-        }
-        return Yup.object()
-      }),
     })
   }
 
@@ -239,6 +224,18 @@ export function ApplicationComponent(props) {
       })
     }
     return Yup.object(allTiers)
+  }
+
+  const allTiersFilesystemValidationSpec = (filesystemType) => {
+    if (!!FILESYSTEM_TYPES[filesystemType]?.tierValidationSchema) {
+      let allTiers = {}
+      for (var i = 0; i < tiers.length; i++) {
+        var tierName = tiers[i].name
+        allTiers[tierName] = Yup.object(FILESYSTEM_TYPES[filesystemType].tierValidationSchema)
+      }
+      return Yup.object(allTiers)
+    }
+    return Yup.object()
   }
 
   // TODO public service paths cannot match
@@ -307,6 +304,17 @@ export function ApplicationComponent(props) {
           }),
           otherwise: Yup.object(),
         }),
+        filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
+          if (provisionFS && FILESYSTEM_TYPES[filesystemType]?.validationSchema) {
+            return Yup.object({
+              ...FILESYSTEM_TYPES[filesystemType]?.validationSchema,
+              tiers: allTiersFilesystemValidationSpec(filesystemType),
+            })
+          }
+          return Yup.object()
+        }),
+        filesystemType: Yup.string(),
+        provisionFS: Yup.boolean(),
         provisionObjectStorage: Yup.boolean(),
         tiers: allTiersValidationSpec(),
       })

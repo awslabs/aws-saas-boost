@@ -14,28 +14,29 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.efs;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystemTierConfig;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-@JsonDeserialize(builder = EfsFilesystem.Builder.class)
-public class EfsFilesystem extends AbstractFilesystem {
-
+@JsonDeserialize(builder = EfsFilesystemTierConfig.Builder.class)
+public final class EfsFilesystemTierConfig extends AbstractFilesystemTierConfig {
+    
     @JsonInclude(value = JsonInclude.Include.NON_NULL)
     private EfsLifecycle lifecycle;
 
-    private EfsFilesystem(Builder b) {
+    private EfsFilesystemTierConfig(Builder b) {
         super(b);
         this.lifecycle = b.lifecycle;
     }
 
-    public static EfsFilesystem.Builder builder() {
-        return new EfsFilesystem.Builder();
+    public static EfsFilesystemTierConfig.Builder builder() {
+        return new EfsFilesystemTierConfig.Builder();
     }
 
     public String getLifecycle() {
@@ -55,7 +56,7 @@ public class EfsFilesystem extends AbstractFilesystem {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final EfsFilesystem other = (EfsFilesystem) obj;
+        final EfsFilesystemTierConfig other = (EfsFilesystemTierConfig) obj;
         return (Utils.nullableEquals(this.lifecycle, other.lifecycle));
     }
 
@@ -65,7 +66,7 @@ public class EfsFilesystem extends AbstractFilesystem {
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    public static final class Builder extends AbstractFilesystem.Builder{
+    public static final class Builder extends AbstractFilesystemTierConfig.Builder {
         private EfsLifecycle lifecycle = EfsLifecycle.NEVER;
 
         private Builder() {
@@ -88,12 +89,12 @@ public class EfsFilesystem extends AbstractFilesystem {
             return this;
         }
 
-        public EfsFilesystem build() {
-            return new EfsFilesystem(this);
+        public EfsFilesystemTierConfig build() {
+            return new EfsFilesystemTierConfig(this);
         }
     }
 
-    enum EfsLifecycle {
+    public enum EfsLifecycle {
         NEVER(0),
         AFTER_7_DAYS(7),
         AFTER_14_DAYS(14),

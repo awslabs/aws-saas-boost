@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-@JsonDeserialize(builder = FsxOntapFilesystem.Builder.class)
-public class FsxOntapFilesystem extends AbstractFsxFilesystem {
+public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
 
-    private Integer volumeSize;
+    private String windowsMountDrive;
 
-    private FsxOntapFilesystem(Builder b) {
+    protected AbstractFsxFilesystem(Builder b) {
         super(b);
-        this.volumeSize = b.volumeSize;
+        this.windowsMountDrive = b.windowsMountDrive;
     }
 
-    public Integer getVolumeSize() {
-        return volumeSize;
+    public String getWindowsMountDrive() {
+        return this.windowsMountDrive;
     }
 
     @Override
@@ -48,30 +48,23 @@ public class FsxOntapFilesystem extends AbstractFsxFilesystem {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final FsxOntapFilesystem other = (FsxOntapFilesystem) obj;
-        return super.equals(other);
+        final AbstractFsxFilesystem other = (AbstractFsxFilesystem) obj;
+        return Utils.nullableEquals(this.getWindowsMountDrive(), other.getWindowsMountDrive())
+                && super.equals(other);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), volumeSize);
+        return Objects.hash(super.hashCode(), this.getWindowsMountDrive());
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    public static final class Builder extends AbstractFsxFilesystem.Builder {
+    protected abstract static class Builder extends AbstractFilesystem.Builder {
+        private String windowsMountDrive;
 
-        private Integer volumeSize;
-
-        private Builder() {
-        }
-
-        public Builder volumeSize(Integer volumeSize) {
-            this.volumeSize = volumeSize;
+        public Builder windowsMountDrive(String windowsMountDrive) {
+            this.windowsMountDrive = windowsMountDrive;
             return this;
-        }
-
-        public FsxOntapFilesystem build() {
-            return new FsxOntapFilesystem(this);
         }
     }
 }

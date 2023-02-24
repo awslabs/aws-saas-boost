@@ -17,7 +17,6 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -31,7 +30,6 @@ public class ServiceTierConfig {
     private final Integer cpu;
     private final Integer memory;
     private final String instanceType;
-    private final AbstractFilesystem filesystem;
 
     private ServiceTierConfig(Builder builder) {
         this.min = builder.min;
@@ -40,7 +38,6 @@ public class ServiceTierConfig {
         this.cpu = builder.cpu;
         this.memory = builder.memory;
         this.instanceType = builder.instanceType;
-        this.filesystem = builder.filesystem;
     }
 
     public static ServiceTierConfig.Builder builder() {
@@ -54,8 +51,7 @@ public class ServiceTierConfig {
             .computeSize(other.getComputeSize())
             .cpu(other.getCpu())
             .memory(other.getMemory())
-            .instanceType(other.getInstanceType())
-            .filesystem(other.getFilesystem());
+            .instanceType(other.getInstanceType());
     }
 
     public Integer getMin() {
@@ -91,10 +87,6 @@ public class ServiceTierConfig {
         return instanceType;
     }
 
-    public AbstractFilesystem getFilesystem() {
-        return filesystem;
-    }
-
     @Override
     public String toString() {
         return Utils.toJson(this);
@@ -121,14 +113,12 @@ public class ServiceTierConfig {
                 && ((cpu == null && other.cpu == null) || (cpu != null && cpu.equals(other.cpu)))
                 && ((memory == null && other.memory == null) || (memory != null && memory.equals(other.memory)))
                 && ((instanceType == null && other.instanceType == null)
-                    || (instanceType != null && instanceType.equals(other.instanceType)))
-                && ((filesystem == null && other.filesystem == null)
-                    || (filesystem != null && filesystem.equals(other.filesystem))));
+                    || (instanceType != null && instanceType.equals(other.instanceType))));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(min, max, computeSize, cpu, memory, instanceType, filesystem);
+        return Objects.hash(min, max, computeSize, cpu, memory, instanceType);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -139,7 +129,6 @@ public class ServiceTierConfig {
         private Integer cpu;
         private Integer memory;
         private String instanceType;
-        private AbstractFilesystem filesystem;
 
         private Builder() {
         }
@@ -202,11 +191,6 @@ public class ServiceTierConfig {
 
         public Builder instanceType(String instanceType) {
             this.instanceType = instanceType;
-            return this;
-        }
-
-        public Builder filesystem(AbstractFilesystem filesystem) {
-            this.filesystem = filesystem;
             return this;
         }
 
