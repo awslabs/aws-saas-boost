@@ -32,6 +32,7 @@ import {
 } from 'reactstrap'
 import Moment from 'react-moment'
 import Display from '../components/Display'
+import { sortByModified } from '../utils'
 
 TierListItem.propTypes = {
   tier: PropTypes.object,
@@ -47,37 +48,23 @@ function TierListItem({ tier, handleTierClick }) {
       }}
       className="pointer"
     >
+      <td>{tier.id}</td>
       <td>
         {!!tier && tier.defaultTier
           ? (<CIcon icon={cilCheckCircle} className="text-success"/>)
           : (<CIcon icon={cilXCircle} className="text-danger"/>)}
       </td>
-      <td>
-        <NavLink
-          href="#"
-          onClick={() => {
-            handleTierClick(tier.id)
-          }}
-          color="link"
-          className="pl-0 pt-0"
-        >
-          {tier.name}
-        </NavLink>
-      </td>
+      <td>{tier.name}</td>
       <td>{tier.description}</td>
       <td>
-        <Display condition={!!tier}>
-          <Moment format="LLL">
-            {!!tier && new Date(tier.created)}
-          </Moment>
-        </Display>
+        <Moment format="LLL">
+          {!!tier && new Date(tier.created)}
+        </Moment>
       </td>
       <td>
-        <Display condition={!!tier}>
-          <Moment format="LLL">
-            {!!tier && new Date(tier.modified)}
-          </Moment>
-        </Display>
+        <Moment format="LLL">
+          {!!tier && new Date(tier.modified)}
+        </Moment>
       </td>
     </tr>
   )
@@ -113,20 +100,21 @@ function TierList({
   handleError,
 }) {
   const toRender = (
-    <Table responsive striped>
+    <Table responsive hover>
       <thead>
         <tr>
+          <th width="25%">Id</th>
           <th width="5%">Default</th>
-          <th width="20%">Name</th>
-          <th width="40%">Description</th>
-          <th width="17.5%">Created</th>
-          <th width="17.5%">Modified</th>
+          <th width="10%">Name</th>
+          <th width="30%">Description</th>
+          <th width="15%">Created</th>
+          <th width="15%">Modified</th>
         </tr>
       </thead>
       <tbody>
         {loading === 'idle' &&
           tiers.length !== 0 &&
-          tiers.map((tier) => (
+          tiers.sort(sortByModified).map((tier) => (
             <TierListItem tier={tier} key={tier.id} handleTierClick={handleTierClick} />
           ))}
         {tiers.length === 0 && loading === 'idle' && (

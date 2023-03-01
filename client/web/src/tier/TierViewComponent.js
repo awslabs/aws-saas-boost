@@ -208,9 +208,7 @@ function TierViewComponent(props) {
                     className="border border border-top-0 border-bottom-0 border-left-0"
                   >
                     <dt>Description</dt>
-                    <dd>
-                      <Display condition={!!tier}>{!!tier && tier?.description}</Display>
-                    </dd>
+                    <dd>{tier?.description}</dd>
                   </Col>
                 </Row>
               </Card.Body>

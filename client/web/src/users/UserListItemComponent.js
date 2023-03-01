@@ -36,16 +36,17 @@ UserStatusComponent.propTypes = {
 export const UserListItemComponent = ({ user, handleUserClick }) => {
   return (
     <tr className="pointer" key={user.username} onClick={() => handleUserClick(user.username)}>
-      <th scope="row">{user.username}</th>
-      <td>
-        {user.firstName} {user.lastName}
-      </td>
+      <td>{user.username}</td>
+      <td>{user.firstName} {user.lastName}</td>
       <td>{user.email}</td>
       <td>
         <UserStatusComponent user={user} />
       </td>
       <td>
         <Moment date={user.created} format="LLL" /> UTC
+      </td>
+      <td>
+        <Moment date={user.modified} format="LLL" /> UTC
       </td>
     </tr>
   )
