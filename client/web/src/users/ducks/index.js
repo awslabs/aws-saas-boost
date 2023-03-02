@@ -50,7 +50,14 @@ export const fetchUsers = createAsyncThunk('users/fetchAll', async (...[, thunkA
   const { signal } = thunkAPI
   try {
     const response = await usersAPI.fetchAll({ signal })
-    const normalized = normalize(response, userListSchema)
+    const datesFixed = response.map((user) => {
+      return {
+        ...user,
+        created: `${user.created}Z`,
+        modified: `${user.modified}Z`,
+      }
+    })
+    const normalized = normalize(datesFixed, userListSchema)
     return normalized.entities
   } catch (err) {
     console.error(err)

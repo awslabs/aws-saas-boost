@@ -43,10 +43,10 @@ export const UserListItemComponent = ({ user, handleUserClick }) => {
         <UserStatusComponent user={user} />
       </td>
       <td>
-        <Moment date={user.created} format="LLL" /> UTC
+        <Moment date={user.created} format="LLL" />
       </td>
       <td>
-        <Moment date={user.modified} format="LLL" /> UTC
+        <Moment date={user.modified} format="LLL" />
       </td>
     </tr>
   )
