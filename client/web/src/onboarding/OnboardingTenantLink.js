@@ -30,13 +30,13 @@ export function OnboardingTenantLink({
   clickTenantDetails,
 }) {
   return !!tenantId ? (
-    <NavLink
+    <a
       href="#"
       className="pl-0 pt-0"
       onClick={() => clickTenantDetails(tenantId)}
     >
       {tenantName || 'Unknown'}
-    </NavLink>
+    </a>
   ) : (
     <span>{tenantName || 'Unknown'}</span>
   )
