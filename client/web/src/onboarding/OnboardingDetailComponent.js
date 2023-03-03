@@ -151,22 +151,19 @@ export const OnboardingDetailComponent = (props) => {
                   sm={4}
                   className="border border border-top-0 border-bottom-0 border-left-0"
                 >
-                  <dt>Created On</dt>
+                  <dt>Created</dt>
                   <dd>
                     <Display>
                       {onboarding && (
-                        <Moment format="LLLL" date={onboarding.created} />
+                        <Moment format="LLL" date={onboarding.created} />
                       )}
                     </Display>
                   </dd>
-                  <dt>Modified On</dt>
+                  <dt>Modified</dt>
                   <dd>
                     <Display>
                       {onboarding && (
-                        <Moment
-                          format="dddd, MMMM Do YYYY, h:mm:ss a"
-                          date={onboarding.modified}
-                        />
+                        <Moment format="LLL" date={onboarding.modified} />
                       )}
                     </Display>
                   </dd>

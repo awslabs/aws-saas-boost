@@ -19,6 +19,7 @@ import { Table, Row, Col, Spinner, Button, Card, CardHeader, CardBody, Alert } f
 import CIcon from '@coreui/icons-react'
 import { cilReload, cilListRich } from '@coreui/icons'
 import { UserListItemComponent } from './UserListItemComponent'
+import { sortByModified } from '../utils'
 
 function showError(error, handleError) {
   return (
@@ -46,12 +47,13 @@ export const UserListComponent = ({
           <th>Name</th>
           <th>Email</th>
           <th>Status</th>
-          <th>Created On</th>
+          <th>Created</th>
+          <th>Modified</th>
         </tr>
       </thead>
       <tbody>
         {loading === 'idle' &&
-          users.map((user) => (
+          users.sort(sortByModified).map((user) => (
             <UserListItemComponent
               user={user}
               key={user.username}

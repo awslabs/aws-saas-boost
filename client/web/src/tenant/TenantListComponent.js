@@ -31,6 +31,7 @@ import {
   Badge,
   NavLink,
 } from 'reactstrap'
+import { sortByModified } from '../utils'
 
 TenantListItem.propTypes = {
   tenant: PropTypes.object,
@@ -46,18 +47,7 @@ function TenantListItem({ tenant, handleTenantClick }) {
       }}
       className="pointer"
     >
-      <td>
-        <NavLink
-          href="#"
-          onClick={() => {
-            handleTenantClick(tenant.id)
-          }}
-          color="link"
-          className="pl-0 pt-0"
-        >
-          {tenant.id}
-        </NavLink>
-      </td>
+      <td>{tenant.id}</td>
       <td>{tenant.name}</td>
       <td>
         <Badge color={!!tenant && tenant.active ? 'success' : 'danger'}>
@@ -67,6 +57,9 @@ function TenantListItem({ tenant, handleTenantClick }) {
       <td>{tenant.subdomain}</td>
       <td>
         <Moment format="LLL">{tenant.created}</Moment>
+      </td>
+      <td>
+        <Moment format="LLL">{tenant.modified}</Moment>
       </td>
     </tr>
   )
@@ -101,20 +94,21 @@ function TenantList({
   handleError,
 }) {
   const toRender = (
-    <Table responsive striped>
+    <Table responsive hover>
       <thead>
         <tr>
           <th width="30%">Id</th>
-          <th width="20%">Name</th>
+          <th width="15%">Name</th>
           <th width="10%">Status</th>
-          <th width="20%">Subdomain</th>
-          <th width="20%">Created On</th>
+          <th width="15%">Subdomain</th>
+          <th width="15%">Created</th>
+          <th width="15%">Modified</th>
         </tr>
       </thead>
       <tbody>
         {loading === 'idle' &&
           tenants.length !== 0 &&
-          tenants.map((tenant) => (
+          tenants.sort(sortByModified).map((tenant) => (
             <TenantListItem tenant={tenant} key={tenant.id} handleTenantClick={handleTenantClick} />
           ))}
         {tenants.length === 0 && loading === 'idle' && (
