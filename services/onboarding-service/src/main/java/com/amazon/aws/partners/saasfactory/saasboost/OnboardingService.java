@@ -837,6 +837,7 @@ public class OnboardingService {
                         String pathPart = (isPublic) ? (String) service.get("path") : "";
                         Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
                         String healthCheck = (String) service.get("healthCheckUrl");
+                        Boolean enableEcsExec = (Boolean) service.get("ecsExecEnabled");
 
                         // CloudFormation won't let you use dashes or underscores in Mapping second level key names
                         // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
@@ -986,6 +987,7 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepository").parameterValue(containerRepo).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
+                        templateParameters.add(Parameter.builder().parameterKey("EnableECSExec").parameterValue(enableEcsExec.toString()).build());
                         templateParameters.add(Parameter.builder()
                                 .parameterKey("OnboardingDdbTable")
                                 .parameterValue(ONBOARDING_TABLE).build());

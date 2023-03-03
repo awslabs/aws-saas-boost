@@ -161,6 +161,7 @@ export function ApplicationComponent(props) {
       name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
       public: thisService ? thisService.public : true,
+      ecsExecEnabled: thisService ? thisService.ecsExecEnabled : false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
@@ -279,6 +280,7 @@ export function ApplicationComponent(props) {
           .required('Health Check URL is a required field')
           .matches(/^\//, 'Health Check must start with forward slash (/)'),
         operatingSystem: Yup.string().required('Container OS is a required field.'),
+        ecsExecEnabled: Yup.boolean().required(),
         windowsVersion: Yup.string().when('operatingSystem', {
           is: (containerOs) => containerOs && containerOs === WINDOWS,
           then: Yup.string().required('Windows version is a required field'),

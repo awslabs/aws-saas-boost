@@ -41,6 +41,11 @@ Parameters:
   ECSCluster:
     Description: This tenant's container cluster
     Type: String
+  EnableECSExec:
+    Description: Enable ECS Exec for this ECS Service?
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
   PubliclyAddressable:
     Description: Is this service publicly accessible from the Internet?
     Type: String
@@ -283,6 +288,7 @@ Conditions:
   IsWin2022Full: !Equals [WIN2022FULL, !Ref ContainerOS]
   IsWin2022Core: !Equals [WIN2022CORE, !Ref ContainerOS]
   UseS3: !Not [!Equals [!Ref TenantStorageBucket, '']]
+  EcsExec: !Equals [!Ref EnableECSExec, 'true']
 Resources:
   CapacityProvider:
     Type: AWS::ECS::CapacityProvider
@@ -467,6 +473,15 @@ Resources:
                   - s3:ListMultipartUploadParts
                 Resource:
                   - !Sub arn:${AWS::Partition}:s3:::${TenantStorageBucket}/${ServiceResourceName}/${TenantId}/*
+              - Effect: !If [EcsExec, 'Allow', 'Deny']
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource:
+                  # ssmmessages does not support providing ARNs as resource access restrictors
+                  - '*'
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -1144,7 +1159,7 @@ Resources:
     DependsOn:
       - ClusterCapacityAssociationWaitCondition
     Properties:
-      EnableExecuteCommand: !If [WindowsOS, false, true]
+      EnableExecuteCommand: !Ref EnableECSExec
       ServiceName: !Ref ServiceResourceName
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref ECSTaskDefinition

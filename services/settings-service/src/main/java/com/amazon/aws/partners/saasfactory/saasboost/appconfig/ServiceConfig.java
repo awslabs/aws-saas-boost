@@ -42,6 +42,7 @@ public class ServiceConfig {
     private final OperatingSystem operatingSystem;
     private final Database database;
     private final EcsLaunchType ecsLaunchType;
+    private final Boolean ecsExecEnabled;
     private final S3Storage s3;
 
     private ServiceConfig(Builder builder) {
@@ -57,6 +58,7 @@ public class ServiceConfig {
         this.tiers = builder.tiers;
         this.database = builder.database;
         this.ecsLaunchType = builder.ecsLaunchType;
+        this.ecsExecEnabled = builder.ecsExecEnabled;
         this.s3 = builder.s3;
     }
 
@@ -78,6 +80,7 @@ public class ServiceConfig {
                 .operatingSystem(other.getOperatingSystem())
                 .database(other.getDatabase())
                 .ecsLaunchType(other.getEcsLaunchType())
+                .ecsExecEnabled(other.getEcsExecEnabled())
                 .s3(other.s3);
     }
 
@@ -133,6 +136,10 @@ public class ServiceConfig {
         return ecsLaunchType;
     }
 
+    public Boolean getEcsExecEnabled() {
+        return ecsExecEnabled;
+    }
+
     public S3Storage getS3() {
         return s3;
     }
@@ -178,13 +185,14 @@ public class ServiceConfig {
             && Utils.nullableEquals(tiers, other.tiers) && tiersEqual
             && Utils.nullableEquals(database, other.database)
             && Utils.nullableEquals(ecsLaunchType, other.ecsLaunchType)
+            && Utils.nullableEquals(ecsExecEnabled, other.getEcsExecEnabled())
             && Utils.nullableEquals(s3, other.s3);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, description, path, publiclyAddressable, containerPort, containerRepo, containerTag,
-                healthCheckUrl, operatingSystem, database, ecsLaunchType, s3)
+                healthCheckUrl, operatingSystem, database, ecsLaunchType, ecsExecEnabled, s3)
                 + Arrays.hashCode(tiers != null ? tiers.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(tiers != null ? tiers.values().toArray(new Object[0]) : null);
     }
@@ -205,6 +213,7 @@ public class ServiceConfig {
         private Map<String, ServiceTierConfig> tiers = new HashMap<>();
         private Database database;
         private EcsLaunchType ecsLaunchType;
+        private Boolean ecsExecEnabled = false;
         private S3Storage s3;
 
         private Builder() {
@@ -297,6 +306,11 @@ public class ServiceConfig {
                     );
                 }
             }
+            return this;
+        }
+
+        public Builder ecsExecEnabled(Boolean ecsExecEnabled) {
+            this.ecsExecEnabled = ecsExecEnabled;
             return this;
         }
 
