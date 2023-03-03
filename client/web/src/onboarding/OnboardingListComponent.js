@@ -20,6 +20,7 @@ import { Row, Col, Card, Button, Table, Spinner, Alert } from 'react-bootstrap'
 import CIcon from '@coreui/icons-react'
 import { cilReload, cilListRich } from '@coreui/icons'
 import OnboardingListItemComponent from './OnboardingListItemComponent'
+import { sortByModified } from '../utils'
 
 const showError = (error, dismissError) => {
   return (
@@ -102,7 +103,7 @@ export const OnboardingListComponent = (props) => {
               <CIcon icon={cilListRich} /> Onboarding Requests
             </Card.Header>
             <Card.Body>
-              <Table>
+              <Table responsive hover>
                 <thead>
                   <tr>
                     <th>Request Id</th>
@@ -114,7 +115,7 @@ export const OnboardingListComponent = (props) => {
                 </thead>
                 <tbody>
                   {loading === 'idle' &&
-                    onboardingRequests.map((onboarding) => {
+                    onboardingRequests.sort(sortByModified).map((onboarding) => {
                       return (
                         <OnboardingListItemComponent
                           onboarding={onboarding}

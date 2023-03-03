@@ -177,8 +177,7 @@ export class UserViewComponent extends Component {
                       <dt>Created On</dt>
                       <dd>
                         <Display condition={!!user}>
-                          {/* <SBMoment instant="{!!user && user.created}" /> */}
-                          <Moment date={user.created} format="LLL" /> UTC
+                          <Moment date={user.created} format="LLL" />
                         </Display>
                       </dd>
                     </Col>
