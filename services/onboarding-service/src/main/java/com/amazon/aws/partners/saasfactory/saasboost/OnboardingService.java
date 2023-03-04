@@ -892,6 +892,9 @@ public class OnboardingService {
                         String mountPoint = "/mnt";
                         Boolean encryptFilesystem = Boolean.TRUE;
                         String filesystemLifecycle = "NEVER";
+                        String managedActiveDirectoryId = "";
+                        String activeDirectoryDnsIps = "";
+                        String activeDirectoryDnsName = "";
                         Integer fsxStorageGb = 32;
                         Integer fsxThroughputMbs = 8;
                         Integer fsxBackupRetentionDays = 0;
@@ -916,6 +919,20 @@ public class OnboardingService {
                                 }
                             } else if ("FSX_WINDOWS".equals(fileSystemType) || "FSX_ONTAP".equals(fileSystemType)) {
                                 enableFSx = Boolean.TRUE;
+                                Map<String, String> activeDirectorySettings = getSettings(
+                                        context,
+                                        "ACTIVE_DIRECTORY_DNS_IPS",
+                                        "ACTIVE_DIRECTORY_DNS_NAME",
+                                        "ACTIVE_DIRECTORY_ID"
+                                );
+                                if (activeDirectorySettings != null) {
+                                    activeDirectoryDnsIps = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_IPS", "");
+                                    activeDirectoryDnsName = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_NAME", "");
+                                    managedActiveDirectoryId = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_ID", "");
+                                }
                                 fsxStorageGb = (Integer) filesystem.get("storageGb");
                                 if (fsxStorageGb == null) {
                                     fsxStorageGb = "FSX_ONTAP".equals(fileSystemType) ? 1024 : 32;
@@ -1024,7 +1041,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxFileSystemType").parameterValue(fileSystemType.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryId").parameterValue(managedActiveDirectoryId).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryDnsIps").parameterValue(activeDirectoryDnsIps).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryDnsName").parameterValue(activeDirectoryDnsName).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxFileSystemType").parameterValue(fileSystemType).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
@@ -1163,14 +1183,18 @@ public class OnboardingService {
                 }
 
                 // Publish an event to subscribe this tenant to the billing system if needed
-                // TODO Onboarding probably shouldn't be sending the plan in -- just the tier and/or tenant
-                LOGGER.info("Publishing billing setup event for tenant {}", onboarding.getTenantId());
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                        "Billing Tenant Setup",
-                        Map.of("tenantId", onboarding.getTenantId(),
-                                "planId", onboarding.getRequest().getBillingPlan()
-                        )
-                );
+                if (Utils.isNotBlank(onboarding.getRequest().getBillingPlan())) {
+                    // TODO Onboarding probably shouldn't be sending the plan in -- just the tier and/or tenant
+                    LOGGER.info("Publishing billing setup event for tenant {}", onboarding.getTenantId());
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Billing Tenant Setup",
+                            Map.of("tenantId", onboarding.getTenantId(),
+                                    "planId", onboarding.getRequest().getBillingPlan()
+                            )
+                    );
+                } else {
+                    LOGGER.info("Skipping billing setup, no billing plan for tenant {}", onboarding.getTenantId());
+                }
             } else {
                 LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
             }
@@ -2220,6 +2244,37 @@ public class OnboardingService {
         );
         Map<String, Object> settingObject = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         return (String) settingObject.get("value");
+    }
+
+    protected Map<String, String> getSettings(Context context, String... settings) {
+        LOGGER.info("Calling settings service to fetch settings {}", settings);
+        StringBuilder queryParams = new StringBuilder();
+        for (Iterator<String> iter = Arrays.stream(settings).iterator(); iter.hasNext();) {
+            queryParams.append("setting=");
+            queryParams.append(iter.next());
+            if (iter.hasNext()) {
+                queryParams.append("&");
+            }
+        }
+        String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings?" + queryParams.toString())
+                                .method("GET")
+                                .build()
+                )
+                ,API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, String>> settingsList = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
+        return settingsList.stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.get("name"),
+                        entry -> entry.get("value")
+                )
+        );
     }
 
     protected Map<String, Object> getTenant(UUID tenantId, Context context) {

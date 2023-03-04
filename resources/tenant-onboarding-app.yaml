@@ -189,6 +189,18 @@ Parameters:
     Type: String
     AllowedValues: ['true', 'false']
     Default: 'false'
+  ActiveDirectoryId:
+    Description: AWS Managed Active Directory ID
+    Type: String
+    Default: ''
+  ActiveDirectoryDnsIps:
+    Description: List of Active Directory DNS IP addresses to add to Windows cluster hosts for FSx
+    Type: String
+    Default: ''
+  ActiveDirectoryDnsName:
+    Description: Active Directory controller hostname to use when joining Windows cluster hosts to domain for FSx
+    Type: String
+    Default: ''
   FSxFileSystemType:
     Description: Type of FSx file system to provision
     Type: String
@@ -517,6 +529,7 @@ Resources:
             - - Name: !GetAtt efs.Outputs.FileSystemId
                 EFSVolumeConfiguration:
                   FilesystemId: !GetAtt efs.Outputs.FileSystemId
+                  TransitEncryption: ENABLED
             - !Ref 'AWS::NoValue'
       Tags:
         - Key: Tenant
@@ -1245,8 +1258,9 @@ Resources:
         Environment: !Ref Environment
         TenantId: !Ref TenantId
         ServiceResourceName: !Ref ServiceResourceName
-        ActiveDirectoryId: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_ID}}'
-        ActiveDirectoryDnsIps: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS}}'
+        ActiveDirectoryId: !Ref ActiveDirectoryId
+        ActiveDirectoryDnsIps: !Ref ActiveDirectoryDnsIps
+        ActiveDirectoryDnsName: !Ref ActiveDirectoryDnsName
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
         PrivateRouteTable: !Ref PrivateRouteTable
