@@ -34,7 +34,6 @@ export const fetchTenantsThunk = createAsyncThunk('tenants/fetchAll', async (...
   const { signal } = thunkAPI
   //since no value is passed to this async fn()
   try {
-    // const response = await tenantAPI.fetchAll();
     const response = await tenantAPI.fetchAllAxios({ signal })
     const datesFixed = response.map((tenant) => {
       return {
