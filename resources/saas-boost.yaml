@@ -63,10 +63,6 @@ Parameters:
     Type: String
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
-  ApplicationDomainName:
-    Description: The root domain name your workload is hosted at (e.g. example.com)
-    Type: String
-    Default: ''
   PublicApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost public API
     Type: String
@@ -902,7 +898,6 @@ Resources:
         PublicApiStage: !Ref PublicApiStage
         PrivateApiStage: !Ref PrivateApiStage
         ApplicationServices: !Ref ApplicationServices
-        DomainName: !Ref ApplicationDomainName
         EventBus: !Ref SaaSBoostEventBus
         AppExtensions: !Ref AppExtensions
       NotificationARNs:

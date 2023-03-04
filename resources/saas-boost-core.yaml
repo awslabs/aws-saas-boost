@@ -57,10 +57,6 @@ Parameters:
     Description: Comma separated list of extension names to apply to the entire application
     Type: String
     Default: ''
-  DomainName:
-    Description: The domain your workload is hosted at formatted as [env].[domain].[com]
-    Type: String
-    Default: ''
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
