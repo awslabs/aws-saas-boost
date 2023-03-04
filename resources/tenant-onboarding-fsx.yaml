@@ -49,8 +49,13 @@ Parameters:
   ActiveDirectoryId:
     Description: Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
     Type: String
+    Default: ''
   ActiveDirectoryDnsIps:
     Description: Comma delimited string of DNS IP addresses for the Active Directory instance to join the SVM to for FSx ONTAP
+    Type: String
+    Default: ''
+  ActiveDirectoryDnsName:
+    Description: Active Directory controller hostname to use when joining Windows cluster hosts to domain for FSx
     Type: String
     Default: ''
   FileSystemType:
@@ -100,15 +105,23 @@ Parameters:
     MinValue: 20
     MaxValue: 104857600
 Conditions:
-  UseAWSDirectoryService: !Not [!Equals [!Ref ActiveDirectoryId, '']]
   HasKey: !Equals [!Ref FSxEncryptionKey, 'UseKey']
   CreateKey: !Equals [!Ref FSxEncryptionKey, 'GenerateKey']
   UseNonDefault: !Not [!Equals [!Ref FSxEncryptionKey, 'Default']]
+  IsLinux: !Equals [!Ref ContainerOS, 'LINUX']
+  IsWindows: !Not [!Equals [!Ref ContainerOS, 'LINUX']]
   FSxWindows: !Equals [!Ref FileSystemType, 'FSX_WINDOWS']
   FSxONTAP: !Equals [!Ref FileSystemType, 'FSX_ONTAP']
+  FSxONTAPWindows: !And
+    - Condition: FSxONTAP
+    - Condition: IsWindows
   FSxONTAPLinux: !And
     - Condition: FSxONTAP
-    - !Equals [!Ref ContainerOS, 'LINUX']
+    - Condition: IsLinux
+  UseManagedActiveDirectory: !Not [!Equals [!Ref ActiveDirectoryId, '']]
+  HasActiveDirectory: !And
+    - !Not [!Equals [!Ref ActiveDirectoryDnsIps, '']]
+    - !Not [!Equals [!Ref ActiveDirectoryDnsName, '']]
 Resources:
   FSxKMSKey:
     Condition: CreateKey
@@ -424,7 +437,7 @@ Resources:
       WindowsConfiguration: !If
         - FSxWindows
         -
-          ActiveDirectoryId: !If [UseAWSDirectoryService, !Ref ActiveDirectoryId, !Ref 'AWS::NoValue']
+          ActiveDirectoryId: !If [UseManagedActiveDirectory, !Ref ActiveDirectoryId, !Ref 'AWS::NoValue']
           WeeklyMaintenanceStartTime: !Ref WeeklyMaintenanceTime
           DailyAutomaticBackupStartTime: !Ref DailyBackupTime
           AutomaticBackupRetentionDays: !Ref BackupRetention
@@ -451,22 +464,25 @@ Resources:
       Name:
         Fn::Join: ['', ['sb-', !Ref Environment, '-tenant-', !Select [0, !Split ['-', !Ref TenantId]], '-', !Ref ServiceResourceName]]
       RootVolumeSecurityStyle: !If [FSxONTAPLinux, 'UNIX', 'NTFS']
-      ActiveDirectoryConfiguration:
-        # Max string length 15. Since this is bound to a SVM and a File System, we don't need the env or service name.
-        NetBiosName:
-          Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
-        # TODO how do we support non SaaS Boost provisioned AD instances?
-        SelfManagedActiveDirectoryConfiguration:
-          OrganizationalUnitDistinguishedName: !Sub OU=Computers,OU=sb-${Environment},DC=${Environment},DC=${AWS::Region},DC=saasboost,DC=com
-          FileSystemAdministratorsGroup: AWS Delegated FSx Administrators
-          DomainName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME}}'
-          # Must pass the comma delimited string in as a parameter, because {{resolve:ssm:}} can't
-          # be nested inside a Fn::Split. The split happens before the resolution of the parameter.
-          DnsIps: !Split [',', !Ref ActiveDirectoryDnsIps]
-          # Don't use Domain\Username here - only Username
-          UserName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER}}'
-          # Can't use ssm-secure here
-          Password: !Sub '{{resolve:secretsmanager:/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD::::}}'
+      ActiveDirectoryConfiguration: !If
+        - HasActiveDirectory
+        -
+          # Max string length 15. Since this is bound to a SVM and a File System, we don't need the env or service name.
+          NetBiosName:
+            Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
+          # TODO how do we support non SaaS Boost provisioned AD instances?
+          SelfManagedActiveDirectoryConfiguration:
+            OrganizationalUnitDistinguishedName: !Sub OU=Computers,OU=sb-${Environment},DC=${Environment},DC=${AWS::Region},DC=saasboost,DC=com
+            FileSystemAdministratorsGroup: AWS Delegated FSx Administrators
+            DomainName: !Ref ActiveDirectoryDnsName
+            # Must pass the comma delimited string in as a parameter, because {{resolve:ssm:}} can't
+            # be nested inside a Fn::Split. The split happens before the resolution of the parameter.
+            DnsIps: !Split [',', !Ref ActiveDirectoryDnsIps]
+            # Don't use Domain\Username here - only Username
+            UserName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER}}'
+            # Can't use ssm-secure here
+            Password: !Sub '{{resolve:secretsmanager:/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD::::}}'
+        - !Ref 'AWS::NoValue'
       Tags:
         - Key: Name
           Value:
@@ -588,7 +604,6 @@ Resources:
       FsxFileSystemId: !Ref FSxFileSystem
       StorageVirtualMachineId: !If [FSxONTAP, !Ref StorageVirtualMachine, '']
       VolumeSecurityStyle: !If [FSxONTAP, !If [FSxONTAPLinux, 'UNIX', ''], '']
-
 Outputs:
   FileSystemId:
     Description: FSx File System ID
