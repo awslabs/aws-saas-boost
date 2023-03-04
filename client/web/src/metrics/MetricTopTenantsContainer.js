@@ -66,6 +66,20 @@ export default function MetricTopTenantsContainer(props) {
       },
       yAxes: {},
     },
+    elements: {
+      point: {
+        radius: 0,
+        hitRadius: 10,
+        hoverRadius: 4,
+        hoverBorderWidth: 3,
+      },
+    },
+    tooltips: {
+      enabled: true,
+      intersect: true,
+      mode: 'index',
+      position: 'nearest',
+    },
   }
   const dispatch = useDispatch()
   const albstats = useSelector((state) =>
