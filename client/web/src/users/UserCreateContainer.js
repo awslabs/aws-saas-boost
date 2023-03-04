@@ -47,7 +47,7 @@ class UserCreateContainer extends Component {
     try {
       const createdResponse = await createdUser(user)
       if (!createdResponse.error) {
-        history.push(`/users/${username}`)
+        history.push(`/sysusers/${username}`)
       } else {
         setSubmitting(false)
         resetForm({ values })
