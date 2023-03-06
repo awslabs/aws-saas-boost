@@ -53,6 +53,7 @@ export function ApplicationComponent(props) {
     loading,
     error,
     certOptions,
+    hostedZoneOptions,
     message,
     osOptions,
     updateConfiguration,
@@ -65,6 +66,7 @@ export function ApplicationComponent(props) {
   const consoleUrlSuffix = awsRegion.startsWith("cn-")? "amazonaws.cn": "aws.amazon.com"
 
   const acmConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/acm/home?region=${awsRegion}#/certificates/list`
+  const route53ConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/route53/v2/hostedzones`
   const showProvisionBilling = awsRegion.startsWith("cn-")? false : true
 
   const updateConfig = (values) => {
@@ -190,6 +192,7 @@ export function ApplicationComponent(props) {
   const initialValues = {
     name: appConfig.name || '',
     domainName: appConfig.domainName || '',
+    hostedZone: appConfig.hostedZone || '',
     sslCertificate: appConfig.sslCertificate || '',
     services: parseServicesFromAppConfig(),
     billing: appConfig.billing || {
@@ -249,6 +252,12 @@ export function ApplicationComponent(props) {
       /^$|(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\.)+[a-zA-Z]{2,63}$)/,
       'Domain Name is not in valid format.'
     ),
+    hostedZone: Yup.string().when(['domainName'], (domainName, schema) => {
+      if (!!domainName) {
+        return schema.required('HostedZone is required when DomainName is configured.')
+      }
+      return schema
+    }),
     services: Yup.array(
       Yup.object({
         public: Yup.boolean().required(),
@@ -399,6 +408,8 @@ export function ApplicationComponent(props) {
                     isLocked={hasTenants}
                     certOptions={certOptions}
                     acmConsoleLink={acmConsoleLink}
+                    hostedZoneOptions={hostedZoneOptions.filter(option => option.name.startsWith(formik.values.domainName))}
+                    route53ConsoleLink={route53ConsoleLink}
                   ></AppSettingsSubform>
                   <ServicesComponent
                     formik={formik}
