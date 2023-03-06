@@ -28,6 +28,10 @@ import software.amazon.awssdk.services.acm.model.ListCertificatesResponse;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.route53.Route53Client;
+import software.amazon.awssdk.services.route53.model.HostedZone;
+import software.amazon.awssdk.services.route53.model.ListHostedZonesRequest;
+import software.amazon.awssdk.services.route53.model.ListHostedZonesResponse;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 
@@ -56,6 +60,7 @@ public class SettingsServiceDAL {
     private final ParameterStoreFacade parameterStore;
     private AcmClient acm;
     private DynamoDbClient ddb;
+    private Route53Client route53;
 
     public SettingsServiceDAL() {
         final long startTimeMillis = System.currentTimeMillis();
@@ -76,6 +81,7 @@ public class SettingsServiceDAL {
             this.ddb.describeTable(request -> request.tableName(OPTIONS_TABLE));
         }
         this.acm = Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME);
+        this.route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME);
         LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
     }
 
@@ -196,6 +202,28 @@ public class SettingsServiceDAL {
             }
         } while (nextToken != null);
         return certificateSummaries;
+    }
+
+    public List<HostedZone> hostedZoneOptions() {
+        List<HostedZone> allHostedZones = new ArrayList<>();
+        String marker = null;
+        do {
+            ListHostedZonesResponse response = route53.listHostedZones(ListHostedZonesRequest.builder()
+                    .marker(marker)
+                    .build());
+            LOGGER.info("Listed hostedZones: {}", response);
+            if (response.hasHostedZones() && response.hostedZones() != null) {
+                // we only want to list public zones, since we attaching them to an internet-facing
+                // ApplicationLoadBalancer for the tenant
+                for (HostedZone zone : response.hostedZones()) {
+                    if (zone.config() != null && !zone.config().privateZone()) {
+                        allHostedZones.add(zone);
+                    }
+                }
+            }
+            marker = response.marker();
+        } while (marker != null);
+        return allHostedZones;
     }
 
     private static final Comparator<Map<String, String>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {

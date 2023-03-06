@@ -1702,7 +1702,6 @@ public class OnboardingService {
             templateParameters.add(Parameter.builder().parameterKey("TenantTransitGatewayRouteTable").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("EgressTransitGatewayRouteTable").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("CidrPrefix").usePreviousValue(Boolean.TRUE).build());
-            templateParameters.add(Parameter.builder().parameterKey("DomainName").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("SSLCertArnParam").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("UseEFS").usePreviousValue(Boolean.TRUE).build());
@@ -1857,20 +1856,7 @@ public class OnboardingService {
 
         Map<String, Object> appConfig = getAppConfig(context);
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
-
-        String domainName = (String) appConfig.getOrDefault("domainName", "");
-        String hostedZone = chooseHostedZoneParameter(stackName, domainName, cfn, route53);
         String appExtensions = collectAppExtensions(appConfig);
-
-        // If there's an existing hosted zone, we need to tell the AppConfig about it
-        // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
-        // and the stack listener will tell AppConfig about the newly created one.
-        if (Utils.isNotBlank(hostedZone)) {
-            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZone);
-            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                    "Application Configuration Resource Changed",
-                    Map.of("hostedZone", hostedZone));
-        }
 
         LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stackName);
         String stackId = null;
@@ -1897,8 +1883,6 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("ApplicationDomainName").parameterValue(domainName).build(),
-                            Parameter.builder().parameterKey("ApplicationHostedZone").parameterValue(hostedZone).build(),
                             Parameter.builder().parameterKey("AppExtensions").parameterValue(appExtensions).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
                                     String.join(",", services.keySet())).build(),
@@ -2333,110 +2317,6 @@ public class OnboardingService {
             pathPriority.put(publicService, ++priority);
         }
         return pathPriority;
-    }
-
-    // separate out route53 client for testability
-    protected static String getExistingHostedZone(String domainName, Route53Client route53Client) {
-        String existingHostedZone = "";
-        if (Utils.isNotEmpty(domainName)) {
-            String nextDnsName = null;
-            String nextHostedZone = null;
-            ListHostedZonesByNameResponse response;
-            do {
-                response = route53Client.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
-                        .dnsName(nextDnsName)
-                        .hostedZoneId(nextHostedZone)
-                        .maxItems("100")
-                        .build()
-                );
-                nextDnsName = response.nextDNSName();
-                nextHostedZone = response.nextHostedZoneId();
-                if (response.hasHostedZones()) {
-                    for (HostedZone hostedZone : response.hostedZones()) {
-                        // If there are multiple hosted zones for a given domain name, what should we do?
-                        // We could sort the response by "CallerReference" which appears to be a timestamp.
-                        // In the documentation, we can just tell people if they're suffering from
-                        // https://github.com/awslabs/aws-saas-boost/issues/74 to go clean things up manually first?
-                        if (hostedZone.name().startsWith(domainName)
-                                && hostedZone.config() != null
-                                && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
-                            // Created by SaaS Boost CloudFormation?
-                            // TODO do we do this check? seems safest for now.
-                            if ((domainName + " Public DNS zone").equals(hostedZone.config().comment())) {
-                                LOGGER.info("Found existing hosted zone {} for domain {}", hostedZone, domainName);
-                                // Hosted zone id will be prefixed with /hostedzone/
-                                existingHostedZone = hostedZone.id().replace("/hostedzone/", "");
-                                break;
-                            }
-                        }
-                    }
-                }
-            } while (response.isTruncated());
-        }
-        return existingHostedZone;
-    }
-
-    protected static String chooseHostedZoneParameter(
-                String stackName, 
-                String domainName, 
-                CloudFormationClient cfnClient, // separate out clients for testability
-                Route53Client route53Client) {
-        LOGGER.debug("Locating SaaS Boost provisioned Hosted Zone for domain {}", domainName);
-        if (Utils.isNotBlank(domainName)) {
-            final String hostedZoneCfnName = "PublicDomainHostedZone";
-            // need to find the core stack to find whether we already created a hostedZone
-            // this call might throw a CloudFormationException if the stack or the core resource does not exist
-            // in either case, we couldn't possibly continue with our updateInfrastructure operation, so allow
-            // it to bubble up into the logs. unfortunately there's currently no way to percolate a serious fatal
-            // state error through the system
-            final StackResourceDetail coreStackResourceDetail = cfnClient.describeStackResource(
-                    DescribeStackResourceRequest.builder()
-                            .stackName(stackName)
-                            .logicalResourceId("core")
-                            .build())
-                    .stackResourceDetail();
-            boolean saasBoostOwnsHostedZone = false;
-            try {
-                cfnClient.describeStackResource(DescribeStackResourceRequest.builder()
-                        .stackName(coreStackResourceDetail.physicalResourceId())
-                        .logicalResourceId(hostedZoneCfnName)
-                        .build());
-                // because we didn't throw, the resource must exist. so saasBoost has created
-                // a hostedZone for this environment
-                saasBoostOwnsHostedZone = true;
-            } catch (CloudFormationException cfne) {
-                // if the exception is that the resource does not exist, that means that we have not created
-                // a hosted zone in this environment. any other exception is unexpected and should be rethrown
-                if (!cfne.getMessage().contains("Resource " + hostedZoneCfnName + " does not exist")) {
-                    throw new RuntimeException(cfne);
-                }
-            }
-
-            if (!saasBoostOwnsHostedZone) {
-                LOGGER.debug("Found SaaS Boost provisioned Hosted Zone in CloudFormation");
-                String existingHostedZone = getExistingHostedZone(domainName, route53Client);
-                if (Utils.isNotBlank(existingHostedZone)) {
-                    /*
-                     * If there exists a hostedZone and we don't own it, we want to pass that hostedZone
-                     * name to the stack, since that means it won't be created
-                     */
-                    return existingHostedZone;
-                }
-            } else {
-                LOGGER.debug("No SaaS Boost provisioned Hosted Zone in CloudFormation");
-                /*
-                 * If there exists a hostedZone and we DO own it, we don't want to pass the hostedZone
-                 * name to the stack, since the condition to create the hostedZone will evaluate to 
-                 * false and the owned hostedZone will be deleted
-                 * 
-                 * If there does not exist a hostedZone we won't own it (because it doesn't exist) but
-                 * either way we would not want to pass a hostedZone name in so that the stack
-                 * creates one. This might be happening on an initial configuration of domainName in
-                 * AppConfig.
-                 */
-            }
-        }
-        return "";
     }
 
     protected static String collectAppExtensions(Map<String, Object> appConfig) {
