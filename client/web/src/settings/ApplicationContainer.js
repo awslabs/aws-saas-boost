@@ -36,7 +36,7 @@ import {
 
 import { ApplicationComponent } from './ApplicationComponent'
 import { ConfirmModal } from './ConfirmModal'
-import { selectDbOptions, selectOsOptions, selectCertOptions } from '../options/ducks'
+import { selectDbOptions, selectOsOptions, selectCertOptions, selectHostedZoneOptions } from '../options/ducks'
 import { fetchTenantsThunk, selectAllTenants } from '../tenant/ducks'
 import { fetchTiersThunk, selectAllTiers } from '../tier/ducks'
 import { FILESYSTEM_TYPES } from './components/filesystem'
@@ -53,6 +53,7 @@ export function ApplicationContainer(props) {
   const loading = useSelector(selectLoading)
   const osOptions = useSelector(selectOsOptions)
   const certOptions = useSelector(selectCertOptions)
+  const hostedZoneOptions = useSelector(selectHostedZoneOptions)
   const serviceToS3BucketMap = useSelector(selectServiceToS3BucketMap)
   const settings = useSelector(selectAllSettings)
 
@@ -275,6 +276,7 @@ export function ApplicationContainer(props) {
               onFileSelected={handleFileSelected}
               osOptions={osOptions}
               certOptions={certOptions}
+              hostedZoneOptions={hostedZoneOptions}
               settings={settings}
               settingsObj={settingsObj}
               error={configError}
