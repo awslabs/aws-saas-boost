@@ -114,9 +114,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         List<Setting> settings = new ArrayList<>();
-        // ?key1=val1
+        // Normal query string params are key/value pairs ?key1=val1&key2=val2
         Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
-        // ?key2=val1&key=val2
+        // Multi-value params are a list of the same key with diff values ?key=val1&key=val2&key=val3
         Map<String, List<String>> multiValueQueryParams = (Map<String, List<String>>) event.get("multiValueQueryStringParameters");
         // Only return one set of params
         LOGGER.info("getSettings queryParams: " + queryParams);
