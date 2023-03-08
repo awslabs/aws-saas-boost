@@ -14,15 +14,46 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
-      "database": null,
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
           "cpu": 512,
           "memory": 1024,
           "min": 1,
-          "max": 2,
-          "filesystem": null
+          "max": 2
+        }
+      },
+      "filesystem": {
+        "type": "EFS",
+        "mountPoint": "/mnt",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "lifecycle": "NEVER"
+          },
+          "Gold": {
+            "encrypt": true,
+            "lifecycle": "AFTER_7_DAYS",
+            "encryptionKey": "encryptionARN"
+          }
         }
       }
     },
@@ -36,15 +67,55 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
-      "database": null,
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
           "cpu": 512,
           "memory": 1024,
           "min": 1,
-          "max": 2,
-          "filesystem": null
+          "max": 2
+        }
+      },
+      "filesystem": {
+        "type": "FSX_WINDOWS",
+        "mountPoint": "/mnt",
+        "windowsMountDrive": "G:\\\\",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "storageGb": 100,
+            "throughputMbs": 200,
+            "backupRetentionDays": 1,
+            "dailyBackupTime": "12:00",
+            "weeklyMaintenanceTime": "3:09:00"
+          },
+          "Gold": {
+            "encrypt": true,
+            "encryptionKey": "encryptionARN",
+            "storageGb": 1000,
+            "throughputMbs": 2000,
+            "backupRetentionDays": 10,
+            "dailyBackupTime": "23:55",
+            "weeklyMaintenanceTime": "6:12:00"
+          }
         }
       }
     },
@@ -58,15 +129,57 @@
       "containerPort": 7000,
       "containerRepo": "",
       "containerTag": "latest",
-      "database": null,
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
       "tiers": {
         "default": {
           "instanceType": "t3.medium",
           "cpu": 512,
           "memory": 1024,
           "min": 1,
-          "max": 2,
-          "filesystem": null
+          "max": 2
+        }
+      },
+      "filesystem": {
+        "type": "FSX_ONTAP",
+        "mountPoint": "/mnt",
+        "windowsMountDrive": "G:\\\\",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "storageGb": 100,
+            "throughputMbs": 200,
+            "backupRetentionDays": 1,
+            "dailyBackupTime": "12:00",
+            "weeklyMaintenanceTime": "3:09:00",
+            "volumeSize": 300
+          },
+          "Gold": {
+            "encrypt": true,
+            "encryptionKey": "encryptionARN",
+            "storageGb": 1000,
+            "throughputMbs": 2000,
+            "backupRetentionDays": 10,
+            "dailyBackupTime": "23:55",
+            "weeklyMaintenanceTime": "6:12:00",
+            "volumeSize": 3000
+          }
         }
       }
     }

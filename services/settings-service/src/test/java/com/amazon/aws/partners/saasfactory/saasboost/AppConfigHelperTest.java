@@ -101,30 +101,6 @@ public class AppConfigHelperTest {
     }
 
     @Test
-    public void testIsComputeChanged() {
-        // TODO POEPPT
-//        AppConfig existing = AppConfig.builder().build();
-//        AppConfig altered = AppConfig.builder().build();
-//        assertFalse("Both null", AppConfigHelper.isBillingChanged(existing, altered));
-//
-//        existing = AppConfig.builder().computeSize("S").build();
-//        altered = AppConfig.builder().computeSize("S").build();
-//        assertFalse("Both ComputeSize Small", AppConfigHelper.isComputeChanged(existing, altered));
-//
-//        existing = AppConfig.builder().defaultMemory(2048).defaultCpu(1024).build();
-//        altered = AppConfig.builder().defaultMemory(2048).defaultCpu(1024).build();
-//        assertFalse("Both ComputeSize Small", AppConfigHelper.isComputeChanged(existing, altered));
-//
-//        existing = AppConfig.builder().computeSize("S").build();
-//        altered = AppConfig.builder().computeSize("M").build();
-//        assertTrue("Different ComputeSize", AppConfigHelper.isComputeChanged(existing, altered));
-//
-//        existing = AppConfig.builder().defaultMemory(2048).defaultCpu(1024).build();
-//        altered = AppConfig.builder().defaultMemory(4096).defaultCpu(2048).build();
-//        assertTrue("Different CPU/Memory", AppConfigHelper.isComputeChanged(existing, altered));
-    }
-
-    @Test
     public void testIsServicesChanged() {
         AppConfig existing = AppConfig.builder().build();
         AppConfig altered = AppConfig.builder().build();
