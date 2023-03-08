@@ -903,17 +903,19 @@ public class OnboardingService {
                         String fsxWindowsMountDrive = "G:";
                         Integer ontapVolumeSize = 40;
                         String fileSystemType = "FSX_WINDOWS";
-                        Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
+                        Map<String, Object> filesystem = (Map<String, Object>) service.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
+                            Map<String, Object> filesystemTiers = (Map<String, Object>) filesystem.get("tiers");
+                            Map<String, Object> filesystemTierConfig = (Map<String, Object>) filesystemTiers.get(tier);
                             fileSystemType = (String) filesystem.get("type");
                             mountPoint = (String) filesystem.get("mountPoint");
                             if ("EFS".equals(fileSystemType)) {
                                 enableEfs = Boolean.TRUE;
-                                encryptFilesystem = (Boolean) filesystem.get("encrypt");
+                                encryptFilesystem = (Boolean) filesystemTierConfig.get("encrypt");
                                 if (encryptFilesystem == null) {
                                     encryptFilesystem = Boolean.FALSE;
                                 }
-                                filesystemLifecycle = (String) filesystem.get("lifecycle");
+                                filesystemLifecycle = (String) filesystemTierConfig.get("lifecycle");
                                 if (filesystemLifecycle == null) {
                                     filesystemLifecycle = "NEVER";
                                 }
@@ -933,32 +935,32 @@ public class OnboardingService {
                                     managedActiveDirectoryId = activeDirectorySettings
                                             .getOrDefault("ACTIVE_DIRECTORY_ID", "");
                                 }
-                                fsxStorageGb = (Integer) filesystem.get("storageGb");
+                                fsxStorageGb = (Integer) filesystemTierConfig.get("storageGb");
                                 if (fsxStorageGb == null) {
                                     fsxStorageGb = "FSX_ONTAP".equals(fileSystemType) ? 1024 : 32;
                                 }
-                                fsxThroughputMbs = (Integer) filesystem.get("throughputMbs");
+                                fsxThroughputMbs = (Integer) filesystemTierConfig.get("throughputMbs");
                                 if (fsxThroughputMbs == null) {
                                     fsxThroughputMbs = "FSX_ONTAP".equals(fileSystemType) ? 128 : 8;
                                 }
-                                fsxBackupRetentionDays = (Integer) filesystem.get("backupRetentionDays");
+                                fsxBackupRetentionDays = (Integer) filesystemTierConfig.get("backupRetentionDays");
                                 if (fsxBackupRetentionDays == null) {
                                     fsxBackupRetentionDays = 0; // Turn off automated backups
                                 }
-                                fsxDailyBackupTime = (String) filesystem.get("dailyBackupTime");
+                                fsxDailyBackupTime = (String) filesystemTierConfig.get("dailyBackupTime");
                                 if (fsxDailyBackupTime == null) {
                                     fsxDailyBackupTime = "02:00"; // 2:00 AM
                                 }
-                                fsxWeeklyMaintenanceTime = (String) filesystem.get("weeklyMaintenanceTime");
+                                fsxWeeklyMaintenanceTime = (String) filesystemTierConfig.get("weeklyMaintenanceTime");
                                 if (fsxWeeklyMaintenanceTime == null) {
                                     fsxWeeklyMaintenanceTime = "7:01:00"; // Sun 1:00 AM
                                 }
-                                fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
+                                fsxWindowsMountDrive = (String) filesystemTierConfig.get("windowsMountDrive");
                                 if (fsxWindowsMountDrive == null) {
                                     fsxWindowsMountDrive = "G:";
                                 }
                                 if ("FSX_ONTAP".equals(fileSystemType)) {
-                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize");
+                                    ontapVolumeSize = (Integer) filesystemTierConfig.get("volumeSize");
                                     if (ontapVolumeSize == null) {
                                         ontapVolumeSize = 40;
                                     }
