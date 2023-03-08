@@ -23,6 +23,7 @@ import { cibWindows, cibLinux } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import DatabaseSubform from './DatabaseSubform'
 import ObjectStoreSubform from './components/ObjectStoreSubform'
+import FileSystemSubform from './components/filesystem/FileSystemSubform'
 
 const ServiceSettingsSubform = (props) => {
   const { serviceValues, osOptions, dbOptions, serviceName, onFileSelected, isLocked, serviceIndex } = props
@@ -196,6 +197,18 @@ const ServiceSettingsSubform = (props) => {
               </Row>
               <Row>
                 <Col>
+                <FileSystemSubform
+                    isLocked={isLocked}
+                    formikServicePrefix={'services[' + serviceIndex + ']'}
+                    filesystem={serviceValues?.filesystem}
+                    provisionFs={
+                      serviceValues?.provisionFS
+                    }
+                    containerOs={serviceValues?.operatingSystem}
+                    containerLaunchType={serviceValues?.ecsLaunchType}
+                    filesystemType={serviceValues?.filesystemType}
+                    setFieldValue={props.setFieldValue}
+                  ></FileSystemSubform>
                   <DatabaseSubform
                     isLocked={isLocked}
                     formikServicePrefix={'services[' + serviceIndex + ']'}

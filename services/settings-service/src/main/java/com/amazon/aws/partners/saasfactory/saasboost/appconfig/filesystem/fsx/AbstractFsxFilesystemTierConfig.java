@@ -14,30 +14,28 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx;
+
+import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystemTierConfig;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
-
-public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
-
+public abstract class AbstractFsxFilesystemTierConfig extends AbstractFilesystemTierConfig {
+    
     private Integer storageGb;
-    private String windowsMountDrive;
-    // not included for EFS since throughput is a special case
     private Integer throughputMbs;
     private Integer backupRetentionDays;
     private String dailyBackupTime;
     private String weeklyMaintenanceTime;
 
-    protected AbstractFsxFilesystem(Builder b) {
+    protected AbstractFsxFilesystemTierConfig(Builder b) {
         super(b);
         if (b.storageGb == null) {
-            throw new IllegalArgumentException("Cannot specify an FSx filesystem without storageGb.");
+            throw new IllegalArgumentException("Cannot specify an FSx filesystem tier without storageGb.");
         }
         this.storageGb = b.storageGb;
-        this.windowsMountDrive = b.windowsMountDrive;
         this.throughputMbs = b.throughputMbs;
         this.backupRetentionDays = b.backupRetentionDays;
         this.dailyBackupTime = b.dailyBackupTime;
@@ -46,10 +44,6 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
 
     public Integer getStorageGb() {
         return this.storageGb;
-    }
-
-    public String getWindowsMountDrive() {
-        return this.windowsMountDrive;
     }
 
     public Integer getThroughputMbs() {
@@ -81,9 +75,8 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final AbstractFsxFilesystem other = (AbstractFsxFilesystem) obj;
+        final AbstractFsxFilesystemTierConfig other = (AbstractFsxFilesystemTierConfig) obj;
         return Utils.nullableEquals(this.getStorageGb(), other.getStorageGb())
-                && Utils.nullableEquals(this.getWindowsMountDrive(), other.getWindowsMountDrive())
                 && Utils.nullableEquals(this.getBackupRetentionDays(), other.getBackupRetentionDays())
                 && Utils.nullableEquals(this.getDailyBackupTime(), other.getDailyBackupTime())
                 && Utils.nullableEquals(this.getWeeklyMaintenanceTime(), other.getWeeklyMaintenanceTime())
@@ -93,15 +86,13 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.getStorageGb(), this.getWindowsMountDrive(), 
-                this.getBackupRetentionDays(), this.getDailyBackupTime(), this.getWeeklyMaintenanceTime(), 
-                this.getThroughputMbs());
+        return Objects.hash(super.hashCode(), this.getStorageGb(), this.getBackupRetentionDays(),
+                this.getDailyBackupTime(), this.getWeeklyMaintenanceTime(), this.getThroughputMbs());
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    protected static abstract class Builder extends AbstractFilesystem.Builder{
+    protected abstract static class Builder extends AbstractFilesystemTierConfig.Builder {
         private Integer storageGb;
-        private String windowsMountDrive;
         private Integer backupRetentionDays;
         private String dailyBackupTime;
         private String weeklyMaintenanceTime;
@@ -109,11 +100,6 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
 
         public Builder storageCapacity(Integer storageCapacity) {
             this.storageGb = storageCapacity;
-            return this;
-        }
-
-        public Builder windowsMountDrive(String windowsMountDrive) {
-            this.windowsMountDrive = windowsMountDrive;
             return this;
         }
 

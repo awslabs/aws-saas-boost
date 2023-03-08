@@ -18,7 +18,7 @@ import React, { useState } from 'react'
 import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
-import FileSystemSubform from './components/filesystem/FileSystemSubform'
+import FileSystemTierSubform from './components/filesystem/FileSystemTierSubform'
 import DatabaseTierSubform from './DatabaseTierSubform'
 
 const TierServiceSettingsSubform = (props) => {
@@ -125,18 +125,17 @@ const TierServiceSettingsSubform = (props) => {
               </Row>
               <Row>
                 <Col>
-                  <FileSystemSubform
+                  <FileSystemTierSubform
                     isLocked={isLocked}
-                    formikTierPrefix={formikTierPrefix}
-                    filesystem={serviceValues?.tiers[selectedTier]?.filesystem}
-                    provisionFs={
-                      serviceValues?.tiers[selectedTier]?.provisionFS
-                    }
+                    formikFilesystemTierPrefix={formikServicePrefix + '.filesystem.tiers[' + selectedTier + ']'}
+                    defaultFilesystem={serviceValues?.filesystem?.tiers[defaultTier]}
+                    filesystem={serviceValues?.filesystem?.tiers[selectedTier]}
+                    provisionFs={serviceValues?.provisionFS}
                     containerOs={serviceValues?.operatingSystem}
                     containerLaunchType={serviceValues?.ecsLaunchType}
-                    filesystemType={serviceValues?.tiers[selectedTier]?.filesystemType}
+                    filesystemType={serviceValues?.filesystemType}
                     setFieldValue={props.setFieldValue}
-                  ></FileSystemSubform>
+                  ></FileSystemTierSubform>
                   <DatabaseTierSubform
                     serviceValues={serviceValues?.database}
                     defaultTierValues={serviceValues?.database?.tiers[defaultTier]}

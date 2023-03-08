@@ -32,9 +32,6 @@ import CIcon from '@coreui/icons-react'
 import 'rc-slider/assets/index.css'
 import { FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './index.js'
 
-// TODO there should be a tooltip for the checkbox to provision:
-// TODO tooltip="If selected, a new file system will be created and mounted to the container as a docker volume"
-
 const FilesystemType = (props) => {
   let filesystemOptions = OS_TO_FS_TYPES[props.containerOs]
 
@@ -45,7 +42,7 @@ const FilesystemType = (props) => {
 
   if (filesystemOptions.length === 1) {
     if (props.filesystemType !== filesystemOptions[0].id) {
-      props.setFieldValue(props.formikTierPrefix + ".filesystemType", filesystemOptions[0].id)
+      props.setFieldValue(props.formikServicePrefix + ".filesystemType", filesystemOptions[0].id)
     }
     return null
   }
@@ -58,12 +55,12 @@ const FilesystemType = (props) => {
         <Field
           className="form-check-input"
           type="radio"
-          id={"fs-" + fs.id + "-" + props.formikTierPrefix}
-          name={props.formikTierPrefix + ".filesystemType"}
+          id={"fs-" + fs.id + "-" + props.formikServicePrefix}
+          name={props.formikServicePrefix + ".filesystemType"}
           value={fs.id}
           disabled={!fs.enabled(props.containerOs, props.containerLaunchType)}
         />
-        <Label className="form-check-label" check htmlFor={"fs-" + fs.id + "-" + props.formikTierPrefix}>
+        <Label className="form-check-label" check htmlFor={"fs-" + fs.id + "-" + props.formikServicePrefix}>
           <CIcon icon={fs.icon} /> {fs.name}
         </Label>
       </FormGroup>
@@ -90,9 +87,10 @@ export default class FileSystemSubform extends React.Component {
               <CardHeader>File System</CardHeader>
               <CardBody>
                 <SaasBoostCheckbox
-                  id={this.props.formikTierPrefix + '.provisionFS'}
-                  name={this.props.formikTierPrefix + '.provisionFS'}
+                  id={this.props.formikServicePrefix + '.provisionFS'}
+                  name={this.props.formikServicePrefix + '.provisionFS'}
                   label="Provision a File System for the application."
+                  tooltip="If selected, a new file system will be created and mounted to the container as an accessible volume."
                 />
                 {this.props.provisionFs && (
                   <FilesystemType {...this.props}></FilesystemType>

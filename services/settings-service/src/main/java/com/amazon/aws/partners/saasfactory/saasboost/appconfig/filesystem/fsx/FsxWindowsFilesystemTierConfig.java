@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
-@JsonDeserialize(builder = FsxWindowsFilesystem.Builder.class)
-public class FsxWindowsFilesystem extends AbstractFsxFilesystem {
+import java.util.Objects;
 
-    private FsxWindowsFilesystem(Builder b) {
+@JsonDeserialize(builder = FsxWindowsFilesystemTierConfig.Builder.class)
+public final class FsxWindowsFilesystemTierConfig extends AbstractFsxFilesystemTierConfig {
+
+    private FsxWindowsFilesystemTierConfig(Builder b) {
         super(b);
+    }
+
+    public static FsxWindowsFilesystemTierConfig.Builder builder() {
+        return new FsxWindowsFilesystemTierConfig.Builder();
     }
 
     @Override
@@ -39,23 +45,23 @@ public class FsxWindowsFilesystem extends AbstractFsxFilesystem {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final FsxWindowsFilesystem other = (FsxWindowsFilesystem) obj;
+        final FsxWindowsFilesystemTierConfig other = (FsxWindowsFilesystemTierConfig) obj;
         return super.equals(other);
     }
 
     @Override
     public int hashCode() {
-        return super.hashCode();
+        return Objects.hash(super.hashCode());
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    public static final class Builder extends AbstractFsxFilesystem.Builder {
+    public static final class Builder extends AbstractFsxFilesystemTierConfig.Builder {
 
         private Builder() {
         }
 
-        public FsxWindowsFilesystem build() {
-            return new FsxWindowsFilesystem(this);
+        public FsxWindowsFilesystemTierConfig build() {
+            return new FsxWindowsFilesystemTierConfig(this);
         }
     }
 }
