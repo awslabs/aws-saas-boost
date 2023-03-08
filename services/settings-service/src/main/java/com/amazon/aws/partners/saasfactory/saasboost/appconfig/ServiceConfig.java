@@ -319,13 +319,13 @@ public class ServiceConfig {
             return this;
         }
 
-        public Builder ecsExecEnabled(Boolean ecsExecEnabled) {
-            this.ecsExecEnabled = ecsExecEnabled;
+        public Builder ecsLaunchType(EcsLaunchType ecsLaunchType) {
+            this.ecsLaunchType = ecsLaunchType;
             return this;
         }
 
-        public Builder ecsLaunchType(EcsLaunchType ecsLaunchType) {
-            this.ecsLaunchType = ecsLaunchType;
+        public Builder ecsExecEnabled(Boolean ecsExecEnabled) {
+            this.ecsExecEnabled = ecsExecEnabled;
             return this;
         }
 
