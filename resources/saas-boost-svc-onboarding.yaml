@@ -508,6 +508,7 @@ Resources:
               - ec2:DeleteTransitGatewayRoute
               - ec2:AssociateTransitGatewayRouteTable
               - ec2:DisassociateTransitGatewayRouteTable
+              - ec2:SearchTransitGatewayRoutes
             Resource:
               - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-route-table/*
               - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway-attachment/*
