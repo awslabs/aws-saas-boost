@@ -22,41 +22,49 @@ import {
 } from '../../../components/FormComponents'
 
 const EfsFilesystemOptions = (props) => {
-    return (
-        <Row>
-            <Col xl={6} className="mt-2">
-            <SaasBoostInput
-                key={props.formikTierPrefix + '.filesystem.mountPoint'}
-                label="Mount point"
-                name={props.formikTierPrefix + '.filesystem.mountPoint'}
-                type="text"
-                disabled={props.isLocked}
-                value={props.filesystem?.mountPoint}
-            />
-            <SaasBoostSelect
-                id={props.formikTierPrefix + '.filesystem.lifecycle'}
-                label="Lifecycle"
-                name={props.formikTierPrefix + '.filesystem.lifecycle'}
-                value={props.filesystem?.lifecycle}
-            >
-                <option value="NEVER">Never</option>
-                <option value="AFTER_7_DAYS">7 Days</option>
-                <option value="AFTER_14_DAYS">14 Days</option>
-                <option value="AFTER_30_DAYS">30 Days</option>
-                <option value="AFTER_60_DAYS">60 Days</option>
-                <option value="AFTER_90_DAYS">90 Days</option>
-            </SaasBoostSelect>
-            <SaasBoostCheckbox
-                id={props.formikTierPrefix + '.filesystem.encrypt'}
-                name={props.formikTierPrefix + '.filesystem.encrypt'}
-                key={props.formikTierPrefix + '.filesystem.encrypt'}
-                label="Encrypt at rest"
-                value={props.filesystem?.encrypt === 'true'}
-            />
-            </Col>
-            {/* <Col xl={6}></Col> */}
-        </Row>
-    )
+    if (!!props.forTier) {
+        return (
+            <Row>
+                <Col xl={6} className="mt-2">
+                    <SaasBoostSelect
+                        id={props.formikFilesystemTierPrefix + '.lifecycle'}
+                        label="Lifecycle"
+                        name={props.formikFilesystemTierPrefix + '.lifecycle'}
+                        value={props.filesystem?.lifecycle}
+                    >
+                        <option value="NEVER">Never</option>
+                        <option value="AFTER_7_DAYS">7 Days</option>
+                        <option value="AFTER_14_DAYS">14 Days</option>
+                        <option value="AFTER_30_DAYS">30 Days</option>
+                        <option value="AFTER_60_DAYS">60 Days</option>
+                        <option value="AFTER_90_DAYS">90 Days</option>
+                    </SaasBoostSelect>
+                    <SaasBoostCheckbox
+                        id={props.formikFilesystemTierPrefix + '.encrypt'}
+                        name={props.formikFilesystemTierPrefix + '.encrypt'}
+                        key={props.formikFilesystemTierPrefix + '.encrypt'}
+                        label="Encrypt at rest"
+                        value={props.filesystem?.encrypt === 'true'}
+                    />
+                </Col>
+            </Row>
+        )
+    } else {
+        return (
+            <Row>
+                <Col xl={6} className="mt-2">
+                    <SaasBoostInput
+                        key={props.formikServicePrefix + '.filesystem.mountPoint'}
+                        label="Mount point"
+                        name={props.formikServicePrefix + '.filesystem.mountPoint'}
+                        type="text"
+                        disabled={props.isLocked}
+                        value={props.filesystem?.mountPoint}
+                    />
+                </Col>
+            </Row>
+        )
+    }
 }
 
 EfsFilesystemOptions.propTypes = {

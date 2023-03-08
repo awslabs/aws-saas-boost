@@ -207,6 +207,10 @@ Resources:
                 Action:
                   - acm:ListCertificates
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - route53:ListHostedZones
+                Resource: '*'
   SettingsServiceGetAllLogs:
     Type: AWS::Logs::LogGroup
     Properties:

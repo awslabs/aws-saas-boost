@@ -43,48 +43,42 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
 
           const onStorageChange = (val) => {
             props.setFieldValue(
-              props.formikTierPrefix + '.filesystem.storageGb',
+              props.formikFilesystemTierPrefix + '.storageGb',
               val
             )
           }
 
           const onThroughputChange = (val) => {
             props.setFieldValue(
-              props.formikTierPrefix + '.filesystem.throughputMbs',
+              props.formikFilesystemTierPrefix + '.throughputMbs',
               Math.pow(2, val)
             )
           }
 
           const onWeeklyMaintTimeChange = (val) => {
             props.setFieldValue(
-              props.formikTierPrefix + '.filesystem.weeklyMaintenanceTime',
+              props.formikFilesystemTierPrefix + '.weeklyMaintenanceTime',
               val.target.value
             )
           }
 
           const onWeeklyDayChange = (val) => {
             props.setFieldValue(
-              props.formikTierPrefix + '.filesystem.weeklyMaintenanceDay',
+              props.formikFilesystemTierPrefix + '.weeklyMaintenanceDay',
               val.target.value
             )
           }
 
-          return (
+          if (props.forTier) {
+            return (
               <Row>
                 <Col sm={6} className="mt-2">
-                  <SaasBoostInput
-                    key={props.formikTierPrefix + '.filesystem.mountPoint'}
-                    label="Mount point"
-                    name={props.formikTierPrefix + '.filesystem.mountPoint'}
-                    type="text"
-                    disabled={props.isLocked}
-                  />
                   <Row>
                     <Col xs={3}>
                       <FormGroup>
                         <Label htmlFor="storageVal">Storage</Label>
                         <Input
-                          id={'storageVal' + props.formikTierPrefix}
+                          id={'storageVal' + props.formikFilesystemTierPrefix}
                           className="mb-4"
                           type="number"
                           value={props.filesystem?.storageGb}
@@ -96,7 +90,7 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                       <FormGroup>
                         <Label htmlFor="storage">In GB</Label>
                         <Slider
-                          id={'storage' + props.formikTierPrefix}
+                          id={'storage' + props.formikFilesystemTierPrefix}
                           defaultValue={props.filesystem?.storageGb}
                           onChange={onStorageChange}
                           className="mb-4"
@@ -114,7 +108,7 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                       <FormGroup>
                         <Label htmlFor="throughputVal">Throughput</Label>
                         <Input
-                          id={'throughputVal' + props.formikTierPrefix}
+                          id={'throughputVal' + props.formikFilesystemTierPrefix}
                           className="mb-4"
                           type="number"
                           value={props.filesystem?.throughputMbs}
@@ -126,7 +120,7 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                       <FormGroup>
                         <Label htmlFor="throughput">In MB/s</Label>
                         <Slider
-                          id={'throughput' + props.formikTierPrefix}
+                          id={'throughput' + props.formikFilesystemTierPrefix}
                           defaultValue={Math.sqrt(props.filesystem?.throughputMbs)}
                           onChange={onThroughputChange}
                           marks={tpMarks}
@@ -144,11 +138,9 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                   <Row>
                     <Col xs={6}>
                       <SaasBoostInput
-                        key={props.formikTierPrefix + '.filesystem.dailyBackupTime'}
+                        key={props.formikFilesystemTierPrefix + '.dailyBackupTime'}
                         label="Daily Backup Time (UTC)"
-                        name={
-                          props.formikTierPrefix + '.filesystem.dailyBackupTime'
-                        }
+                        name={props.formikFilesystemTierPrefix + '.dailyBackupTime'}
                         type="time"
                         disabled={props.isLocked}
                       />
@@ -170,16 +162,10 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                           <option value="7">Sat</option>
                         </Input>
                         <Input
-                          key={
-                            props.formikTierPrefix +
-                            '.filesystem.weeklyMaintenanceTime'
-                          }
+                          key={props.formikFilesystemTierPrefix + '.weeklyMaintenanceTime'}
                           onChange={onWeeklyMaintTimeChange}
                           value={props.filesystem?.weeklyMaintenanceTime}
-                          name={
-                            props.formikTierPrefix +
-                            '.filesystem.weeklyMaintenanceTime'
-                          }
+                          name={props.formikFilesystemTierPrefix + '.weeklyMaintenanceTime'}
                           type="time"
                           disabled={props.isLocked}
                         />
@@ -189,13 +175,9 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                   <Row>
                     <Col xs={6}>
                       <SaasBoostSelect
-                        id={
-                          props.formikTierPrefix + '.filesystem.windowsMountDrive'
-                        }
+                        id={props.formikFilesystemTierPrefix + '.windowsMountDrive'}
                         label="Drive Letter Assignment"
-                        name={
-                          props.formikTierPrefix + '.filesystem.windowsMountDrive'
-                        }
+                        name={props.formikFilesystemTierPrefix + '.windowsMountDrive'}
                         value={props.filesystem?.windowsMountDrive}
                       >
                         <option value="G:">G:</option>
@@ -221,13 +203,9 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                     </Col>
                     <Col xs={6}>
                       <SaasBoostInput
-                        key={
-                          props.formikTierPrefix + '.filesystem.backupRetentionDays'
-                        }
+                        key={props.formikFilesystemTierPrefix + '.backupRetentionDays'}
                         label="Backup Retention (Days)"
-                        name={
-                          props.formikTierPrefix + '.filesystem.backupRetentionDays'
-                        }
+                        name={props.formikFilesystemTierPrefix + '.backupRetentionDays'}
                         type="number"
                         disabled={props.isLocked}
                       />
@@ -236,6 +214,21 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                 </Col>
               </Row>
             )
+          } else {
+            return (
+                <Row>
+                  <Col xl={6} className="mt-2">
+                    <SaasBoostInput
+                      key={props.formikServicePrefix + '.filesystem.mountPoint'}
+                      label="Mount point"
+                      name={props.formikServicePrefix + '.filesystem.mountPoint'}
+                      type="text"
+                      disabled={props.isLocked}
+                    />
+                  </Col>
+                </Row>
+              )
+          }
     }
   }
 

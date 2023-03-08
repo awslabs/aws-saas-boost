@@ -34,9 +34,14 @@ import {
     const { signal } = thunkAPI
     try {
       const response = await tierAPI.fetchAll({ signal })
-      // Normalize the data so reducers can load a predicatable payload, like:
-      // `action.payload = { tiers: {} }`
-      const normalized = normalize(response, tierListSchema)
+      const datesFixed = response.map((tier) => {
+        return {
+          ...tier,
+          created: `${tier.created}Z`,
+          modified: `${tier.modified}Z`,
+        }
+      })
+      const normalized = normalize(datesFixed, tierListSchema)
       return normalized.entities
     } catch (err) {
       if (tierAPI.isCancel(err)) {
