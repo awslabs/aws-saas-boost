@@ -163,6 +163,16 @@ const ServiceSettingsSubform = (props) => {
                   </FormGroup>
                   {getLaunchTypeOptions(serviceIndex)}
                   {getWinServerOptions(serviceIndex)}
+                  <Row>
+                    <Col className="d-flex align-items-center">
+                      <SaasBoostCheckbox
+                        key={"services[" + serviceIndex + "].ecsExecEnabled"}
+                        name={"services[" + serviceIndex + "].ecsExecEnabled"}
+                        label="Enable ECS Exec?"
+                        disabled={isLocked}
+                      />
+                    </Col>
+                  </Row>
                 </Col>
                 <Col xs={6}>
                   <SaasBoostInput
