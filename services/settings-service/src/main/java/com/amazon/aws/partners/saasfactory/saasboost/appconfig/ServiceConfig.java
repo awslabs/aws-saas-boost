@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -42,6 +43,9 @@ public class ServiceConfig {
     private final OperatingSystem operatingSystem;
     private final Database database;
     private final EcsLaunchType ecsLaunchType;
+    private final Boolean ecsExecEnabled;
+    private final S3Storage s3;
+    private final AbstractFilesystem filesystem;
 
     private ServiceConfig(Builder builder) {
         this.publiclyAddressable = builder.publiclyAddressable;
@@ -56,6 +60,9 @@ public class ServiceConfig {
         this.tiers = builder.tiers;
         this.database = builder.database;
         this.ecsLaunchType = builder.ecsLaunchType;
+        this.ecsExecEnabled = builder.ecsExecEnabled;
+        this.s3 = builder.s3;
+        this.filesystem = builder.filesystem;
     }
 
     public static Builder builder() {
@@ -75,7 +82,10 @@ public class ServiceConfig {
                 .healthCheckUrl(other.getHealthCheckUrl())
                 .operatingSystem(other.getOperatingSystem())
                 .database(other.getDatabase())
-                .ecsLaunchType(other.getEcsLaunchType());
+                .ecsLaunchType(other.getEcsLaunchType())
+                .ecsExecEnabled(other.getEcsExecEnabled())
+                .s3(other.s3)
+                .filesystem(other.getFilesystem());
     }
 
     public Boolean isPublic() {
@@ -130,6 +140,18 @@ public class ServiceConfig {
         return ecsLaunchType;
     }
 
+    public Boolean getEcsExecEnabled() {
+        return ecsExecEnabled;
+    }
+
+    public S3Storage getS3() {
+        return s3;
+    }
+
+    public AbstractFilesystem getFilesystem() {
+        return filesystem;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -170,13 +192,16 @@ public class ServiceConfig {
             && Utils.nullableEquals(operatingSystem, other.operatingSystem)
             && Utils.nullableEquals(tiers, other.tiers) && tiersEqual
             && Utils.nullableEquals(database, other.database)
-            && Utils.nullableEquals(ecsLaunchType, other.ecsLaunchType);
+            && Utils.nullableEquals(ecsLaunchType, other.ecsLaunchType)
+            && Utils.nullableEquals(ecsExecEnabled, other.getEcsExecEnabled())
+            && Utils.nullableEquals(s3, other.s3)
+            && Utils.nullableEquals(filesystem, other.filesystem);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, description, path, publiclyAddressable, containerPort, containerRepo, containerTag,
-                healthCheckUrl, operatingSystem, database, ecsLaunchType)
+                healthCheckUrl, operatingSystem, database, ecsLaunchType, ecsExecEnabled, s3, filesystem)
                 + Arrays.hashCode(tiers != null ? tiers.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(tiers != null ? tiers.values().toArray(new Object[0]) : null);
     }
@@ -197,6 +222,9 @@ public class ServiceConfig {
         private Map<String, ServiceTierConfig> tiers = new HashMap<>();
         private Database database;
         private EcsLaunchType ecsLaunchType;
+        private Boolean ecsExecEnabled = false;
+        private S3Storage s3;
+        private AbstractFilesystem filesystem;
 
         private Builder() {
         }
@@ -293,6 +321,21 @@ public class ServiceConfig {
 
         public Builder ecsLaunchType(EcsLaunchType ecsLaunchType) {
             this.ecsLaunchType = ecsLaunchType;
+            return this;
+        }
+
+        public Builder ecsExecEnabled(Boolean ecsExecEnabled) {
+            this.ecsExecEnabled = ecsExecEnabled;
+            return this;
+        }
+
+        public Builder s3(S3Storage s3) {
+            this.s3 = s3;
+            return this;
+        }
+
+        public Builder filesystem(AbstractFilesystem filesystem) {
+            this.filesystem = filesystem;
             return this;
         }
 

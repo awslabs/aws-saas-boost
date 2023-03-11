@@ -64,6 +64,20 @@ export default function StatsGraphContainer(props) {
         ticks: { suggestedMin: 0, suggestedMax: 100 },
       },
     },
+    elements: {
+      point: {
+        radius: 0,
+        hitRadius: 10,
+        hoverRadius: 4,
+        hoverBorderWidth: 3,
+      },
+    },
+    tooltips: {
+      enabled: true,
+      intersect: true,
+      mode: 'index',
+      position: 'nearest',
+    },
   }
   const dispatch = useDispatch()
   const stats = useSelector((state) => selectMetricResultsById(state, QUERY_ID))

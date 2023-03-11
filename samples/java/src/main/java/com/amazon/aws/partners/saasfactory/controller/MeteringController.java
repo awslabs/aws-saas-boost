@@ -59,7 +59,7 @@ public class MeteringController {
         if (productCode == null) {
             productCode = "product_requests";
         }
-        int meterVal = Integer.valueOf(count);
+        long meterVal = Long.valueOf(count);
         long startTimeMillis = System.currentTimeMillis();
 
         try {

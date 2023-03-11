@@ -39,6 +39,12 @@ Parameters:
   OidcIssuerUrl:
     Description: URL to access authority for configured IDP
     Type: String
+  OidcDomainUrl:
+    Description: URL to build login/logout URLs for configured IDP
+    Type: String
+  SystemIdentityProvider:
+    Description: Configured System IDP
+    Type: String
 Resources:
   AdminWebCodeBuildRole:
     Type: AWS::IAM::Role
@@ -124,6 +130,10 @@ Resources:
             Value: openid profile email
           - Name: REACT_APP_ISSUER
             Value: !Ref OidcIssuerUrl
+          - Name: REACT_APP_IDP_DOMAIN
+            Value: !Ref OidcDomainUrl
+          - Name: REACT_APP_IDP
+            Value: !Ref SystemIdentityProvider
       Source:
         Type: NO_SOURCE
         BuildSpec: |
@@ -132,6 +142,7 @@ Resources:
             pre_build:
               commands:
                 - n 14
+                - if [ "$REACT_APP_AWS_REGION" = "cn-northwest-1" ] || [ "$REACT_APP_AWS_REGION" = "cn-north-1" ]; then npm config set registry https://registry.npm.taobao.org; fi
                 - aws s3 cp s3://$SOURCE_BUCKET/client/web/src.zip src.zip
                 - unzip src.zip
             build:

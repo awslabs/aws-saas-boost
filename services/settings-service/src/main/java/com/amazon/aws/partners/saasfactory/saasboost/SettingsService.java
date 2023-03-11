@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
@@ -115,9 +114,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         final long startTimeMillis = System.currentTimeMillis();
         //Utils.logRequestEvent(event);
         List<Setting> settings = new ArrayList<>();
-        // ?key1=val1
+        // Normal query string params are key/value pairs ?key1=val1&key2=val2
         Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
-        // ?key2=val1&key=val2
+        // Multi-value params are a list of the same key with diff values ?key=val1&key=val2&key=val3
         Map<String, List<String>> multiValueQueryParams = (Map<String, List<String>>) event.get("multiValueQueryStringParameters");
         // Only return one set of params
         LOGGER.info("getSettings queryParams: " + queryParams);
@@ -299,6 +298,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                 ));
         options.put("dbOptions", dal.rdsOptions());
         options.put("acmOptions", dal.acmCertificateOptions());
+        options.put("hostedZoneOptions", dal.hostedZoneOptions());
 
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
@@ -552,34 +552,36 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
             AppConfig changedAppConfig = Utils.fromJson(json, AppConfig.class);
             if (changedAppConfig != null) {
                 AppConfig existingAppConfig = dal.getAppConfig();
-                // Only updated the hosted zone if it was passed in
-                if (json.contains("hostedZone")
-                        && AppConfigHelper.isHostedZoneChanged(existingAppConfig, changedAppConfig)) {
-                    LOGGER.info("Updating hosted zone from {} to {}", existingAppConfig.getHostedZone(),
-                            changedAppConfig.getHostedZone());
-                    // TODO be nice to fix this so you don't have to know the secret path
-                    dal.updateSetting(Setting.builder()
-                            .name(SettingsServiceDAL.APP_BASE_PATH + "HOSTED_ZONE")
-                            .value(changedAppConfig.getHostedZone())
-                            .build()
-                    );
-                }
                 // Only update the services if they were passed in
                 if (json.contains("services") && changedAppConfig.getServices() != null) {
                     for (Map.Entry<String, ServiceConfig> changedService : changedAppConfig.getServices().entrySet()) {
                         String changedServiceName = changedService.getKey();
                         ServiceConfig changedServiceConfig = changedService.getValue();
                         ServiceConfig requestedService = existingAppConfig.getServices().get(changedServiceName);
+                        ServiceConfig.Builder newServiceConfigBuilder = ServiceConfig.builder(requestedService);
                         if (requestedService != null) {
+                            // change container repo if passed
                             String changedContainerRepo = changedServiceConfig.getContainerRepo();
                             String existingContainerRepo = requestedService.getContainerRepo();
                             if (!Utils.nullableEquals(existingContainerRepo, changedContainerRepo)) {
                                 LOGGER.info("Updating service {} ECR repo from {} to {}", changedServiceName,
                                         requestedService.getContainerRepo(), changedServiceConfig.getContainerRepo());
-                                ServiceConfig editedService = ServiceConfig.builder(requestedService)
-                                        .containerRepo(changedServiceConfig.getContainerRepo())
-                                        .build();
-                                dal.setServiceConfig(editedService);
+                                newServiceConfigBuilder = newServiceConfigBuilder
+                                        .containerRepo(changedServiceConfig.getContainerRepo());
+                            }
+                            // change s3 bucket name if passed (and if s3 already exists in service config)
+                            if (requestedService.getS3() != null && changedServiceConfig.getS3() != null) {
+                                String existingBucketName = requestedService.getS3().getBucketName();
+                                String newBucketName = changedServiceConfig.getS3().getBucketName();
+                                if (!Utils.nullableEquals(existingBucketName, newBucketName)) {
+                                    newServiceConfigBuilder = newServiceConfigBuilder.s3(changedServiceConfig.getS3());
+                                }
+                            }
+                            ServiceConfig newServiceConfig = newServiceConfigBuilder.build();
+                            if (!newServiceConfig.equals(requestedService)) {
+                                LOGGER.info("Updating serviceConfig from {} to {}", 
+                                        requestedService, newServiceConfig);
+                                dal.setServiceConfig(newServiceConfig);
                             }
                         } else {
                             LOGGER.error("Can't find app config service {}", changedServiceName);
@@ -644,18 +646,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
     protected static boolean validateAppConfigUpdate(AppConfig currentAppConfig, AppConfig updatedAppConfig,
                                                      boolean provisionedTenants) {
         boolean domainNameValid = true;
-        if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig)) {
-            if (provisionedTenants) {
-                LOGGER.error("Can't change domain name after onboarding tenants");
-                domainNameValid = false;
-            } else {
-                if (Utils.isNotBlank(currentAppConfig.getDomainName())) {
-                    LOGGER.error("Can only set a new domain name not change an existing domain name");
-                    domainNameValid = false;
-                } else {
-                    domainNameValid = true;
-                }
-            }
+        if (AppConfigHelper.isDomainChanged(currentAppConfig, updatedAppConfig) && provisionedTenants) {
+            LOGGER.error("Can't change domain name after onboarding tenants");
+            domainNameValid = false;
         }
 
         boolean serviceConfigValid = true;

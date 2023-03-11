@@ -198,6 +198,16 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                                         "consoleUrl", AwsResource.PRIVATE_ROUTE_TABLE.formatUrl(AWS_REGION, physicalResourceId))
                                 );
                             }
+                        } else if ("AWS::ServiceDiscovery::PrivateDnsNamespace".equals(resourceType)) {
+                            if ("ServiceDiscoveryNamespace".equals(logicalId)) {
+                                LOGGER.info("Saving Private DNS Namespace {} {}", logicalId, physicalResourceId);
+                                AwsResource namespace = AwsResource.PRIVATE_SERVICE_DISCOVERY_NAMESPACE;
+                                tenantResources.put(namespace.name(), Map.of(
+                                        "name", physicalResourceId,
+                                        "arn", namespace.formatArn(partition, AWS_REGION, accountId, physicalResourceId),
+                                        "consoleUrl", namespace.formatUrl(AWS_REGION, physicalResourceId)
+                                ));
+                            }
                         } else {
                             // Match on the resource type and build the console url
                             for (AwsResource awsResource : AwsResource.values()) {

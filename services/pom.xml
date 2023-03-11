@@ -19,7 +19,7 @@
         <module>settings-service</module>
         <module>tenant-service</module>
         <module>tier-service</module>
-        <module>user-service</module>
+        <module>system-user-service</module>
     </modules>
     <licenses>
         <license>

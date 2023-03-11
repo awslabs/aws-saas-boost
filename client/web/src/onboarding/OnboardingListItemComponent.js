@@ -31,23 +31,15 @@ export default function OnboardingListItemComponent(props) {
   const { onboarding, clickOnboardingRequest, clickTenantDetails } = props
 
   return (
-    <tr>
-      <th scope="row">
-        <Button
-          className="pl-0"
-          color="link"
-          onClick={() => clickOnboardingRequest(onboarding.id)}
-        >
-          {onboarding.id}
-        </Button>
-      </th>
-      <td>
-        <OnboardingTenantLink
-          tenantName={onboarding.request?.name}
-          tenantId={onboarding.tenantId}
-          clickTenantDetails={clickTenantDetails}
-        />
-      </td>
+    <tr
+      key={onboarding.id}
+      onClick={() => {
+        clickOnboardingRequest(onboarding.id)
+      }}
+      className="pointer"
+    >
+      <td>{onboarding.id}</td>
+      <td>{onboarding.request?.name}</td>
       <td>
         <OnboardingStatus status={onboarding.status} />
       </td>

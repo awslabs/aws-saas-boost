@@ -73,6 +73,8 @@ export const selectOsOptions = (state) => state.options?.data?.osOptions
 
 export const selectCertOptions = (state) => state.options?.data?.acmOptions
 
+export const selectHostedZoneOptions = (state) => state.options?.data?.hostedZoneOptions
+
 export const selectOSLabel = (state, os) => {
   return isEmpty(os) || isEmpty(state.options?.data?.osOptions)
     ? ''

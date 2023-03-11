@@ -15,23 +15,19 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.onboarding;
 
+import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
 import com.amazon.aws.partners.saasfactory.metering.common.EventBridgeEvent;
 import com.amazon.aws.partners.saasfactory.metering.common.MeteredProduct;
 import com.amazon.aws.partners.saasfactory.metering.common.SubscriptionPlan;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiRequest;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.stripe.Stripe;
-import com.stripe.exception.InvalidRequestException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.*;
-import com.stripe.net.StripeResponse;
 import com.stripe.param.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.*;
 
@@ -43,7 +39,6 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     private final static Logger LOGGER = LoggerFactory.getLogger(BillingIntegration.class);
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
     private static final String BILL_PUBLISH_EVENT = System.getenv("BILL_PUBLISH_EVENT");
-    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
@@ -51,9 +46,6 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
 
     public BillingIntegration() {
         long startTimeMillis = System.currentTimeMillis();
-        if (Utils.isBlank(SAAS_BOOST_ENV)) {
-            throw new IllegalStateException("Missing required environment variable SAAS_BOOST_ENV");
-        }
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing required environment variable SAAS_BOOST_EVENT_BUS");
         }
@@ -85,7 +77,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
          */
         try {
             LOGGER.info("setupBillingSystemListener: Get Stripe API Key");
-            Stripe.apiKey = getStripeAPIKey();
+            Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
             LOGGER.info("setupBillingSystemListener: Create Metered Products");
             createMeteredProducts();
             LOGGER.info("setupBillingSystemListener: Create Subscription Products in Stripe");
@@ -198,31 +190,6 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         }
     }
 
-    //get the API key from param store using saas boost setting service
-    private String getStripeAPIKey() {
-        //invoke SaaS Boost private API to get API Key for Billing
-        String apiKey;
-        ApiRequest billingApiKeySecret = ApiRequest.builder()
-                .resource("settings/BILLING_API_KEY/secret")
-                .method("GET")
-                .build();
-        SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, billingApiKeySecret);
-        try {
-            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, "BillingIntegration");
-            Map<String, String> setting = Utils.fromJson(responseBody, HashMap.class);
-            if (null == setting) {
-                throw new RuntimeException("responseBody is invalid");
-            }            
-            apiKey = setting.get("value");
-        } catch (Exception e) {
-            LOGGER.error("getStripeAPIKey: Error invoking API settings/BILLING_API/ref");
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return apiKey;
-      }
-
-
      /*
     Triggered by event for "Billing Tenant Setup"
     Will create a customer and subscription for the tenant in the billing system, based on the plan
@@ -261,7 +228,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     private void provisionTenantInStripe(String tenantId, String planId) throws StripeException {
         LOGGER.info("provisionTenantInStripe: Starting...");
 
-        Stripe.apiKey = getStripeAPIKey();
+        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
 
         if (Utils.isBlank(tenantId)) {
             throw new RuntimeException("provisionTenantInStripe: No TenantID found in the event detail");
@@ -362,7 +329,7 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         LOGGER.info("cancelSubscriptionInStripe: Starting...");
 
         try {
-            Stripe.apiKey = getStripeAPIKey();
+            Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
         } catch (Exception e) {
             LOGGER.error("No api key found so skipping subscription cancellation");
             return;

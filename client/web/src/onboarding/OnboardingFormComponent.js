@@ -67,6 +67,7 @@ export default function OnboardingFormComponent(props) {
     cancel,
     config,
     billingPlans,
+    plansLoading,
     tiers,
   } = props
   const { domainName, tier, billing } = config
@@ -122,7 +123,7 @@ export default function OnboardingFormComponent(props) {
               id="billingPlan"
               label="Billing Plan"
             >
-              <option value="">Select One...</option>
+              <option value="">{plansLoading ? "Loading..." : "Select One..."}</option>
               {options}
             </SaasBoostSelect>
           </Col>

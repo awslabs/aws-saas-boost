@@ -26,7 +26,7 @@ import globalConfig from '../config/appConfig'
 import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
-import { FILESYSTEM_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
+import { FILESYSTEM_DEFAULTS, FILESYSTEM_TIER_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
 
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
@@ -53,6 +53,7 @@ export function ApplicationComponent(props) {
     loading,
     error,
     certOptions,
+    hostedZoneOptions,
     message,
     osOptions,
     updateConfiguration,
@@ -62,42 +63,27 @@ export function ApplicationComponent(props) {
   const LINUX = 'LINUX'
   const WINDOWS = 'WINDOWS'
   const awsRegion = globalConfig.region
-  const acmConsoleLink = `https://${awsRegion}.console.aws.amazon.com/acm/home?region=${awsRegion}#/certificates/list`
+  const consoleUrlSuffix = awsRegion.startsWith("cn-")? "amazonaws.cn": "aws.amazon.com"
+
+  const acmConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/acm/home?region=${awsRegion}#/certificates/list`
+  const route53ConsoleLink = `https://${awsRegion}.console.${consoleUrlSuffix}/route53/v2/hostedzones`
+  const showProvisionBilling = awsRegion.startsWith("cn-")? false : true
 
   const updateConfig = (values) => {
     updateConfiguration(values)
     window.scrollTo(0, 0)
   }
 
-  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues, os) => {
-    let filesystem = {
-      ...FILESYSTEM_DEFAULTS,
-      ...defaultValues.filesystem,
-      ...splitWeeklyMaintenanceTime(tierValues.filesystem)
-    }
-    let defaults = Object.assign({
+  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues) => {
+    return Object.assign({
       min: 0,
       max: 0,
       computeSize: '',
     }, defaultValues, tierValues)
-    let uncleanedInitialTierValues = {
-      ...defaults,
-      filesystem: filesystem,
-    }
-
-    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === tierValues.filesystem?.type)[0]?.id || ''
-
-    return {
-      ...uncleanedInitialTierValues,
-      provisionDb: !!tierValues.database,
-      provisionFS: !!tierValues.filesystem,
-      filesystemType: filesystemType,
-      filesystem: filesystem,
-    }
   }
 
-  const splitWeeklyMaintenanceTime = (fsx) => {
-    if (!!fsx && !!fsx.weeklyMaintenanceTime) {
+  const splitWeeklyMaintenanceTime = (fsxTier) => {
+    if (!!fsxTier && !!fsxTier.weeklyMaintenanceTime) {
       const getParts = (dateTime) => {
         const parts = dateTime.split(':')
         const day = parts[0]
@@ -105,14 +91,14 @@ export function ApplicationComponent(props) {
         const timeStr = times.join(':')
         return [day, timeStr]
       }
-      const [day, time] = getParts(fsx.weeklyMaintenanceTime)
+      const [day, time] = getParts(fsxTier.weeklyMaintenanceTime)
       return {
-        ...fsx,
+        ...fsxTier,
         weeklyMaintenanceTime: time,
         weeklyMaintenanceDay: day,
       }
     }
-    return fsx
+    return fsxTier
   }
 
   const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
@@ -143,21 +129,29 @@ export function ApplicationComponent(props) {
             encryptedPassword: '',
             database: '',
             bootstrapFilename: '',
-            tiers: {},
+            tiers: tiers.reduce((acc, tier) => ({...acc, [tier.name]: {instance: ''}}), {}),
           }
+    const fs = !!thisService?.filesystem
+        ? splitWeeklyMaintenanceTime(thisService.filesystem)
+        : {
+          ...FILESYSTEM_DEFAULTS,
+          tiers: tiers.reduce((acc, tier) => ({ ...acc, [tier.name]: FILESYSTEM_TIER_DEFAULTS}), {})
+        }
+    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === thisService.filesystem?.type)[0]?.id || ''
     const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
     let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
-    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {}, os)
+    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {})
     let initialTierValues = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues, os)
+      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues)
     }
     return {
       ...thisService,
       name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
       public: thisService ? thisService.public : true,
+      ecsExecEnabled: thisService ? thisService.ecsExecEnabled : false,
       healthCheckUrl: thisService?.healthCheckUrl || '/',
       containerPort: thisService?.containerPort || 0,
       containerTag: thisService?.containerTag || 'latest',
@@ -165,9 +159,12 @@ export function ApplicationComponent(props) {
       operatingSystem: os,
       database: db,
       provisionDb: !!thisService?.database,
+      filesystem: fs,
+      provisionFS: !!thisService?.filesystem,
+      filesystemType: filesystemType,
+      provisionObjectStorage: !!thisService?.s3,
       windowsVersion: windowsVersion,
       tiers: initialTierValues,
-      tombstone: false,
     }
   }
 
@@ -186,6 +183,7 @@ export function ApplicationComponent(props) {
   const initialValues = {
     name: appConfig.name || '',
     domainName: appConfig.domainName || '',
+    hostedZone: appConfig.hostedZone || '',
     sslCertificate: appConfig.sslCertificate || '',
     services: parseServicesFromAppConfig(),
     billing: appConfig.billing || {
@@ -195,15 +193,12 @@ export function ApplicationComponent(props) {
   }
 
   // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-  const singleTierValidationSpec = (tombstone) => {
+  const singleTierValidationSpec = () => {
     return Yup.object({
-      min: requiredIfNotTombstoned(
-        tombstone,
-        Yup.number()
-          .integer('Minimum count must be an integer value')
-          .min(1, 'Minimum count must be at least ${min}'),
-        'Minimum count is a required field.'
-      ),
+      min: Yup.number()
+        .integer('Minimum count must be an integer value')
+        .min(1, 'Minimum count must be at least ${min}')
+        .required('Minimum count is a required field.'),
       max: Yup.number()
         .required('Maximum count is a required field.')
         .integer('Maximum count must be an integer value')
@@ -211,75 +206,69 @@ export function ApplicationComponent(props) {
         .test('match', 'Max cannot be smaller than min', function (max) {
           return max >= this.parent.min
         }),
-      computeSize: requiredIfNotTombstoned(
-        tombstone,
-        Yup.string(),
-        'Compute size is a required field.'
-      ),
-      filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
-        if (provisionFS) {
-          return FILESYSTEM_TYPES[filesystemType]?.validationSchema || Yup.object()
-        }
-        return Yup.object()
-      }),
+      computeSize: Yup.string().required('Compute size is a required field.'),
     })
   }
 
-  const allTiersValidationSpec = (tombstone) => {
+  const allTiersValidationSpec = () => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
-      allTiers[tierName] = singleTierValidationSpec(tombstone)
+      allTiers[tierName] = singleTierValidationSpec()
     }
     return Yup.object(allTiers)
   }
 
-  const allTiersDatabaseValidationSpec = (tombstone) => {
+  const allTiersDatabaseValidationSpec = () => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
       var tierName = tiers[i].name
       allTiers[tierName] = Yup.object({
-        instance: requiredIfNotTombstoned(
-          tombstone,
-          Yup.string(),
-          'Database instance is required.'
-        )
+        instance: Yup.string().required('Database instance is required.')
       })
     }
     return Yup.object(allTiers)
   }
 
-  const requiredIfNotTombstoned = (tombstone, schema, requiredMessage) => {
-    return tombstone ? schema : schema.required(requiredMessage)
+  const allTiersFilesystemValidationSpec = (filesystemType) => {
+    if (!!FILESYSTEM_TYPES[filesystemType]?.tierValidationSchema) {
+      let allTiers = {}
+      for (var i = 0; i < tiers.length; i++) {
+        var tierName = tiers[i].name
+        allTiers[tierName] = Yup.object(FILESYSTEM_TYPES[filesystemType].tierValidationSchema)
+      }
+      return Yup.object(allTiers)
+    }
+    return Yup.object()
   }
 
   // TODO public service paths cannot match
   const validationSpecs = Yup.object({
     name: Yup.string().required('Name is a required field.'),
+    domainName: Yup.string().matches(
+      /^$|(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\.)+[a-zA-Z]{2,63}$)/,
+      'Domain Name is not in valid format.'
+    ),
+    hostedZone: Yup.string().when(['domainName'], (domainName, schema) => {
+      if (!!domainName) {
+        return schema.required('HostedZone is required when DomainName is configured.')
+      }
+      return schema
+    }),
     services: Yup.array(
       Yup.object({
         public: Yup.boolean().required(),
         name: Yup.string()
-          .when('tombstone', (tombstone, schema) => {
-            return requiredIfNotTombstoned(
-              tombstone,
-              schema,
-              'Service Name is a required field.'
-            )
-          })
+          .required('Service Name is a required field.')
           .matches(
             /^[\.\-_a-zA-Z0-9]+$/,
             'Name must only contain alphanumeric characters or .-_'
           ),
         description: Yup.string(),
         path: Yup.string()
-          .when(['public', 'tombstone'], (isPublic, tombstone, schema) => {
+          .when(['public'], (isPublic, schema) => {
             if (isPublic) {
-              return requiredIfNotTombstoned(
-                tombstone,
-                schema,
-                'Path is required for public services'
-              )
+              return schema.required('Path is required for public services')
             }
             return schema
           })
@@ -296,13 +285,8 @@ export function ApplicationComponent(props) {
         healthCheckUrl: Yup.string()
           .required('Health Check URL is a required field')
           .matches(/^\//, 'Health Check must start with forward slash (/)'),
-        operatingSystem: Yup.string().when('tombstone', (tombstone, schema) => {
-          return requiredIfNotTombstoned(
-            tombstone,
-            schema,
-            'Container OS is a required field.'
-          )
-        }),
+        operatingSystem: Yup.string().required('Container OS is a required field.'),
+        ecsExecEnabled: Yup.boolean().required(),
         windowsVersion: Yup.string().when('operatingSystem', {
           is: (containerOs) => containerOs && containerOs === WINDOWS,
           then: Yup.string().required('Windows version is a required field'),
@@ -314,9 +298,7 @@ export function ApplicationComponent(props) {
           then: Yup.object({
             engine: Yup.string().required('Engine is required'),
             version: Yup.string().required('Version is required'),
-            tiers: Yup.object().when('tombstone', (tombstone, schema) => {
-              return allTiersDatabaseValidationSpec(tombstone)
-            }),
+            tiers: allTiersDatabaseValidationSpec(),
             username: Yup.string()
               .matches('^[a-zA-Z]+[a-zA-Z0-9_$]*$', 'Username is not valid')
               .required('Username is required'),
@@ -333,10 +315,19 @@ export function ApplicationComponent(props) {
           }),
           otherwise: Yup.object(),
         }),
-        tiers: Yup.object().when(['tombstone'], (tombstone) => {
-          return allTiersValidationSpec(tombstone)
+        filesystem: Yup.object().when(['provisionFS', 'filesystemType'], (provisionFS, filesystemType) => {
+          if (provisionFS && FILESYSTEM_TYPES[filesystemType]?.validationSchema) {
+            return Yup.object({
+              ...FILESYSTEM_TYPES[filesystemType]?.validationSchema,
+              tiers: allTiersFilesystemValidationSpec(filesystemType),
+            })
+          }
+          return Yup.object()
         }),
-        tombstone: Yup.boolean(),
+        filesystemType: Yup.string(),
+        provisionFS: Yup.boolean(),
+        provisionObjectStorage: Yup.boolean(),
+        tiers: allTiersValidationSpec(),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
     provisionBilling: Yup.boolean(),
@@ -395,7 +386,6 @@ export function ApplicationComponent(props) {
             </span>
           </Alert>
         )}
-        {/* {loading !== "idle" && <div>Loading...</div>} */}
         {!!error && (
           <Alert variant="danger" isOpen={!!error} toggle={dismissError}>
             {error}
@@ -410,8 +400,8 @@ export function ApplicationComponent(props) {
           initialValues={initialValues}
           validationSchema={validationSpecs}
           validateOnChange={true}
+          validateOnBlur={false}
           onSubmit={updateConfig}
-          enableReinitialize={true}
         >
           {(formik) => {
             return (
@@ -426,10 +416,11 @@ export function ApplicationComponent(props) {
                     isLocked={hasTenants}
                     certOptions={certOptions}
                     acmConsoleLink={acmConsoleLink}
+                    hostedZoneOptions={hostedZoneOptions.filter(option => option.name.startsWith(formik.values.domainName))}
+                    route53ConsoleLink={route53ConsoleLink}
                   ></AppSettingsSubform>
                   <ServicesComponent
                     formik={formik}
-                    formikErrors={formik.errors}
                     hasTenants={hasTenants}
                     osOptions={osOptions}
                     dbOptions={dbOptions}
@@ -440,10 +431,11 @@ export function ApplicationComponent(props) {
                     }
                     setFieldValue={(k, v) => formik.setFieldValue(k, v)}
                   ></ServicesComponent>
-                  <BillingSubform
-                    provisionBilling={formik.values.provisionBilling}
-                    values={formik.values?.billing}
+                  {showProvisionBilling && <BillingSubform
+                      provisionBilling={formik.values.provisionBilling}
+                      values={formik.values?.billing}
                   ></BillingSubform>
+                  }
                   <Row>
                     <Col xs={12}>
                       <Card>

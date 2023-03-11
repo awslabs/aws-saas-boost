@@ -142,4 +142,25 @@ public class TenantServiceDALTest {
             assertTrue("Class property '" + key + "' does not exist in DynamoDB attribute map", actual.containsKey(key));
         });
     }
+
+    @Test
+    public void testMapAttributeExpressionName() {
+        assertThrows(IllegalArgumentException.class, () -> TenantServiceDAL.mapAttributeExpressionName(null));
+        assertThrows(IllegalArgumentException.class, () -> TenantServiceDAL.mapAttributeExpressionName(""));
+        assertThrows(IllegalArgumentException.class, () -> TenantServiceDAL.mapAttributeExpressionName("  "));
+
+        assertEquals("#ECS_CLUSTER", TenantServiceDAL.mapAttributeExpressionName("ECS_CLUSTER"));
+    }
+
+    @Test
+    public void testMapAttributeExpressionValue() {
+        assertEquals(":PRIVATE_SUBNET_A",
+                TenantServiceDAL.mapAttributeExpressionValue("PRIVATE_SUBNET_A"));
+    }
+
+    @Test
+    public void testMapAttributeUpdateExpression() {
+        assertEquals("resources.#VPC = :VPC",
+                TenantServiceDAL.mapAttributeUpdateExpression("resources", "VPC", "VPC"));
+    }
 }

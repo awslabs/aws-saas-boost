@@ -60,7 +60,7 @@ export default function UserDeleteConfirmationComponent(props) {
           <Form>
             <ModalHeader>Delete User</ModalHeader>
             <ModalBody>
-              <p>Are you sure you want to delete the user &apos;{username}&apos;?</p>
+              <p>Are you sure you want to delete the system user &apos;{username}&apos;?</p>
               <p>Type &apos;delete&apos; to confirm:</p>
               <FormGroup>
                 <SaasBoostInput type="text" name="confirmText" tabIndex="1" />

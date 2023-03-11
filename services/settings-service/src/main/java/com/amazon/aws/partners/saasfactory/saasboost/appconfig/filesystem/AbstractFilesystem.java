@@ -17,23 +17,26 @@
 package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.efs.EfsFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxOntapFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxWindowsFilesystem;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.util.Map;
 import java.util.Objects;
 
 @JsonTypeInfo(
-    use = JsonTypeInfo.Id.NAME,
-    include = JsonTypeInfo.As.PROPERTY,
-    property = "type"
+        use = JsonTypeInfo.Id.NAME,
+        include = JsonTypeInfo.As.PROPERTY,
+        property = "type"
 )
 @JsonSubTypes({
-    @Type(value = EfsFilesystem.class, name = AbstractFilesystem.EFS),
-    @Type(value = FsxWindowsFilesystem.class, name = AbstractFilesystem.FSXW),
-    @Type(value = FsxOntapFilesystem.class, name = AbstractFilesystem.FSXO)
+        @Type(value = EfsFilesystem.class, name = AbstractFilesystem.EFS),
+        @Type(value = FsxWindowsFilesystem.class, name = AbstractFilesystem.FSXW),
+        @Type(value = FsxOntapFilesystem.class, name = AbstractFilesystem.FSXO)
 })
 public abstract class AbstractFilesystem {
     protected static final String EFS = "EFS";
@@ -42,31 +45,18 @@ public abstract class AbstractFilesystem {
 
     private String mountPoint;
 
-    private Boolean encrypt;
-
-    @JsonInclude(value = JsonInclude.Include.NON_NULL)
-    private String encryptionKey;
-
     protected AbstractFilesystem(Builder b) {
         if (b.mountPoint == null) {
             throw new IllegalArgumentException("Cannot specify a filesystem without a mount point.");
         }
         this.mountPoint = b.mountPoint;
-        this.encrypt = b.encrypt == null ? Boolean.FALSE : b.encrypt;
-        this.encryptionKey = b.encryptionKey;
     }
 
     public String getMountPoint() {
         return mountPoint;
     }
 
-    public Boolean getEncrypt() {
-        return this.encrypt;
-    }
-
-    public String getEncryptionKey() {
-        return this.encryptionKey;
-    }
+    public abstract Map<String, ? extends AbstractFilesystemTierConfig> getTiers();
 
     @Override
     public boolean equals(Object obj) {
@@ -82,35 +72,24 @@ public abstract class AbstractFilesystem {
             return false;
         }
         final AbstractFilesystem other = (AbstractFilesystem) obj;
-        return Utils.nullableEquals(this.getMountPoint(), other.getMountPoint())
-                && Utils.nullableEquals(this.getEncrypt(), other.getEncrypt())
-                && Utils.nullableEquals(this.getEncryptionKey(), other.getEncryptionKey());
+
+        return Utils.nullableEquals(this.getMountPoint(), other.getMountPoint());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mountPoint, encrypt, encryptionKey);
+        return Objects.hash(mountPoint);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    protected abstract static class Builder {
+    public abstract static class Builder {
         private String mountPoint;
-        private Boolean encrypt;
-        private String encryptionKey;
 
         public Builder mountPoint(String mountPoint) {
             this.mountPoint = mountPoint;
             return this;
         }
 
-        public Builder encrypt(Boolean encrypt) {
-            this.encrypt = encrypt;
-            return this;
-        }
-
-        public Builder encryptionKey(String encryptionKey) {
-            this.encryptionKey = encryptionKey;
-            return this;
-        }
+        public abstract AbstractFilesystem build();
     }
 }

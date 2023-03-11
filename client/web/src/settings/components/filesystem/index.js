@@ -29,11 +29,13 @@ export const FILESYSTEM_TYPES = {
         "component": EfsFilesystemOptions,
         "enabled": (os, launchType) => os === "LINUX",
         "defaults": {
-            mountPoint: '',
-            lifecycle: 'NEVER',
-            encrypt: '',
+            mountPoint: ''
         },
-        "validationSchema": Yup.object({
+        "tierDefaults": {
+            lifecycle: 'NEVER',
+            encrypt: false
+        },
+        "validationSchema": {
             mountPoint: Yup.string()
                 .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
                 .max(100, "The full path can't exceed 100 characters in length")
@@ -43,9 +45,11 @@ export const FILESYSTEM_TYPES = {
                     (val) => (val?.match(/\//g) || []).length <= 4
                 )
                 .required(),
+        },
+        "tierValidationSchema": {
             encrypt: Yup.bool(),
             lifecycle: Yup.string().required('Lifecycle is required'),
-        })
+        }
     },
     "FSX_WINDOWS": {
         "configId": "FSX_WINDOWS",
@@ -56,21 +60,28 @@ export const FILESYSTEM_TYPES = {
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
+            windowsMountDrive: 'G:'
+        },
+        "tierDefaults": {
             storageGb: 32,
             throughputMbs: 8,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
-            windowsMountDrive: 'G:',
+            encrypt: true // FSX filesystems are always encrypted by default anyway
         },
-        "validationSchema": Yup.object({
+        "validationSchema": {
             mountPoint: Yup.string()
                 .matches(
                     /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
                     'Invalid path. Ex: C:\\data'
                 )
                 .required(),
+            windowsMountDrive: Yup.string()
+                .required('Windows mount drive is required'),
+        },
+        "tierValidationSchema": {
             storageGb: Yup.number()
                 .required()
                 .min(32, 'Storage minimum is 32 GB')
@@ -87,9 +98,7 @@ export const FILESYSTEM_TYPES = {
                 .required('Daily backup time is required'),
             weeklyMaintenanceTime: Yup.string()
                 .required('Weekly maintenance time is required'),
-            windowsMountDrive: Yup.string()
-                .required('Windows mount drive is required'),
-        })
+        }
     },
     "FSX_ONTAP_LINUX": {
         "configId": "FSX_ONTAP",
@@ -99,16 +108,19 @@ export const FILESYSTEM_TYPES = {
         "component": FsxOntapFilesystemOptions,
         "enabled": (os, launchType) => os === "LINUX" && launchType === "EC2",
         "defaults": {
-            mountPoint: '',
+            mountPoint: ''
+        },
+        "tierDefaults": {
             storageGb: 1024,
             throughputMbs: 128,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
-            volumeSize: 40
+            volumeSize: 40,
+            encrypt: true // FSX filesystems are always encrypted by default anyway
         },
-        "validationSchema": Yup.object({
+        "validationSchema": {
             mountPoint: Yup.string()
                 .matches(/^(\/[a-zA-Z._-]+)*$/, 'Invalid path. Ex: /mnt')
                 .max(100, "The full path can't exceed 100 characters in length")
@@ -118,6 +130,8 @@ export const FILESYSTEM_TYPES = {
                     (val) => (val?.match(/\//g) || []).length <= 4
                 )
                 .required(),
+        },
+        "tierValidationSchema": {
             storageGb: Yup.number()
                 .required()
                 .min(1024, 'Storage minimum is 1024 GB')
@@ -138,7 +152,7 @@ export const FILESYSTEM_TYPES = {
                 .required()
                 .min(0, 'Volume Size must be a positive number')
                 .max(196608, 'Volume size maximum is 196,608 GB')
-        })
+        }
     },
     "FSX_ONTAP_WINDOWS": {
         "configId": "FSX_ONTAP",
@@ -149,22 +163,29 @@ export const FILESYSTEM_TYPES = {
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
+            windowsMountDrive: 'G:'
+        },
+        "tierDefaults": {
             storageGb: 1024,
             throughputMbs: 128,
             backupRetentionDays: 7,
             dailyBackupTime: '01:00',
             weeklyMaintenanceTime: '07:01',
             weeklyMaintenanceDay: '1',
-            windowsMountDrive: 'G:',
-            volumeSize: 40
+            volumeSize: 40,
+            encrypt: true // FSX filesystems are always encrypted by default anyway
         },
-        "validationSchema": Yup.object({
+        "validationSchema": {
             mountPoint: Yup.string()
                 .matches(
                     /^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$/,
                     'Invalid path. Ex: C:\\data'
                 )
                 .required(),
+            windowsMountDrive: Yup.string()
+                .required('Windows mount drive is required'),
+        },
+        "tierValidationSchema": {
             storageGb: Yup.number()
                 .required()
                 .min(1024, 'Storage minimum is 1024 GB')
@@ -181,18 +202,22 @@ export const FILESYSTEM_TYPES = {
                 .required('Daily backup time is required'),
             weeklyMaintenanceTime: Yup.string()
                 .required('Weekly maintenance time is required'),
-            windowsMountDrive: Yup.string()
-                .required('Windows mount drive is required'),
             volumeSize: Yup.number()
                 .required()
                 .min(0, 'Volume Size must be a positive number')
                 .max(196608, 'Volume size maximum is 196,608 GB')
-        })
+        }
     }
 }
 
+// merges the defaults for every FileSystemType into one giant blob
 export const FILESYSTEM_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
     .map(k => FILESYSTEM_TYPES[k].defaults)
+    .reduce((p, c) => {
+        return {...p, ...c}
+    }))
+export const FILESYSTEM_TIER_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
+    .map(k => FILESYSTEM_TYPES[k].tierDefaults)
     .reduce((p, c) => {
         return {...p, ...c}
     }))
@@ -200,7 +225,7 @@ export const FILESYSTEM_DEFAULTS = Object.assign(Object.keys(FILESYSTEM_TYPES)
 export const OS_TO_FS_TYPES = {
     "LINUX": [
         FILESYSTEM_TYPES.EFS,
-        // FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
+        FILESYSTEM_TYPES.FSX_ONTAP_LINUX,
     ],
     "WINDOWS": [
         FILESYSTEM_TYPES.FSX_WINDOWS,

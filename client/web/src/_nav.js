@@ -24,6 +24,7 @@ import {
   cilUserPlus,
 } from '@coreui/icons'
 import { CNavGroup, CNavItem } from '@coreui/react'
+import { BaseUserRoute } from './users'
 
 const _nav = [
   {
@@ -87,8 +88,8 @@ const _nav = [
   },
   {
     component: CNavItem,
-    name: 'Users',
-    to: '/users',
+    name: 'System Users',
+    to: BaseUserRoute,
     icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
   },
 ]

@@ -20,7 +20,7 @@ import appConfig from '../../config/appConfig'
 
 const { apiUri } = appConfig
 const apiServer = axios.create({
-  baseURL: `${apiUri}/users`,
+  baseURL: `${apiUri}/sysusers`,
   headers: {
     common: {
       'Content-Type': 'application/json',

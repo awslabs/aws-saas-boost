@@ -560,12 +560,20 @@ public class OnboardingService {
                 // And parameters specific to this tenant
                 String tenantSubdomain = Objects.toString(tenant.get("subdomain"), "");
                 String tier = Objects.toString(tenant.get("tier"), "default");
-
                 String domainName = Objects.toString(appConfig.get("domainName"), "");
                 String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
                 String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
+                Map<String, Map<String, Object>> services =
+                        (Map<String, Map<String, Object>>) appConfig.get("services");
+                boolean privateServices = false;
+                for (Map<String, Object> service : services.values()) {
+                    privateServices = privateServices || !(Boolean) service.get("public");
+                }
 
                 List<Parameter> templateParameters = new ArrayList<>();
+                templateParameters.add(Parameter.builder()
+                        .parameterKey("PrivateServices")
+                        .parameterValue(Boolean.toString(privateServices)).build());
                 templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(SAAS_BOOST_ENV).build());
                 templateParameters.add(Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build());
                 templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").parameterValue(hostedZone).build());
@@ -766,6 +774,7 @@ public class OnboardingService {
                     String httpListenerArn;
                     String httpsListenerArn; // might not have an HTTPS listener if they don't have an SSL certificate
                     String ecsCluster;
+                    String serviceDiscoveryNamespaceId; // Might not have private services
                     Map<String, Map<String, String>> tenantResources = (Map<String, Map<String, String>>) tenant.get("resources");
                     try {
                         vpc = tenantResources.get("VPC").get("name");
@@ -775,6 +784,13 @@ public class OnboardingService {
                         ecsCluster = tenantResources.get("ECS_CLUSTER").get("name");
                         ecsSecurityGroup = tenantResources.get("ECS_SECURITY_GROUP").get("name");
                         loadBalancerArn = tenantResources.get("LOAD_BALANCER").get("arn");
+                        // Will only exist if private services are defined
+                        if (tenantResources.containsKey("PRIVATE_SERVICE_DISCOVERY_NAMESPACE")) {
+                            serviceDiscoveryNamespaceId = Objects.toString(
+                                    tenantResources.get("PRIVATE_SERVICE_DISCOVERY_NAMESPACE").get("name"), "");
+                        } else {
+                            serviceDiscoveryNamespaceId = "";
+                        }
                         // Depending on the SSL certificate configuration, one of these 2 listeners must exist
                         if (tenantResources.containsKey("HTTP_LISTENER")) {
                             httpListenerArn = Objects.toString(tenantResources.get("HTTP_LISTENER").get("arn"), "");
@@ -821,6 +837,7 @@ public class OnboardingService {
                         String pathPart = (isPublic) ? (String) service.get("path") : "";
                         Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
                         String healthCheck = (String) service.get("healthCheckUrl");
+                        final Boolean enableEcsExec = (Boolean) service.get("ecsExecEnabled");
 
                         // CloudFormation won't let you use dashes or underscores in Mapping second level key names
                         // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
@@ -831,6 +848,17 @@ public class OnboardingService {
                         Integer containerPort = (Integer) service.get("containerPort");
                         String containerRepo = (String) service.get("containerRepo");
                         String imageTag = (String) service.getOrDefault("containerTag", "latest");
+
+                        Map<String, Object> s3 = (Map<String, Object>) service.getOrDefault("s3", null);
+                        String tenantStorageBucketName = "";
+                        if (s3 != null) {
+                            tenantStorageBucketName = (String) s3.get("bucketName");
+                            if (tenantStorageBucketName == null) {
+                                LOGGER.error("S3 exists in AppConfig, but bucketName is not configured.");
+                                failOnboarding(onboarding.getId(), "Invalid S3 configuration for AppConfig.");
+                                return;
+                            }
+                        }
 
                         // If there are any private services, we will create an environment variables called
                         // SERVICE_<SERVICE_NAME>_HOST and SERVICE_<SERVICE_NAME>_PORT to pass to the task definitions
@@ -864,6 +892,9 @@ public class OnboardingService {
                         String mountPoint = "/mnt";
                         Boolean encryptFilesystem = Boolean.TRUE;
                         String filesystemLifecycle = "NEVER";
+                        String managedActiveDirectoryId = "";
+                        String activeDirectoryDnsIps = "";
+                        String activeDirectoryDnsName = "";
                         Integer fsxStorageGb = 32;
                         Integer fsxThroughputMbs = 8;
                         Integer fsxBackupRetentionDays = 0;
@@ -872,48 +903,64 @@ public class OnboardingService {
                         String fsxWindowsMountDrive = "G:";
                         Integer ontapVolumeSize = 40;
                         String fileSystemType = "FSX_WINDOWS";
-                        Map<String, Object> filesystem = (Map<String, Object>) tierConfig.get("filesystem");
+                        Map<String, Object> filesystem = (Map<String, Object>) service.get("filesystem");
                         if (filesystem != null && !filesystem.isEmpty()) {
+                            Map<String, Object> filesystemTiers = (Map<String, Object>) filesystem.get("tiers");
+                            Map<String, Object> filesystemTierConfig = (Map<String, Object>) filesystemTiers.get(tier);
                             fileSystemType = (String) filesystem.get("type");
                             mountPoint = (String) filesystem.get("mountPoint");
                             if ("EFS".equals(fileSystemType)) {
                                 enableEfs = Boolean.TRUE;
-                                encryptFilesystem = (Boolean) filesystem.get("encrypt");
+                                encryptFilesystem = (Boolean) filesystemTierConfig.get("encrypt");
                                 if (encryptFilesystem == null) {
                                     encryptFilesystem = Boolean.FALSE;
                                 }
-                                filesystemLifecycle = (String) filesystem.get("lifecycle");
+                                filesystemLifecycle = (String) filesystemTierConfig.get("lifecycle");
                                 if (filesystemLifecycle == null) {
                                     filesystemLifecycle = "NEVER";
                                 }
                             } else if ("FSX_WINDOWS".equals(fileSystemType) || "FSX_ONTAP".equals(fileSystemType)) {
                                 enableFSx = Boolean.TRUE;
-                                fsxStorageGb = (Integer) filesystem.get("storageGb");
+                                Map<String, String> activeDirectorySettings = getSettings(
+                                        context,
+                                        "ACTIVE_DIRECTORY_DNS_IPS",
+                                        "ACTIVE_DIRECTORY_DNS_NAME",
+                                        "ACTIVE_DIRECTORY_ID"
+                                );
+                                if (activeDirectorySettings != null) {
+                                    activeDirectoryDnsIps = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_IPS", "");
+                                    activeDirectoryDnsName = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_NAME", "");
+                                    managedActiveDirectoryId = activeDirectorySettings
+                                            .getOrDefault("ACTIVE_DIRECTORY_ID", "");
+                                }
+                                fsxStorageGb = (Integer) filesystemTierConfig.get("storageGb");
                                 if (fsxStorageGb == null) {
                                     fsxStorageGb = "FSX_ONTAP".equals(fileSystemType) ? 1024 : 32;
                                 }
-                                fsxThroughputMbs = (Integer) filesystem.get("throughputMbs");
+                                fsxThroughputMbs = (Integer) filesystemTierConfig.get("throughputMbs");
                                 if (fsxThroughputMbs == null) {
                                     fsxThroughputMbs = "FSX_ONTAP".equals(fileSystemType) ? 128 : 8;
                                 }
-                                fsxBackupRetentionDays = (Integer) filesystem.get("backupRetentionDays");
+                                fsxBackupRetentionDays = (Integer) filesystemTierConfig.get("backupRetentionDays");
                                 if (fsxBackupRetentionDays == null) {
                                     fsxBackupRetentionDays = 0; // Turn off automated backups
                                 }
-                                fsxDailyBackupTime = (String) filesystem.get("dailyBackupTime");
+                                fsxDailyBackupTime = (String) filesystemTierConfig.get("dailyBackupTime");
                                 if (fsxDailyBackupTime == null) {
                                     fsxDailyBackupTime = "02:00"; // 2:00 AM
                                 }
-                                fsxWeeklyMaintenanceTime = (String) filesystem.get("weeklyMaintenanceTime");
+                                fsxWeeklyMaintenanceTime = (String) filesystemTierConfig.get("weeklyMaintenanceTime");
                                 if (fsxWeeklyMaintenanceTime == null) {
                                     fsxWeeklyMaintenanceTime = "7:01:00"; // Sun 1:00 AM
                                 }
-                                fsxWindowsMountDrive = (String) filesystem.get("windowsMountDrive");
+                                fsxWindowsMountDrive = (String) filesystemTierConfig.get("windowsMountDrive");
                                 if (fsxWindowsMountDrive == null) {
                                     fsxWindowsMountDrive = "G:";
                                 }
                                 if ("FSX_ONTAP".equals(fileSystemType)) {
-                                    ontapVolumeSize = (Integer) filesystem.get("volumeSize");
+                                    ontapVolumeSize = (Integer) filesystemTierConfig.get("volumeSize");
                                     if (ontapVolumeSize == null) {
                                         ontapVolumeSize = 40;
                                     }
@@ -960,12 +1007,24 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("ContainerRepositoryTag").parameterValue(imageTag).build());
                         templateParameters.add(Parameter.builder().parameterKey("ECSCluster").parameterValue(ecsCluster).build());
                         templateParameters.add(Parameter.builder()
+                                .parameterKey("EnableECSExec")
+                                .parameterValue(enableEcsExec.toString()).build());
+                        templateParameters.add(Parameter.builder()
                                 .parameterKey("OnboardingDdbTable")
                                 .parameterValue(ONBOARDING_TABLE).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PubliclyAddressable").parameterValue(isPublic.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRoute").parameterValue(pathPart).build());
-                        templateParameters.add(Parameter.builder().parameterKey("PublicPathRulePriority").parameterValue(publicPathRulePriority.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PubliclyAddressable")
+                                .parameterValue(isPublic.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PublicPathRoute")
+                                .parameterValue(pathPart).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("PublicPathRulePriority")
+                                .parameterValue(publicPathRulePriority.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(vpc).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("ServiceDiscoveryNamespace")
+                                .parameterValue(serviceDiscoveryNamespaceId).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateA").parameterValue(privateSubnetA).build());
                         templateParameters.add(Parameter.builder().parameterKey("SubnetPrivateB").parameterValue(privateSubnetB).build());
                         templateParameters.add(Parameter.builder().parameterKey("PrivateRouteTable").parameterValue(privateRouteTable).build());
@@ -986,7 +1045,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("EncryptEFS").parameterValue(encryptFilesystem.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("EFSLifecyclePolicy").parameterValue(filesystemLifecycle).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseFSx").parameterValue(enableFSx.toString()).build());
-                        templateParameters.add(Parameter.builder().parameterKey("FSxFileSystemType").parameterValue(fileSystemType.toString()).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryId").parameterValue(managedActiveDirectoryId).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryDnsIps").parameterValue(activeDirectoryDnsIps).build());
+                        templateParameters.add(Parameter.builder().parameterKey("ActiveDirectoryDnsName").parameterValue(activeDirectoryDnsName).build());
+                        templateParameters.add(Parameter.builder().parameterKey("FSxFileSystemType").parameterValue(fileSystemType).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxWindowsMountDrive").parameterValue(fsxWindowsMountDrive).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxDailyBackupTime").parameterValue(fsxDailyBackupTime).build());
                         templateParameters.add(Parameter.builder().parameterKey("FSxBackupRetention").parameterValue(fsxBackupRetentionDays.toString()).build());
@@ -1004,6 +1066,10 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("RDSPort").parameterValue(dbPort.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSDatabase").parameterValue(dbDatabase).build());
                         templateParameters.add(Parameter.builder().parameterKey("RDSBootstrap").parameterValue(dbBootstrap).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("TenantStorageBucket")
+                                .parameterValue(tenantStorageBucketName)
+                                .build());
                         // TODO rework these last 2?
                         templateParameters.add(Parameter.builder().parameterKey("MetricsStream")
                                 .parameterValue(Objects.toString(SAAS_BOOST_METRICS_STREAM, "")).build());
@@ -1119,6 +1185,20 @@ public class OnboardingService {
                             )
                     );
                 }
+
+                // Publish an event to subscribe this tenant to the billing system if needed
+                if (Utils.isNotBlank(onboarding.getRequest().getBillingPlan())) {
+                    // TODO Onboarding probably shouldn't be sending the plan in -- just the tier and/or tenant
+                    LOGGER.info("Publishing billing setup event for tenant {}", onboarding.getTenantId());
+                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                            "Billing Tenant Setup",
+                            Map.of("tenantId", onboarding.getTenantId(),
+                                    "planId", onboarding.getRequest().getBillingPlan()
+                            )
+                    );
+                } else {
+                    LOGGER.info("Skipping billing setup, no billing plan for tenant {}", onboarding.getTenantId());
+                }
             } else {
                 LOGGER.error("Can't find onboarding record for {}", detail.get("onboardingId"));
             }
@@ -1162,7 +1242,11 @@ public class OnboardingService {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
             String pipeline = (String) detail.get("pipeline");
             try {
-                String pipelineArn = resources.get(0);
+                String pipelineArnFromResource = resources.get(0);
+                LOGGER.info("pipelineArnFromResource = {} when handle onboarding pipeline status changed", pipelineArnFromResource);
+                final String[] lambdaArn = context.getInvokedFunctionArn().split(":");
+                final String partition = lambdaArn[1];
+                String pipelineArn = pipelineArnFromResource.replace("arn:aws:", "arn:" + partition + ":");
                 LOGGER.info("Fetching tenant id from CodePipeline tags");
                 ListTagsForResourceResponse tagsResponse = codePipeline.listTagsForResource(request -> request
                         .resourceArn(pipelineArn)
@@ -1624,7 +1708,6 @@ public class OnboardingService {
             templateParameters.add(Parameter.builder().parameterKey("TenantTransitGatewayRouteTable").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("EgressTransitGatewayRouteTable").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("CidrPrefix").usePreviousValue(Boolean.TRUE).build());
-            templateParameters.add(Parameter.builder().parameterKey("DomainName").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("SSLCertArnParam").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("HostedZoneId").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("UseEFS").usePreviousValue(Boolean.TRUE).build());
@@ -1779,19 +1862,7 @@ public class OnboardingService {
 
         Map<String, Object> appConfig = getAppConfig(context);
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
-
-        String domainName = (String) appConfig.getOrDefault("domainName", "");
-        String hostedZone = chooseHostedZoneParameter(stackName, domainName, cfn, route53);
-
-        // If there's an existing hosted zone, we need to tell the AppConfig about it
-        // Otherwise, if there's a domain name, CloudFormation will create a hosted zone
-        // and the stack listener will tell AppConfig about the newly created one.
-        if (Utils.isNotBlank(hostedZone)) {
-            LOGGER.info("Publishing appConfig update event for Route53 hosted zone {}", hostedZone);
-            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                    "Application Configuration Resource Changed",
-                    Map.of("hostedZone", hostedZone));
-        }
+        String appExtensions = collectAppExtensions(appConfig);
 
         LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stackName);
         String stackId = null;
@@ -1804,14 +1875,21 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("SaaSBoostBucket").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("LambdaSourceFolder").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Environment").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProvider").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderDomain").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderHostedZone").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("SystemIdentityProviderCertificate").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppDomain").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppHostedZone").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminWebAppCertificate").usePreviousValue(Boolean.TRUE).build(),
+                            Parameter.builder().parameterKey("AdminUsername").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("AdminEmailAddress").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("DomainName").parameterValue(domainName).build(),
-                            Parameter.builder().parameterKey("HostedZone").parameterValue(hostedZone).build(),
+                            Parameter.builder().parameterKey("AppExtensions").parameterValue(appExtensions).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
                                     String.join(",", services.keySet())).build(),
                             Parameter.builder().parameterKey("CreateMacroResources").usePreviousValue(Boolean.TRUE).build()
@@ -2138,6 +2216,55 @@ public class OnboardingService {
         return appConfig;
     }
 
+    protected String getSetting(Context context, String setting) {
+        LOGGER.info("Calling settings service to fetch setting {}", setting);
+        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings/" + setting + "/secret")
+                                .method("GET")
+                                .build()
+                ),
+                API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        Map<String, Object> settingObject = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
+        return (String) settingObject.get("value");
+    }
+
+    protected Map<String, String> getSettings(Context context, String... settings) {
+        LOGGER.info("Calling settings service to fetch settings {}", settings);
+        StringBuilder queryParams = new StringBuilder();
+        for (Iterator<String> iter = Arrays.stream(settings).iterator(); iter.hasNext();) {
+            queryParams.append("setting=");
+            queryParams.append(iter.next());
+            if (iter.hasNext()) {
+                queryParams.append("&");
+            }
+        }
+        String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+                ApiGatewayHelper.getApiRequest(
+                        API_GATEWAY_HOST,
+                        API_GATEWAY_STAGE,
+                        ApiRequest.builder()
+                                .resource("settings?" + queryParams.toString())
+                                .method("GET")
+                                .build()
+                )
+                ,API_TRUST_ROLE,
+                context.getAwsRequestId()
+        );
+        List<Map<String, String>> settingsList = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
+        return settingsList.stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.get("name"),
+                        entry -> entry.get("value")
+                )
+        );
+    }
+
     protected Map<String, Object> getTenant(UUID tenantId, Context context) {
         if (tenantId == null) {
             throw new IllegalArgumentException("Can't fetch blank tenant id");
@@ -2198,107 +2325,15 @@ public class OnboardingService {
         return pathPriority;
     }
 
-    // separate out route53 client for testability
-    protected static String getExistingHostedZone(String domainName, Route53Client route53Client) {
-        String existingHostedZone = "";
-        if (Utils.isNotEmpty(domainName)) {
-            String nextDnsName = null;
-            String nextHostedZone = null;
-            ListHostedZonesByNameResponse response;
-            do {
-                response = route53Client.listHostedZonesByName(ListHostedZonesByNameRequest.builder()
-                        .dnsName(nextDnsName)
-                        .hostedZoneId(nextHostedZone)
-                        .maxItems("100")
-                        .build()
-                );
-                nextDnsName = response.nextDNSName();
-                nextHostedZone = response.nextHostedZoneId();
-                if (response.hasHostedZones()) {
-                    for (HostedZone hostedZone : response.hostedZones()) {
-                        // If there are multiple hosted zones for a given domain name, what should we do?
-                        // We could sort the response by "CallerReference" which appears to be a timestamp.
-                        // In the documentation, we can just tell people if they're suffering from
-                        // https://github.com/awslabs/aws-saas-boost/issues/74 to go clean things up manually first?
-                        if (hostedZone.name().startsWith(domainName)
-                                && hostedZone.config() != null
-                                && Boolean.FALSE.equals(hostedZone.config().privateZone())) {
-                            // Created by SaaS Boost CloudFormation?
-                            // TODO do we do this check? seems safest for now.
-                            if ((domainName + " Public DNS zone").equals(hostedZone.config().comment())) {
-                                LOGGER.info("Found existing hosted zone {} for domain {}", hostedZone, domainName);
-                                // Hosted zone id will be prefixed with /hostedzone/
-                                existingHostedZone = hostedZone.id().replace("/hostedzone/", "");
-                                break;
-                            }
-                        }
-                    }
-                }
-            } while (response.isTruncated());
-        }
-        return existingHostedZone;
-    }
-
-    protected static String chooseHostedZoneParameter(
-                String stackName, 
-                String domainName, 
-                CloudFormationClient cfnClient, // separate out clients for testability
-                Route53Client route53Client) {
-        LOGGER.debug("Locating SaaS Boost provisioned Hosted Zone for domain {}", domainName);
-        if (Utils.isNotBlank(domainName)) {
-            final String hostedZoneCfnName = "PublicDomainHostedZone";
-            // need to find the core stack to find whether we already created a hostedZone
-            // this call might throw a CloudFormationException if the stack or the core resource does not exist
-            // in either case, we couldn't possibly continue with our updateInfrastructure operation, so allow
-            // it to bubble up into the logs. unfortunately there's currently no way to percolate a serious fatal
-            // state error through the system
-            final StackResourceDetail coreStackResourceDetail = cfnClient.describeStackResource(
-                    DescribeStackResourceRequest.builder()
-                            .stackName(stackName)
-                            .logicalResourceId("core")
-                            .build())
-                    .stackResourceDetail();
-            boolean saasBoostOwnsHostedZone = false;
-            try {
-                cfnClient.describeStackResource(DescribeStackResourceRequest.builder()
-                        .stackName(coreStackResourceDetail.physicalResourceId())
-                        .logicalResourceId(hostedZoneCfnName)
-                        .build());
-                // because we didn't throw, the resource must exist. so saasBoost has created
-                // a hostedZone for this environment
-                saasBoostOwnsHostedZone = true;
-            } catch (CloudFormationException cfne) {
-                // if the exception is that the resource does not exist, that means that we have not created
-                // a hosted zone in this environment. any other exception is unexpected and should be rethrown
-                if (!cfne.getMessage().contains("Resource " + hostedZoneCfnName + " does not exist")) {
-                    throw new RuntimeException(cfne);
-                }
-            }
-
-            if (!saasBoostOwnsHostedZone) {
-                LOGGER.debug("Found SaaS Boost provisioned Hosted Zone in CloudFormation");
-                String existingHostedZone = getExistingHostedZone(domainName, route53Client);
-                if (Utils.isNotBlank(existingHostedZone)) {
-                    /*
-                     * If there exists a hostedZone and we don't own it, we want to pass that hostedZone
-                     * name to the stack, since that means it won't be created
-                     */
-                    return existingHostedZone;
-                }
-            } else {
-                LOGGER.debug("No SaaS Boost provisioned Hosted Zone in CloudFormation");
-                /*
-                 * If there exists a hostedZone and we DO own it, we don't want to pass the hostedZone
-                 * name to the stack, since the condition to create the hostedZone will evaluate to 
-                 * false and the owned hostedZone will be deleted
-                 * 
-                 * If there does not exist a hostedZone we won't own it (because it doesn't exist) but
-                 * either way we would not want to pass a hostedZone name in so that the stack
-                 * creates one. This might be happening on an initial configuration of domainName in
-                 * AppConfig.
-                 */
+    protected static String collectAppExtensions(Map<String, Object> appConfig) {
+        Set<String> appExtensions = new HashSet<>();
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        for (String serviceName : services.keySet()) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(serviceName);
+            if (serviceConfig.containsKey("s3") && serviceConfig.get("s3") != null) {
+                appExtensions.add("s3");
             }
         }
-        return "";
+        return String.join(",", appExtensions);
     }
 }

@@ -48,8 +48,7 @@ fi
 # And copy it up to S3
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
-FUNCTIONS=("sb-${ENVIRONMENT}-ecs-startup-services" 
-        )
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-ecs-startup-services\`)] | [].FunctionName' --output text"\)
 
 for FUNCTION in ${FUNCTIONS[@]}; do
 	#echo $FUNCTION
