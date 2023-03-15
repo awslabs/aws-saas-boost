@@ -15,11 +15,11 @@
  */
 
 import React, { useState } from 'react'
-import { SaasBoostSelect, SaasBoostInput } from '../components/FormComponents'
 import { Dropdown, Card, Row, Col } from 'react-bootstrap'
 import { PropTypes } from 'prop-types'
 import FileSystemTierSubform from './components/filesystem/FileSystemTierSubform'
 import DatabaseTierSubform from './DatabaseTierSubform'
+import ComputeTierSubform from './components/compute/ComputeTierSubform'
 
 const TierServiceSettingsSubform = (props) => {
   const {
@@ -33,28 +33,11 @@ const TierServiceSettingsSubform = (props) => {
   } = props
 
   const [selectedTier, setSelectedTier] = useState(defaultTier)
-
-  const formikTierPrefix = formikServicePrefix + '.tiers[' + selectedTier + ']'
-
-  if (!!serviceValues?.tiers) {
-    // set compute size if default exists and this tier doesn't
-    if (!!!serviceValues?.tiers[selectedTier]?.computeSize && !!serviceValues?.tiers[defaultTier]?.computeSize) {
-      // set instance to default if it doesn't exist already
-      setFieldValue(formikTierPrefix + '.computeSize', serviceValues?.tiers[defaultTier]?.computeSize)
-    }
-
-    // set min if default exists and this tier doesn't
-    if (!!!serviceValues?.tiers[selectedTier]?.min && !!serviceValues?.tiers[defaultTier]?.min) {
-      // set instance to default if it doesn't exist already
-      setFieldValue(formikTierPrefix + '.min', serviceValues?.tiers[defaultTier]?.min)
-    }
-
-    // set max if default exists and this tier doesn't
-    if (!!!serviceValues?.tiers[selectedTier]?.max && !!serviceValues?.tiers[defaultTier]?.max) {
-      // set instance to default if it doesn't exist already
-      setFieldValue(formikTierPrefix + '.max', serviceValues?.tiers[defaultTier]?.max)
-    }
-  }
+  const ec2AutoScaling = !!(serviceValues?.compute?.operatingSystem)
+      ? serviceValues?.compute?.operatingSystem === 'LINUX'
+          ? serviceValues?.compute?.ecsLaunchType === 'EC2'
+          : true
+      : false
 
   return (
     <>
@@ -88,51 +71,22 @@ const TierServiceSettingsSubform = (props) => {
             </Card.Header>
             <Card.Body>
               <Row>
-                <Col xs={6}>
-                  <SaasBoostSelect
-                    type="select"
-                    name={formikTierPrefix + '.computeSize'}
-                    id={formikTierPrefix + '.computeSize'}
-                    label="Compute Size"
-                  >
-                    <option value="">Select One...</option>
-                    <option value="S">Small</option>
-                    <option value="M">Medium</option>
-                    <option value="L">Large</option>
-                    <option value="XL">X-Large</option>
-                  </SaasBoostSelect>
-                  <Row>
-                    <Col>
-                      <SaasBoostInput
-                        key={formikTierPrefix + '.min'}
-                        label="Minimum Instance Count"
-                        name={formikTierPrefix + '.min'}
-                        type="number"
-                        min="0"
-                      />
-                    </Col>
-                    <Col>
-                      <SaasBoostInput
-                        key={formikTierPrefix + '.max'}
-                        label="Maximum Instance Count"
-                        name={formikTierPrefix + '.max'}
-                        type="number"
-                        min="0"
-                      />
-                    </Col>
-                  </Row>
-                </Col>
-              </Row>
-              <Row>
                 <Col>
+                  <ComputeTierSubform 
+                    values={serviceValues?.compute?.tiers[selectedTier]}
+                    defaultValues={serviceValues?.compute?.tiers[defaultTier]}
+                    formikComputeTierPrefix={formikServicePrefix + '.compute.tiers[' + selectedTier + ']'}
+                    setFieldValue={setFieldValue}
+                    ec2AutoScaling={ec2AutoScaling}
+                  />
                   <FileSystemTierSubform
                     isLocked={isLocked}
                     formikFilesystemTierPrefix={formikServicePrefix + '.filesystem.tiers[' + selectedTier + ']'}
                     defaultFilesystem={serviceValues?.filesystem?.tiers[defaultTier]}
                     filesystem={serviceValues?.filesystem?.tiers[selectedTier]}
                     provisionFs={serviceValues?.provisionFS}
-                    containerOs={serviceValues?.operatingSystem}
-                    containerLaunchType={serviceValues?.ecsLaunchType}
+                    containerOs={serviceValues?.compute?.operatingSystem}
+                    containerLaunchType={serviceValues?.compute?.ecsLaunchType}
                     filesystemType={serviceValues?.filesystemType}
                     setFieldValue={props.setFieldValue}
                   ></FileSystemTierSubform>

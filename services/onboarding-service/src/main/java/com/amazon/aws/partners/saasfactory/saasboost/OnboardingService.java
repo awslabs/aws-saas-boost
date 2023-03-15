@@ -836,19 +836,21 @@ public class OnboardingService {
                         Boolean isPublic = (Boolean) service.get("public");
                         String pathPart = (isPublic) ? (String) service.get("path") : "";
                         Integer publicPathRulePriority = (isPublic) ? pathPriority.get(serviceName) : 0;
-                        String healthCheck = (String) service.get("healthCheckUrl");
-                        final Boolean enableEcsExec = (Boolean) service.get("ecsExecEnabled");
+                        
+                        Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+                        final Boolean enableEcsExec = (Boolean) compute.get("ecsExecEnabled");
+                        final String healthCheck = (String) compute.get("healthCheckUrl");
 
                         // CloudFormation won't let you use dashes or underscores in Mapping second level key names
                         // And it won't let you use Fn::Join or Fn::Split in Fn::FindInMap... so we will mangle this
                         // parameter before we send it in.
-                        String clusterOS = ((String) service.getOrDefault("operatingSystem", ""))
+                        final String clusterOS = ((String) compute.getOrDefault("operatingSystem", ""))
                                 .replace("_", "");
 
-                        Integer containerPort = (Integer) service.get("containerPort");
-                        String containerRepo = (String) service.get("containerRepo");
-                        String imageTag = (String) service.getOrDefault("containerTag", "latest");
-
+                        final Integer containerPort = (Integer) compute.get("containerPort");
+                        final String containerRepo = (String) compute.get("containerRepo");
+                        final String imageTag = (String) compute.getOrDefault("containerTag", "latest");
+                        final String launchType = (String) compute.get("ecsLaunchType");
                         Map<String, Object> s3 = (Map<String, Object>) service.getOrDefault("s3", null);
                         String tenantStorageBucketName = "";
                         if (s3 != null) {
@@ -871,20 +873,21 @@ public class OnboardingService {
                             serviceDiscovery.put(servicePort, Objects.toString(containerPort));
                         }
 
-                        Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
-                        if (!tiers.containsKey(tier)) {
-                            LOGGER.error("Missing tier '{}' definition for tenant {}", tier, tenantId);
+                        Map<String, Object> computeTiers = (Map<String, Object>) compute.get("tiers");
+                        if (!computeTiers.containsKey(tier)) {
+                            LOGGER.error("Missing compute tier '{}' definition for tenant {}", tier, tenantId);
                             failOnboarding(onboarding.getId(), "Error retrieving tier for tenant " + tenantId);
                             return;
                         }
 
-                        Map<String, Object> tierConfig = (Map<String, Object>) tiers.get(tier);
-                        String clusterInstanceType = (String) tierConfig.get("instanceType");
-                        String launchType = (String) service.get("ecsLaunchType");
-                        Integer taskMemory = (Integer) tierConfig.get("memory");
-                        Integer taskCpu = (Integer) tierConfig.get("cpu");
-                        Integer minCount = (Integer) tierConfig.get("min");
-                        Integer maxCount = (Integer) tierConfig.get("max");
+                        Map<String, Object> computeTier = (Map<String, Object>) computeTiers.get(tier);
+                        String clusterInstanceType = (String) computeTier.get("instanceType");
+                        Integer taskMemory = (Integer) computeTier.get("memory");
+                        Integer taskCpu = (Integer) computeTier.get("cpu");
+                        Integer minCount = (Integer) computeTier.get("min");
+                        Integer maxCount = (Integer) computeTier.get("max");
+                        Integer minAutoScalingGroupSize = (Integer) computeTier.get("ec2min");
+                        Integer maxAutoScalingGroupSize = (Integer) computeTier.get("ec2max");
 
                         // Does this service use a shared filesystem?
                         Boolean enableEfs = Boolean.FALSE;
@@ -1038,6 +1041,12 @@ public class OnboardingService {
                         templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("MinTaskCount").parameterValue(minCount.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("MinAutoScalingGroupSize")
+                                .parameterValue(minAutoScalingGroupSize.toString()).build());
+                        templateParameters.add(Parameter.builder()
+                                .parameterKey("MaxAutoScalingGroupSize")
+                                .parameterValue(maxAutoScalingGroupSize.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerPort").parameterValue(containerPort.toString()).build());
                         templateParameters.add(Parameter.builder().parameterKey("ContainerHealthCheckPath").parameterValue(healthCheck).build());
                         templateParameters.add(Parameter.builder().parameterKey("UseEFS").parameterValue(enableEfs.toString()).build());
@@ -1176,12 +1185,13 @@ public class OnboardingService {
                 Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
                 for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
                     Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
+                    Map<String, Object> serviceCompute = (Map<String, Object>) service.get("compute");
                     Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                             "Workload Ready For Deployment",
                             Map.of(
                                     "tenantId", onboarding.getTenantId(),
-                                    "repository-name", service.get("containerRepo"),
-                                    "image-tag", service.get("containerTag")
+                                    "repository-name", serviceCompute.get("containerRepo"),
+                                    "image-tag", serviceCompute.get("containerTag")
                             )
                     );
                 }
@@ -1384,8 +1394,9 @@ public class OnboardingService {
                     for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
                         String serviceName = serviceConfig.getKey();
                         Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
-                        String ecrRepo = (String) service.get("containerRepo");
-                        String imageTag = (String) service.getOrDefault("containerTag", "latest");
+                        Map<String, Object> serviceCompute = (Map<String, Object>) service.get("compute");
+                        String ecrRepo = (String) serviceCompute.get("containerRepo");
+                        String imageTag = (String) serviceCompute.getOrDefault("containerTag", "latest");
                         if (Utils.isNotBlank(ecrRepo)) {
                             try {
                                 ListImagesResponse dockerImages = ecr.listImages(request -> request
@@ -1402,7 +1413,7 @@ public class OnboardingService {
                                 }
                                 if (!imageAvailable) {
                                     // Not valid yet, no container image to deploy
-                                    LOGGER.warn("Application Service {} does not have an available image tagged {}",
+                                    LOGGER.warn("Application Service {} does not have an image tagged {}",
                                             serviceName, imageTag);
                                     missingImages++;
                                 }
@@ -1417,30 +1428,12 @@ public class OnboardingService {
                             }
                         } else {
                             // TODO no repo defined for this service yet...
-                            LOGGER.warn("Application Service {} does not have a container image repository defined",
+                            LOGGER.warn("Application Service {} has no container image repository defined",
                                     serviceName);
                             missingImages++;
                         }
                     }
                     if (missingImages > 0) {
-                        retry.add(SQSBatchResponse.BatchItemFailure.builder()
-                                .withItemIdentifier(messageId)
-                                .build()
-                        );
-                        continue;
-                    }
-
-                    String tier = onboardingRequest.getTier();
-                    boolean invaildTierConfig = false;
-                    for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
-                        Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
-                        Map<String, Object> tiers = (Map<String, Object>) service.get("tiers");
-                        if (!tiers.containsKey(tier) || tiers.get(tier) == null || ((Map) tiers.get(tier)).isEmpty()) {
-                            LOGGER.warn("Missing tier configuration for service '{}' tier '{}'", serviceConfig.getKey(), tier);
-                            invaildTierConfig = true;
-                        }
-                    }
-                    if (invaildTierConfig) {
                         retry.add(SQSBatchResponse.BatchItemFailure.builder()
                                 .withItemIdentifier(messageId)
                                 .build()
@@ -1734,38 +1727,6 @@ public class OnboardingService {
             templateParameters.add(Parameter.builder().parameterKey("FSxThroughputCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxStorageCapacity").usePreviousValue(Boolean.TRUE).build());
             templateParameters.add(Parameter.builder().parameterKey("FSxWeeklyMaintenanceTime").usePreviousValue(Boolean.TRUE).build());
-
-            Integer taskMemory = (Integer) tenant.get("memory");
-            if (taskMemory != null) {
-                LOGGER.info("Overriding previous template parameter TaskMemory to {}", taskMemory);
-                templateParameters.add(Parameter.builder().parameterKey("TaskMemory").parameterValue(taskMemory.toString()).build());
-            } else {
-                templateParameters.add(Parameter.builder().parameterKey("TaskMemory").usePreviousValue(Boolean.TRUE).build());
-            }
-
-            Integer taskCpu = (Integer) tenant.get("cpu");
-            if (taskCpu != null) {
-                LOGGER.info("Overriding previous template parameter TaskCPU to {}", taskCpu);
-                templateParameters.add(Parameter.builder().parameterKey("TaskCPU").parameterValue(taskCpu.toString()).build());
-            } else {
-                templateParameters.add(Parameter.builder().parameterKey("TaskCPU").usePreviousValue(Boolean.TRUE).build());
-            }
-
-            Integer taskCount = (Integer) tenant.get("min");
-            if (taskCount != null) {
-                LOGGER.info("Overriding previous template parameter TaskCount to {}", taskCount);
-                templateParameters.add(Parameter.builder().parameterKey("TaskCount").parameterValue(taskCount.toString()).build());
-            } else {
-                templateParameters.add(Parameter.builder().parameterKey("TaskCount").usePreviousValue(Boolean.TRUE).build());
-            }
-
-            Integer maxCount = (Integer) tenant.get("max");
-            if (maxCount != null) {
-                LOGGER.info("Overriding previous template parameter MaxTaskCount to {}", maxCount);
-                templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").parameterValue(maxCount.toString()).build());
-            } else {
-                templateParameters.add(Parameter.builder().parameterKey("MaxTaskCount").usePreviousValue(Boolean.TRUE).build());
-            }
 
             String billingPlan = (String) tenant.get("planId");
             if (billingPlan != null) {

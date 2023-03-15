@@ -18,13 +18,11 @@ package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 @JsonDeserialize(builder = ServiceConfig.Builder.class)
@@ -35,34 +33,20 @@ public class ServiceConfig {
     private final String name;
     private final String description;
     private final String path;
-    private final Map<String, ServiceTierConfig> tiers;
-    private final Integer containerPort;
-    private final String containerRepo;
-    private final String containerTag;
-    private final String healthCheckUrl;
-    private final OperatingSystem operatingSystem;
     private final Database database;
-    private final EcsLaunchType ecsLaunchType;
-    private final Boolean ecsExecEnabled;
     private final S3Storage s3;
     private final AbstractFilesystem filesystem;
+    private final AbstractCompute compute;
 
     private ServiceConfig(Builder builder) {
         this.publiclyAddressable = builder.publiclyAddressable;
         this.name = builder.name;
         this.description = builder.description;
         this.path = builder.path;
-        this.containerPort = builder.containerPort;
-        this.containerRepo = builder.containerRepo;
-        this.containerTag = builder.containerTag;
-        this.healthCheckUrl = builder.healthCheckUrl;
-        this.operatingSystem = builder.operatingSystem;
-        this.tiers = builder.tiers;
         this.database = builder.database;
-        this.ecsLaunchType = builder.ecsLaunchType;
-        this.ecsExecEnabled = builder.ecsExecEnabled;
         this.s3 = builder.s3;
         this.filesystem = builder.filesystem;
+        this.compute = builder.compute;
     }
 
     public static Builder builder() {
@@ -75,17 +59,10 @@ public class ServiceConfig {
                 .name(other.getName())
                 .description(other.getDescription())
                 .path(other.getPath())
-                .tiers(other.getTiers())
-                .containerPort(other.getContainerPort())
-                .containerRepo(other.getContainerRepo())
-                .containerTag(other.getContainerTag())
-                .healthCheckUrl(other.getHealthCheckUrl())
-                .operatingSystem(other.getOperatingSystem())
                 .database(other.getDatabase())
-                .ecsLaunchType(other.getEcsLaunchType())
-                .ecsExecEnabled(other.getEcsExecEnabled())
                 .s3(other.s3)
-                .filesystem(other.getFilesystem());
+                .filesystem(other.getFilesystem())
+                .compute(other.getCompute());
     }
 
     public Boolean isPublic() {
@@ -104,30 +81,6 @@ public class ServiceConfig {
         return path;
     }
 
-    public Integer getContainerPort() {
-        return containerPort;
-    }
-
-    public String getContainerRepo() {
-        return containerRepo;
-    }
-
-    public String getContainerTag() {
-        return containerTag;
-    }
-
-    public String getHealthCheckUrl() {
-        return healthCheckUrl;
-    }
-
-    public OperatingSystem getOperatingSystem() {
-        return operatingSystem;
-    }
-
-    public Map<String, ServiceTierConfig> getTiers() {
-        return tiers != null ? Map.copyOf(tiers) : null;
-    }
-
     public Database getDatabase() {
         return database;
     }
@@ -136,20 +89,16 @@ public class ServiceConfig {
         return database != null;
     }
 
-    public EcsLaunchType getEcsLaunchType() {
-        return ecsLaunchType;
-    }
-
-    public Boolean getEcsExecEnabled() {
-        return ecsExecEnabled;
-    }
-
     public S3Storage getS3() {
         return s3;
     }
 
     public AbstractFilesystem getFilesystem() {
         return filesystem;
+    }
+    
+    public AbstractCompute getCompute() {
+        return compute;
     }
 
     @Override
@@ -168,42 +117,19 @@ public class ServiceConfig {
 
         final ServiceConfig other = (ServiceConfig) obj;
 
-        boolean tiersEqual = tiers != null && other.tiers != null;
-        if (tiersEqual) {
-            tiersEqual = tiers.size() == other.tiers.size();
-            if (tiersEqual) {
-                for (Map.Entry<String, ServiceTierConfig> tier : tiers.entrySet()) {
-                    tiersEqual = tier.getValue().equals(other.tiers.get(tier.getKey()));
-                    if (!tiersEqual) {
-                        break;
-                    }
-                }
-            }
-        }
-
         return Utils.nullableEquals(name, other.name)
             && Utils.nullableEquals(description, other.description)
             && Utils.nullableEquals(path, other.path)
             && Utils.nullableEquals(publiclyAddressable, other.publiclyAddressable)
-            && Utils.nullableEquals(containerPort, other.containerPort)
-            && Utils.nullableEquals(containerRepo, other.containerRepo)
-            && Utils.nullableEquals(containerTag, other.containerTag)
-            && Utils.nullableEquals(healthCheckUrl, other.healthCheckUrl)
-            && Utils.nullableEquals(operatingSystem, other.operatingSystem)
-            && Utils.nullableEquals(tiers, other.tiers) && tiersEqual
             && Utils.nullableEquals(database, other.database)
-            && Utils.nullableEquals(ecsLaunchType, other.ecsLaunchType)
-            && Utils.nullableEquals(ecsExecEnabled, other.getEcsExecEnabled())
             && Utils.nullableEquals(s3, other.s3)
-            && Utils.nullableEquals(filesystem, other.filesystem);
+            && Utils.nullableEquals(filesystem, other.filesystem)
+            && Utils.nullableEquals(compute, other.compute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, path, publiclyAddressable, containerPort, containerRepo, containerTag,
-                healthCheckUrl, operatingSystem, database, ecsLaunchType, ecsExecEnabled, s3, filesystem)
-                + Arrays.hashCode(tiers != null ? tiers.keySet().toArray(new String[0]) : null)
-                + Arrays.hashCode(tiers != null ? tiers.values().toArray(new Object[0]) : null);
+        return Objects.hash(name, description, path, publiclyAddressable, database, s3, filesystem, compute);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -214,17 +140,10 @@ public class ServiceConfig {
         private String name;
         private String description;
         private String path;
-        private Integer containerPort;
-        private String containerRepo;
-        private String containerTag;
-        private String healthCheckUrl;
-        private OperatingSystem operatingSystem;
-        private Map<String, ServiceTierConfig> tiers = new HashMap<>();
         private Database database;
-        private EcsLaunchType ecsLaunchType;
-        private Boolean ecsExecEnabled = false;
         private S3Storage s3;
         private AbstractFilesystem filesystem;
+        private AbstractCompute compute;
 
         private Builder() {
         }
@@ -249,83 +168,8 @@ public class ServiceConfig {
             return this;
         }
 
-        public Builder containerPort(Integer containerPort) {
-            this.containerPort = containerPort;
-            return this;
-        }
-
-        public Builder containerPort(String containerPort) {
-            this.containerPort = Utils.isNotEmpty(containerPort) ? Integer.valueOf(containerPort) : null;
-            return this;
-        }
-
-        public Builder containerRepo(String containerRepo) {
-            this.containerRepo = containerRepo;
-            return this;
-        }
-
-        public Builder containerTag(String containerTag) {
-            this.containerTag = containerTag;
-            return this;
-        }
-
-        public Builder healthCheckUrl(String healthCheckUrl) {
-            this.healthCheckUrl = healthCheckUrl;
-            return this;
-        }
-
-        public Builder operatingSystem(String operatingSystem) {
-            if (operatingSystem != null) {
-                try {
-                    this.operatingSystem = OperatingSystem.valueOf(operatingSystem);
-                } catch (IllegalArgumentException e) {
-                    OperatingSystem os = OperatingSystem.ofDescription(operatingSystem);
-                    if (os == null) {
-                        throw new RuntimeException(
-                                new IllegalArgumentException("Can't find OperatingSystem for value " + operatingSystem)
-                        );
-                    }
-                    this.operatingSystem = os;
-                }
-            }
-            return this;
-        }
-
-        public Builder operatingSystem(OperatingSystem operatingSystem) {
-            this.operatingSystem = operatingSystem;
-            return this;
-        }
-
-        public Builder tiers(Map<String, ServiceTierConfig> tiers) {
-            this.tiers = tiers != null ? tiers : new HashMap<>();
-            return this;
-        }
-
         public Builder database(Database database) {
             this.database = database;
-            return this;
-        }
-
-        public Builder ecsLaunchType(String ecsLaunchType) {
-            if (ecsLaunchType != null) {
-                try {
-                    this.ecsLaunchType = EcsLaunchType.valueOf(ecsLaunchType);
-                } catch (IllegalArgumentException e) {
-                    throw new RuntimeException(
-                        new IllegalArgumentException("Can't find EcsLaunchType for value " + ecsLaunchType)
-                    );
-                }
-            }
-            return this;
-        }
-
-        public Builder ecsLaunchType(EcsLaunchType ecsLaunchType) {
-            this.ecsLaunchType = ecsLaunchType;
-            return this;
-        }
-
-        public Builder ecsExecEnabled(Boolean ecsExecEnabled) {
-            this.ecsExecEnabled = ecsExecEnabled;
             return this;
         }
 
@@ -336,6 +180,11 @@ public class ServiceConfig {
 
         public Builder filesystem(AbstractFilesystem filesystem) {
             this.filesystem = filesystem;
+            return this;
+        }
+
+        public Builder compute(AbstractCompute compute) {
+            this.compute = compute;
             return this;
         }
 

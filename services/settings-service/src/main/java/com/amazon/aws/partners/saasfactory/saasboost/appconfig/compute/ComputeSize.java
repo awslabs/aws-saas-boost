@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute;
 
 public enum ComputeSize {
 

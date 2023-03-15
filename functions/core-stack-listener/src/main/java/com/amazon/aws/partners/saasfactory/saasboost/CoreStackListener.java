@@ -117,7 +117,13 @@ public class CoreStackListener implements RequestHandler<SNSEvent, Object> {
                                     serviceName,
                                     serviceNameContext,
                                     ecrRepo);
-                            services.put(serviceName, Map.of("containerRepo", ecrRepo));
+                            // TODO if in the future we support alternate compute options, ECS may not be
+                            // TODO the right one to specify here however, this coreStackListener has no
+                            // TODO extra information about the container type without the macro providing
+                            // TODO more information when adding the ECR repo to the stack
+                            services.put(serviceName, Map.of("compute", Map.of(
+                                    "type", "ECS", 
+                                    "containerRepo", ecrRepo)));
                         }
                         if ("AWS::S3::Bucket".equals(resource.resourceType())
                                 && "TenantStorage".equals(resource.logicalResourceId())) {

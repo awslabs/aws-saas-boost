@@ -17,6 +17,8 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
+import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs.EcsCompute;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
@@ -250,7 +252,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         .withBody("{\"message\":\"Empty request body.\"}");
             } else {
                 if (setting.getName() == null || !setting.getName().equals(key)) {
-                    LOGGER.error("SettingsService::updateSetting Can't update setting " + setting.getName() + " at resource " + key);
+                    LOGGER.error("SettingsService::updateSetting Can't update setting "
+                            + setting.getName() + " at resource " + key);
                     response = new APIGatewayProxyResponseEvent()
                             .withHeaders(CORS)
                             .withStatusCode(400)
@@ -415,8 +418,10 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     }
 
                     if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
-                        String apiKey1 = currentAppConfig.getBilling() != null ? currentAppConfig.getBilling().getApiKey() : null;
-                        String apiKey2 = updatedAppConfig.getBilling() != null ? updatedAppConfig.getBilling().getApiKey() : null;
+                        String apiKey1 = currentAppConfig.getBilling() != null
+                                ? currentAppConfig.getBilling().getApiKey() : null;
+                        String apiKey2 = updatedAppConfig.getBilling() != null
+                                ? updatedAppConfig.getBilling().getApiKey() : null;
                         LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
                         if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
                             // 1. We didn't have a billing provider and now we do, trigger setup
@@ -443,9 +448,11 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         LOGGER.info("AppConfig application services changed");
                         //LOGGER.info(Utils.toJson(currentAppConfig));
                         //LOGGER.info(Utils.toJson(updatedAppConfig));
-                        Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
+                        Set<String> removedServices = AppConfigHelper.removedServices(
+                                currentAppConfig, updatedAppConfig);
                         if (!removedServices.isEmpty()) {
-                            LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.", removedServices);
+                            LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.",
+                                    removedServices);
                             for (String serviceName : removedServices) {
                                 dal.deleteServiceConfig(currentAppConfig, serviceName);
                             }
@@ -530,6 +537,10 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     case APP_CONFIG_CHANGED:
                         // We produce this event, but currently aren't consuming it
                         break;
+                    default: {
+                        LOGGER.error("Can't find app config event for detail-type {}", event.get("detail-type"));
+                        // TODO Throw here? Would end up in DLQ.
+                    }
                 }
             } else {
                 LOGGER.error("Can't find app config event for detail-type {}", event.get("detail-type"));
@@ -559,15 +570,24 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                         ServiceConfig changedServiceConfig = changedService.getValue();
                         ServiceConfig requestedService = existingAppConfig.getServices().get(changedServiceName);
                         ServiceConfig.Builder newServiceConfigBuilder = ServiceConfig.builder(requestedService);
-                        if (requestedService != null) {
+                        if (requestedService != null && changedServiceConfig != null) {
                             // change container repo if passed
-                            String changedContainerRepo = changedServiceConfig.getContainerRepo();
-                            String existingContainerRepo = requestedService.getContainerRepo();
-                            if (!Utils.nullableEquals(existingContainerRepo, changedContainerRepo)) {
-                                LOGGER.info("Updating service {} ECR repo from {} to {}", changedServiceName,
-                                        requestedService.getContainerRepo(), changedServiceConfig.getContainerRepo());
-                                newServiceConfigBuilder = newServiceConfigBuilder
-                                        .containerRepo(changedServiceConfig.getContainerRepo());
+                            if (requestedService.getCompute() != null && changedServiceConfig.getCompute() != null) {
+                                String changedContainerRepo = changedServiceConfig.getCompute().getContainerRepo();
+                                String existingContainerRepo = requestedService.getCompute().getContainerRepo();
+                                if (!Utils.nullableEquals(existingContainerRepo, changedContainerRepo)) {
+                                    LOGGER.info("Updating service {} ECR repo from {} to {}", changedServiceName,
+                                            requestedService.getCompute().getContainerRepo(), 
+                                            changedServiceConfig.getCompute().getContainerRepo());
+                                    // TODO what if the service shouldn't have a container repo, because compute
+                                    // TODO is of the wrong type? core stack listener shouldn't fire the ECR repo event
+                                    AbstractCompute.Builder existingComputeBuilder = requestedService
+                                            .getCompute().builder();
+                                    newServiceConfigBuilder = newServiceConfigBuilder
+                                            .compute(existingComputeBuilder
+                                                    .containerRepo(changedServiceConfig.getCompute().getContainerRepo())
+                                                    .build());
+                                }
                             }
                             // change s3 bucket name if passed (and if s3 already exists in service config)
                             if (requestedService.getS3() != null && changedServiceConfig.getS3() != null) {

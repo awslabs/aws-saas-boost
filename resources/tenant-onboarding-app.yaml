@@ -115,6 +115,14 @@ Parameters:
     Description: Maximum count of concurrent tasks for this tenant (max size we can auto scale up to)
     Type: Number
     Default: 1
+  MinAutoScalingGroupSize:
+    Description: Minimum count of EC2 instances running in AutoScaling group
+    Type: Number
+    Default: 0
+  MaxAutoScalingGroupSize:
+    Description: Maximum count of EC2 instances running in AutoScaling group
+    Type: Number
+    Default: 1
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
@@ -690,18 +698,12 @@ Resources:
         LaunchTemplateId: !If [Ec2Windows, !Ref WindowsLaunchTemplate, !Ref LinuxLaunchTemplate]
         Version: !If [Ec2Windows, !GetAtt WindowsLaunchTemplate.LatestVersionNumber, !GetAtt LinuxLaunchTemplate.LatestVersionNumber]
       NewInstancesProtectedFromScaleIn: true
-      MinSize: '0'
-      MaxSize: '20'
-      DesiredCapacity: '0'
-      #Cooldown:
+      MinSize: !Ref MinAutoScalingGroupSize
+      MaxSize: !Ref MaxAutoScalingGroupSize
       HealthCheckGracePeriod: 30
-      #HealthCheckType:
-      #MetricsCollection:
-      #NotificationConfigurations:
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
-        #MinSuccessfulInstancesPercent: 0
         MaxBatchSize: 1
         PauseTime: PT5M
         WaitOnResourceSignals: false

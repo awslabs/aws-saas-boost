@@ -74,14 +74,6 @@ export function ApplicationComponent(props) {
     window.scrollTo(0, 0)
   }
 
-  const generateAppConfigOrDefaultInitialValuesForTier = (tierValues, defaultValues) => {
-    return Object.assign({
-      min: 0,
-      max: 0,
-      computeSize: '',
-    }, defaultValues, tierValues)
-  }
-
   const splitWeeklyMaintenanceTime = (fsxTier) => {
     if (!!fsxTier && !!fsxTier.weeklyMaintenanceTime) {
       const getParts = (dateTime) => {
@@ -103,11 +95,30 @@ export function ApplicationComponent(props) {
 
   const generateAppConfigOrDefaultInitialValuesForService = (serviceName) => {
     let thisService = appConfig.services[serviceName]
-    const os = !!thisService?.operatingSystem
-      ? appConfig.services[serviceName].operatingSystem === LINUX
-        ? LINUX
-        : WINDOWS
-      : ''
+    const compute = !!thisService?.compute 
+      ? {
+        ...thisService.compute,
+        windowsVersion: thisService.compute.operatingSystem === LINUX ? '' : thisService.compute.operatingSystem,
+        operatingSystem: thisService.compute.operatingSystem === LINUX ? LINUX : WINDOWS
+      }
+      : {
+        type: 'ECS',
+        operatingSystem: '',
+        ecsLaunchType: '',
+        ecsExecEnabled: false,
+        healthCheckUrl: '/',
+        containerPort: 0,
+        containerTag: 'latest',
+        containerRepo: '',
+        windowsVersion: '',
+        tiers: tiers.reduce((acc, tier) => ({...acc, [tier.name]: {
+            min: 0,
+            max: 0,
+            computeSize: '',
+            ec2min: 0,
+            ec2max: 0
+        }}))
+      }
     const db = !!thisService?.database
         ? {
             ...thisService.database,
@@ -131,40 +142,30 @@ export function ApplicationComponent(props) {
             bootstrapFilename: '',
             tiers: tiers.reduce((acc, tier) => ({...acc, [tier.name]: {instance: ''}}), {}),
           }
+    const cleanedFs = splitWeeklyMaintenanceTime(thisService?.filesystem)
     const fs = !!thisService?.filesystem
-        ? splitWeeklyMaintenanceTime(thisService.filesystem)
+        ? {
+          ...cleanedFs,
+          tiers: tiers.reduce((acc, tier) => ({ ...acc, [tier.name]: {...FILESYSTEM_TIER_DEFAULTS, ...cleanedFs["tiers"][tier.name]}}), {})
+        }
         : {
           ...FILESYSTEM_DEFAULTS,
           tiers: tiers.reduce((acc, tier) => ({ ...acc, [tier.name]: FILESYSTEM_TIER_DEFAULTS}), {})
         }
-    let filesystemType = OS_TO_FS_TYPES[os]?.filter(type => type.configId === thisService.filesystem?.type)[0]?.id || ''
-    const windowsVersion = os === WINDOWS ? thisService.operatingSystem : ''
-    let defaultTierName = tiers.filter(t => t.defaultTier)[0].name
-    let defaultTierValues = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[defaultTierName]), {})
-    let initialTierValues = {}
-    for (var i = 0; i < tiers.length; i++) {
-      var tierName = tiers[i].name
-      initialTierValues[tierName] = generateAppConfigOrDefaultInitialValuesForTier(Object.assign({}, thisService?.tiers[tierName]), defaultTierValues)
-    }
+    let filesystemType = OS_TO_FS_TYPES[compute?.operatingSystem]?.filter(type => type.configId === thisService.filesystem?.type)[0]?.id || ''
     return {
       ...thisService,
       name: thisService?.name || serviceName,
       path: thisService?.path || '/*',
       public: thisService ? thisService.public : true,
-      ecsExecEnabled: thisService ? thisService.ecsExecEnabled : false,
-      healthCheckUrl: thisService?.healthCheckUrl || '/',
-      containerPort: thisService?.containerPort || 0,
-      containerTag: thisService?.containerTag || 'latest',
       description: thisService?.description || '',
-      operatingSystem: os,
       database: db,
       provisionDb: !!thisService?.database,
       filesystem: fs,
       provisionFS: !!thisService?.filesystem,
       filesystemType: filesystemType,
       provisionObjectStorage: !!thisService?.s3,
-      windowsVersion: windowsVersion,
-      tiers: initialTierValues,
+      compute: compute,
     }
   }
 
@@ -192,33 +193,6 @@ export function ApplicationComponent(props) {
     provisionBilling: !!appConfig.billing || false,
   }
 
-  // min, max, computeSize, cpu/memory/instanceType (not in form), filesystem, database
-  const singleTierValidationSpec = () => {
-    return Yup.object({
-      min: Yup.number()
-        .integer('Minimum count must be an integer value')
-        .min(1, 'Minimum count must be at least ${min}')
-        .required('Minimum count is a required field.'),
-      max: Yup.number()
-        .required('Maximum count is a required field.')
-        .integer('Maximum count must be an integer value')
-        .max(10, 'Maximum count can be no larger than ${max}')
-        .test('match', 'Max cannot be smaller than min', function (max) {
-          return max >= this.parent.min
-        }),
-      computeSize: Yup.string().required('Compute size is a required field.'),
-    })
-  }
-
-  const allTiersValidationSpec = () => {
-    let allTiers = {}
-    for (var i = 0; i < tiers.length; i++) {
-      var tierName = tiers[i].name
-      allTiers[tierName] = singleTierValidationSpec()
-    }
-    return Yup.object(allTiers)
-  }
-
   const allTiersDatabaseValidationSpec = () => {
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
@@ -240,6 +214,38 @@ export function ApplicationComponent(props) {
       return Yup.object(allTiers)
     }
     return Yup.object()
+  }
+
+  const allTiersComputeValidationSpec = () => {
+    // TODO should this be more like the filesystem changes to support future different compute types?
+    let allTiers = {}
+    for (var i = 0; i < tiers.length; i++) {
+      var tierName = tiers[i].name
+      allTiers[tierName] = Yup.object({
+        min: Yup.number()
+          .integer('Minimum count must be an integer value')
+          .min(1, 'Minimum count must be at least ${min}')
+          .required('Minimum count is a required field.'),
+        max: Yup.number()
+          .required('Maximum count is a required field.')
+          .integer('Maximum count must be an integer value')
+          .test('match', 'Max cannot be smaller than min', function (max) {
+            return max >= this.parent.min
+          }),
+        computeSize: Yup.string().required('Compute size is a required field.'),
+        ec2min: Yup.number()
+          .integer('Minimum EC2 instance count must be an integer value')
+          .min(1, 'Minimum EC2 instance count must be at least ${min}')
+          .required('Minimum EC2 instance count is a required field.'),
+        ec2max: Yup.number()
+          .required('Maximum EC2 instance count is a required field.')
+          .integer('Maximum EC2 instance count must be an integer value')
+          .test('match', 'Max EC2 instance count cannot be smaller than min EC2 instance count ', function (ec2max) {
+            return ec2max >= this.parent.ec2min
+          }),
+      })
+    }
+    return Yup.object(allTiers)
   }
 
   // TODO public service paths cannot match
@@ -276,22 +282,6 @@ export function ApplicationComponent(props) {
             /^\/.+$/,
             'Path must start with / and be followed by at least one character.'
           ),
-        containerPort: Yup.number()
-          .integer('Container port must be an integer value.')
-          .required('Container port is a required field.'),
-        containerTag: Yup.string().required(
-          'Container Tag is a required field.'
-        ),
-        healthCheckUrl: Yup.string()
-          .required('Health Check URL is a required field')
-          .matches(/^\//, 'Health Check must start with forward slash (/)'),
-        operatingSystem: Yup.string().required('Container OS is a required field.'),
-        ecsExecEnabled: Yup.boolean().required(),
-        windowsVersion: Yup.string().when('operatingSystem', {
-          is: (containerOs) => containerOs && containerOs === WINDOWS,
-          then: Yup.string().required('Windows version is a required field'),
-          otherwise: Yup.string().nullable(),
-        }),
         provisionDb: Yup.boolean(),
         database: Yup.object().when('provisionDb', {
           is: true,
@@ -327,7 +317,28 @@ export function ApplicationComponent(props) {
         filesystemType: Yup.string(),
         provisionFS: Yup.boolean(),
         provisionObjectStorage: Yup.boolean(),
-        tiers: allTiersValidationSpec(),
+        compute: Yup.object({
+          type: Yup.string().required(),
+          containerPort: Yup.number()
+            .integer('Container port must be an integer value.')
+            .required('Container port is a required field.'),
+          ecsExecEnabled: Yup.boolean().when('type', {
+            is: (type) => type && type === 'ECS',
+            then: Yup.boolean().required(),
+            otherwise: Yup.boolean().nullable()
+          }),
+          containerTag: Yup.string().required('Container Tag is a required field.'),
+          healthCheckUrl: Yup.string()
+            .required('Health Check URL is a required field')
+            .matches(/^\//, 'Health Check must start with forward slash (/)'),
+          operatingSystem: Yup.string().required('Container OS is a required field.'),
+          windowsVersion: Yup.string().when('operatingSystem', {
+            is: (containerOs) => containerOs && containerOs === WINDOWS,
+            then: Yup.string().required('Windows version is a required field'),
+            otherwise: Yup.string().nullable(),
+          }),
+          tiers: allTiersComputeValidationSpec(),
+        }),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
     provisionBilling: Yup.boolean(),
@@ -360,8 +371,15 @@ export function ApplicationComponent(props) {
           if (!!service) {
             let serviceName = formik.values?.services[index].name
             let serviceMessage = "Service " + serviceName
-            if (!!service.tiers) {
-              serviceMessage = serviceMessage.concat(" Tiers ", Object.keys(service.tiers).toString())
+            let extensionsWithErrors = Object.keys(service).filter((extension) => typeof service[extension] === 'object')
+            if (extensionsWithErrors.length > 0) {
+              serviceMessage = serviceMessage.concat(" Configurations ")
+              extensionsWithErrors.forEach((extension) => {
+                serviceMessage = serviceMessage.concat(extension + ' ')
+                if (!!service[extension].tiers) {
+                  serviceMessage = serviceMessage.concat("Tiers [" + Object.keys(service[extension].tiers).join(",") + "] ")
+                }
+              })
             }
             servicesWithErrors.push(serviceMessage)
           }
