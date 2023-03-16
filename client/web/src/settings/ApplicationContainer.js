@@ -163,6 +163,7 @@ export function ApplicationContainer(props) {
       }
       // clean tiers if present
       if (!!filesystem?.tiers) {
+        let cleanedTiers = {}
         for (let tierName in filesystem.tiers) {
           let {
             weeklyMaintenanceDay,
@@ -174,8 +175,9 @@ export function ApplicationContainer(props) {
           }
           // get rid of keys that aren't needed for this tier for this filesystem type
           removeUnwantedKeys(cleanedFsTier, Object.keys(FILESYSTEM_TYPES[filesystemType].tierDefaults))
-          cleanedFs.tiers[tierName] = cleanedFsTier
+          cleanedTiers[tierName] = cleanedFsTier
         }
+        cleanedFs.tiers = cleanedTiers
       }
       // get rid of keys that aren't needed for this filesystem type
       removeUnwantedKeys(cleanedFs, [...Object.keys(FILESYSTEM_TYPES[filesystemType].defaults), 'type', 'tiers'])
