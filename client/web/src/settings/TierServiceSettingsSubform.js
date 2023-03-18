@@ -20,6 +20,7 @@ import { PropTypes } from 'prop-types'
 import FileSystemTierSubform from './components/filesystem/FileSystemTierSubform'
 import DatabaseTierSubform from './DatabaseTierSubform'
 import ComputeTierSubform from './components/compute/ComputeTierSubform'
+import { isEC2AutoScalingRequired } from './components/compute'
 
 const TierServiceSettingsSubform = (props) => {
   const {
@@ -33,11 +34,7 @@ const TierServiceSettingsSubform = (props) => {
   } = props
 
   const [selectedTier, setSelectedTier] = useState(defaultTier)
-  const ec2AutoScaling = !!(serviceValues?.compute?.operatingSystem)
-      ? serviceValues?.compute?.operatingSystem === 'LINUX'
-          ? serviceValues?.compute?.ecsLaunchType === 'EC2'
-          : true
-      : false
+  const ec2AutoScaling = isEC2AutoScalingRequired(serviceValues?.compute?.operatingSystem, serviceValues?.compute?.ecsLaunchType)
 
   return (
     <>

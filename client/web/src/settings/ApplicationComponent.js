@@ -27,7 +27,7 @@ import AppSettingsSubform from './AppSettingsSubform'
 import BillingSubform from './BillingSubform'
 import ServicesComponent from './ServicesComponent'
 import { FILESYSTEM_DEFAULTS, FILESYSTEM_TIER_DEFAULTS, FILESYSTEM_TYPES, OS_TO_FS_TYPES } from './components/filesystem'
-
+import { LINUX, WINDOWS, isEC2AutoScalingRequired } from './components/compute'
 import { dismissConfigError, dismissConfigMessage } from './ducks'
 
 ApplicationComponent.propTypes = {
@@ -60,8 +60,6 @@ export function ApplicationComponent(props) {
     tiers,
   } = props
 
-  const LINUX = 'LINUX'
-  const WINDOWS = 'WINDOWS'
   const awsRegion = globalConfig.region
   const consoleUrlSuffix = awsRegion.startsWith("cn-")? "amazonaws.cn": "aws.amazon.com"
 
@@ -112,12 +110,12 @@ export function ApplicationComponent(props) {
         containerRepo: '',
         windowsVersion: '',
         tiers: tiers.reduce((acc, tier) => ({...acc, [tier.name]: {
-            min: 0,
-            max: 0,
+            min: 1,
+            max: 1,
             computeSize: '',
-            ec2min: 0,
-            ec2max: 0
-        }}))
+            ec2min: 1,
+            ec2max: 1
+        }}), {})
       }
     const db = !!thisService?.database
         ? {
@@ -216,7 +214,14 @@ export function ApplicationComponent(props) {
     return Yup.object()
   }
 
-  const allTiersComputeValidationSpec = () => {
+  const allTiersComputeValidationSpec = (operatingSystem, ecsLaunchType) => {
+    let addRequiredForEc2AsgIfNecessary = (schema, requiredMessage) => {
+      if (isEC2AutoScalingRequired(operatingSystem, ecsLaunchType)) {
+        return schema.required(requiredMessage)
+      }
+      return schema
+    }
+
     // TODO should this be more like the filesystem changes to support future different compute types?
     let allTiers = {}
     for (var i = 0; i < tiers.length; i++) {
@@ -233,16 +238,14 @@ export function ApplicationComponent(props) {
             return max >= this.parent.min
           }),
         computeSize: Yup.string().required('Compute size is a required field.'),
-        ec2min: Yup.number()
+        ec2min: addRequiredForEc2AsgIfNecessary(Yup.number()
           .integer('Minimum EC2 instance count must be an integer value')
-          .min(1, 'Minimum EC2 instance count must be at least ${min}')
-          .required('Minimum EC2 instance count is a required field.'),
-        ec2max: Yup.number()
-          .required('Maximum EC2 instance count is a required field.')
+          .min(1, 'Minimum EC2 instance count must be at least ${min}'), 'Minimum EC2 instance count is a required field.'),
+        ec2max: addRequiredForEc2AsgIfNecessary(Yup.number()
           .integer('Maximum EC2 instance count must be an integer value')
           .test('match', 'Max EC2 instance count cannot be smaller than min EC2 instance count ', function (ec2max) {
             return ec2max >= this.parent.ec2min
-          }),
+          }), 'Maximum EC2 instance count is a required field.'),
       })
     }
     return Yup.object(allTiers)
@@ -327,6 +330,7 @@ export function ApplicationComponent(props) {
             then: Yup.boolean().required(),
             otherwise: Yup.boolean().nullable()
           }),
+          ecsLaunchType: Yup.string().required('ECS Launch Type is required.'),
           containerTag: Yup.string().required('Container Tag is a required field.'),
           healthCheckUrl: Yup.string()
             .required('Health Check URL is a required field')
@@ -337,7 +341,9 @@ export function ApplicationComponent(props) {
             then: Yup.string().required('Windows version is a required field'),
             otherwise: Yup.string().nullable(),
           }),
-          tiers: allTiersComputeValidationSpec(),
+          tiers: Yup.object().when(['operatingSystem', 'ecsLaunchType'], (operatingSystem, ecsLaunchType) => {
+            return allTiersComputeValidationSpec(operatingSystem, ecsLaunchType)
+          })
         }),
       })
     ).min(1, 'Application must have at least ${min} service(s).'),
