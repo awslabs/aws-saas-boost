@@ -18,7 +18,6 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.*;
 import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs.EcsCompute;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;

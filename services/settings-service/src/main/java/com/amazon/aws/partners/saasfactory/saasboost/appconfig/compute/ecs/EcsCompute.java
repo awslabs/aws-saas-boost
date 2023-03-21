@@ -52,7 +52,14 @@ public class EcsCompute extends AbstractCompute {
         }
 
         EcsCompute other = (EcsCompute) obj;
-        return (super.equals(other)
+
+        boolean tiersEqual = true;
+        Map<String, EcsComputeTier> otherTiers = other.getTiers();
+        for (Map.Entry<String, EcsComputeTier> tierEntry : this.getTiers().entrySet()) {
+            tiersEqual = tiersEqual && tierEntry.getValue().equals(otherTiers.get(tierEntry.getKey()));
+        }
+
+        return (super.equals(other) && tiersEqual
                 && Utils.nullableEquals(ecsLaunchType, other.ecsLaunchType))
                 && Utils.nullableEquals(ecsExecEnabled, other.getEcsExecEnabled());
     }
@@ -65,7 +72,10 @@ public class EcsCompute extends AbstractCompute {
     }
 
     public Builder builder() {
-        return ((Builder) super.fillBuilder(new Builder())).ecsLaunchType(ecsLaunchType);
+        return ((Builder) super.fillBuilder(new Builder()))
+                .ecsLaunchType(ecsLaunchType)
+                .ecsExecEnabled(ecsExecEnabled)
+                .tiers(tiers);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
