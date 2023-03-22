@@ -229,25 +229,35 @@ export function ApplicationContainer(props) {
         // update the service config
         const {
           name,
-          windowsVersion,
-          operatingSystem,
-          ecsLaunchType,
           provisionDb,
           provisionObjectStorage,
           database,
           filesystem,
           provisionFS,
           filesystemType,
+          compute,
           ...rest
         } = thisService
+        const {
+          operatingSystem,
+          ecsLaunchType,
+          windowsVersion,
+          ...restCompute
+        } = compute
+        // if operatingSystem is not linux (assumed to mean Windows) then launch type must be EC2. otherwise use the launchType if non-null, defaulting to Fargate
+        const cleanedEcsLaunchType = (!!operatingSystem && operatingSystem !== LINUX) ? "EC2" : (!!ecsLaunchType ? ecsLaunchType : "FARGATE")
+        const cleanedCompute = {
+          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+          ecsLaunchType: cleanedEcsLaunchType,
+          ...restCompute
+        }
         cleanedServicesMap[name] = {
           ...rest,
           name,
-          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
-          ecsLaunchType: (!!ecsLaunchType) ? ecsLaunchType : (operatingSystem === LINUX ? "FARGATE" : "EC2"),
           database: cleanDatabaseForSubmittal(provisionDb, database, name),
           filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
-          s3: provisionObjectStorage ? {} : null
+          s3: provisionObjectStorage ? {} : null,
+          compute: cleanedCompute,
         }
       }
 
