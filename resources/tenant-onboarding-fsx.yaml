@@ -479,9 +479,9 @@ Resources:
             # be nested inside a Fn::Split. The split happens before the resolution of the parameter.
             DnsIps: !Split [',', !Ref ActiveDirectoryDnsIps]
             # Don't use Domain\Username here - only Username
-            UserName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER}}'
+            UserName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER}}'
             # Can't use ssm-secure here
-            Password: !Sub '{{resolve:secretsmanager:/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD::::}}'
+            Password: !Sub '{{resolve:secretsmanager:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD::::}}'
         - !Ref 'AWS::NoValue'
       Tags:
         - Key: Name

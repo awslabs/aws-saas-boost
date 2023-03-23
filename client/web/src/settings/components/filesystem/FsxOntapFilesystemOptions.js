@@ -25,6 +25,7 @@ import {
 import {
     SaasBoostSelect,
     SaasBoostInput,
+    SaasBoostCheckbox,
 } from '../../../components/FormComponents'
 import Slider from 'rc-slider'
 
@@ -270,6 +271,16 @@ export default class FsxOntapFilesystemOptions extends React.Component {
                       disabled={props.isLocked}
                     />
                   </Col>
+                  {this.props.containerOs === "WINDOWS" && (
+                    <Col xl={6} className="mt-2">
+                      <SaasBoostCheckbox
+                        id={props.formikServicePrefix + '.filesystem.configureManagedAd'}
+                        name={this.props.formikServicePrefix + '.filesystem.configureManagedAd'}
+                        label="Provision a Managed AD for the tenant."
+                        tooltip="If selected, a new Managed AD will be created for this tenant."
+                      />
+                    </Col>
+                  )}
                 </Row>
               )
           }

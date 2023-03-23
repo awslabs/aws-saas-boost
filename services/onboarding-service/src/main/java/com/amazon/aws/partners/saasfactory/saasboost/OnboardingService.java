@@ -566,8 +566,13 @@ public class OnboardingService {
                 Map<String, Map<String, Object>> services =
                         (Map<String, Map<String, Object>>) appConfig.get("services");
                 boolean privateServices = false;
+                Boolean deployActiveDirectory = false;
                 for (Map<String, Object> service : services.values()) {
                     privateServices = privateServices || !(Boolean) service.get("public");
+                    Map<String, Object> filesystem = (Map<String, Object>) service.get("filesystem");
+                    if (filesystem != null) {
+                        deployActiveDirectory = deployActiveDirectory || (Boolean) filesystem.get("configureManagedAd");
+                    }
                 }
 
                 List<Parameter> templateParameters = new ArrayList<>();
@@ -582,6 +587,8 @@ public class OnboardingService {
                 templateParameters.add(Parameter.builder().parameterKey("TenantSubDomain").parameterValue(tenantSubdomain).build());
                 templateParameters.add(Parameter.builder().parameterKey("CidrPrefix").parameterValue(cidrPrefix).build());
                 templateParameters.add(Parameter.builder().parameterKey("Tier").parameterValue(tier).build());
+                templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory")
+                        .parameterValue(deployActiveDirectory.toString()).build());
 
                 for (Parameter p : templateParameters) {
                     if (p.parameterValue() == null) {
@@ -923,17 +930,17 @@ public class OnboardingService {
                                 enableFSx = Boolean.TRUE;
                                 Map<String, String> activeDirectorySettings = getSettings(
                                         context,
-                                        "ACTIVE_DIRECTORY_DNS_IPS",
-                                        "ACTIVE_DIRECTORY_DNS_NAME",
-                                        "ACTIVE_DIRECTORY_ID"
+                                        tenantId + "/ACTIVE_DIRECTORY_DNS_IPS",
+                                        tenantId + "/ACTIVE_DIRECTORY_DNS_NAME",
+                                        tenantId + "/ACTIVE_DIRECTORY_ID"
                                 );
                                 if (activeDirectorySettings != null) {
                                     activeDirectoryDnsIps = activeDirectorySettings
-                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_IPS", "");
+                                            .getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_IPS", "");
                                     activeDirectoryDnsName = activeDirectorySettings
-                                            .getOrDefault("ACTIVE_DIRECTORY_DNS_NAME", "");
+                                            .getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_NAME", "");
                                     managedActiveDirectoryId = activeDirectorySettings
-                                            .getOrDefault("ACTIVE_DIRECTORY_ID", "");
+                                            .getOrDefault(tenantId + "/ACTIVE_DIRECTORY_ID", "");
                                 }
                                 fsxStorageGb = (Integer) filesystemTierConfig.get("storageGb");
                                 if (fsxStorageGb == null) {
@@ -1887,8 +1894,6 @@ public class OnboardingService {
                             Parameter.builder().parameterKey("PublicApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("PrivateApiStage").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("Version").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("DeployActiveDirectory").usePreviousValue(Boolean.TRUE).build(),
-                            Parameter.builder().parameterKey("ADPasswordParam").usePreviousValue(Boolean.TRUE).build(),
                             Parameter.builder().parameterKey("AppExtensions").parameterValue(appExtensions).build(),
                             Parameter.builder().parameterKey("ApplicationServices").parameterValue(
                                     String.join(",", services.keySet())).build(),

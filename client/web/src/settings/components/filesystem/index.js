@@ -60,7 +60,8 @@ export const FILESYSTEM_TYPES = {
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
-            windowsMountDrive: 'G:'
+            windowsMountDrive: 'G:',
+            configureManagedAd: true,
         },
         "tierDefaults": {
             storageGb: 32,
@@ -80,6 +81,7 @@ export const FILESYSTEM_TYPES = {
                 .required(),
             windowsMountDrive: Yup.string()
                 .required('Windows mount drive is required'),
+            configureManagedAd: Yup.boolean().required(),
         },
         "tierValidationSchema": {
             storageGb: Yup.number()
@@ -163,7 +165,8 @@ export const FILESYSTEM_TYPES = {
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
-            windowsMountDrive: 'G:'
+            windowsMountDrive: 'G:',
+            configureManagedAd: false,
         },
         "tierDefaults": {
             storageGb: 1024,
@@ -184,6 +187,7 @@ export const FILESYSTEM_TYPES = {
                 .required(),
             windowsMountDrive: Yup.string()
                 .required('Windows mount drive is required'),
+            configureManagedAd: Yup.boolean().required(),
         },
         "tierValidationSchema": {
             storageGb: Yup.number()

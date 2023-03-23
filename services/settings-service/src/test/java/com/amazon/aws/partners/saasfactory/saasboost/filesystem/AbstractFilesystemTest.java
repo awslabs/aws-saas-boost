@@ -70,7 +70,7 @@ public class AbstractFilesystemTest {
 
     @Test
     public void deserialize_fsxWindowsFilesystem_basic() {
-        String fsxWindowsJson = "{\"type\":\"FSX_WINDOWS\", \"mountPoint\":\"/mnt\", \"windowsMountDrive\":\"G:\\\\\\\\\","
+        String fsxWindowsJson = "{\"type\":\"FSX_WINDOWS\", \"mountPoint\":\"/mnt\", \"windowsMountDrive\":\"G:\\\\\\\\\", \"configureManagedAd\":true,"
                 + "\"tiers\":{"
                 + "\"Free\":{\"encrypt\":false, \"storageGb\":100, \"throughputMbs\":\"200\", \"backupRetentionDays\":1, \"dailyBackupTime\":\"12:00\", \"weeklyMaintenanceTime\":\"3:09:00\"}," 
                 + "\"Gold\":{\"encrypt\":true, \"encryptionKey\":\"encryptionARN\", \"storageGb\":1000, \"throughputMbs\":\"2000\", \"backupRetentionDays\":10, \"dailyBackupTime\":\"23:55\", \"weeklyMaintenanceTime\":\"6:12:00\"}}}";
@@ -79,6 +79,7 @@ public class AbstractFilesystemTest {
         FsxWindowsFilesystem fsxWindowsFs = (FsxWindowsFilesystem) fs;
         assertEquals("/mnt", fs.getMountPoint());
         assertEquals("G:\\\\", fsxWindowsFs.getWindowsMountDrive());
+        assertEquals(true, fsxWindowsFs.getConfigureManagedAd());
         assertNotNull(fs.getTiers());
         for (Map.Entry<String, ? extends AbstractFilesystemTierConfig> tierEntry : fs.getTiers().entrySet()) {
             String tierName = tierEntry.getKey();
@@ -113,7 +114,7 @@ public class AbstractFilesystemTest {
 
     @Test
     public void deserialize_fsxOntapFilesystem_basic() {
-        String fsxWindowsJson = "{\"type\":\"FSX_ONTAP\", \"mountPoint\":\"/mnt\", \"windowsMountDrive\":\"G:\\\\\\\\\","
+        String fsxWindowsJson = "{\"type\":\"FSX_ONTAP\", \"mountPoint\":\"/mnt\", \"windowsMountDrive\":\"G:\\\\\\\\\", \"configureManagedAd\":true,"
                 + "\"tiers\":{"
                 + "\"Free\":{\"encrypt\":false, \"storageGb\":100, \"throughputMbs\":\"200\", \"backupRetentionDays\":1, \"dailyBackupTime\":\"12:00\", \"weeklyMaintenanceTime\":\"3:09:00\", \"volumeSize\":300}," 
                 + "\"Gold\":{\"encrypt\":true, \"encryptionKey\":\"encryptionARN\", \"storageGb\":1000, \"throughputMbs\":\"2000\", \"backupRetentionDays\":10, \"dailyBackupTime\":\"23:55\", \"weeklyMaintenanceTime\":\"6:12:00\", \"volumeSize\":3000}}}";
@@ -122,6 +123,7 @@ public class AbstractFilesystemTest {
         FsxOntapFilesystem fsxOntapFs = (FsxOntapFilesystem) fs;
         assertEquals("/mnt", fs.getMountPoint());
         assertEquals("G:\\\\", fsxOntapFs.getWindowsMountDrive());
+        assertEquals(true, fsxOntapFs.getConfigureManagedAd());
         assertNotNull(fs.getTiers());
         for (Map.Entry<String, ? extends AbstractFilesystemTierConfig> tierEntry : fs.getTiers().entrySet()) {
             String tierName = tierEntry.getKey();

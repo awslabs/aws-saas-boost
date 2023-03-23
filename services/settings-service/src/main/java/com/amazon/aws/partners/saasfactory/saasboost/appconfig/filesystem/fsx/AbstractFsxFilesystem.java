@@ -25,14 +25,20 @@ import java.util.Objects;
 public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
 
     private String windowsMountDrive;
+    private final Boolean configureManagedAd;
 
     protected AbstractFsxFilesystem(Builder b) {
         super(b);
         this.windowsMountDrive = b.windowsMountDrive;
+        this.configureManagedAd = b.configureManagedAd;
     }
 
     public String getWindowsMountDrive() {
         return this.windowsMountDrive;
+    }
+
+    public Boolean getConfigureManagedAd() {
+        return this.configureManagedAd;
     }
 
     @Override
@@ -50,20 +56,27 @@ public abstract class AbstractFsxFilesystem extends AbstractFilesystem {
         }
         final AbstractFsxFilesystem other = (AbstractFsxFilesystem) obj;
         return Utils.nullableEquals(this.getWindowsMountDrive(), other.getWindowsMountDrive())
+                && Utils.nullableEquals(this.getConfigureManagedAd(), other.getConfigureManagedAd())
                 && super.equals(other);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), this.getWindowsMountDrive());
+        return Objects.hash(super.hashCode(), this.getWindowsMountDrive(), this.getConfigureManagedAd());
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     protected abstract static class Builder extends AbstractFilesystem.Builder {
         private String windowsMountDrive;
+        private Boolean configureManagedAd;
 
         public Builder windowsMountDrive(String windowsMountDrive) {
             this.windowsMountDrive = windowsMountDrive;
+            return this;
+        }
+
+        public Builder configureManagedAd(Boolean configureManagedAd) {
+            this.configureManagedAd = configureManagedAd;
             return this;
         }
     }
