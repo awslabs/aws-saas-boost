@@ -234,16 +234,16 @@ export const DashboardComponent = (props) => {
                             <dl>
                               <dt>ECR Repository</dt>
                               <dd>
-                                {isEmpty(service.containerRepo)
+                                {isEmpty(service?.compute?.containerRepo)
                                   ? 'Creating...'
-                                  : service.containerRepo}{' '}
+                                  : service?.compute?.containerRepo}{' '}
                                 {' - '}
                                 <a
                                   href={
                                     ecrAwsConsoleLink +
-                                    (service.containerRepo
+                                    (service?.compute?.containerRepo
                                         ? (isCnRegion ? '/' : `/private/${awsAccount}/`) +
-                                        service.containerRepo
+                                        service?.compute?.containerRepo
                                       : '')
                                   }
                                   target="new"
@@ -258,7 +258,7 @@ export const DashboardComponent = (props) => {
                                 <ECRInstructions
                                   awsAccount={awsAccount}
                                   awsRegion={awsRegion}
-                                  ecrRepo={service.containerRepo}
+                                  ecrRepo={service?.compute?.containerRepo}
                                 >
                                   <span className="text-muted">
                                     View docker image upload instructions{' '}
@@ -268,8 +268,8 @@ export const DashboardComponent = (props) => {
                               </dt>
                               <dd className="mb-3">
                                 {awsAccount}.dkr.ecr.{awsRegion}.{serviceUrlSuffix}
-                                {service.containerRepo
-                                  ? `/${service.containerRepo}`
+                                {service?.compute?.containerRepo
+                                  ? `/${service?.compute?.containerRepo}`
                                   : ''}
                               </dd>
                               <dt>Description</dt>

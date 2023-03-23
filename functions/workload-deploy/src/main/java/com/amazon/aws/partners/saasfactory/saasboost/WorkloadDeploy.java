@@ -115,8 +115,9 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
         for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
             Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
-            String containerRepo = (String) service.get("containerRepo");
-            String containerTag = (String) service.get("containerTag");
+            Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+            String containerRepo = (String) compute.get("containerRepo");
+            String containerTag = (String) compute.get("containerTag");
             if (repo.equals(containerRepo)) {
                 if (!tag.equals(containerTag)) {
                     LOGGER.error("Image tag in event {} does not match appConfig {}", tag, containerTag);

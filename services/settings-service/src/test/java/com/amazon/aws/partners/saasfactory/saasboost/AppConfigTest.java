@@ -110,9 +110,8 @@ public class AppConfigTest {
     @Test
     public void testDeserialize() {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("appConfig.json")) {
-            AppConfig appConfig = Utils.fromJson(is, AppConfig.class);
-            // Utils.fromJson will return null if it encounters any errors in AppConfig
-            assertNotNull("appConfig.json should successfully deserialize", appConfig);
+            AppConfig appConfig = Utils.MAPPER.readValue(is, AppConfig.class);
+            //System.out.println(appConfig.toString());
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
         }

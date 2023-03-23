@@ -1,57 +1,29 @@
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;
 
-@JsonDeserialize(builder = ServiceTierConfig.Builder.class)
-public class ServiceTierConfig {
+public abstract class AbstractComputeTier {
     private final Integer min;
     private final Integer max;
     private final ComputeSize computeSize;
     private final Integer cpu;
     private final Integer memory;
     private final String instanceType;
+    private final Integer ec2min;
+    private final Integer ec2max;
 
-    private ServiceTierConfig(Builder builder) {
+    protected AbstractComputeTier(Builder builder) {
         this.min = builder.min;
         this.max = builder.max;
         this.computeSize = builder.computeSize;
         this.cpu = builder.cpu;
         this.memory = builder.memory;
         this.instanceType = builder.instanceType;
-    }
-
-    public static ServiceTierConfig.Builder builder() {
-        return new ServiceTierConfig.Builder();
-    }
-
-    public static ServiceTierConfig.Builder builder(ServiceTierConfig other) {
-        return new Builder()
-            .min(other.getMin())
-            .max(other.getMax())
-            .computeSize(other.getComputeSize())
-            .cpu(other.getCpu())
-            .memory(other.getMemory())
-            .instanceType(other.getInstanceType());
+        this.ec2min = builder.ec2min;
+        this.ec2max = builder.ec2max;
     }
 
     public Integer getMin() {
@@ -87,9 +59,12 @@ public class ServiceTierConfig {
         return instanceType;
     }
 
-    @Override
-    public String toString() {
-        return Utils.toJson(this);
+    public Integer getEc2min() {
+        return ec2min;
+    }
+
+    public Integer getEc2max() {
+        return ec2max;
     }
 
     @Override
@@ -105,33 +80,33 @@ public class ServiceTierConfig {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final ServiceTierConfig other = (ServiceTierConfig) obj;
-        return (
-                ((min == null && other.min == null) || (min != null && min.equals(other.min)))
-                && ((max == null && other.max == null) || (max != null && max.equals(other.max)))
-                && ((computeSize == null && other.computeSize == null) || (computeSize == other.computeSize))
-                && ((cpu == null && other.cpu == null) || (cpu != null && cpu.equals(other.cpu)))
-                && ((memory == null && other.memory == null) || (memory != null && memory.equals(other.memory)))
-                && ((instanceType == null && other.instanceType == null)
-                    || (instanceType != null && instanceType.equals(other.instanceType))));
+        final AbstractComputeTier other = (AbstractComputeTier) obj;
+        return Utils.nullableEquals(min, other.min)
+            && Utils.nullableEquals(max, other.max)
+            && Utils.nullableEquals(computeSize, other.computeSize)
+            && Utils.nullableEquals(cpu, other.cpu)
+            && Utils.nullableEquals(memory, other.memory)
+            && Utils.nullableEquals(instanceType, other.instanceType)
+            && Utils.nullableEquals(ec2min, other.ec2min)
+            && Utils.nullableEquals(ec2max, other.ec2max);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(min, max, computeSize, cpu, memory, instanceType);
+        return Objects.hash(min, max, computeSize, cpu, memory, instanceType, ec2min, ec2max);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    public static final class Builder {
+    public abstract static class Builder {
+        // TODO do validation on cpu/memory/computeSize
         private Integer min;
         private Integer max;
         private ComputeSize computeSize;
         private Integer cpu;
         private Integer memory;
         private String instanceType;
-
-        private Builder() {
-        }
+        private Integer ec2min;
+        private Integer ec2max;
 
         public Builder min(String min) {
             this.min = min != null && !min.isEmpty() ? Integer.valueOf(min) : null;
@@ -194,9 +169,16 @@ public class ServiceTierConfig {
             return this;
         }
 
-        public ServiceTierConfig build() {
-            // TODO do validation on cpu/memory/computeSize
-            return new ServiceTierConfig(this);
+        public Builder ec2min(Integer ec2min) {
+            this.ec2min = ec2min;
+            return this;
         }
+
+        public Builder ec2max(Integer ec2max) {
+            this.ec2max = ec2max;
+            return this;
+        }
+
+        public abstract AbstractComputeTier build();
     }
 }

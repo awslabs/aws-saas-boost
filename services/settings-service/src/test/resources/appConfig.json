@@ -9,11 +9,6 @@
       "description": "Main Service",
       "public": true,
       "path": "/*",
-      "healthCheckUrl": "/health",
-      "operatingSystem": "LINUX",
-      "containerPort": 7000,
-      "containerRepo": "",
-      "containerTag": "latest",
       "database": {
         "engine": "MYSQL",
         "version": "1.2.3",
@@ -32,13 +27,22 @@
           }
         }
       },
-      "tiers": {
-        "default": {
-          "instanceType": "t3.medium",
-          "cpu": 512,
-          "memory": 1024,
-          "min": 1,
-          "max": 2
+      "compute": {
+        "type": "ECS",
+        "ecsExecEnabled": true,
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2,
+            "ec2min": 1,
+            "ec2max": 2
+          }
         }
       },
       "filesystem": {
@@ -62,11 +66,6 @@
       "description": "Feature service public path routing",
       "public": true,
       "path": "/feature*",
-      "healthCheckUrl": "/health",
-      "operatingSystem": "LINUX",
-      "containerPort": 7000,
-      "containerRepo": "",
-      "containerTag": "latest",
       "database": {
         "engine": "MYSQL",
         "version": "1.2.3",
@@ -85,13 +84,19 @@
           }
         }
       },
-      "tiers": {
-        "default": {
-          "instanceType": "t3.medium",
-          "cpu": 512,
-          "memory": 1024,
-          "min": 1,
-          "max": 2
+      "compute": {
+        "type": "ECS",
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2
+          }
         }
       },
       "filesystem": {
@@ -124,11 +129,6 @@
       "description": "Internal private service",
       "public": false,
       "path": "",
-      "healthCheckUrl": "/health",
-      "operatingSystem": "LINUX",
-      "containerPort": 7000,
-      "containerRepo": "",
-      "containerTag": "latest",
       "database": {
         "engine": "MYSQL",
         "version": "1.2.3",
@@ -147,13 +147,19 @@
           }
         }
       },
-      "tiers": {
-        "default": {
-          "instanceType": "t3.medium",
-          "cpu": 512,
-          "memory": 1024,
-          "min": 1,
-          "max": 2
+      "compute": {
+        "type": "ECS",
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2
+          }
         }
       },
       "filesystem": {

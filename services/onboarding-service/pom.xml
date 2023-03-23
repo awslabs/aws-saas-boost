@@ -33,7 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
-        <checkstyle.maxAllowedViolations>160</checkstyle.maxAllowedViolations>
+        <checkstyle.maxAllowedViolations>145</checkstyle.maxAllowedViolations>
     </properties>
 
     <build>

@@ -24,8 +24,8 @@ $AWS_REGION = (aws configure list | Select-String -Pattern "region" | Out-String
 $SERVICE_JSON = (aws ssm get-parameter --name "/saas-boost/$SAAS_BOOST_ENV/app/$APP_NAME/SERVICE_JSON" | ConvertFrom-Json).Parameter.Value
 #Write-Output $SERVICE_JSON
 
-$ECR_REPO = ($SERVICE_JSON | ConvertFrom-Json).containerRepo
-$TAG = ($SERVICE_JSON | ConvertFrom-Json).containerTag
+$ECR_REPO = ($SERVICE_JSON | ConvertFrom-Json).compute.containerRepo
+$TAG = ($SERVICE_JSON | ConvertFrom-Json).compute.containerTag
 
 If ("$AWS_REGION" -eq "cn-northwest-1" -or "$AWS_REGION" -eq "cn-north-1") {
     $DOCKER_REPO = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com.cn/$ECR_REPO"
