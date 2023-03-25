@@ -13,6 +13,14 @@ public class AbstractStackParameters extends Properties {
         super(defaults);
     }
 
+    @Override
+    public synchronized Object setProperty(String key, String value) {
+        if (value == null) {
+            value = getProperty(key);
+        }
+        return super.setProperty(key, value);
+    }
+
     public final List<Parameter> forCreate() {
         List<Parameter> parameters = new ArrayList<>();
         for (String parameter : stringPropertyNames()) {
@@ -46,7 +54,7 @@ public class AbstractStackParameters extends Properties {
         return parameters;
     }
 
-    private final void validate() {
+    protected void validate() {
         // CloudFormation SDK stack operations fail if any parameters are null
         List<String> invalidParameters = new ArrayList<>();
         for (String parameter : stringPropertyNames()) {

@@ -542,14 +542,12 @@ public class OnboardingService {
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 String tenantId = onboarding.getTenantId().toString();
-                Map<String, Object> tenant = (Map<String, Object>) detail.get("tenant");
                 String cidrBlock = dal.getCidrBlock(onboarding.getTenantId());
                 if (Utils.isBlank(cidrBlock)) {
                     // TODO rethrow to DLQ?
                     failOnboarding(onboarding.getId(), "Can't find assigned CIDR for tenant " + tenantId);
                     return;
                 }
-                String cidrPrefix = cidrBlock.substring(0, cidrBlock.indexOf(".", cidrBlock.indexOf(".") + 1));
 
                 // Make a synchronous call to the settings service for the app config
                 Map<String, Object> appConfig = getAppConfig(context);
@@ -560,25 +558,20 @@ public class OnboardingService {
                 }
 
                 // And parameters specific to this tenant
-                String tenantSubdomain = Objects.toString(tenant.get("subdomain"), "");
-                String tier = Objects.toString(tenant.get("tier"), "default");
-                String domainName = Objects.toString(appConfig.get("domainName"), "");
-                String hostedZone = Objects.toString(appConfig.get("hostedZone"), "");
-                String sslCertificateArn = Objects.toString(appConfig.get("sslCertificate"), "");
-                boolean privateServices = hasPrivateServices(appConfig);
-                boolean deployActiveDirectory = hasActiveDirectoryConfigured(appConfig);
+                Map<String, Object> tenant = (Map<String, Object>) detail.get("tenant");
 
                 OnboardingBaseStackParameters parameters = new OnboardingBaseStackParameters();
                 parameters.setProperty("Environment", SAAS_BOOST_ENV);
-                parameters.setProperty("DomainName", domainName);
-                parameters.setProperty("HostedZoneId", hostedZone);
-                parameters.setProperty("SSLCertificateArn", sslCertificateArn);
+                parameters.setProperty("DomainName", (String) appConfig.get("domainName"));
+                parameters.setProperty("HostedZoneId", (String) appConfig.get("hostedZone"));
+                parameters.setProperty("SSLCertificateArn", (String) appConfig.get("sslCertificate"));
                 parameters.setProperty("TenantId", tenantId);
-                parameters.setProperty("TenantSubDomain", tenantSubdomain);
-                parameters.setProperty("CidrPrefix", cidrPrefix);
-                parameters.setProperty("Tier", tier);
-                parameters.setProperty("PrivateServices", Boolean.toString(privateServices));
-                parameters.setProperty("DeployActiveDirectory", Boolean.toString(deployActiveDirectory));
+                parameters.setProperty("TenantSubDomain", (String) tenant.get("subdomain"));
+                parameters.setProperty("CidrPrefix",
+                        cidrBlock.substring(0, cidrBlock.indexOf(".", cidrBlock.indexOf(".") + 1)));
+                parameters.setProperty("Tier", (String) tenant.get("tier"));
+                parameters.setProperty("PrivateServices", Boolean.toString(hasPrivateServices(appConfig)));
+                parameters.setProperty("DeployActiveDirectory", Boolean.toString(hasActiveDirectoryConfigured(appConfig)));
 
                 String tenantShortId = tenantId.substring(0, 8);
                 String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId;
@@ -1513,9 +1506,9 @@ public class OnboardingService {
 
             List<Parameter> parameters = new OnboardingBaseStackParameters().forUpdate(
                     Map.of(
-                            "DomainName", Objects.toString(appConfig.get("domainName"), ""),
-                            "HostedZoneId",  Objects.toString(appConfig.get("hostedZone"), ""),
-                            "SSLCertificateArn",  Objects.toString(appConfig.get("sslCertificate"), ""),
+                            "DomainName", (String) appConfig.get("domainName"),
+                            "HostedZoneId", (String) appConfig.get("hostedZone"),
+                            "SSLCertificateArn", (String) appConfig.get("sslCertificate"),
                             "PrivateServices", Boolean.toString(hasPrivateServices(appConfig)),
                             "DeployActiveDirectory", Boolean.toString(hasActiveDirectoryConfigured(appConfig))
                     )
@@ -2037,28 +2030,12 @@ public class OnboardingService {
                     parameters.setProperty("ECSLoadBalancerHttpsListener",
                             tenantResources.get("HTTPS_LISTENER").get("arn"));
                 }
-
-                if (!validateOnboardingAppStackTenantParameters(parameters)) {
-                    throw new RuntimeException("Missing required tenant environment resources");
-                }
             } catch (Exception e) {
                 throw new RuntimeException("Error parsing resources for tenant " + tenantId, e);
             }
         } else {
             throw new RuntimeException("Can't fetch tenant " + tenantId);
         }
-    }
-
-    public boolean validateOnboardingAppStackTenantParameters(OnboardingAppStackParameters parameters) {
-        return (Utils.isBlank(parameters.getProperty("TenantId"))
-                || Utils.isBlank(parameters.getProperty("Tier"))
-                || Utils.isBlank(parameters.getProperty("VPC"))
-                || Utils.isBlank(parameters.getProperty("SubnetPrivateA"))
-                || Utils.isBlank(parameters.getProperty("SubnetPrivateB"))
-                || Utils.isBlank(parameters.getProperty("ECSCluster"))
-                || Utils.isBlank(parameters.getProperty("ECSSecurityGroup"))
-                || (Utils.isBlank(parameters.getProperty("ECSLoadBalancerHttpListener"))
-                && Utils.isBlank(parameters.getProperty("ECSLoadBalancerHttpsListener"))));
     }
 
     protected void onboardingAppStackServiceParams(Map.Entry<String, Object> serviceConfig,
@@ -2125,7 +2102,7 @@ public class OnboardingService {
         if (!tiers.containsKey(tier)) {
             throw new RuntimeException("Missing compute definition for tier " + tier);
         }
-        Map<String, Object> computeTier = (Map<String, Object>) compute.get(tier);
+        Map<String, Object> computeTier = (Map<String, Object>) tiers.get(tier);
         parameters.setProperty("ClusterInstanceType", (String) computeTier.get("instanceType"));
         parameters.setProperty("TaskMemory", ((Integer) computeTier.get("memory")).toString());
         parameters.setProperty("TaskCPU", ((Integer) computeTier.get("cpu")).toString());

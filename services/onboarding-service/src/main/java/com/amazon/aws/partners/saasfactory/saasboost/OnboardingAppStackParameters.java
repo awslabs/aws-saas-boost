@@ -1,5 +1,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 public class OnboardingAppStackParameters extends AbstractStackParameters {
@@ -30,13 +32,13 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
         DEFAULTS.put("ContainerOS", "");
         DEFAULTS.put("ClusterInstanceType", "");
         DEFAULTS.put("TaskLaunchType", "");
-        DEFAULTS.put("TaskMemory", "");
-        DEFAULTS.put("TaskCPU", "");
-        DEFAULTS.put("MinTaskCount", "");
-        DEFAULTS.put("MaxTaskCount", "");
-        DEFAULTS.put("MinAutoScalingGroupSize", "");
-        DEFAULTS.put("MaxAutoScalingGroupSize", "");
-        DEFAULTS.put("ContainerPort", "");
+        DEFAULTS.put("TaskMemory", "1024");
+        DEFAULTS.put("TaskCPU", "512");
+        DEFAULTS.put("MinTaskCount", "1");
+        DEFAULTS.put("MaxTaskCount", "1");
+        DEFAULTS.put("MinAutoScalingGroupSize", "1");
+        DEFAULTS.put("MaxAutoScalingGroupSize", "1");
+        DEFAULTS.put("ContainerPort", "0");
         DEFAULTS.put("ContainerHealthCheckPath", "");
         DEFAULTS.put("UseRDS", "false");
         DEFAULTS.put("RDSInstanceClass", "");
@@ -58,14 +60,14 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
         DEFAULTS.put("ActiveDirectoryId", "");
         DEFAULTS.put("ActiveDirectoryDnsIps", "");
         DEFAULTS.put("ActiveDirectoryDnsName", "");
-        DEFAULTS.put("FSxFileSystemType", "");
+        DEFAULTS.put("FSxFileSystemType", "FSX_WINDOWS");
         DEFAULTS.put("FSxWindowsMountDrive", "");
-        DEFAULTS.put("FileSystemStorage", "");
-        DEFAULTS.put("FileSystemThroughput", "");
-        DEFAULTS.put("FSxBackupRetention", "");
+        DEFAULTS.put("FileSystemStorage", "0");
+        DEFAULTS.put("FileSystemThroughput", "0");
+        DEFAULTS.put("FSxBackupRetention", "0");
         DEFAULTS.put("FSxDailyBackupTime", "");
         DEFAULTS.put("FSxWeeklyMaintenanceTime", "");
-        DEFAULTS.put("OntapVolumeSize", "");
+        DEFAULTS.put("OntapVolumeSize", "20");
         DEFAULTS.put("Disable", "false");
         DEFAULTS.put("OnboardingDdbTable", "");
         DEFAULTS.put("TenantStorageBucket", "");
@@ -79,5 +81,27 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
 
     public OnboardingAppStackParameters() {
         super(DEFAULTS);
+    }
+
+    @Override
+    protected void validate() {
+        super.validate();
+        List<String> invalidParameters = new ArrayList<>();
+        List<String> required = List.of("Environment", "TenantId", "Tier", "VPC", "SubnetPrivateA", "SubnetPrivateB",
+                "ECSCluster", "ECSSecurityGroup");
+        for (String requiredParameter : required) {
+            if (Utils.isBlank(getProperty(requiredParameter))) {
+                invalidParameters.add(requiredParameter);
+            }
+        }
+        if (Utils.isBlank(getProperty("ECSLoadBalancerHttpListener"))
+                && Utils.isBlank(getProperty("ECSLoadBalancerHttpsListener"))) {
+            invalidParameters.add("ECSLoadBalancerHttpListener");
+            invalidParameters.add("ECSLoadBalancerHttpsListener");
+        }
+        if (!invalidParameters.isEmpty()) {
+            throw new RuntimeException("Missing values for required parameters "
+                    + String.join(",", invalidParameters));
+        }
     }
 }

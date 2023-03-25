@@ -1,5 +1,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 public class OnboardingBaseStackParameters extends AbstractStackParameters {
@@ -23,4 +25,19 @@ public class OnboardingBaseStackParameters extends AbstractStackParameters {
         super(DEFAULTS);
     }
 
+    @Override
+    protected void validate() {
+        super.validate();
+        List<String> invalidParameters = new ArrayList<>();
+        List<String> required = List.of("Environment", "TenantId", "Tier", "CidrPrefix");
+        for (String requiredParameter : required) {
+            if (Utils.isBlank(getProperty(requiredParameter))) {
+                invalidParameters.add(requiredParameter);
+            }
+        }
+        if (!invalidParameters.isEmpty()) {
+            throw new RuntimeException("Missing values for required parameters "
+                    + String.join(",", invalidParameters));
+        }
+    }
 }
