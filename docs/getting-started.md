@@ -42,8 +42,6 @@ AWS SaaS Boost uses a handful of technologies for the installation process. Inst
 - [Apache Maven](https://maven.apache.org/download.cgi) (see [Installation Instructions](https://maven.apache.org/install.html))
 - [AWS Command Line Interface version 2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - [Git](https://git-scm.com/downloads)
-- [Node 14 (LTS)](https://nodejs.org/download/release/latest-v14.x/)
-- [Yarn](https://classic.yarnpkg.com/en/docs/install)
 
 If you are unable to or would prefer not to install all of the prerequisites on your local machine, you can use an AWS Cloud9 instance to install AWS SaaS Boost. Follow the steps in [Install using AWS Cloud9](./install-using-cloud9.md) and then continue with [Step 3](#step-3---provision-aws-saas-boost).
 
@@ -70,10 +68,17 @@ To start the installation process, perform the following steps:
 4. Enter the full path to your AWS SaaS Boost directory (hit enter for the current directory): /\<mydir\>/aws-saas-boost.
 5. Enter the name for this SaaS Boost environment (dev, QA, test, sandbox, etc.).
 6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password.
-7. Indicate whether you would like the metrics and analytics features of AWS SaaS Boost to be installed. This is ***optional*** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
+7. Enter your choice of identity provider for the SaaS Boost admin web console: enter either `Cognito` or `Keycloak`. To install Keycloak you will need a custom domain name with a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution. 
+      - If you choose `Keycloak` you will be prompted for the custom domain name you will be using for your Keycloak installation.
+      - Then SaaS Boost will search for existing Route53 Hosted Zones and provide you a list to select from. Enter the number corresponding to your chosen hosted zone to select it.
+      - Then SaaS Boost will search for existing ACM Certificates and provide you a list to select form. Enter the number corresponding to your chosen certificate to select it.
+8. Indicate whether you would like to use a custom domain name for the SaaS Boost admin web console. To use a custom domain name you will need a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution. 
+      - If you enter `y` you will be prompted for the custom domain name you want to use for your SaaS Boost admin web console installation.
+      - Then SaaS Boost will search for existing Route53 Hosted Zones and provide you a list to select from. Enter the number corresponding to your chosen hosted zone to select it.
+      - Then SaaS Boost will search for existing ACM Certificates and provide you a list to select form. Enter the number corresponding to your chosen certificate to select it.
+9. Indicate whether you would like the metrics and analytics features of AWS SaaS Boost to be installed. This is ***optional*** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
       - If you enter **Y**, you are prompted for [QuickSight](https://aws.amazon.com/quicksight/) setup. To use Quicksight, _you must have already registered_ for a Standard or Enterprise Quicksight account in your AWS Account by following the steps at [https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
-8. If your application is Windows based and needs a shared file system, a [Managed Active Directory](https://aws.amazon.com/directoryservice/) must be deployed to support [Amazon FSx for Windows File Server](https://aws.amazon.com/fsx/windows/) or [Amazon FSx for NetApp ONTAP](https://aws.amazon.com/fsx/netapp-ontap/). Select y or n as needed.
-9. Review the settings for your installation. Double check the AWS account number and AWS Region you're about to install AWS SaaS Boost into. Enter **y** to proceed or **n** to re-enter or adjust the values.
+10. Review the settings for your installation. Double check the AWS account number and AWS Region you're about to install AWS SaaS Boost into. Enter **y** to proceed or **n** to re-enter or adjust the values.
 
 The installation process will take 30-45 minutes to configure and provision all the resources (this will vary based on the options you've selected). Detailed logs from the installation process are stored in **saas-boost-install.log**. 
 
@@ -132,18 +137,23 @@ Just as you would configure AWS SaaS Boost to support the requirements of your a
 - Enter a friendly name `Name` for the application such as **Sample**
 - Create a `New Service` and give it a name such as **main**
 - Make sure the `Publicly accessible` box is **checked**
-- Make sure the `Service Addressable Path` is **/\***
-- For `Container OS`, select **Linux**
-- Set the `Container Tag` to **latest**
-- Set the `Container Port` to **8080**
-- Set the `Health Check URL` to **/index.html**
-- Under the `default` Tier settings, set `Compute Size` to **Medium**
-- `Minimum Instance Count` and `Maximum Instance Count` can be **1** and **2** respectively
-- **Enable** the `Provision a File System for the application` checkbox
-- Set the `Mount point` to **/mnt**
-- **Enable** the `Provision a database for the application` checkbox
-- Select any of the available databases (MariaDB with a db.t3.micro instance class will provision the fastest)
-- Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
+- Make sure the `Service Addressible Path` is **/\***
+- In the `Compute` section:
+      - For `Container OS`, select **Linux**
+      - Set the `Container Tag` to **latest**
+      - Set the `Container Port` to **8080**
+      - Set the `Health Check URL` to **/index.html**
+- In the `Filesystem` section:
+      - **Enable** the `Provision a File System for the application` checkbox and select **EFS**
+      - Set the `Mount point` to **/mnt**
+- In the `Database` section:
+      - **Enable** the `Provision a database for the application` checkbox
+      - Select any of the available databases (MariaDB with a db.t3.micro instance class will provision the fastest)
+      - Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
+- Under the `default` Tier settings: 
+      - Set `Compute Size` to **Medium**
+      - `Minimum Instance Count` and `Maximum Instance Count` can be **1** and **2** respectively
+      - Select the `db.t3.micro` instance class for your Database.
 
 Your config should look similar to the following:
 
