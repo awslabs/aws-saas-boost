@@ -71,7 +71,7 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
           }
 
           if (!!!props.forTier && !!!props.filesystem?.configureManagedAd) {
-            // configureManagedAd is required for FSX Windows
+            // configureManagedAd is required for FSx Windows
             props.setFieldValue(
               props.formikServicePrefix + '.filesystem.configureManagedAd',
               true
@@ -239,10 +239,10 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                     <SaasBoostCheckbox
                       id={props.formikServicePrefix + '.filesystem.configureManagedAd'}
                       name={props.formikServicePrefix + '.filesystem.configureManagedAd'}
-                      label="Provision a Managed AD for the tenant."
-                      tooltip="Managed AD is required for FSX Windows."
+                      label="Provision a Managed Microsoft AD for the tenant."
+                      tooltip="Managed Microsoft AD is required for FSx Windows."
                       value={true}
-                      disabled={true} // for FSX Windows Managed AD is always required
+                      disabled={true} // for FSx Windows Managed AD is always required
                     />
                   </Col>
                 </Row>

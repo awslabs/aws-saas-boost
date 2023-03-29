@@ -276,8 +276,8 @@ export default class FsxOntapFilesystemOptions extends React.Component {
                       <SaasBoostCheckbox
                         id={props.formikServicePrefix + '.filesystem.configureManagedAd'}
                         name={this.props.formikServicePrefix + '.filesystem.configureManagedAd'}
-                        label="Provision a Managed AD for the tenant."
-                        tooltip="If selected, a new Managed AD will be created for this tenant."
+                        label="Provision a Managed Microsoft AD."
+                        tooltip="If selected, a new Managed Microsoft AD will be created for this service."
                       />
                     </Col>
                   )}

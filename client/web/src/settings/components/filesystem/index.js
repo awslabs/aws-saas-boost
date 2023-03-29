@@ -54,7 +54,7 @@ export const FILESYSTEM_TYPES = {
     "FSX_WINDOWS": {
         "configId": "FSX_WINDOWS",
         "id": "FSX_WINDOWS",
-        "name": "FSX Windows",
+        "name": "FSx Windows",
         "icon": cibWindows,
         "component": FsxWindowsFilesystemOptions,
         "enabled": (os, launchType) => os === "WINDOWS",
@@ -105,7 +105,7 @@ export const FILESYSTEM_TYPES = {
     "FSX_ONTAP_LINUX": {
         "configId": "FSX_ONTAP",
         "id": "FSX_ONTAP_LINUX",
-        "name": "FSX Ontap",
+        "name": "FSx Ontap",
         "icon": cilViewQuilt,
         "component": FsxOntapFilesystemOptions,
         "enabled": (os, launchType) => os === "LINUX" && launchType === "EC2",
@@ -159,7 +159,7 @@ export const FILESYSTEM_TYPES = {
     "FSX_ONTAP_WINDOWS": {
         "configId": "FSX_ONTAP",
         "id": "FSX_ONTAP_WINDOWS",
-        "name": "FSX Ontap",
+        "name": "FSx Ontap",
         "icon": cilViewQuilt,
         "component": FsxOntapFilesystemOptions,
         "enabled": (os, launchType) => os === "WINDOWS",

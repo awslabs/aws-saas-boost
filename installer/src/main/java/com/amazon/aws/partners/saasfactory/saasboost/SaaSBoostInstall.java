@@ -772,7 +772,8 @@ public class SaaSBoostInstall {
                 HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
                 for (String serviceName : services.keySet()) {
                     HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
-                    repos.add((String) service.get("containerRepo"));
+                    Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+                    repos.add((String) compute.get("containerRepo"));
                 }
             } else {
                 LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
