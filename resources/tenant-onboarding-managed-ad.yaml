@@ -53,8 +53,7 @@ Resources:
       ShortName: 
         !Join
           - ''
-          - - 'sb-'
-            - !Ref Environment
+          - - 'Tenant-'
             - !Select [0, !Split ['-', !Ref TenantId]]
       VpcSettings:
         SubnetIds: !Ref Subnets
