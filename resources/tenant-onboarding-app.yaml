@@ -331,7 +331,7 @@ Resources:
     Type: Custom::CustomResource
     Condition: Ec2LaunchType
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
+      ServiceToken: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
       CapacityProvider: !Ref CapacityProvider
       ECSCluster: !Ref ECSCluster
       OnboardingDdbTable: !Ref OnboardingDdbTable

@@ -381,7 +381,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: ProvisionManagedAD
     Properties:
-      TemplateURL: !Sub https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.${AWS::URLSuffix}/tenant-onboarding-managed-ad.yaml
+      TemplateURL: !Sub https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.${AWS::URLSuffix}/tenant-onboarding-ad.yaml
       Parameters:
         Environment: !Ref Environment
         Subnets:
