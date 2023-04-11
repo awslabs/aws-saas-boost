@@ -390,6 +390,7 @@ export function ApplicationComponent(props) {
             servicesWithErrors.push(serviceMessage)
           }
         })
+        console.error('Errors in form:', formik.errors)
       }
     }
     return servicesWithErrors.join(" ; ")

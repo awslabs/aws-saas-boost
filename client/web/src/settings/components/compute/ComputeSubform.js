@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { Fragment } from 'react'
+import React, { Fragment, useEffect } from 'react'
 import { Row, Col, Card, CardBody, CardHeader, FormGroup, Label } from 'reactstrap'
 import {
   SaasBoostCheckbox,
@@ -26,7 +26,7 @@ import { Field } from 'formik'
 
 const ComputeSubform = (props) => {
 
-  const { values, osOptions, isLocked, formikServicePrefix } = props
+  const { values, osOptions, isLocked, formikServicePrefix, setFieldValue } = props
 
   const getOsSpecificOptions = () => {
     if (values?.operatingSystem === 'WINDOWS') {
@@ -98,6 +98,12 @@ const ComputeSubform = (props) => {
      </FormGroup>
     )
   }
+
+  useEffect(() => {
+    if (values.operatingSystem && values.operatingSystem === 'WINDOWS' && values.ecsLaunchType !== 'EC2') {
+      setFieldValue(formikServicePrefix + '.compute.ecsLaunchType', 'EC2')
+    }
+  }, [values, setFieldValue, formikServicePrefix])
 
   return (
     <Fragment>

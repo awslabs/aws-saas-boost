@@ -54,13 +54,14 @@ export const FILESYSTEM_TYPES = {
     "FSX_WINDOWS": {
         "configId": "FSX_WINDOWS",
         "id": "FSX_WINDOWS",
-        "name": "FSX Windows",
+        "name": "FSx Windows",
         "icon": cibWindows,
         "component": FsxWindowsFilesystemOptions,
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
-            windowsMountDrive: 'G:'
+            windowsMountDrive: 'G:',
+            configureManagedAd: true,
         },
         "tierDefaults": {
             storageGb: 32,
@@ -80,6 +81,7 @@ export const FILESYSTEM_TYPES = {
                 .required(),
             windowsMountDrive: Yup.string()
                 .required('Windows mount drive is required'),
+            configureManagedAd: Yup.boolean().required(),
         },
         "tierValidationSchema": {
             storageGb: Yup.number()
@@ -103,7 +105,7 @@ export const FILESYSTEM_TYPES = {
     "FSX_ONTAP_LINUX": {
         "configId": "FSX_ONTAP",
         "id": "FSX_ONTAP_LINUX",
-        "name": "FSX Ontap",
+        "name": "FSx Ontap",
         "icon": cilViewQuilt,
         "component": FsxOntapFilesystemOptions,
         "enabled": (os, launchType) => os === "LINUX" && launchType === "EC2",
@@ -157,13 +159,14 @@ export const FILESYSTEM_TYPES = {
     "FSX_ONTAP_WINDOWS": {
         "configId": "FSX_ONTAP",
         "id": "FSX_ONTAP_WINDOWS",
-        "name": "FSX Ontap",
+        "name": "FSx Ontap",
         "icon": cilViewQuilt,
         "component": FsxOntapFilesystemOptions,
         "enabled": (os, launchType) => os === "WINDOWS",
         "defaults": {
             mountPoint: '',
-            windowsMountDrive: 'G:'
+            windowsMountDrive: 'G:',
+            configureManagedAd: false,
         },
         "tierDefaults": {
             storageGb: 1024,
@@ -184,6 +187,7 @@ export const FILESYSTEM_TYPES = {
                 .required(),
             windowsMountDrive: Yup.string()
                 .required('Windows mount drive is required'),
+            configureManagedAd: Yup.boolean().required(),
         },
         "tierValidationSchema": {
             storageGb: Yup.number()

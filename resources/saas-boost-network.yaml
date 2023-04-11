@@ -26,7 +26,7 @@ Resources:
       AutoAcceptSharedAttachments: enable
       DefaultRouteTableAssociation: disable
       DefaultRouteTablePropagation: disable
-      Description: A transit gateway to support a single egress subnet
+      Description: SaaS Boost Egress VPC Transit Gateway
       Tags:
         - Key: Name
           Value: !Sub sb-${Environment}-tgw
@@ -185,21 +185,6 @@ Resources:
       RouteTableId: !Ref PrivateEgressRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NATGateway2
-#These routes to 10.0.0.0/8 are necessary for AD traffic across TGW.
-  RouteToTenants1:
-    Type: AWS::EC2::Route
-    DependsOn: EgressVpcAttachment
-    Properties:
-      RouteTableId: !Ref PrivateEgressRouteTable1
-      DestinationCidrBlock: 10.0.0.0/8
-      TransitGatewayId: !Ref TransitGateway
-  RouteToTenants2:
-    Type: AWS::EC2::Route
-    DependsOn: EgressVpcAttachment
-    Properties:
-      RouteTableId: !Ref PrivateEgressRouteTable2
-      DestinationCidrBlock: 10.0.0.0/8
-      TransitGatewayId: !Ref TransitGateway
   PrivateEgressRouteTable1Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -219,7 +204,7 @@ Resources:
         - !Ref PrivateEgressSubnet2
       Tags:
         - Key: Name
-          Value: !Sub sb-egress-attachment-${Environment}
+          Value: !Sub sb-${Environment}-egress-attachment
       TransitGatewayId: !Ref TransitGateway
       VpcId: !Ref EgressVPC
   EgressTransitGatewayRouteTable:
@@ -227,14 +212,14 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub sb-egress-routetbl-${Environment}
+          Value: !Sub sb-${Environment}-egress-routetbl
       TransitGatewayId: !Ref TransitGateway
   TenantTransitGatewayRouteTable:
     Type: AWS::EC2::TransitGatewayRouteTable
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub sb-tenant-routetbl-${Environment}
+          Value: !Sub sb-${Environment}-tenant-routetbl
       TransitGatewayId: !Ref TransitGateway
   # Add a default route and black hole to the app route table
   AppDefaultTGWRoute:
@@ -243,27 +228,25 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       TransitGatewayAttachmentId: !Ref EgressVpcAttachment
       TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
-# Black hole to prevent traffic from tenant vpc to antoher tenant vpc
+  # Black hole to prevent traffic from tenant vpc to antoher tenant vpc
   AppBlackhole10Route:
     Type: AWS::EC2::TransitGatewayRoute
     Properties:
       Blackhole: Yes
       DestinationCidrBlock: 10.0.0.0/8
       TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
-  # AppBlackhole172Route:
-  #   Type: AWS::EC2::TransitGatewayRoute
-  #   Properties:
-  #     Blackhole: Yes
-  #     DestinationCidrBlock: 172.16.0.0/12
-  #     TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
-
-  #NOTE: 10/21/2020 - Raju Patel - commented out as we need route from tenant VPC to 192.168 for Active Directory
-  # AppBlackhole192Route:
-  #   Type: AWS::EC2::TransitGatewayRoute
-  #   Properties:
-  #     Blackhole: Yes
-  #     DestinationCidrBlock: 192.168.0.0/16
-  #     TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+  AppBlackhole172Route:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      Blackhole: Yes
+      DestinationCidrBlock: 172.16.0.0/12
+      TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
+  AppBlackhole192Route:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      Blackhole: Yes
+      DestinationCidrBlock: 192.168.0.0/16
+      TransitGatewayRouteTableId: !Ref TenantTransitGatewayRouteTable
   EgressVpcTgwAssociation:
     Type: AWS::EC2::TransitGatewayRouteTableAssociation
     Properties:

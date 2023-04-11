@@ -83,6 +83,7 @@ const ServiceSettingsSubform = (props) => {
                     osOptions={osOptions}
                     isLocked={isLocked}
                     formikServicePrefix={'services[' + serviceIndex + ']'}
+                    setFieldValue={props.setFieldValue}
                   />
                   <FileSystemSubform
                     isLocked={isLocked}

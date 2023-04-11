@@ -33,27 +33,35 @@ Parameters:
     MaxLength: 30
     MinLength: 1
     Type: String
-  ADPasswordParam:
-    ConstraintDescription: please specify a valid Parameter Store name.
-    Description: 'SSM Parameter name to use for AD User password:'
-    MaxLength: '1024'
-    MinLength: '1'
+  TenantId:
+    Description: The GUID for the tenant
     Type: String
 Resources:
+  ADPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
   ADDirectory:
     Type: AWS::DirectoryService::MicrosoftAD
     Properties:
       Name: !Sub ${Environment}.${AWS::Region}.saasboost.com
       Edition: !Ref Edition
-      Password: !Sub '{{resolve:ssm-secure:${ADPasswordParam}}}'
-      ShortName: !Sub sb-${Environment}
+      Password: !Sub '{{resolve:secretsmanager:${ADPassword}::::}}'
+      ShortName: 
+        !Join
+          - ''
+          - - 'Tenant-'
+            - !Select [0, !Split ['-', !Ref TenantId]]
       VpcSettings:
         SubnetIds: !Ref Subnets
         VpcId: !Ref VpcId
   SSMParamMADIps:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
+      Name: !Sub /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_IPS
       Type: String
       Value:
        !Join [",", !GetAtt ADDirectory.DnsIpAddresses]
@@ -61,28 +69,23 @@ Resources:
     Type: AWS::SSM::Parameter
     DependsOn: ADDirectory
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
+      Name: !Sub /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_NAME
       Type: String
       Value: !Sub ${Environment}.${AWS::Region}.saasboost.com
   SSMParamUserName:
     Type: AWS::SSM::Parameter
     DependsOn: ADDirectory
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
+      Name: !Sub /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER
       Type: String
       Value: admin
   SSMParamDirectoryId:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ACTIVE_DIRECTORY_ID
+      Name: !Sub /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_ID
       Type: String
       Value: !Ref ADDirectory
 Outputs:
-  DirectoryAlias:
-    Description: Directory alias.
-    Value:
-      !GetAtt ADDirectory.Alias
-  DnsIpAddresses:
-    Description: The IP addresses of the DNS servers for the directory.
-    Value:
-      !Join [",", !GetAtt ADDirectory.DnsIpAddresses]
+  ADPasswordSecret:
+    Description: SecretsManager reference to AD Password
+    Value: !Ref ADPassword

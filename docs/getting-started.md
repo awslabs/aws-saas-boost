@@ -42,8 +42,6 @@ AWS SaaS Boost uses a handful of technologies for the installation process. Inst
 - [Apache Maven](https://maven.apache.org/download.cgi) (see [Installation Instructions](https://maven.apache.org/install.html))
 - [AWS Command Line Interface version 2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 - [Git](https://git-scm.com/downloads)
-- [Node 14 (LTS)](https://nodejs.org/download/release/latest-v14.x/)
-- [Yarn](https://classic.yarnpkg.com/en/docs/install)
 
 If you are unable to or would prefer not to install all of the prerequisites on your local machine, you can use an AWS Cloud9 instance to install AWS SaaS Boost. Follow the steps in [Install using AWS Cloud9](./install-using-cloud9.md) and then continue with [Step 3](#step-3---provision-aws-saas-boost).
 
@@ -59,7 +57,7 @@ Before running the installation, [setup your AWS CLI](https://docs.aws.amazon.co
 1. Setup an IAM user in your AWS account with full admin permissions.
 2. Set up your AWS CLI credentials with an AWS Access Key and default region.
 
-If you are installing SaaS Boost in AWS **China Regions(Beijing/Ningxia)**, please follow instructions of [Provision AWS SaaS Boost in GCR](./provision-in-gcr.md) or the Chinese version of [Getting Started Guide](./getting-started.cn.md).
+If you are installing SaaS Boost in one of the AWS **China Regions (Beijing/Ningxia)**, please follow the instructions in [Provision AWS SaaS Boost in GCR](./provision-in-gcr.md) or the Chinese version of [Getting Started Guide](./getting-started.cn.md).
 
 To start the installation process, perform the following steps:
 1. From the terminal window, navigate to the directory where you've downloaded AWS SaaS Boost (aws-saas-boost).
@@ -67,13 +65,20 @@ To start the installation process, perform the following steps:
       - If you're running on Linux or OSX, run: `sh ./install.sh`
       - If you're running on Windows, run: `powershell .\install.ps1`
 3. Select the option for a new installation.
-4. Enter the full path to your AWS SaaS Boost directory (hit enter for the current directory): /\<mydir\>/aws-saas-boost.
+4. Enter the full path to your AWS SaaS Boost directory (push enter for the current directory): /\<mydir\>/aws-saas-boost.
 5. Enter the name for this SaaS Boost environment (dev, QA, test, sandbox, etc.).
 6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password.
-7. Indicate whether you would like the metrics and analytics features of AWS SaaS Boost to be installed. This is ***optional*** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
-      - If you enter **Y**, you are prompted for [QuickSight](https://aws.amazon.com/quicksight/) setup. To use Quicksight, _you must have already registered_ for a Standard or Enterprise Quicksight account in your AWS Account by following the steps at [https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
-8. If your application is Windows based and needs a shared file system, a [Managed Active Directory](https://aws.amazon.com/directoryservice/) must be deployed to support [Amazon FSx for Windows File Server](https://aws.amazon.com/fsx/windows/) or [Amazon FSx for NetApp ONTAP](https://aws.amazon.com/fsx/netapp-ontap/). Select y or n as needed.
-9. Review the settings for your installation. Double check the AWS account number and AWS Region you're about to install AWS SaaS Boost into. Enter **y** to proceed or **n** to re-enter or adjust the values.
+7. Choose the identity provider for the SaaS Boost admin web console: enter either `Cognito` or `Keycloak` (push enter for Cognito). To use [Keycloak](https://www.keycloak.org/) you will need a registered domain name with a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution. 
+      - If you choose `Keycloak` you will be prompted for the custom domain name you will be using for your Keycloak installation.
+      - SaaS Boost will search for existing Route53 Hosted Zones and provide you a list to select from. Enter the number of the hosted zone for your existing custom domain to select it.
+      - SaaS Boost will search for existing ACM Certificates and provide you a list to select form. Enter the number of the certificate for your existing custom domain to select it.
+8. Choose whether you would like to use a custom domain name for the SaaS Boost admin web console. To use a custom domain name you will need a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution. 
+      - If you enter `y` you will be prompted for the custom domain name you want to use for your SaaS Boost admin web console installation. (Note that this domain must be different than your Keycloak domain if you're using Keycloak as your System User IdP).
+      - SaaS Boost will search for existing Route53 Hosted Zones and provide you a list to select from. Enter the number of the hosted zone for your existing custom domain to select it.
+      - SaaS Boost will search for existing ACM Certificates and provide you a list to select form. Enter the number of the certificate for your existing custom domain to select it.
+9. Choose whether you would like the optional analytics pipeline and data warehouse to be installed. This is ***optional*** and will provision a [Redshift](https://aws.amazon.com/redshift) cluster.
+      - If you enter `y`, you are prompted to setup [QuickSight](https://aws.amazon.com/quicksight/). To use Quicksight, _you must have already registered_ for a Standard or Enterprise Quicksight account in your AWS Account by following the steps at [https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
+10. Review the settings for your installation. Double check the AWS account number and AWS Region you're about to install AWS SaaS Boost into. Enter `y` to proceed or `n` to cancel.
 
 The installation process will take 30-45 minutes to configure and provision all the resources (this will vary based on the options you've selected). Detailed logs from the installation process are stored in **saas-boost-install.log**. 
 
@@ -115,11 +120,9 @@ In this example, I've called my service `main`. After clicking the **Create Serv
 
 ![Application Setup](images/gs-service-collapsed.png?raw=true "Service Config Collapsed")
 
-Click on the service name to expand the configuration options for this service. A form similar to the following will appear:
+Click on the service name to expand the configuration options for this service. A dynamic form will appear for you to configure the settings and tier-based variations for each service that makes up your SaaS application. 
 
-![Application Setup](images/gs-service-config.png?raw=true "Service Config")
-
-While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working.
+While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working. See below for an example of the service configuration form filled out for one of the sample applicatinos provided with SaaS Boost.
 
 ## Step 6 - Upload Your Application Services
 Once you've configured each of your services for every tier you've defined, SaaS Boost will automatically create an [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) image repository for each service. Before you can onboard any tenants into your system, you must upload a Docker image for each of the services in your application. From the **Summary** page, click the **View details** link next to the `ECR Repository URL` listing for each service to see the proper Docker push commands to upload your image. You can also refer to the build shell scripts included with the sample apps to see one approach to automating the Docker push process.
@@ -132,25 +135,30 @@ Just as you would configure AWS SaaS Boost to support the requirements of your a
 - Enter a friendly name `Name` for the application such as **Sample**
 - Create a `New Service` and give it a name such as **main**
 - Make sure the `Publicly accessible` box is **checked**
-- Make sure the `Service Addressable Path` is **/\***
-- For `Container OS`, select **Linux**
-- Set the `Container Tag` to **latest**
-- Set the `Container Port` to **8080**
-- Set the `Health Check URL` to **/index.html**
-- Under the `default` Tier settings, set `Compute Size` to **Medium**
-- `Minimum Instance Count` and `Maximum Instance Count` can be **1** and **2** respectively
-- **Enable** the `Provision a File System for the application` checkbox
-- Set the `Mount point` to **/mnt**
-- **Enable** the `Provision a database for the application` checkbox
-- Select any of the available databases (MariaDB with a db.t3.micro instance class will provision the fastest)
-- Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
+- Make sure the `Service Addressible Path` is **/\***
+- In the `Compute` section:
+      - For `Container OS`, select **Linux**
+      - Set the `Container Tag` to **latest**
+      - Set the `Container Port` to **8080**
+      - Set the `Health Check URL` to **/index.html**
+- In the `Filesystem` section:
+      - **Enable** the `Provision a File System for the application` checkbox and select **EFS**
+      - Set the `Mount point` to **/mnt**
+- In the `Database` section:
+      - **Enable** the `Provision a database for the application` checkbox
+      - Select any of the available databases (MariaDB with a db.t3.micro instance class will probably provision the fastest)
+      - Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
+- Under the `default` Tier settings: 
+      - Set `Compute Size` to **Medium**
+      - `Minimum Instance Count` and `Maximum Instance Count` can be **1** and **1** respectively
+      - Select the `db.t3.micro` instance class for your Database.
 
 Your config should look similar to the following:
 
 ![Sample App Config](images/gs-sample-app-config.png?raw=true "Sample App Config")
 
 ### Build and Deploy the Sample Application
-Once you have saved your Application Setup, you can build and containerize the sample application. To create a Docker image of this sample application, you will need to have Docker running on your local machine. Navigate to the **samples/java/** directory in your clone of the AWS SaaS Boost repo and execute the build script which will build, containerize, and push your containerized application to the AWS SaaS Boost ECR repository. You can review the steps in this example shell script to see how you might enhance your current build process for your application to integrate with AWS SaaS Boost.
+Once you have saved your Application Setup, SaaS Boost will create an ECR repo for each defined service in your application. Once CloudFormation has finished updating your SaaS Boost install you can build and containerize the sample application. To create a Docker image of this sample application, you will need to have Docker running on your local machine. Navigate to the **samples/java/** directory in your clone of the AWS SaaS Boost repo and execute the build script which will build, containerize, and push your containerized application to the AWS SaaS Boost ECR repository. You can review the steps in this example shell script to see how you might enhance your current build process for your application to integrate with AWS SaaS Boost.
 
 ```shell
 cd aws-saas-boost/samples/java
