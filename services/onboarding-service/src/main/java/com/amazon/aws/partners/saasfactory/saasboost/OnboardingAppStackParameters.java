@@ -6,7 +6,9 @@ import java.util.Properties;
 
 public class OnboardingAppStackParameters extends AbstractStackParameters {
 
-    static Properties DEFAULTS = new Properties();
+    static final Properties DEFAULTS = new Properties();
+    static final List<String> REQUIRED_FOR_CREATE = List.of("Environment", "TenantId", "Tier", "VPC", "SubnetPrivateA",
+            "SubnetPrivateB", "ECSCluster", "ECSSecurityGroup");
 
     static {
         DEFAULTS.put("Environment", "");
@@ -84,20 +86,23 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
     }
 
     @Override
-    protected void validate() {
-        super.validate();
+    protected void validateForCreate() {
         List<String> invalidParameters = new ArrayList<>();
-        List<String> required = List.of("Environment", "TenantId", "Tier", "VPC", "SubnetPrivateA", "SubnetPrivateB",
-                "ECSCluster", "ECSSecurityGroup");
-        for (String requiredParameter : required) {
-            if (Utils.isBlank(getProperty(requiredParameter))) {
-                invalidParameters.add(requiredParameter);
-            }
-        }
         if (Utils.isBlank(getProperty("ECSLoadBalancerHttpListener"))
                 && Utils.isBlank(getProperty("ECSLoadBalancerHttpsListener"))) {
             invalidParameters.add("ECSLoadBalancerHttpListener");
             invalidParameters.add("ECSLoadBalancerHttpsListener");
+        }
+        for (String requiredParameter : REQUIRED_FOR_CREATE) {
+            if ("ECSLoadBalancerHttpListener".equals(requiredParameter)) {
+                continue;
+            }
+            if ("ECSLoadBalancerHttpsListener".equals(requiredParameter)) {
+                continue;
+            }
+            if (Utils.isBlank(getProperty(requiredParameter))) {
+                invalidParameters.add(requiredParameter);
+            }
         }
         if (!invalidParameters.isEmpty()) {
             throw new RuntimeException("Missing values for required parameters "

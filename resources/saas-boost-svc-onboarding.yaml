@@ -555,6 +555,7 @@ Resources:
             Action:
               - elasticloadbalancing:CreateRule
               - elasticloadbalancing:ModifyRule
+              - elasticloadbalancing:SetRulePriorities
               - elasticloadbalancing:DeleteRule
               - elasticloadbalancing:DeleteListener
             Resource:

@@ -535,6 +535,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     case APP_CONFIG_CHANGED:
                         // We produce this event, but currently aren't consuming it
                         break;
+                    case APP_CONFIG_UPDATE_COMPLETED:
+                        //  We produce this event, but currently aren't consuming it
+                        break;
                     default: {
                         LOGGER.error("Can't find app config event for detail-type {}", event.get("detail-type"));
                         // TODO Throw here? Would end up in DLQ.

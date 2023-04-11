@@ -1,10 +1,15 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 public class CoreStackParameters extends AbstractStackParameters {
 
     static Properties DEFAULTS = new Properties();
+    static final List<String> REQUIRED_FOR_CREATE = List.of("SaaSBoostBucket", "Environment", "LambdaSourceFolder",
+            "Tier", "SystemIdentityProvider", "AdminUsername", "AdminEmailAddress", "PublicApiStage", "PrivateApiStage",
+            "Version", "CreateMacroResources");
 
     static {
         DEFAULTS.put("SaaSBoostBucket", "");
@@ -31,5 +36,19 @@ public class CoreStackParameters extends AbstractStackParameters {
 
     public CoreStackParameters() {
         super(DEFAULTS);
+    }
+
+    @Override
+    protected void validateForCreate() {
+        List<String> invalidParameters = new ArrayList<>();
+        for (String requiredParameter : REQUIRED_FOR_CREATE) {
+            if (Utils.isBlank(getProperty(requiredParameter))) {
+                invalidParameters.add(requiredParameter);
+            }
+        }
+        if (!invalidParameters.isEmpty()) {
+            throw new RuntimeException("Missing values for required parameters "
+                    + String.join(",", invalidParameters));
+        }
     }
 }

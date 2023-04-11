@@ -742,7 +742,7 @@ public class OnboardingService {
                 // CloudFormation can't natively add more than one Capacity Provider to an ECS cluster
                 // and we need a different CP for each service in the shared cluster. We're using the
                 // Onboarding Service's database to hold state that the custom resource can read during
-                // this service's provisioning in order to update the cluster's list of capacity providers.
+                // each service provisioning in order to update the cluster's list of capacity providers.
                 parameters.setProperty("OnboardingDdbTable", ONBOARDING_TABLE);
                 // Currently using the SaaS Boost event bus for Billing Service metering calls
                 parameters.setProperty("EventBus", Objects.toString(SAAS_BOOST_EVENT_BUS, ""));
@@ -765,7 +765,6 @@ public class OnboardingService {
                 if (appConfig != null) {
                     // TODO Use the app name for tagging
                     String applicationName = (String) appConfig.get("name");
-                    String tenantId = parameters.getProperty("TenantId");
 
                     // Need to use these across all services so we'll pass them in to be mutated in place
                     // by the onboardingAppStack*Params methods
@@ -776,91 +775,19 @@ public class OnboardingService {
                     // parameters and call create stack.
                     Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
                     for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
-                        try {
-                            onboardingAppStackServiceParams(serviceConfig, pathPriority, parameters, serviceDiscovery, context);
-                        } catch (RuntimeException e) {
-                            LOGGER.error(e.getMessage());
-                            LOGGER.error(Utils.getFullStackTrace(e));
-                            failOnboarding(onboarding.getId(), e.getMessage());
-                            return;
-                        }
-
-                        // Make the stack name look like what CloudFormation would have done for a nested stack
-                        String tenantShortId = tenantId.substring(0, 8);
-                        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-"
-                                + parameters.getProperty("ServiceResourceName") + "-"
-                                + Utils.randomString(12).toUpperCase();
-                        if (stackName.length() > 128) {
-                            stackName = stackName.substring(0, 128);
-                        }
-
-                        try {
-                            // Now run the onboarding stack to provision the infrastructure for this application service
-                            LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
-                            String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
-                                    + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
-                            String stackId;
-                            try {
-                                CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                                        .stackName(stackName)
-                                        .disableRollback(false)
-                                        .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                                        .notificationARNs(ONBOARDING_APP_STACK_SNS)
-                                        .templateURL(templateUrl)
-                                        .parameters(parameters.forCreate())
-                                        .build()
-                                );
-                                stackId = cfnResponse.stackId();
-
-                                // Save state in the Onboarding database
-                                onboarding.setStatus(OnboardingStatus.provisioning);
-                                onboarding.addStack(OnboardingStack.builder()
-                                        .service(parameters.getProperty("ServiceName"))
-                                        .name(stackName)
-                                        .arn(stackId)
-                                        .baseStack(false)
-                                        .status("CREATE_IN_PROGRESS")
-                                        .build()
-                                );
-                                onboarding = dal.updateOnboarding(onboarding);
-                                LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
-                            } catch (CloudFormationException cfnError) {
-                                LOGGER.error("cloudformation::createStack failed", cfnError);
-                                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                                failOnboarding(onboarding.getId(), cfnError.awsErrorDetails().errorMessage());
-                                return;
-                            }
-                        } catch (RuntimeException e) {
-                            // Template parameters validation failed
-                            LOGGER.error(e.getMessage());
-                            LOGGER.error(Utils.getFullStackTrace(e));
-                            failOnboarding(onboarding.getId(), e.getMessage());
-                            return;
-                        }
+                        createOnboardingAppStack(onboarding, serviceConfig, pathPriority, parameters,
+                                serviceDiscovery, context);
                     }
 
                     // Write the application-wide environment variables to S3 so each service container can load it up
-                    String environmentFile = "tenants/" + tenantId + "/ServiceDiscovery.env";
-                    ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
-                    try (Writer writer = new BufferedWriter(new OutputStreamWriter(
-                            environmentFileContents, StandardCharsets.UTF_8)
-                    )) {
-                        serviceDiscovery.store(writer, null);
-                        s3.putObject(request -> request
-                                        .bucket(RESOURCES_BUCKET)
-                                        .key(environmentFile)
-                                        .build(),
-                                RequestBody.fromBytes(environmentFileContents.toByteArray())
-                        );
-                        // TODO Should we fail here or just warn?
-                    } catch (S3Exception s3Error) {
-                        LOGGER.error("Error putting service discovery file to S3");
-                        LOGGER.error(Utils.getFullStackTrace(s3Error));
-                        failOnboarding(onboarding.getId(), s3Error.awsErrorDetails().errorMessage());
-                    } catch (IOException ioe) {
-                        LOGGER.error("Error writing service discovery data to output stream");
-                        LOGGER.error(Utils.getFullStackTrace(ioe));
-                        failOnboarding(onboarding.getId(), "Error writing service discovery data to output stream");
+                    try {
+                        savePropertiesFileToS3(s3, RESOURCES_BUCKET, "ServiceDiscovery.env",
+                                parameters.getProperty("TenantId"), serviceDiscovery);
+                    } catch (Exception e) {
+                        LOGGER.error(e.getMessage());
+                        LOGGER.error(Utils.getFullStackTrace(e));
+                        failOnboarding(onboarding.getId(), e.getMessage());
+                        return;
                     }
                 }
             } else {
@@ -880,11 +807,15 @@ public class OnboardingService {
             Onboarding onboarding = dal.getOnboarding((String) detail.get("onboardingId"));
             if (onboarding != null) {
                 // TODO we should probably cache appConfig so we don't have to make this call all the time
+                // TODO or should we have the event include the appConfig in its detail?
                 Map<String, Object> appConfig = getAppConfig(context);
                 Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
 
                 // We need to recalculate the path priority rules for the  public services
                 Map<String, Integer> pathPriority = getPathPriority(appConfig);
+
+                // We may need to update the service discovery environment variables if private services were added
+                Properties serviceDiscovery = new Properties();
 
                 boolean update = false;
                 for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
@@ -938,9 +869,40 @@ public class OnboardingService {
 
                     if (found == 0) {
                         // New service config
+                        LOGGER.info("Adding new service {} for tenant {}", serviceName, onboarding.getTenantId());
+                        OnboardingAppStackParameters parameters = new OnboardingAppStackParameters();
+                        parameters.setProperty("Environment", SAAS_BOOST_ENV);
+                        parameters.setProperty("OnboardingDdbTable", ONBOARDING_TABLE);
+                        parameters.setProperty("EventBus", SAAS_BOOST_EVENT_BUS);
+                        parameters.setProperty("MetricsStream", SAAS_BOOST_METRICS_STREAM);
 
+                        // First get the tenant specific parameters created during base provisioning.
+                        // This requires a call to the Tenant Service.
+                        try {
+                            onboardingAppStackTenantParams(onboarding, parameters, context);
+                        } catch (RuntimeException e) {
+                            LOGGER.error(e.getMessage());
+                            LOGGER.error(Utils.getFullStackTrace(e));
+                            failOnboarding(onboarding.getId(), e.getMessage());
+                            return;
+                        }
+                        createOnboardingAppStack(onboarding, serviceConfig, pathPriority, parameters,
+                                serviceDiscovery, context);
+                        update = true;
                     }
                 }
+
+                // Write the application-wide environment variables to S3 so each service container can load it up
+                try {
+                    savePropertiesFileToS3(s3, RESOURCES_BUCKET, "ServiceDiscovery.env",
+                            onboarding.getTenantId().toString(), serviceDiscovery);
+                } catch (Exception e) {
+                    LOGGER.error(e.getMessage());
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                    failOnboarding(onboarding.getId(), e.getMessage());
+                    return;
+                }
+
                 if (update) {
                     onboarding.setStatus(OnboardingStatus.updating);
                     dal.updateOnboarding(onboarding);
@@ -2144,8 +2106,9 @@ public class OnboardingService {
                         ((Integer) filesystemTierConfig.get("backupRetentionDays")).toString());
                 parameters.setProperty("FSxWeeklyMaintenanceTime",
                         (String) filesystemTierConfig.get("weeklyMaintenanceTime"));
-                parameters.setProperty("OntapVolumeSize", ((Integer) filesystemTierConfig.get("volumeSize")).toString());
-
+                if ("FSX_ONTAP".equals(fileSystemType)) {
+                    parameters.setProperty("OntapVolumeSize", ((Integer) filesystemTierConfig.get("volumeSize")).toString());
+                }
                 Map<String, String> activeDirectorySettings = getSettings(
                         context,
                         "ACTIVE_DIRECTORY_DNS_IPS",
@@ -2153,11 +2116,12 @@ public class OnboardingService {
                         "ACTIVE_DIRECTORY_ID"
                 );
                 if (activeDirectorySettings != null) {
-                    parameters.setProperty("ActiveDirectoryId", activeDirectorySettings.get("ACTIVE_DIRECTORY_ID"));
+                    parameters.setProperty("ActiveDirectoryId",
+                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_ID", ""));
                     parameters.setProperty("ActiveDirectoryDnsIps",
-                            activeDirectorySettings.get("ACTIVE_DIRECTORY_DNS_IPS"));
+                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_IPS", ""));
                     parameters.setProperty("ActiveDirectoryDnsName",
-                            activeDirectorySettings.get("ACTIVE_DIRECTORY_DNS_NAME"));
+                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_NAME", ""));
                 }
             } else {
                 parameters.setProperty("UseEFS", "false");
@@ -2198,6 +2162,101 @@ public class OnboardingService {
         Map<String, Object> s3 = (Map<String, Object>) service.get("s3");
         if (s3 != null) {
             parameters.setProperty("TenantStorageBucket", (String) s3.get("bucketName"));
+        }
+    }
+
+    protected void createOnboardingAppStack(Onboarding onboarding,
+                                            Map.Entry<String, Object> serviceConfig,
+                                            Map<String, Integer> pathPriority,
+                                            OnboardingAppStackParameters parameters,
+                                            Properties serviceDiscovery,
+                                            Context context) {
+        try {
+            onboardingAppStackServiceParams(serviceConfig, pathPriority, parameters,
+                    serviceDiscovery, context);
+        } catch (RuntimeException e) {
+            LOGGER.error(e.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            failOnboarding(onboarding.getId(), e.getMessage());
+            return;
+        }
+
+        // Make the stack name look like what CloudFormation would have done for a nested stack
+        String tenantId = onboarding.getTenantId().toString();
+        String tenantShortId = tenantId.substring(0, 8);
+        String stackName = "sb-" + SAAS_BOOST_ENV + "-tenant-" + tenantShortId + "-app-"
+                + parameters.getProperty("ServiceResourceName") + "-"
+                + Utils.randomString(12).toUpperCase();
+        if (stackName.length() > 128) {
+            stackName = stackName.substring(0, 128);
+        }
+
+        try {
+            // Now run the onboarding stack to provision the infrastructure for this application service
+            LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
+            String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
+                    + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
+            String stackId;
+            try {
+                CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
+                        .stackName(stackName)
+                        .disableRollback(false)
+                        .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
+                        .notificationARNs(ONBOARDING_APP_STACK_SNS)
+                        .templateURL(templateUrl)
+                        .parameters(parameters.forCreate())
+                        .build()
+                );
+                stackId = cfnResponse.stackId();
+
+                // Save state in the Onboarding database
+                onboarding.setStatus(OnboardingStatus.provisioning);
+                onboarding.addStack(OnboardingStack.builder()
+                        .service(parameters.getProperty("ServiceName"))
+                        .name(stackName)
+                        .arn(stackId)
+                        .baseStack(false)
+                        .status("CREATE_IN_PROGRESS")
+                        .build()
+                );
+                onboarding = dal.updateOnboarding(onboarding);
+                LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
+            } catch (CloudFormationException cfnError) {
+                LOGGER.error("cloudformation::createStack failed", cfnError);
+                LOGGER.error(Utils.getFullStackTrace(cfnError));
+                failOnboarding(onboarding.getId(), cfnError.awsErrorDetails().errorMessage());
+                return;
+            }
+        } catch (RuntimeException e) {
+            // Template parameters validation failed
+            LOGGER.error(e.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            failOnboarding(onboarding.getId(), e.getMessage());
+            return;
+        }
+    }
+
+    protected void savePropertiesFileToS3(S3Client s3, String bucket, String filename,
+                                          String tenantId, Properties properties) {
+        // Write the application-wide environment variables to S3 so each service container can load it up
+        String environmentFile = "tenants/" + tenantId + "/" + filename;
+        ByteArrayOutputStream environmentFileContents = new ByteArrayOutputStream();
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                environmentFileContents, StandardCharsets.UTF_8)
+        )) {
+            properties.store(writer, null);
+            s3.putObject(request -> request
+                            .bucket(bucket)
+                            .key(environmentFile)
+                            .build(),
+                    RequestBody.fromBytes(environmentFileContents.toByteArray())
+            );
+        } catch (S3Exception s3Error) {
+            LOGGER.error("Error putting service discovery file to S3 {}", s3Error.awsErrorDetails().errorMessage());
+            throw s3Error;
+        } catch (IOException ioe) {
+            LOGGER.error("Error writing data to output stream");
+            throw new RuntimeException(ioe);
         }
     }
 }

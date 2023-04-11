@@ -6,7 +6,8 @@ import java.util.Properties;
 
 public class OnboardingBaseStackParameters extends AbstractStackParameters {
 
-    static Properties DEFAULTS = new Properties();
+    static final Properties DEFAULTS = new Properties();
+    static final List<String> REQUIRED_FOR_CREATE = List.of("Environment", "TenantId", "Tier", "CidrPrefix");
 
     static {
         DEFAULTS.put("Environment", "");
@@ -26,11 +27,9 @@ public class OnboardingBaseStackParameters extends AbstractStackParameters {
     }
 
     @Override
-    protected void validate() {
-        super.validate();
+    protected void validateForCreate() {
         List<String> invalidParameters = new ArrayList<>();
-        List<String> required = List.of("Environment", "TenantId", "Tier", "CidrPrefix");
-        for (String requiredParameter : required) {
+        for (String requiredParameter : REQUIRED_FOR_CREATE) {
             if (Utils.isBlank(getProperty(requiredParameter))) {
                 invalidParameters.add(requiredParameter);
             }

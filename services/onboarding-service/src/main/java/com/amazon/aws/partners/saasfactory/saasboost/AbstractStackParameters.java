@@ -4,7 +4,7 @@ import software.amazon.awssdk.services.cloudformation.model.Parameter;
 
 import java.util.*;
 
-public class AbstractStackParameters extends Properties {
+public abstract class AbstractStackParameters extends Properties {
 
     private AbstractStackParameters() {
     }
@@ -31,7 +31,7 @@ public class AbstractStackParameters extends Properties {
                             .build()
             );
         }
-        validate();
+        validateForCreate();
         return parameters;
     }
 
@@ -50,11 +50,13 @@ public class AbstractStackParameters extends Properties {
             }
             parameters.add(builder.build());
         }
-        validate();
+        validateForUpdate();
         return parameters;
     }
 
-    protected void validate() {
+    protected abstract void validateForCreate();
+
+    protected void validateForUpdate() {
         // CloudFormation SDK stack operations fail if any parameters are null
         List<String> invalidParameters = new ArrayList<>();
         for (String parameter : stringPropertyNames()) {
