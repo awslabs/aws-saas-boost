@@ -120,7 +120,9 @@ In this example, I've called my service `main`. After clicking the **Create Serv
 
 ![Application Setup](images/gs-service-collapsed.png?raw=true "Service Config Collapsed")
 
-Click on the service name to expand the configuration options for this service. A dynamic form will appear for you to configure the settings and tier-based variations for each service that makes up your SaaS application. While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working. See below for an example of the service configuration form filled out for one of the sample applicatinos provided with SaaS Boost.
+Click on the service name to expand the configuration options for this service. A dynamic form will appear for you to configure the settings and tier-based variations for each service that makes up your SaaS application. 
+
+While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working. See below for an example of the service configuration form filled out for one of the sample applicatinos provided with SaaS Boost.
 
 ## Step 6 - Upload Your Application Services
 Once you've configured each of your services for every tier you've defined, SaaS Boost will automatically create an [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) image repository for each service. Before you can onboard any tenants into your system, you must upload a Docker image for each of the services in your application. From the **Summary** page, click the **View details** link next to the `ECR Repository URL` listing for each service to see the proper Docker push commands to upload your image. You can also refer to the build shell scripts included with the sample apps to see one approach to automating the Docker push process.
