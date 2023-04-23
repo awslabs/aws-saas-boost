@@ -301,17 +301,21 @@ export const selectConfigMessage = (state) => state.settings.config.message
 export const selectConfig = (state) => state.settings.config.data
 
 export const selectServiceToS3BucketMap = (state) => {
-  const appConfig = state.settings.config.data
-  if (!!appConfig?.services) {
-    const keys = Object.keys(appConfig?.services)
-    return keys.reduce((prev, curr) => {
-      const map = {
-        ...prev,
-        [curr]:
-          appConfig?.services[curr].database?.bootstrapFilename,
-      }
-      return map
-    }, {})
+  // we only want the selectServiceToS3BucketMap to present any urls if the appConfig is not
+  // being updated, since we might be expecting a presigned url to in the updated appConfig
+  if (state.settings.config.loading !== 'pending') {
+    const appConfig = state.settings.config.data
+    if (!!appConfig?.services) {
+      const keys = Object.keys(appConfig?.services)
+      return keys.reduce((prev, curr) => {
+        const map = {
+          ...prev,
+          [curr]:
+            appConfig?.services[curr].database?.bootstrapFilename,
+        }
+        return map
+      }, {})
+    }
   }
   return {}
 }

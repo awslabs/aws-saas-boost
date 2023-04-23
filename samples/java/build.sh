@@ -39,22 +39,25 @@ for SERVICE in "${SERVICE_NAMES[@]}"; do
 done
 read -p "Please enter the number of the service to upload to: " CHOSEN_SERVICE_INDEX
 CHOSEN_SERVICE="${SERVICE_NAMES[CHOSEN_SERVICE_INDEX]}"
-echo "Uploading to $CHOSEN_SERVICE"
 
 SERVICE_JSON=$(aws ssm get-parameter --name /saas-boost/$SAAS_BOOST_ENV/app/$CHOSEN_SERVICE/SERVICE_JSON --output text --query "Parameter.Value")
-ECR_REPO=$(echo $SERVICE_JSON | jq .containerRepo - | cut -d\" -f2)
-echo "Uploading to ${CHOSEN_SERVICE} repository: ${ECR_REPO}"
+ECR_REPO=$(echo $SERVICE_JSON | jq .compute.containerRepo - | cut -d\" -f2)
+ECR_TAG=$(echo $SERVICE_JSON | jq .compute.containerTag - | cut -d\" -f2)
 if [ -z "$ECR_REPO" ]; then
     echo "Something went wrong: can't get ECR repo from Parameter Store. Exiting."
     exit 1
 fi
+if [ -z "$ECR_TAG" ]; then
+		ECR_TAG="latest"
+fi
+echo "Uploading to ${CHOSEN_SERVICE} repository ${ECR_REPO} using tag ${ECR_TAG}"
 
 if [ "$AWS_REGION" = "cn-northwest-1" ] || [ "$AWS_REGION" = "cn-north-1" ]; then
 	DOCKER_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com.cn/$ECR_REPO"
 else
 	DOCKER_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO"
 fi
-DOCKER_TAG="$DOCKER_REPO:latest"
+DOCKER_TAG="$DOCKER_REPO:$ECR_TAG"
 
 AWS_CLI_VERSION=$(aws --version 2>&1 | awk -F / '{print $2}' | cut -c 1)
 if [ $AWS_CLI_VERSION = '1' ]; then

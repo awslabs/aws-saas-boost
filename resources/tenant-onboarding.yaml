@@ -46,7 +46,13 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  DeployActiveDirectory:
+    Description: Deploy Active Directory
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
 Conditions:
+  ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
   HasDomainName: !Not [!Equals [!Ref DomainName, '']]
   HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
   HasSubDomainName: !Not [!Equals [!Ref TenantSubDomain, '']]
@@ -371,6 +377,20 @@ Resources:
             Path: '/#{path}'
             Query: '#{query}'
             StatusCode: HTTP_301
+  ad:
+    Type: AWS::CloudFormation::Stack
+    Condition: ProvisionManagedAD
+    Properties:
+      TemplateURL: !Sub https://{{resolve:ssm:/saas-boost/${Environment}/SAAS_BOOST_BUCKET}}.s3.${AWS::Region}.${AWS::URLSuffix}/tenant-onboarding-ad.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Subnets:
+          !Join
+            - ','
+            - - !Ref SubnetPrivateA
+              - !Ref SubnetPrivateB
+        VpcId: !Ref VPC
+        TenantId: !Ref TenantId
   # Onboarding service is responsible for invoking create stack for as many
   # services as this application has
 Outputs:
@@ -380,4 +400,7 @@ Outputs:
   DNSName:
     Description: DNSName for this tenant's application load balancer
     Value: !GetAtt ApplicationLoadBalancer.DNSName
+  ADPasswordSecret:
+    Description: SecretsManager reference to AD Password
+    Value: !GetAtt ad.Outputs.ADPasswordSecret
 ...

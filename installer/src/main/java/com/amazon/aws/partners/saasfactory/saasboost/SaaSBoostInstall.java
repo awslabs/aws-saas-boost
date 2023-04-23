@@ -560,10 +560,6 @@ public class SaaSBoostInstall {
             getQuickSightUsername();
         }
 
-        System.out.println("If your application runs on Windows and uses a shared file system, Active Directory is required.");
-        System.out.print("Would you like to provision AWS Directory Service to use with FSx for Windows File Server (y or n)? ");
-        final boolean setupActiveDirectory = Keyboard.readBoolean();
-
         System.out.println();
         outputMessage("===========================================================");
         outputMessage("");
@@ -583,7 +579,6 @@ public class SaaSBoostInstall {
         } else {
             outputMessage("Amazon QuickSight user for Analytics Module: N/A");
         }
-        outputMessage("Setup AWS Directory Service for FSx for Windows File Server: " + setupActiveDirectory);
 
         System.out.println();
         System.out.print("Continue (y or n)? ");
@@ -627,37 +622,6 @@ public class SaaSBoostInstall {
             }
         }
 
-        final String activeDirectoryPasswordParameterName = "/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD";
-        if (setupActiveDirectory) {
-            String activeDirectoryPassword = generatePassword(16);
-            LOGGER.info("Add SSM param ACTIVE_DIRECTORY_PASSWORD with password");
-            try {
-                ssm.putParameter(PutParameterRequest.builder()
-                        .name(activeDirectoryPasswordParameterName)
-                        .type(ParameterType.SECURE_STRING)
-                        .value(activeDirectoryPassword)
-                        .overwrite(true)
-                        .build()
-                );
-                secretsManager.createSecret(CreateSecretRequest.builder()
-                        .name(activeDirectoryPasswordParameterName)
-                        .secretString(activeDirectoryPassword)
-                        .forceOverwriteReplicaSecret(true)
-                        .build()
-                );
-            } catch (SsmException ssmError) {
-                LOGGER.error("ssm:PutParameter error", ssmError);
-                LOGGER.error(getFullStackTrace(ssmError));
-                throw ssmError;
-            } catch (SecretsManagerException smError) {
-                LOGGER.error("secretsmanager:createSecret error", smError);
-                LOGGER.error(getFullStackTrace(smError));
-                throw smError;
-            }
-            outputMessage("Active Directory admin user password stored in secure SSM Parameter: "
-                    + activeDirectoryPasswordParameterName);
-        }
-
         // Copy the source files up to S3 where CloudFormation resources expect them to be
         outputMessage("Uploading admin web app source files to S3");
         copyAdminWebAppSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
@@ -667,8 +631,7 @@ public class SaaSBoostInstall {
         this.stackName = "sb-" + envName;
         createSaaSBoostStack(stackName, emailAddress, systemIdentityProvider, identityProviderCustomDomain,
                 identityProviderHostedZone, identityProviderCertificate, adminWebAppCustomDomain,
-                adminWebAppHostedZone, adminWebAppCertificate, setupActiveDirectory,
-                activeDirectoryPasswordParameterName);
+                adminWebAppHostedZone, adminWebAppCertificate);
 
         this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
                 ssm, cfn, this.envName, this.accountId);
@@ -809,7 +772,8 @@ public class SaaSBoostInstall {
                 HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
                 for (String serviceName : services.keySet()) {
                     HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
-                    repos.add((String) service.get("containerRepo"));
+                    Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+                    repos.add((String) compute.get("containerRepo"));
                 }
             } else {
                 LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
@@ -1672,8 +1636,7 @@ public class SaaSBoostInstall {
     protected void createSaaSBoostStack(final String stackName, String adminEmail, String systemIdentityProvider,
                                         String identityProviderCustomDomain, String identityProviderHostedZone,
                                         String identityProviderCertificate, String adminWebAppCustomDomain,
-                                        String adminWebAppHostedZone, String adminWebAppCertificate,
-                                        Boolean useActiveDirectory, String activeDirectoryPasswordParam) {
+                                        String adminWebAppHostedZone, String adminWebAppCertificate) {
         // Note - most params the default is used from the CloudFormation stack
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
@@ -1690,8 +1653,6 @@ public class SaaSBoostInstall {
         //templateParameters.add(Parameter.builder().parameterKey("ApiDomain").parameterValue(Objects.toString(apiCustomDomaine, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiHostedZone").parameterValue(Objects.toString(apiHostedZone, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiCertificate").parameterValue(Objects.toString(apiCertificate, "")).build());
-        templateParameters.add(Parameter.builder().parameterKey("DeployActiveDirectory").parameterValue(useActiveDirectory.toString()).build());
-        templateParameters.add(Parameter.builder().parameterKey("ADPasswordParam").parameterValue(activeDirectoryPasswordParam).build());
         templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);

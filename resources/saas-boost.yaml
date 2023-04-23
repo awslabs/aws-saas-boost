@@ -75,14 +75,6 @@ Parameters:
     Description: Version of SaaS Boost
     Type: String
     Default: 1.0
-  DeployActiveDirectory:
-    Description: Deploy Active Directory
-    Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
-  ADPasswordParam:
-    Description: SSM Parameter name to use for AD User password
-    Type: String
   ApplicationServices:
     Description: Comma separated list of application service names to create ECR repositories for
     Type: String
@@ -97,7 +89,6 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: 'false'
 Conditions:
-  ProvisionManagedAD: !Equals [!Ref DeployActiveDirectory, 'true']
   ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
@@ -810,20 +801,6 @@ Resources:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
         Environment: !Ref Environment
-  ad:
-    Type: AWS::CloudFormation::Stack
-    Condition: ProvisionManagedAD
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-managed-ad.yaml
-      Parameters:
-        Environment: !Ref Environment
-        Subnets:
-          !Join
-            - ','
-            - - !GetAtt network.Outputs.PrivateSubnet1
-              - !GetAtt network.Outputs.PrivateSubnet2
-        VpcId: !GetAtt network.Outputs.EgressVpc
-        ADPasswordParam: !Ref ADPasswordParam
   idp:
     Type: AWS::CloudFormation::Stack
     Properties:

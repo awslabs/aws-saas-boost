@@ -119,7 +119,9 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                         for (Output output : stack.outputs()) {
                             if ("DNSName".equals(output.outputKey())) {
                                 hostname = output.outputValue();
-                                break;
+                            }
+                            if ("ADPasswordSecret".equals(output.outputKey())) {
+                                
                             }
                         }
                     }
@@ -294,6 +296,7 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
     protected static boolean filter(CloudFormationEvent cloudFormationEvent) {
         return ("AWS::CloudFormation::Stack".equals(cloudFormationEvent.getResourceType())
                 && STACK_NAME_PATTERN.matcher(cloudFormationEvent.getStackName()).matches()
+                && STACK_NAME_PATTERN.matcher(cloudFormationEvent.getLogicalResourceId()).matches()
                 && EVENTS_OF_INTEREST.contains(cloudFormationEvent.getResourceStatus()));
     }
 

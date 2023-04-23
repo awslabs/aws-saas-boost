@@ -163,6 +163,7 @@ export function ApplicationContainer(props) {
       }
       // clean tiers if present
       if (!!filesystem?.tiers) {
+        let cleanedTiers = {}
         for (let tierName in filesystem.tiers) {
           let {
             weeklyMaintenanceDay,
@@ -174,8 +175,9 @@ export function ApplicationContainer(props) {
           }
           // get rid of keys that aren't needed for this tier for this filesystem type
           removeUnwantedKeys(cleanedFsTier, Object.keys(FILESYSTEM_TYPES[filesystemType].tierDefaults))
-          cleanedFs.tiers[tierName] = cleanedFsTier
+          cleanedTiers[tierName] = cleanedFsTier
         }
+        cleanedFs.tiers = cleanedTiers
       }
       // get rid of keys that aren't needed for this filesystem type
       removeUnwantedKeys(cleanedFs, [...Object.keys(FILESYSTEM_TYPES[filesystemType].defaults), 'type', 'tiers'])
@@ -185,11 +187,40 @@ export function ApplicationContainer(props) {
     }
   }
 
-  const updateConfiguration = async (values) => {
+  const cleanDatabaseForSubmittal = (provisionDb, database, serviceName) => {
     const isMatch = (pw, encryptedPw) => {
       return encryptedPw.substring(0, 8) === pw
     }
 
+    if (provisionDb) {
+      const {
+        port,
+        hasEncryptedPassword,
+        encryptedPassword,
+        bootstrapFilename,
+        ...restDb
+      } = database
+      const cleanedDb = {
+        ...restDb,
+        // if new file was dropped into the AppConfig page it will be in the file object for this service
+        // that means a new bootstrap file was chosen, so pass null for the bootstrap filename so the settings
+        // service will return a presigned url for us. otherwise, return the bootstrap filename already in
+        // the database
+        bootstrapFilename: !!file[serviceName] ? null : bootstrapFilename,
+        // If we detected an encrypted password coming in, and it looks like they haven't changed it
+        // then send the encrypted password back to the server. Otherwise send what they changed.
+        password:
+          hasEncryptedPassword &&
+          isMatch(restDb.password, encryptedPassword)
+            ? encryptedPassword
+            : restDb.password,
+      }
+      return cleanedDb
+    }
+    return null
+  }
+
+  const updateConfiguration = async (values) => {
     try {
       const { services, billing, provisionBilling, ...rest } = values
       let cleanedServicesMap = {}
@@ -198,42 +229,35 @@ export function ApplicationContainer(props) {
         // update the service config
         const {
           name,
-          windowsVersion,
-          operatingSystem,
-          ecsLaunchType,
           provisionDb,
           provisionObjectStorage,
           database,
           filesystem,
           provisionFS,
           filesystemType,
+          compute,
           ...rest
         } = thisService
         const {
-          port,
-          hasEncryptedPassword,
-          encryptedPassword,
-          bootstrapFilename,
-          ...restDb
-        } = database
-        // If we detected an encrypted password coming in, and it looks like they haven't changed it
-        // then send the encrypted password back to the server. Otherwise send what they changed.
-        const cleanedDb = {
-          ...restDb,
-          password:
-            hasEncryptedPassword &&
-            isMatch(restDb.password, encryptedPassword)
-              ? encryptedPassword
-              : restDb.password,
+          operatingSystem,
+          ecsLaunchType,
+          windowsVersion,
+          ...restCompute
+        } = compute
+        // if operatingSystem is not linux (assumed to mean Windows) then launch type must be EC2. otherwise use the launchType if non-null, defaulting to Fargate
+        const cleanedEcsLaunchType = (!!operatingSystem && operatingSystem !== LINUX) ? "EC2" : (!!ecsLaunchType ? ecsLaunchType : "FARGATE")
+        const cleanedCompute = {
+          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
+          ecsLaunchType: cleanedEcsLaunchType,
+          ...restCompute
         }
         cleanedServicesMap[name] = {
           ...rest,
           name,
-          operatingSystem: operatingSystem === LINUX ? LINUX : windowsVersion,
-          ecsLaunchType: (!!ecsLaunchType) ? ecsLaunchType : (operatingSystem === LINUX ? "FARGATE" : "EC2"),
-          database: provisionDb ? cleanedDb : null,
+          database: cleanDatabaseForSubmittal(provisionDb, database, name),
           filesystem: cleanFilesystemForSubmittal(provisionFS, filesystemType, filesystem),
-          s3: provisionObjectStorage ? {} : null
+          s3: provisionObjectStorage ? {} : null,
+          compute: cleanedCompute,
         }
       }
 

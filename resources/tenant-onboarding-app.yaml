@@ -115,6 +115,14 @@ Parameters:
     Description: Maximum count of concurrent tasks for this tenant (max size we can auto scale up to)
     Type: Number
     Default: 1
+  MinAutoScalingGroupSize:
+    Description: Minimum count of EC2 instances running in AutoScaling group
+    Type: Number
+    Default: 0
+  MaxAutoScalingGroupSize:
+    Description: Maximum count of EC2 instances running in AutoScaling group
+    Type: Number
+    Default: 1
   ContainerPort:
     Description: The TCP port the container is listening on via EXPOSE in the Dockerfile
     Type: Number
@@ -323,7 +331,7 @@ Resources:
     Type: Custom::CustomResource
     Condition: Ec2LaunchType
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
+      ServiceToken: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-attach-capacity-provider
       CapacityProvider: !Ref CapacityProvider
       ECSCluster: !Ref ECSCluster
       OnboardingDdbTable: !Ref OnboardingDdbTable
@@ -690,18 +698,12 @@ Resources:
         LaunchTemplateId: !If [Ec2Windows, !Ref WindowsLaunchTemplate, !Ref LinuxLaunchTemplate]
         Version: !If [Ec2Windows, !GetAtt WindowsLaunchTemplate.LatestVersionNumber, !GetAtt LinuxLaunchTemplate.LatestVersionNumber]
       NewInstancesProtectedFromScaleIn: true
-      MinSize: '0'
-      MaxSize: '20'
-      DesiredCapacity: '0'
-      #Cooldown:
+      MinSize: !Ref MinAutoScalingGroupSize
+      MaxSize: !Ref MaxAutoScalingGroupSize
       HealthCheckGracePeriod: 30
-      #HealthCheckType:
-      #MetricsCollection:
-      #NotificationConfigurations:
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
-        #MinSuccessfulInstancesPercent: 0
         MaxBatchSize: 1
         PauseTime: PT5M
         WaitOnResourceSignals: false
@@ -790,10 +792,14 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource:
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_USER
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_IPS
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_NAME
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD*
               - Effect: Allow
                 Action:
                   - kms:Decrypt
@@ -896,10 +902,10 @@ Resources:
                 Restart-Service AmazonECS
 
                 Write-Output ("Getting SSM Parameters for the Active Directory domain")
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
-                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
-                $password = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_PASSWORD -WithDecryption $True).Parameters[0].Value | ConvertTo-SecureString -asPlainText -Force
-                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
+                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
+                $password = (Get-SECSecretValue -SecretId /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD -Select 'SecretString') | ConvertTo-SecureString -asPlainText -Force
+                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
                 $ips = $ipdns.Split(",")
 
                 Write-Output ("Reading the existing VPC DNS Server IP")

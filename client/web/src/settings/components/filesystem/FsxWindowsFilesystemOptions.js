@@ -25,6 +25,7 @@ import {
 import {
     SaasBoostSelect,
     SaasBoostInput,
+    SaasBoostCheckbox,
 } from '../../../components/FormComponents'
 import Slider from 'rc-slider'
 
@@ -66,6 +67,14 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
             props.setFieldValue(
               props.formikFilesystemTierPrefix + '.weeklyMaintenanceDay',
               val.target.value
+            )
+          }
+
+          if (!!!props.forTier && !!!props.filesystem?.configureManagedAd) {
+            // configureManagedAd is required for FSx Windows
+            props.setFieldValue(
+              props.formikServicePrefix + '.filesystem.configureManagedAd',
+              true
             )
           }
 
@@ -224,6 +233,16 @@ export default class FsxWindowsFilesystemOptions extends React.Component {
                       name={props.formikServicePrefix + '.filesystem.mountPoint'}
                       type="text"
                       disabled={props.isLocked}
+                    />
+                  </Col>
+                  <Col xl={6} className="mt-2">
+                    <SaasBoostCheckbox
+                      id={props.formikServicePrefix + '.filesystem.configureManagedAd'}
+                      name={props.formikServicePrefix + '.filesystem.configureManagedAd'}
+                      label="Provision a Managed Microsoft AD for the tenant."
+                      tooltip="Managed Microsoft AD is required for FSx Windows."
+                      value={true}
+                      disabled={true} // for FSx Windows Managed AD is always required
                     />
                   </Col>
                 </Row>
