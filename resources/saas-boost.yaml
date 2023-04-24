@@ -139,7 +139,7 @@ Resources:
   Logging:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: LogDeliveryWrite
+      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -165,14 +165,23 @@ Resources:
       Bucket: !Ref Logging
       PolicyDocument:
         Statement:
-          - Effect: Deny
+          - Sid: DenyNonSecureTransport
+            Effect: Deny
             Action: s3:*
             Principal: '*'
             Resource:
               - !Sub arn:${AWS::Partition}:s3:::${Logging}/*
               - !Sub arn:${AWS::Partition}:s3:::${Logging}
             Condition:
-              Bool: { 'aws:SecureTransport': false }
+              Bool: { 'aws:SecureTransport': false }        
+          - Sid: AllowLogging
+            Effect: Allow
+            Action: s3:PutObject
+            Principal: 
+              Service: 
+                - logging.s3.amazonaws.com
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${Logging}/*
   # Bucket needed for CodePipeline to drive tenant deployment workflow
   Pipelines:
     Type: AWS::S3::Bucket
