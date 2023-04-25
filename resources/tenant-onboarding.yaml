@@ -402,5 +402,5 @@ Outputs:
     Value: !GetAtt ApplicationLoadBalancer.DNSName
   ADPasswordSecret:
     Description: SecretsManager reference to AD Password
-    Value: !GetAtt ad.Outputs.ADPasswordSecret
+    Value: !If [ProvisionManagedAD, !GetAtt ad.Outputs.ADPasswordSecret, ""]
 ...
