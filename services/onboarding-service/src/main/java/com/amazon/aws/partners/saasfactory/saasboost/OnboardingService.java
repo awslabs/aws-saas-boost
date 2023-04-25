@@ -571,7 +571,7 @@ public class OnboardingService {
                     privateServices = privateServices || !(Boolean) service.get("public");
                     Map<String, Object> filesystem = (Map<String, Object>) service.get("filesystem");
                     if (filesystem != null) {
-                        deployActiveDirectory = deployActiveDirectory || (Boolean) filesystem.get("configureManagedAd");
+                        deployActiveDirectory = deployActiveDirectory || (Boolean) filesystem.getOrDefault("configureManagedAd", false);
                     }
                 }
 
