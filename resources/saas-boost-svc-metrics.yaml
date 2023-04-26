@@ -36,10 +36,10 @@ Parameters:
   AthenaOutput:
     Description: Web S3 bucket
     Type: String
-  SaaSBoostPrivateApi:
+  SaaSBoostApi:
     Description: SaaS Boost Private API
     Type: String
-  PrivateApiStage:
+  ApiStage:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
 Mappings:
@@ -298,8 +298,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
   MetricsServicePublishRequestCountLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -423,9 +424,9 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -491,9 +492,9 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
           ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
