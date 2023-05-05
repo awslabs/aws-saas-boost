@@ -30,6 +30,9 @@ Parameters:
   CloudFormationUtilsLayer:
     Description: CloudFormation Utils Layer ARN
     Type: String
+  KeycloakHelperLayer:
+    Description: Keycloak Helper Layer ARN
+    Type: String
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Type: String
@@ -141,6 +144,7 @@ Resources:
   AdminWebAppClient:
     Type: AWS::Cognito::UserPoolClient
     Condition: UseCognito
+    DependsOn: UserPoolResourceServer
     Properties:
       ClientName: !Sub sb-${Environment}-admin-webapp-client
       UserPoolId: !Ref UserPool
@@ -159,6 +163,8 @@ Resources:
         - openid
         - email
         - profile
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
       CallbackURLs:
         - !Ref AdminWebUrl
         - http://localhost:3000
@@ -212,6 +218,12 @@ Resources:
         - sb-${Environment}-saas-boost-${RandomString}
         - RandomString: !Select [2, !Split ['/', !Ref AWS::StackId]]
       UserPoolId: !Ref UserPool
+  UserPoolAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Condition: UseCognito
+    Properties:
+      GroupName: admin
+      UserPoolId: !Ref UserPool
   UserPoolAdminUser:
     Type: AWS::Cognito::UserPoolUser
     Condition: UseCognito
@@ -224,6 +236,13 @@ Resources:
           Value: !Ref AdminEmailAddress
         - Name: email_verified
           Value: 'true'
+      Username: !Ref AdminUsername
+      UserPoolId: !Ref UserPool
+  AdminUserGroupMembership:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Condition: UseCognito
+    Properties:
+      GroupName: !Ref UserPoolAdminGroup
       Username: !Ref AdminUsername
       UserPoolId: !Ref UserPool
   CustomizeCognitoUiLogs:
@@ -405,6 +424,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        KeycloakHelperLayer: !Ref KeycloakHelperLayer
         CodePipelineBucket: !Ref CodePipelineBucket
         CodePipelineUpdateEcsService: !Ref CodePipelineUpdateEcsService
         StartCodeBuildLambda: !Ref StartCodeBuildLambda
@@ -438,6 +458,14 @@ Resources:
         - UseCognito
         - !Sub '{"client_name": "${InvokeApiAppClientDetails.ClientName}", "client_id": "${InvokeApiAppClientDetails.ClientId}", "client_secret": "${InvokeApiAppClientDetails.ClientSecret}", "token_endpoint": "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/token", "api_endpoint": "${ApiGatewayUrl}"}'
         - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}", "api_endpoint": "${ApiGatewayUrl}"}'
+  PrivateApiAppClientSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+      SecretString: !If
+        - UseCognito
+        - !Sub '{"client_name": "${InvokePrivateApiAppClientDetails.ClientName}", "client_id": "${InvokePrivateApiAppClientDetails.ClientId}", "client_secret": "${InvokePrivateApiAppClientDetails.ClientSecret}", "token_endpoint": "https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/token", "api_endpoint": "${ApiGatewayUrl}"}'
+        - !Sub '{"client_name": "${keycloak.Outputs.PrivateApiAppClientName}", "client_id": "${keycloak.Outputs.PrivateApiAppClientId}", "client_secret": "${keycloak.Outputs.PrivateApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.KeycloakTokenEndpoint}", "api_endpoint": "${ApiGatewayUrl}"}'
 Outputs:
   OidcIssuerUrl:
     Description: OIDC issuer for System User IdP
@@ -456,6 +484,12 @@ Outputs:
   AdminWebAppClient:
     Description: Admin Web App Public App Client for authorization code grants with PKCE
     Value: !If [UseCognito, !Ref AdminWebAppClient, !GetAtt keycloak.Outputs.AdminWebAppClientId]
+  ApiAppClient:
+    Description: API App Client with secret for client credentials grant
+    Value: !If [UseCognito, !Ref ApiAppClient, !GetAtt keycloak.Outputs.ApiAppClientId]
+  PrivateApiAppClient:
+    Description: API App Client with secret for client credentials grant
+    Value: !If [UseCognito, !Ref PrivateApiAppClient, !GetAtt keycloak.Outputs.PrivateApiAppClientId]
   # The following outputs are used conditionally by the system user service
   CognitoUserPool:
     Condition: UseCognito

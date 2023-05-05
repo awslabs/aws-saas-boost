@@ -40,7 +40,6 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String SYSTEM_API_CALL = "System API Call";
     private static final String UPDATE_TENANT_RESOURCES = "Tenant Update Resources";
     private static final String BILLING_SETUP = "Billing Tenant Setup";
     private static final String BILLING_DISABLE = "Billing Tenant Disable";

@@ -26,6 +26,8 @@ import software.amazon.awssdk.services.codepipeline.CodePipelineClient;
 import software.amazon.awssdk.services.codepipeline.model.StartPipelineExecutionResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,10 +43,12 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private static final String CODE_PIPELINE_BUCKET = System.getenv("CODE_PIPELINE_BUCKET");
     private final S3Client s3;
     private final CodePipelineClient codepipeline;
+    private final SecretsManagerClient secrets;
+    private ApiGatewayHelper api;
 
     public WorkloadDeploy() {
         if (Utils.isBlank(AWS_REGION)) {
@@ -59,8 +63,8 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         if (Utils.isBlank(CODE_PIPELINE_BUCKET)) {
             throw new IllegalStateException("Missing required environment variable CODE_PIPELINE_BUCKET");
@@ -68,6 +72,7 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
         this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
         this.codepipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
+        this.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
     }
 
     @Override
@@ -134,11 +139,11 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
             List<Map<String, Object>> tenants = null;
             String source = (String) event.get("source");
             if ("aws.ecr".equals(source)) {
-                tenants = getTenants(context);
+                tenants = getTenants();
             } else if ("saas-boost".equals(source)) {
                 String tenantId = (String) detail.get("tenantId");
                 if (Utils.isNotEmpty(tenantId)) {
-                    tenants = getTenants(tenantId, context);
+                    tenants = getTenants(tenantId);
                 }
             }
             if (tenants != null && !tenants.isEmpty()) {
@@ -168,49 +173,46 @@ public class WorkloadDeploy implements RequestHandler<Map<String, Object>, Objec
     protected Map<String, Object> getAppConfig(Context context) {
         // Fetch all of the services configured for this application
         LOGGER.info("Calling settings service get app config API");
-        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("settings/config")
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+        String getAppConfigResponseBody = apiGatewayHelper().authorizedRequest("GET", "settings/config");
         Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         return appConfig;
     }
 
-    protected List<Map<String, Object>> getTenants(Context context) {
-        return getTenants(null, context);
+    protected List<Map<String, Object>> getTenants() {
+        return getTenants(null);
     }
 
-    protected List<Map<String, Object>> getTenants(String tenantId, Context context) {
-        // Fetch one or all tenants
+    protected List<Map<String, Object>> getTenants(String tenantId) {
         LOGGER.info("Calling tenants service get tenants API");
         String resource = Utils.isNotEmpty(tenantId) ? "tenants/" + tenantId : "tenants?status=provisioned";
-        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource(resource)
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
-        List<Map<String, Object>> tenants;
-        if (Utils.isNotEmpty(tenantId)) {
-            tenants = Collections.singletonList(Utils.fromJson(getTenantsResponseBody, LinkedHashMap.class));
-        } else {
-            tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
-        }
+        String getTenantsResponseBody = apiGatewayHelper().authorizedRequest("GET", resource);
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
         return tenants;
+    }
+
+    protected ApiGatewayHelper apiGatewayHelper() {
+        if (this.api == null) {
+            // Fetch the app client details from SecretsManager
+            LinkedHashMap<String, String> clientDetails;
+            try {
+                GetSecretValueResponse response = secrets.getSecretValue(request -> request
+                        .secretId(API_APP_CLIENT)
+                );
+                clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
+            } catch (SdkServiceException secretsManagerError) {
+                LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
+                throw secretsManagerError;
+            }
+            // Build an API helper with the app client
+            this.api = ApiGatewayHelper.builder()
+                    .host(API_GATEWAY_HOST)
+                    .stage(API_GATEWAY_STAGE)
+                    .clientId(clientDetails.get("client_id"))
+                    .clientSecret(clientDetails.get("client_secret"))
+                    .tokenEndpoint(clientDetails.get("token_endpoint"))
+                    .build();
+        }
+        return this.api;
     }
 
     protected static boolean validEvent(Map<String, Object> event) {

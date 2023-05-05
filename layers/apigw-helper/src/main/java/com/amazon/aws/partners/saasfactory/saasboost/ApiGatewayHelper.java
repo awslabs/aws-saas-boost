@@ -101,6 +101,10 @@ public class ApiGatewayHelper {
         return signingRole;
     }
 
+    public String authorizedRequest(String method, String resource) {
+        return authorizedRequest(method, resource, null);
+    }
+
     public String authorizedRequest(String method, String resource, String body) {
         if (appClient == null) {
             throw new IllegalStateException("Missing appClient details");
@@ -117,6 +121,10 @@ public class ApiGatewayHelper {
                         .build()
                 )
         );
+    }
+
+    public String signedRequest(String method, String resource) {
+        return signedRequest(method, resource, null);
     }
 
     public String signedRequest(String method, String resource, String body) {
@@ -149,6 +157,10 @@ public class ApiGatewayHelper {
                 signingRole,
                 assumeRoleSessionName
         );
+    }
+
+    public String anonymousRequest(String method, String resource) {
+        return anonymousRequest(method, resource, null);
     }
 
     public String anonymousRequest(String method, String resource, String body) {

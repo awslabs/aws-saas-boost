@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: 2010-09-09
-Description: AWS SaaS Boost Public API
+Description: AWS SaaS Boost API
 Parameters:
   Environment:
     Description: Environment name
@@ -27,14 +27,14 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
-  PublicApi:
+  SaaSBoostApi:
     Description: API Gateway REST API
     Type: String
   RootResourceId:
     Description: API Gateway REST API root resource id
     Type: String
-  PublicApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost public API
+  ApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost API
     Type: String
     Default: v1
   IdentityProvider:
@@ -50,6 +50,15 @@ Parameters:
     Type: String
   KeycloakRealm:
     Description: The non-master Keycloak realm to authenticate against
+    Type: String
+  AdminWebAppClientId:
+    Description: OAuth App Client Id for the Admin Web App
+    Type: String
+  ApiAppClientId:
+    Description: OAuth App Client Id for API client credentials grant
+    Type: String
+  PrivateApiAppClientId:
+    Description: OAuth App Client Id for private API client credentials grant
     Type: String
   BillingServiceGetPlans:
     Description: Billing Service subscription plans Lambda ARN
@@ -72,6 +81,9 @@ Parameters:
   OnboardingServiceById:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Type: String
+  QuotasServiceCheck:
+    Description: Quota Service check limits Lambda ARN
+    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -87,8 +99,17 @@ Parameters:
   SettingsServiceUpdateAppConfig:
     Description: Settings Service update application configuration Lambda ARN
     Type: String
+  SettingsServiceGetSecret:
+    Description: Settings Service get decrypted secret setting Lambda ARN
+    Type: String
+  SettingsServiceDeleteAppConfig:
+    Description: Settings Service delete application configuration Lambda ARN
+    Type: String
   TenantServiceGetAll:
     Description: Tenant Service get all tenants Lambda ARN
+    Type: String
+  TenantServiceInsert:
+    Description: Tenant Service insert new tenant Lambda ARN
     Type: String
   TenantServiceById:
     Description: Tenant Service get tenant by id Lambda ARN
@@ -199,6 +220,9 @@ Resources:
           USER_POOL_ID: !Ref CognitoUserPoolId
           KEYCLOAK_HOST: !Ref KeycloakHost
           KEYCLOAK_REALM: !Ref KeycloakRealm
+          ADMIN_WEB_APP_CLIENT_ID: !Ref AdminWebAppClientId
+          API_APP_CLIENT_ID: !Ref ApiAppClientId
+          PRIVATE_API_APP_CLIENT_ID: !Ref PrivateApiAppClientId
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -229,7 +253,7 @@ Resources:
   ApiGatewayAccessLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/apigateway/${PublicApi}
+      LogGroupName: !Sub /aws/apigateway/${SaaSBoostApi}
       RetentionInDays: 30
   ApiGatewayLambdaAuthorizerRole:
     Type: AWS::IAM::Role
@@ -258,7 +282,7 @@ Resources:
   ApiGatewayLambdaAuthorizer:
     Type: AWS::ApiGateway::Authorizer
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       Type: TOKEN
       Name: !Sub sb-${Environment}-pub-api-authorizer
       AuthorizerCredentials: !GetAtt ApiGatewayLambdaAuthorizerRole.Arn
@@ -268,19 +292,19 @@ Resources:
   BillingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'billing'
   BillingServicePlansResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref BillingServiceResource
       PathPart: 'plans'
   BillingServicePlansResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref BillingServicePlansResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -310,7 +334,7 @@ Resources:
   BillingServiceGetPlansMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref BillingServicePlansResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -331,53 +355,53 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref BillingServiceGetPlans
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/billing/plans
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/billing/plans
   MetricsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'metrics'
   MetricsServiceQueryResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
       PathPart: 'query'
   MetricsServiceDatasetsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
       PathPart: 'datasets'
   MetricsServiceAlbResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
       PathPart: 'alb'
   MetricsServiceAlbMetricResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceAlbResource
       PathPart: '{metric}'
   MetricsServiceAlbQueryResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceAlbMetricResource
       PathPart: '{timerange}'
   MetricsServiceAlbQueryByTenantIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceAlbQueryResource
       PathPart: '{id}'
   MetricsServiceQueryMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceQueryResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
@@ -398,11 +422,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/metrics/query
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics/query
   MetricsServiceQueryResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceQueryResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -432,7 +456,7 @@ Resources:
   MetricsServiceDatasetsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceDatasetsResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -453,11 +477,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceDatasets
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/datasets
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/datasets
   MetricsServiceDatasetsResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceDatasetsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -487,7 +511,7 @@ Resources:
   MetricsServiceAlbQueryMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceAlbQueryResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -514,11 +538,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}
   MetricsServiceAlbQueryResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceAlbQueryResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -548,7 +572,7 @@ Resources:
   MetricsServiceAlbQueryByTenantIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -577,11 +601,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
   MetricsServiceAlbQueryByTenantIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -611,19 +635,19 @@ Resources:
   OnboardingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'onboarding'
   OnboardingServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref OnboardingServiceResource
       PathPart: '{id}'
   OnboardingServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -644,11 +668,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/onboarding
   OnboardingServiceStartMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
@@ -669,11 +693,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceStart
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/onboarding
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/onboarding
   OnboardingServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref OnboardingServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -703,7 +727,7 @@ Resources:
   OnboardingServiceByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref OnboardingServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -726,11 +750,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/onboarding/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/onboarding/{id}
   OnboardingServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref OnboardingServiceByIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -757,34 +781,107 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+  QuotaServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: quotas
+  QuotaServiceCheckResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref QuotaServiceResource
+      PathPart: check
+  QuotaServiceCheckMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref QuotaServiceCheckResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QuotasServiceCheck}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  QuotasServiceLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref QuotasServiceCheck
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/quotas/check
+  QuotaServiceCheckResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref QuotaServiceCheckResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
   SettingsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'settings'
   SettingsServiceConfigResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SettingsServiceResource
       PathPart: 'config'
   SettingsServiceOptionsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SettingsServiceResource
       PathPart: 'options'
   SettingsServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SettingsServiceResource
       PathPart: '{id}'
+  SettingsServiceSecretResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SettingsServiceByIdResource
+      PathPart: 'secret'
   SettingsServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -805,11 +902,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings
   SettingsServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -839,7 +936,7 @@ Resources:
   SettingsServiceOptionsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceOptionsResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -860,11 +957,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceOptions
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/options
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/options
   SettingsServiceOptionsResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceOptionsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -894,7 +991,7 @@ Resources:
   SettingsServiceGetAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -915,11 +1012,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceGetAppConfig
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/config
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/config
   SettingsServiceUpdateAppConfigMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
@@ -940,11 +1037,36 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceUpdateAppConfig
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/settings/config
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/settings/config
+  SettingsServiceDeleteAppConfigMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceConfigResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceDeleteAppConfig}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceDeleteAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceDeleteAppConfig
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/settings/config
   SettingsServiceConfigResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceConfigResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -974,7 +1096,7 @@ Resources:
   SettingsServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -997,12 +1119,69 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SettingsServiceById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/settings/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/{id}
   SettingsServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceSecretMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceSecretResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetSecret}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetSecretLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetSecret
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/{id}/secret
+  SettingsServiceSecretResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceSecretResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -1031,31 +1210,31 @@ Resources:
   TenantServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'tenants'
   TenantServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref TenantServiceResource
       PathPart: '{id}'
   TenantServiceEnableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref TenantServiceByIdResource
       PathPart: 'enable'
   TenantServiceDisableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref TenantServiceByIdResource
       PathPart: 'disable'
   TenantServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1076,11 +1255,36 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tenants
+  TenantServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/tenants
   TenantServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1110,7 +1314,7 @@ Resources:
   TenantServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1133,11 +1337,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tenants/{id}
   TenantServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
@@ -1160,11 +1364,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceUpdate
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/tenants/{id}
   TenantServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
@@ -1187,11 +1391,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceDelete
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tenants/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/tenants/{id}
   TenantServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceByIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1221,7 +1425,7 @@ Resources:
   TenantServiceEnableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceEnableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
@@ -1244,11 +1448,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceEnable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/enable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/tenants/{id}/enable
   TenantServiceEnableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceEnableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1278,7 +1482,7 @@ Resources:
   TenantServiceDisableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceDisableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
@@ -1301,11 +1505,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TenantServiceDisable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/tenants/{id}/disable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/tenants/{id}/disable
   TenantServiceDisableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TenantServiceDisableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1335,13 +1539,13 @@ Resources:
   TierServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'tiers'
   TierServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1371,13 +1575,13 @@ Resources:
   TierServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref TierServiceResource
       PathPart: '{id}'
   TierServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1407,7 +1611,7 @@ Resources:
   TierServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1430,11 +1634,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tiers
   TierServiceCreateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
@@ -1457,11 +1661,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceCreate
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/tiers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/tiers
   TierServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1484,11 +1688,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceGetById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tiers/{id}
   TierServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
@@ -1511,11 +1715,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceUpdate
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/tiers/{id}
   TierServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref TierServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
@@ -1538,35 +1742,35 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceDelete
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/tiers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/tiers/{id}
   SystemUserServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: 'sysusers'
   SystemUserServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SystemUserServiceResource
       PathPart: '{id}'
   SystemUserServiceEnableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SystemUserServiceByIdResource
       PathPart: 'enable'
   SystemUserServiceDisableResource:
     Type: AWS::ApiGateway::Resource
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SystemUserServiceByIdResource
       PathPart: 'disable'
   SystemUserServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1587,11 +1791,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceGetAll
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/sysusers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/sysusers
   SystemUserServiceInsertMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
@@ -1612,11 +1816,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceInsert
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/POST/sysusers
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/sysusers
   SystemUserServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1646,7 +1850,7 @@ Resources:
   SystemUserServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: GET
       AuthorizationType: CUSTOM
@@ -1669,11 +1873,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceById
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/GET/sysusers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/sysusers/{id}
   SystemUserServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
@@ -1696,11 +1900,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceUpdate
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PUT/sysusers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/sysusers/{id}
   SystemUserServiceDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: DELETE
       AuthorizationType: CUSTOM
@@ -1723,11 +1927,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceDelete
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/DELETE/sysusers/{id}
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/sysusers/{id}
   SystemUserServiceByIdResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceByIdResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1757,7 +1961,7 @@ Resources:
   SystemUserServiceEnableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceEnableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
@@ -1780,11 +1984,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceEnable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/sysusers/{id}/enable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/sysusers/{id}/enable
   SystemUserServiceEnableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceEnableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1814,7 +2018,7 @@ Resources:
   SystemUserServiceDisableMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceDisableResource
       HttpMethod: PATCH
       AuthorizationType: CUSTOM
@@ -1837,11 +2041,11 @@ Resources:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
       FunctionName: !Ref SystemUserServiceDisable
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicApi}/*/PATCH/sysusers/{id}/disable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/sysusers/{id}/disable
   SystemUserServiceDisableResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
-      RestApiId: !Ref PublicApi
+      RestApiId: !Ref SaaSBoostApi
       ResourceId: !Ref SystemUserServiceDisableResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
@@ -1888,16 +2092,22 @@ Resources:
       - OnboardingServiceResourceCORS
       - OnboardingServiceByIdMethod
       - OnboardingServiceByIdResourceCORS
+      - QuotaServiceCheckMethod
+      - QuotaServiceCheckResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS
       - SettingsServiceOptionsMethod
       - SettingsServiceOptionsResourceCORS
       - SettingsServiceGetAppConfigMethod
       - SettingsServiceUpdateAppConfigMethod
+      - SettingsServiceDeleteAppConfigMethod
       - SettingsServiceConfigResourceCORS
       - SettingsServiceGetByIdMethod
       - SettingsServiceByIdResourceCORS
+      - SettingsServiceSecretMethod
+      - SettingsServiceSecretResourceCORS
       - TenantServiceGetAllMethod
+      - TenantServiceInsertMethod
       - TenantServiceResourceCORS
       - TenantServiceGetByIdMethod
       - TenantServiceUpdateMethod
@@ -1919,13 +2129,13 @@ Resources:
       - SystemUserServiceDisableMethod
       - SystemUserServiceDisableResourceCORS
     Properties:
-      RestApiId: !Ref PublicApi
-  ApiStage:
+      RestApiId: !Ref SaaSBoostApi
+  ApiGatewayStage:
     Type: AWS::ApiGateway::Stage
     DependsOn: ApiGatewayLoggingAccount
     Properties:
-      RestApiId: !Ref PublicApi
-      StageName: !Ref PublicApiStage
+      RestApiId: !Ref SaaSBoostApi
+      StageName: !Ref ApiStage
       DeploymentId: !Ref ApiDeployment
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
@@ -1936,7 +2146,7 @@ Resources:
           LoggingLevel: INFO
           ResourcePath: '/*'
 Outputs:
-  PublicApiGatewayEndpoint:
-    Description: SaaS Boost Admin PI Gateway Invoke URL
-    Value: !Sub 'https://${PublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
+  ApiGatewayEndpoint:
+    Description: SaaS Boost API Gateway Invoke URL
+    Value: !Sub 'https://${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
 ...

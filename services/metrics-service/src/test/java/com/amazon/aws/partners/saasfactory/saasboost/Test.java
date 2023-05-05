@@ -173,7 +173,7 @@ public class Test {
 
         //test metric service
         MetricServiceDAL dal = new MetricServiceDAL();
-        List<QueryResult> result = dal.queryMetrics(query1);
+        List<QueryResult> result = dal.queryMetrics(query1, Collections.EMPTY_MAP);
         System.out.println("CPUUtilization: " + Utils.toJson(result));
 
         //Test out a single tenant
@@ -202,7 +202,7 @@ public class Test {
 
         //test metric service
         dal = new MetricServiceDAL();
-        result = dal.queryTenantMetrics(query1);
+        result = dal.queryTenantMetrics(query1, Collections.EMPTY_MAP);
         //List<MetricResult> result = dal.queryMetrics(query1);
         System.out.println("CPUUtilization for Single Tenant: " + Utils.toJson(result));
 
@@ -261,7 +261,7 @@ public class Test {
         query.setPeriod(43200);
         System.out.println("Query for AWS/Usage JSON: " + Utils.toJson(query));
 
-        result  = dal.queryMetrics(query);
+        result  = dal.queryMetrics(query, Collections.EMPTY_MAP);
         System.out.println("EC2 ResourceCount: " + Utils.toJson(result));
 
         //For P90 or aggregrate, need to go through results and calculate values by time slot
@@ -322,7 +322,7 @@ public class Test {
         query.setTopTenants(true);
 
         System.out.println("Query for ALB JSON: " + Utils.toJson(query));
-        result = dal.queryMetrics(query);
+        result = dal.queryMetrics(query, Collections.emptyMap());
 /*        for (Metric metric : results) {
             System.out.println(metric);
             //System.out.println(("Tenant: # of values:" + metric.getTimeValMap().size()));

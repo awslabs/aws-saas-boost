@@ -28,11 +28,11 @@ Parameters:
   EventBus:
     Description: SaaS Boost Event Bus
     Type: String
-  SaaSBoostPrivateApi:
-    Description: SaaS Boost Private API
+  SaaSBoostApi:
+    Description: SaaS Boost API
     Type: String
-  PrivateApiStage:
-    Description: Private API Stage
+  ApiStage:
+    Description: SaaS Boost API Stage
     Type: String
   SaaSBoostUtilsLayer:
     Description: Arn of the Utils Layer
@@ -425,8 +425,9 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
 
 
   BillPublishLogGroup:
@@ -446,9 +447,9 @@ Resources:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref MeteringBillingTable
           DYNAMODB_CONFIG_INDEX_NAME: !Ref TenantConfigurationIndexName
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -513,8 +514,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
   #####
 
   # Data persistence resources
@@ -587,9 +589,9 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupBillingSystemListener
       Code:
@@ -656,8 +658,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/sb-${Environment}-bill-publish-event
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
 
 ## Function to setup Tenant in Billing system
   BillingTenantSetupEventRule:
@@ -692,9 +695,9 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupTenantBillingListener
       Code:
@@ -758,8 +761,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
 ## Function to disable Tenant/Subscription in Billing system
   BillingTenantDisableEventRule:
     Type: AWS::Events::Rule
@@ -793,9 +797,9 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::disableTenantBillingListener
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -857,5 +861,6 @@ Resources:
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBus}
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*

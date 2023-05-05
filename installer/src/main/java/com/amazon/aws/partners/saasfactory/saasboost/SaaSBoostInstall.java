@@ -1596,8 +1596,10 @@ public class SaaSBoostInstall {
             // Now add the separate layers directories to the list so we can upload the lambda
             // package to S3 below. Build utils before anything else.
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
+            // TODO make this a list of everything in the layers folder that's not utils
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "cloudformation-utils")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "keycloak-helper")));
 
             DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
             functions.forEach(sourceDirectories::add);

@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
@@ -46,6 +45,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageBatchRequestEntry;
 import software.amazon.awssdk.services.sqs.model.SendMessageBatchResponse;
@@ -69,7 +70,7 @@ public class OnboardingService {
     private static final String SAAS_BOOST_METRICS_STREAM = System.getenv("SAAS_BOOST_METRICS_STREAM");
     private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
     private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private static final String SAAS_BOOST_BUCKET = System.getenv("SAAS_BOOST_BUCKET");
     private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String ONBOARDING_STACK_SNS = System.getenv("ONBOARDING_STACK_SNS");
@@ -89,6 +90,8 @@ public class OnboardingService {
     private final SqsClient sqs;
     private final CodePipelineClient codePipeline;
     private final DirectoryClient ds;
+    private final SecretsManagerClient secrets;
+    private ApiGatewayHelper api;
 
     public OnboardingService() {
         if (Utils.isBlank(AWS_REGION)) {
@@ -117,6 +120,7 @@ public class OnboardingService {
         this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
         this.codePipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
         this.ds = Utils.sdkClient(DirectoryClient.builder(), DirectoryClient.SERVICE_NAME);
+        this.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
     }
 
     /**
@@ -401,6 +405,31 @@ public class OnboardingService {
         }
     }
 
+    protected ApiGatewayHelper apiGatewayHelper() {
+        if (this.api == null) {
+            // Fetch the app client details from SecretsManager
+            LinkedHashMap<String, String> clientDetails;
+            try {
+                GetSecretValueResponse response = secrets.getSecretValue(request -> request
+                        .secretId(API_APP_CLIENT)
+                );
+                clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
+            } catch (SdkServiceException secretsManagerError) {
+                LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
+                throw secretsManagerError;
+            }
+            // Build an API helper with the app client
+            this.api = ApiGatewayHelper.builder()
+                    .host(API_GATEWAY_HOST)
+                    .stage(API_GATEWAY_STAGE)
+                    .clientId(clientDetails.get("client_id"))
+                    .clientSecret(clientDetails.get("client_secret"))
+                    .tokenEndpoint(clientDetails.get("token_endpoint"))
+                    .build();
+        }
+        return this.api;
+    }
+
     protected void handleOnboardingInitiated(Map<String, Object> event, Context context) {
         if (Utils.isBlank(ONBOARDING_VALIDATION_QUEUE)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_VALIDATION_QUEUE");
@@ -448,8 +477,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         if (OnboardingEvent.validate(event)) {
             Map<String, Object> detail = (Map<String, Object>) event.get("detail");
@@ -467,19 +496,8 @@ public class OnboardingService {
                 // Call the tenant service synchronously to insert the new tenant record
                 LOGGER.info("Calling tenant service insert tenant API");
                 LOGGER.info(Utils.toJson(onboarding.getRequest()));
-                String insertTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                        ApiGatewayHelper.getApiRequest(
-                                API_GATEWAY_HOST,
-                                API_GATEWAY_STAGE,
-                                ApiRequest.builder()
-                                        .resource("tenants")
-                                        .method("POST")
-                                        .body(Utils.toJson(onboarding.getRequest()))
-                                        .build()
-                        ),
-                        API_TRUST_ROLE,
-                        (String) event.get("id")
-                );
+                String insertTenantResponseBody = apiGatewayHelper()
+                        .authorizedRequest("POST", "tenants", Utils.toJson(onboarding.getRequest()));
                 Map<String, Object> insertedTenant = Utils.fromJson(insertTenantResponseBody, LinkedHashMap.class);
                 if (null == insertedTenant) {
                     failOnboarding(onboarding.getId(), "Tenant insert API call failed");
@@ -536,8 +554,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         if (Utils.isBlank(ONBOARDING_STACK_SNS)) {
             throw new IllegalArgumentException("Missing required environment variable ONBOARDING_STACK_SNS");
@@ -727,8 +745,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         if (Utils.isBlank(ONBOARDING_APP_STACK_SNS)) {
             throw new IllegalStateException("Missing required environment variable ONBOARDING_APP_STACK_SNS");
@@ -1203,7 +1221,7 @@ public class OnboardingService {
                                     missingImages++;
                                 }
                             } catch (EcrException ecrError) {
-                                LOGGER.error("ecr:ListImages error {}", ecrError.awsErrorDetails().errorMessage());
+                                LOGGER.error("ecr:ListImages error", ecrError);
                                 LOGGER.error(Utils.getFullStackTrace(ecrError));
                                 // TODO do we bail here or retry?
                                 failOnboarding(onboardingId, "Can't list images from ECR "
@@ -1440,8 +1458,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         LOGGER.info("Handling App Config Update Infrastructure Event");
 
@@ -1487,8 +1505,8 @@ public class OnboardingService {
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         LOGGER.info("Handling App Config Update Tenant Base Infrastructure Event");
 
@@ -1771,27 +1789,22 @@ public class OnboardingService {
                         "message", message));
     }
 
-    protected Map<String, Object> checkLimits(Context context) {
+    protected Map<String, Object> checkLimits(Context context) throws Exception {
         if (Utils.isBlank(API_GATEWAY_HOST)) {
             throw new IllegalStateException("Missing environment variable API_GATEWAY_HOST");
         }
         if (Utils.isBlank(API_GATEWAY_STAGE)) {
             throw new IllegalStateException("Missing environment variable API_GATEWAY_STAGE");
         }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing environment variable API_APP_CLIENT");
         }
         long startMillis = System.currentTimeMillis();
         Map<String, Object> valMap;
-        ApiRequest tenantsRequest = ApiRequest.builder()
-                .resource("quotas/check")
-                .method("GET")
-                .build();
-        SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, tenantsRequest);
         String responseBody;
         try {
             LOGGER.info("API call for quotas/check");
-            responseBody = ApiGatewayHelper.signAndExecuteApiRequest(apiRequest, API_TRUST_ROLE, context.getAwsRequestId());
+            responseBody = apiGatewayHelper().authorizedRequest("GET", "quotas/check");
             //LOGGER.info("API response for quoatas/check: " + responseBody);
             valMap = Utils.fromJson(responseBody, HashMap.class);
         } catch (Exception e) {
@@ -1807,38 +1820,14 @@ public class OnboardingService {
     protected Map<String, Object> getAppConfig(Context context) {
         // Fetch all of the services configured for this application
         LOGGER.info("Calling settings service to fetch app config");
-        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("settings/config")
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+        String getAppConfigResponseBody = apiGatewayHelper().authorizedRequest("GET", "settings/config");
         Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         return appConfig;
     }
 
     protected String getSetting(Context context, String setting) {
         LOGGER.info("Calling settings service to fetch setting {}", setting);
-        // Have to cheat here and ask for a secret until we can authenticate against the public api
-        // or we have to copy the settings get by id resource to the private api.
-        String getAppConfigResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("settings/" + setting + "/secret")
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+        String getAppConfigResponseBody = apiGatewayHelper().authorizedRequest("GET", "settings/" + setting);
         Map<String, Object> settingObject = Utils.fromJson(getAppConfigResponseBody, LinkedHashMap.class);
         return (String) settingObject.get("value");
     }
@@ -1853,18 +1842,8 @@ public class OnboardingService {
                 queryParams.append("&");
             }
         }
-        String getSettingsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("settings?" + queryParams.toString())
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+
+        String getSettingsResponseBody = apiGatewayHelper().authorizedRequest("GET", "settings?" + queryParams.toString());
         List<Map<String, String>> settingsList = Utils.fromJson(getSettingsResponseBody, ArrayList.class);
         return settingsList.stream()
                 .collect(Collectors.toMap(
@@ -1887,18 +1866,7 @@ public class OnboardingService {
         }
         // Fetch the tenant for this onboarding
         LOGGER.info("Calling tenant service to fetch tenant {}", tenantId);
-        String getTenantResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("tenants/" + tenantId)
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+        String getTenantResponseBody = apiGatewayHelper().authorizedRequest("GET", "tenants/" + tenantId);
         Map<String, Object> tenant = Utils.fromJson(getTenantResponseBody, LinkedHashMap.class);
         return tenant;
     }
@@ -1906,18 +1874,7 @@ public class OnboardingService {
     protected List<Map<String, Object>> getProvisionedTenants(Context context) {
         // Fetch all of the provisioned tenants
         LOGGER.info("Calling tenant service to fetch all provisioned tenants");
-        String getTenantsResponseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                ApiGatewayHelper.getApiRequest(
-                        API_GATEWAY_HOST,
-                        API_GATEWAY_STAGE,
-                        ApiRequest.builder()
-                                .resource("tenants?status=provisioned")
-                                .method("GET")
-                                .build()
-                ),
-                API_TRUST_ROLE,
-                context.getAwsRequestId()
-        );
+        String getTenantsResponseBody = apiGatewayHelper().authorizedRequest("GET", "tenants?status=provisioned");
         List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
         if (tenants == null) {
             tenants = new ArrayList<>();

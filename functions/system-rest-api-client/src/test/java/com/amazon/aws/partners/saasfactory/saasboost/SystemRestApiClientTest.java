@@ -50,6 +50,7 @@ public class SystemRestApiClientTest {
     }
 
     @Test
+    @Ignore
     public void testEventBridgeJson() throws JsonProcessingException {
         String json = "{\n" +
                 "    \"version\": \"0\",\n" +

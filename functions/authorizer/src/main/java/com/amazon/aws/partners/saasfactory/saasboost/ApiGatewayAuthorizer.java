@@ -18,6 +18,7 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.regions.Region;
@@ -27,13 +28,20 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.*;
 
 public class ApiGatewayAuthorizer implements RequestStreamHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiGatewayAuthorizer.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
     private static final String IDENTITY_PROVIDER = System.getenv("IDENTITY_PROVIDER");
+    static final String ADMIN_WEB_APP_CLIENT_ID = System.getenv("ADMIN_WEB_APP_CLIENT_ID");
+    static final String API_APP_CLIENT_ID = System.getenv("API_APP_CLIENT_ID");
+    static final String PRIVATE_API_APP_CLIENT_ID = System.getenv("PRIVATE_API_APP_CLIENT_ID");
+    static final String READ_SCOPE = "saas-boost/" + SAAS_BOOST_ENV + "/read";
+    static final String WRITE_SCOPE = "saas-boost/" + SAAS_BOOST_ENV + "/write";
+    static final String PRIVATE_SCOPE = "saas-boost/" + SAAS_BOOST_ENV + "/private";
     private final Authorizer authorizer;
 
     public ApiGatewayAuthorizer() {
@@ -63,7 +71,8 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         LOGGER.info(Utils.toJson(event));
 
         AuthorizerResponse response;
-        if (!authorizer.verifyToken(event)) {
+        DecodedJWT token = authorizer.verifyToken(event);
+        if (token == null) {
             LOGGER.error("JWT not verified. Returning Not Authorized");
             response = AuthorizerResponse.builder()
                     .principalId(event.getAccountId())
@@ -79,12 +88,39 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
                     .build();
         } else {
             LOGGER.info("JWT verified. Returning Authorized.");
+            LOGGER.debug(Utils.toJson(token));
+
+            List<String> resources = new ArrayList<>();
+            String scopes = token.getClaim("scope").asString();
+            if (ADMIN_WEB_APP_CLIENT_ID.equals(authorizer.getClientId(token))) {
+                List<String> groups = authorizer.getGroups(token);
+                if (groups != null && groups.contains("admin")) {
+                    LOGGER.debug("Token includes admin group, adding read/write scopes");
+                    scopes = scopes + " " + READ_SCOPE + " " + WRITE_SCOPE;
+                } else {
+                    LOGGER.error("Admin web app client does not contain RBAC groups!");
+                }
+            }
+            //LOGGER.info("Access token scopes {}", scopes);
+            if (scopes.contains(READ_SCOPE)) {
+                LOGGER.info("Adding READ scope resources");
+                resources.addAll(readApiResources(event));
+            }
+            if (scopes.contains(WRITE_SCOPE)) {
+                LOGGER.info("Adding WRITE scope resources");
+                resources.addAll(writeApiResources(event));
+            }
+            if (scopes.contains(PRIVATE_SCOPE)) {
+                LOGGER.info("Adding PRIVATE scope resources");
+                resources.addAll(privateApiResources(event));
+            }
+
             response = AuthorizerResponse.builder()
                     .principalId(event.getAccountId())
                     .policyDocument(PolicyDocument.builder()
                             .statement(Statement.builder()
                                     .effect("Allow")
-                                    .resource(ApiGatewayAuthorizer.apiGatewayResource(event))
+                                    .resource(resources)
                                     .build()
                             )
                             .build()
@@ -108,9 +144,8 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
     }
 
     public static String apiGatewayResource(TokenAuthorizerRequest event, String method, String resource) {
-        String partition = Region.of(AWS_REGION).metadata().partition().id();
         String arn = String.format("arn:%s:execute-api:%s:%s:%s/%s/%s/%s",
-                partition,
+                Region.of(event.getRegion()).metadata().partition().id(),
                 event.getRegion(),
                 event.getAccountId(),
                 event.getApiId(),
@@ -119,5 +154,69 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
                 resource
         );
         return arn;
+    }
+
+    public static List<String> readApiResources(TokenAuthorizerRequest event) {
+        Set<AbstractMap.SimpleEntry<String, String>> readResources = new LinkedHashSet<>();
+        readResources.add(new AbstractMap.SimpleEntry<>("billing/plans", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("metrics/alb/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("metrics/datasets", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("metrics/query", "POST")); // Yes, this is a "read" resource
+        readResources.add(new AbstractMap.SimpleEntry<>("onboarding", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("onboarding/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("settings", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("settings/config", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("settings/options", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("settings/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("sysusers", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("tenants", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("tenants/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("tiers", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "GET"));
+
+        List<String> resources = new ArrayList<>();
+        for (Map.Entry<String, String> resource : readResources) {
+            resources.add(apiGatewayResource(event, resource.getValue(), resource.getKey()));
+        }
+        return resources;
+    }
+
+    public static List<String> writeApiResources(TokenAuthorizerRequest event) {
+        Set<AbstractMap.SimpleEntry<String, String>> writeResources = new LinkedHashSet<>();
+        writeResources.add(new AbstractMap.SimpleEntry<>("onboarding*", "POST"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("settings/config*", "PUT"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("sysusers*", "POST"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "DELETE"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "PUT"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*/disable", "PATCH"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*/enable", "PATCH"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tenants/*", "DELETE"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tenants/*", "PUT"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tenants/*/disable", "PATCH"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tenants/*/enable", "PATCH"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tiers*", "POST"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "PUT"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "DELETE"));
+
+        List<String> resources = new ArrayList<>();
+        for (Map.Entry<String, String> resource : writeResources) {
+            resources.add(apiGatewayResource(event, resource.getValue(), resource.getKey()));
+        }
+        return resources;
+    }
+
+    public static List<String> privateApiResources(TokenAuthorizerRequest event) {
+        Set<AbstractMap.SimpleEntry<String, String>> privateResources = new LinkedHashSet<>();
+        privateResources.add(new AbstractMap.SimpleEntry<>("quotas/check", "GET"));
+        privateResources.add(new AbstractMap.SimpleEntry<>("settings/config", "DELETE"));
+        privateResources.add(new AbstractMap.SimpleEntry<>("settings/*/secret", "GET"));
+        privateResources.add(new AbstractMap.SimpleEntry<>("tenants*", "POST"));
+
+        List<String> resources = new ArrayList<>();
+        for (Map.Entry<String, String> resource : privateResources) {
+            resources.add(apiGatewayResource(event, resource.getValue(), resource.getKey()));
+        }
+        return resources;
     }
 }

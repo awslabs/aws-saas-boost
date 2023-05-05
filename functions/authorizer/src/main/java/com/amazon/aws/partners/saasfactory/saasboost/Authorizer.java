@@ -16,7 +16,15 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.auth0.jwt.interfaces.DecodedJWT;
+
+import java.util.List;
+
 public interface Authorizer {
 
-    boolean verifyToken(TokenAuthorizerRequest request);
+    DecodedJWT verifyToken(TokenAuthorizerRequest request);
+
+    String getClientId(DecodedJWT token);
+
+    List<String> getGroups(DecodedJWT token);
 }

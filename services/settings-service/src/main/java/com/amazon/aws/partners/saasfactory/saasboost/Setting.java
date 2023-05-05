@@ -115,7 +115,7 @@ public class Setting {
     public static final class Builder {
         private String name;
         private String value;
-        private boolean readOnly = true;
+        private boolean readOnly = false;
         private boolean secure = false;
         private Long version;
         private String description;

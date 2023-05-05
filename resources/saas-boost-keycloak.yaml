@@ -30,6 +30,9 @@ Parameters:
   CloudFormationUtilsLayer:
     Description: CloudFormation Utils Layer ARN
     Type: String
+  KeycloakHelperLayer:
+    Description: Keycloak Helper Layer ARN
+    Type: String
   CodePipelineBucket:
     Description: S3 bucket for CodePipeline artifacts
     Type: String
@@ -797,13 +800,14 @@ Resources:
       Runtime: java11
       Timeout: 600
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.KeycloakSetup
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.keycloak.KeycloakSetup
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/KeycloakSetup-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref CloudFormationUtilsLayer
+        - !Ref KeycloakHelperLayer
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -861,4 +865,13 @@ Outputs:
   ApiAppClientSecret:
     Description: Private OAuth app client secret
     Value: !GetAtt InvokeKeycloakSetup.ApiAppClientSecret
+  PrivateApiAppClientName:
+    Description: Private OAuth app client for client credentials grant for private API access
+    Value: !GetAtt InvokeKeycloakSetup.PrivateApiAppClientName
+  PrivateApiAppClientId:
+    Description: Private OAuth app client id for private API access
+    Value: !GetAtt InvokeKeycloakSetup.PrivateApiAppClientId
+  PrivateApiAppClientSecret:
+    Description: Private OAuth app client secret for private API access
+    Value: !GetAtt InvokeKeycloakSetup.PrivateApiAppClientSecret
 ...

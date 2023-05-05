@@ -14,9 +14,10 @@
     <packaging>pom</packaging>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
-        <module>apigw-helper</module>
         <module>utils</module>
-        <module>cloudformation-utils</module>
+        <module>apigw-helper</module>
+		<module>cloudformation-utils</module>
+		<module>keycloak-helper</module>
     </modules>
     <licenses>
         <license>

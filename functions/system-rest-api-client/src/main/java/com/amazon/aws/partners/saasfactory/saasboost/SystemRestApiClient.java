@@ -61,19 +61,19 @@ public class SystemRestApiClient implements RequestStreamHandler {
         }        
         LOGGER.info(Utils.toJson(event));
 
-        try {
-            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                    ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, event.getDetail()),
-                    API_TRUST_ROLE,
-                    context.getAwsRequestId()
-            );
-            try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                writer.write(responseBody);
-                writer.flush();
-            }
-        } catch (Exception e) {
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e.getMessage());
-        }
+//        try {
+//            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(
+//                    ApiGatewayHelper.getApiRequest(API_GATEWAY_HOST, API_GATEWAY_STAGE, event.getDetail()),
+//                    API_TRUST_ROLE,
+//                    context.getAwsRequestId()
+//            );
+//            try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+//                writer.write(responseBody);
+//                writer.flush();
+//            }
+//        } catch (Exception e) {
+//            LOGGER.error(Utils.getFullStackTrace(e));
+//            throw new RuntimeException(e.getMessage());
+//        }
     }
 }

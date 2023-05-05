@@ -97,7 +97,7 @@ public class MetricServiceDAL {
     }
 
     // Used to query CW metrics across tenants and aggregate the data
-    public List<QueryResult> queryMetrics(final MetricQuery query) {
+    public List<QueryResult> queryMetrics(final MetricQuery query, Map<String, Map<String, Object>> tenantCache) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("queryMetrics: start");
 
@@ -112,7 +112,7 @@ public class MetricServiceDAL {
                 LOGGER.info("queryMetrics: use tenants from query");
                 tenants = new ArrayList<>(query.getTenants());
             } else {
-                tenants = new ArrayList<>(MetricService.tenantCache.keySet());
+                tenants = new ArrayList<>(tenantCache.keySet());
             }
 
             if (tenants.size() > 500) {
@@ -122,7 +122,7 @@ public class MetricServiceDAL {
             }
 
             //build query
-            final List<MetricDataQuery> dq = cloudWatchMetricsQueries(query, tenants);
+            final List<MetricDataQuery> dq = cloudWatchMetricsQueries(query, tenants, tenantCache);
 
             //now that query is built let's execute and get resultant data
             //the data will be stored in Metric object and placed in map by MetricDimension.
@@ -254,7 +254,7 @@ public class MetricServiceDAL {
     }
 
     // Used to query metrics for a specified tenant
-    public List<QueryResult> queryTenantMetrics(final MetricQuery query) {
+    public List<QueryResult> queryTenantMetrics(final MetricQuery query, Map<String, Map<String, Object>> tenantCache) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("queryTenantMetrics: start");
         List<QueryResult> queryResults = new ArrayList<>();
@@ -268,7 +268,7 @@ public class MetricServiceDAL {
             }
 
             //build query
-            final List<MetricDataQuery> dataQueries = cloudWatchMetricsQueries(query, query.getTenants());
+            final List<MetricDataQuery> dataQueries = cloudWatchMetricsQueries(query, query.getTenants(), tenantCache);
 
             //now that query is built let's execute and get resultant data
             //the data will be stored in Metric object and placed in map by MetricDimension.
@@ -328,7 +328,7 @@ public class MetricServiceDAL {
     /*
     Used to query ALB access log metrics from Athena and S3 logs
   */
-    public List<MetricValue> queryAccessLogs(String timeRange, String metricType, String tenantId) {
+    public List<MetricValue> queryAccessLogs(String timeRange, String metricType, String tenantId, Map<String, Map<String, Object>> tenantCache) {
         final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("queryMetrics: start");
         List<MetricValue> metricValueList;
@@ -339,7 +339,7 @@ public class MetricServiceDAL {
             String where = "WHERE target_status_code = '200' AND time >= '" + times[0] + "' AND time <= '" + times[1] + "'\n";
 
             if (tenantId != null) {
-                String tenantAlb = getTenantLoadBalancerId(tenantId);
+                String tenantAlb = getTenantLoadBalancerId(tenantId, tenantCache);
                 if (Utils.isEmpty(tenantAlb)) {
                     throw new RuntimeException("queryAccessLogs: No ALB found for tenantId: " + tenantId);
                 }
@@ -384,7 +384,7 @@ public class MetricServiceDAL {
     }
 
     // Build the CloudWatch query based on the dimensions from the query
-    private List<MetricDataQuery> cloudWatchMetricsQueries(MetricQuery query, final List<String> tenants) {
+    private List<MetricDataQuery> cloudWatchMetricsQueries(MetricQuery query, final List<String> tenants, Map<String, Map<String, Object>> tenantCache) {
         List<MetricDataQuery> dq = new ArrayList<>();
         int dimIndex = 0;
 
@@ -399,7 +399,7 @@ public class MetricServiceDAL {
             //build the dataquery with the dimensions
             for (final MetricQuery.Dimension queryDimension : query.getDimensions()) {
                 if ("AWS/ECS".equalsIgnoreCase(queryDimension.getNameSpace())) {
-                    String cluster = getTenantEcsCluster(tenantId);
+                    String cluster = getTenantEcsCluster(tenantId, tenantCache);
                     if (Utils.isEmpty(cluster)) {
                         throw new RuntimeException("queryMetrics: No ECS cluster found for tenant: " + tenantId);
                     }
@@ -417,7 +417,7 @@ public class MetricServiceDAL {
                     }
                 //} else if ("ECS/ContainerInsights".equalsIgnoreCase(queryDimension.getNameSpace())) {
                 } else if ("AWS/ApplicationELB".equalsIgnoreCase(queryDimension.getNameSpace())) {
-                    final String albId = getTenantLoadBalancerId(tenantId);
+                    final String albId = getTenantLoadBalancerId(tenantId, tenantCache);
                     if (Utils.isEmpty(albId)) {
                         throw new RuntimeException("queryMetrics: No ALB Id found for tenant: " + tenantId);
                     }
@@ -578,9 +578,9 @@ public class MetricServiceDAL {
         return metricMap;
     }
 
-    protected String getTenantLoadBalancerId(String tenantId) {
+    protected String getTenantLoadBalancerId(String tenantId, Map<String, Map<String, Object>> tenantCache) {
         LOGGER.info("Getting ALB for tenant {}", tenantId);
-        Map<String, Object> tenant = MetricService.tenantCache.get(tenantId);
+        Map<String, Object> tenant = tenantCache.get(tenantId);
         String alb;
         try {
             Map<String, Object> resources = (Map<String, Object>) tenant.get("resources");
@@ -592,9 +592,9 @@ public class MetricServiceDAL {
         return alb;
     }
 
-    protected String getTenantEcsCluster(String tenantId) {
+    protected String getTenantEcsCluster(String tenantId, Map<String, Map<String, Object>> tenantCache) {
         LOGGER.info("Getting ECS cluster for tenant {}", tenantId);
-        Map<String, Object> tenant = MetricService.tenantCache.get(tenantId);
+        Map<String, Object> tenant = tenantCache.get(tenantId);
         String cluster;
         try {
             Map<String, Object> resources = (Map<String, Object>) tenant.get("resources");
@@ -695,10 +695,10 @@ public class MetricServiceDAL {
         //return metricValueList;
     }
 
-    public void publishAccessLogMetrics(String s3FileName, Enum<TimeRange> timeRangeName, String metric) {
+    public void publishAccessLogMetrics(String s3FileName, Enum<TimeRange> timeRangeName, String metric, Map<String, Map<String, Object>> tenantCache) {
         final long startTimeMillis = System.currentTimeMillis();
         try {
-            final List<MetricValue> result = queryAccessLogs(timeRangeName.toString(), metric, null);
+            final List<MetricValue> result = queryAccessLogs(timeRangeName.toString(), metric, null, tenantCache);
             this.s3.putObject(PutObjectRequest.builder()
                     .bucket(S3_ATHENA_BUCKET)
                     .key(s3FileName)

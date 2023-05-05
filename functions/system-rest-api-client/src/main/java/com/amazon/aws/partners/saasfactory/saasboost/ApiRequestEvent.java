@@ -32,7 +32,7 @@ public class ApiRequestEvent {
     private Instant time;
     private String region;
     private List<String> resources;
-    private ApiRequest detail;
+//    private ApiRequest detail;
 
     public ApiRequestEvent() {
     }
@@ -101,11 +101,11 @@ public class ApiRequestEvent {
         this.resources = resources;
     }
 
-    public ApiRequest getDetail() {
-        return detail;
-    }
-
-    public void setDetail(ApiRequest detail) {
-        this.detail = detail;
-    }
+//    public ApiRequest getDetail() {
+//        return detail;
+//    }
+//
+//    public void setDetail(ApiRequest detail) {
+//        this.detail = detail;
+//    }
 }

@@ -18,6 +18,10 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import static org.junit.Assert.*;
 
 public class UtilsTest {
@@ -61,5 +65,37 @@ public class UtilsTest {
         assertEquals("foo_bar", Utils.toSnakeCase("foo baR"));
         assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBaz"));
         assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBAZ"));
+    }
+
+    @Test
+    public void testCollectionFromJson() {
+        String json = "[{\"foo\": \"Santa\", \"bar\": \"Claus\"}]";
+        MyPojo[] pojoArray = Utils.fromJson(json, MyPojo[].class);
+        List<MyPojo> pojoList = Arrays.asList(pojoArray);
+
+    }
+
+    public static class MyPojo {
+        private String foo;
+        private String bar;
+
+        public MyPojo() {
+        }
+
+        public String getFoo() {
+            return foo;
+        }
+
+        public void setFoo(String foo) {
+            this.foo = foo;
+        }
+
+        public String getBar() {
+            return bar;
+        }
+
+        public void setBar(String bar) {
+            this.bar = bar;
+        }
     }
 }

@@ -17,11 +17,9 @@
 package com.amazon.aws.partners.saasfactory.metering.common;
 
 import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.ApiRequest;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,18 +29,11 @@ public final class BillingUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BillingUtils.class);
 
-    public static String getBillingApiKey(String apiGatewayHost, String apiGatewayStage, String apiGatewayRole) {
+    public static String getBillingApiKey(ApiGatewayHelper api) {
         //invoke SaaS Boost private API to get API Key for Billing
         String apiKey = null;
-        ApiRequest billingApiKeySecret = ApiRequest.builder()
-                .resource("settings/BILLING_API_KEY/secret")
-                .method("GET")
-                .build();
-        SdkHttpFullRequest apiRequest = ApiGatewayHelper.getApiRequest(
-                apiGatewayHost, apiGatewayStage, billingApiKeySecret);
         try {
-            String responseBody = ApiGatewayHelper.signAndExecuteApiRequest(
-                    apiRequest, apiGatewayRole, "BillingIntegration");
+            String responseBody = api.authorizedRequest("GET", "settings/BILLING_API_KEY/secret");
             Map<String, String> setting = Utils.fromJson(responseBody, HashMap.class);
             if (null == setting) {
                 throw new RuntimeException("responseBody is invalid");

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -76,8 +77,14 @@ public class Statement {
             if (resource != null && resource.length > 0) {
                 resources.clear();
                 Collections.addAll(this.resources, resource);
-            } else {
-                this.resources = new ArrayList<>(List.of("*"));
+            }
+            return this;
+        }
+
+        public Builder resource(Collection<String> resource) {
+            if (resource != null && !resource.isEmpty()) {
+                resources.clear();
+                resources.addAll(resource);
             }
             return this;
         }

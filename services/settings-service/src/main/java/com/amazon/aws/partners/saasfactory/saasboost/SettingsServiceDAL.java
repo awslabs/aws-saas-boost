@@ -449,7 +449,7 @@ public class SettingsServiceDAL {
             setting = Setting.builder()
                     .name(settingName) // name now might be <serviceName>/SETTING
                     .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
-                    .readOnly(!SettingsService.READ_WRITE_PARAMS.contains(settingName))
+                    //.readOnly(!SettingsService.READ_WRITE_PARAMS.contains(settingName))
                     .secure(ParameterType.SECURE_STRING == parameter.type())
                     .version(parameter.version())
                     .build();

@@ -36,11 +36,11 @@ Parameters:
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
-  SaaSBoostPrivateApi:
-    Description: SaaS Boost Private API
+  SaaSBoostApi:
+    Description: SaaS Boost API
     Type: String
-  PrivateApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost private API
+  ApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost API
     Type: String
   ResourcesBucket:
     Description: S3 bucket containing tenant custom config files (zip archive)
@@ -295,9 +295,9 @@ Resources:
               - !GetAtt OnboardingTenantConfigDLQ.Arn
           - Effect: Allow
             Action:
-              - sts:AssumeRole
+              - secretsmanager:GetSecretValue
             Resource:
-              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+              - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
           - Effect: Allow
             Action:
               - ecr:ListImages
@@ -1062,9 +1062,9 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           ONBOARDING_STACK_SNS: !Sub '{{resolve:ssm:/saas-boost/${Environment}/ONBOARDING_STACK_SNS}}'
@@ -1103,9 +1103,9 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           ONBOARDING_VALIDATION_DLQ: !Ref OnboardingValidationDLQ
@@ -1149,9 +1149,9 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
           CIDR_BLOCK_TABLE: !Ref CidrBlockTable
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           TENANT_CONFIG_DLQ: !Ref OnboardingTenantConfigDLQ

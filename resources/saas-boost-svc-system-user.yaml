@@ -24,6 +24,9 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
+  KeycloakHelperLayer:
+    Description: Keycloak Helper Layer ARN
+    Type: String
   Environment:
     Description: Environment name
     Type: String
@@ -65,6 +68,9 @@ Resources:
               - cognito-idp:ListUsers
               - cognito-idp:AdminInitiateAuth
               - cognito-idp:ListUserPoolClients
+              - cognito-idp:AdminAddUserToGroup
+              - cognito-idp:AdminListGroupsForUser
+              - cognito-idp:AdminRemoveUserFromGroup
             Resource:
               - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
   SystemUserServiceExecutionRole:
@@ -120,6 +126,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -154,6 +161,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -188,6 +196,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -222,6 +231,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -256,6 +266,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -290,6 +301,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -324,6 +336,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment

@@ -27,11 +27,11 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
-  SaaSBoostPrivateApi:
-    Description: SaaS Boost Private API
+  SaaSBoostApi:
+    Description: SaaS Boost API
     Type: String
-  PrivateApiStage:
-    Description: Private API Stage
+  ApiStage:
+    Description: SaaS Boost API Stage
     Type: String
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
@@ -68,8 +68,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
   BillingServiceGetPlansLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -92,9 +93,9 @@ Resources:
         - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+          API_GATEWAY_STAGE: !Ref ApiStage
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

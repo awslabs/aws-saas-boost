@@ -63,12 +63,8 @@ Parameters:
     Type: String
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
-  PublicApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost public API
-    Type: String
-    Default: v1
-  PrivateApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost private API
+  ApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost API
     Type: String
     Default: v1
   Version:
@@ -444,6 +440,15 @@ Resources:
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
+  KeycloakHelperLayer:
+    Type: AWS::Lambda::LayerVersion
+    Condition: UseKeycloak
+    Properties:
+      LayerName: !Sub sb-${Environment}-keycloak-helper
+      CompatibleRuntimes: [java11]
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/KeycloakHelper-lambda.zip
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -821,6 +826,7 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        KeycloakHelperLayer: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
         CodePipelineBucket: !Ref Pipelines
         CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
         StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
@@ -834,7 +840,7 @@ Resources:
         CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
         CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
         CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         VPC: !GetAtt network.Outputs.EgressVpc
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
@@ -860,7 +866,7 @@ Resources:
           - HasAdminWebAppCustomDomain
           - !Sub 'https://${AdminWebAppDomain}'
           - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
         OidcDomainUrl: !GetAtt idp.Outputs.OidcDomainUrl
@@ -881,8 +887,7 @@ Resources:
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         CodePipelineBucket: !Ref Pipelines
         LoggingBucket: !Ref Logging
-        PublicApiStage: !Ref PublicApiStage
-        PrivateApiStage: !Ref PrivateApiStage
+        ApiStage: !Ref ApiStage
         ApplicationServices: !Ref ApplicationServices
         EventBus: !Ref SaaSBoostEventBus
         AppExtensions: !Ref AppExtensions
@@ -890,7 +895,6 @@ Resources:
         - !Ref CoreStackListenerTopic
   billing:
     Type: AWS::CloudFormation::Stack
-    DependsOn: core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
@@ -899,8 +903,8 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        ApiStage: !Ref ApiStage
   # To Do - merge this stuff into the billing template
   metering:
     Type: AWS::CloudFormation::Stack
@@ -913,8 +917,8 @@ Resources:
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         EventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        ApiStage: !Ref ApiStage
   metrics:
     Type: AWS::CloudFormation::Stack
     # Delete the metrics stack before clearing the S3 buckets because the metrics stack defines
@@ -932,8 +936,8 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         AccessLogs: !Ref AccessLogs
         AthenaOutput: !Ref AthenaOutput
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        ApiStage: !Ref ApiStage
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -946,8 +950,8 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        ApiStage: !Ref ApiStage
         ResourcesBucket: !Ref Resources
   quota:
     Type: AWS::CloudFormation::Stack
@@ -972,8 +976,8 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        ApiStage: !Ref ApiStage
         ResourcesBucket: !Ref Resources
   tenant:
     Type: AWS::CloudFormation::Stack
@@ -1008,26 +1012,30 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        KeycloakHelperLayer: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
         IdentityProvider: !Ref SystemIdentityProvider
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
-  publicapi:
+  api:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-public-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-api.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
-        RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
-        PublicApiStage: !Ref PublicApiStage
+        SaaSBoostApi: !GetAtt core.Outputs.SaaSBoostApi
+        RootResourceId: !GetAtt core.Outputs.SaaSBoostApiRootResourceId
+        ApiStage: !Ref ApiStage
         IdentityProvider: !Ref SystemIdentityProvider
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
+        AdminWebAppClientId: !GetAtt idp.Outputs.AdminWebAppClient
+        ApiAppClientId: !GetAtt idp.Outputs.ApiAppClient
+        PrivateApiAppClientId: !GetAtt idp.Outputs.PrivateApiAppClient
         BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
@@ -1035,12 +1043,16 @@ Resources:
         OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
         OnboardingServiceStart: !GetAtt onboarding.Outputs.OnboardingServiceStartArn
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
+        QuotasServiceCheck: !GetAtt quota.Outputs.QuotasServiceCheckArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
+        SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
         SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
         SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
         SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
+        SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
+        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceUpdate: !GetAtt tenant.Outputs.TenantServiceUpdateArn
         TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
@@ -1058,24 +1070,6 @@ Resources:
         SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
         SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
         SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
-  privateapi:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-private-api.yaml
-      Parameters:
-        Environment: !Ref Environment
-        PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        RootResourceId: !GetAtt core.Outputs.SaaSBoostPrivateApiRootResourceId
-        PrivateApiStage: !Ref PrivateApiStage
-        QuotasServiceCheck: !GetAtt quota.Outputs.QuotasServiceCheckArn
-        TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
-        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
-        TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
-        TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
-        SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
-        SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
-        SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
-        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
   SSMParamMetricsAnalyticsDeployed:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1160,11 +1154,14 @@ Outputs:
     Description: SaaS Boost Utils Layer
     Value: !Ref SaaSBoostUtilsLayer
   ApiGatewayHelperLayer:
-    Description: SaaS Boost Private API Layer
+    Description: SaaS Boost API Gateway Helper Layer
     Value: !Ref ApiGatewayHelperLayer
   CloudFormationUtilsLayer:
     Description: SaaS Boost CloudFormation Utils Layer
     Value: !Ref CloudFormationUtilsLayer
+  KeycloakHelperLayer:
+    Description: SaaS Boost Keycloak Helper Layer
+    Value: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Value: !Ref SaaSBoostEventBus
