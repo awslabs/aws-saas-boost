@@ -31,11 +31,16 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.*;
+import static org.junit.Assume.assumeFalse;
 
 public class RefreshingProfileDefaultCredentialsProviderTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(RefreshingProfileDefaultCredentialsProviderTest.class);
+
+    private static final String AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID";
+    private static final String AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
 
     private static final String BEFORE_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE";
     private static final String AFTER_ACCESS_KEY = "AKIAI44QH8DHBEXAMPLE";
@@ -57,12 +62,36 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
 
     private static final String RESOURCES_LOCATION = "src/test/resources/";
 
+    // this is created to hide all AWS credentials from the test environment that are not profile credentials
+    // so that the RefreshingProfileDefaultCredentialsProvider can be tested directly.
     private static NoSystemPropertyCredentialsTestEnvironment cachedSystemProperties;
 
     private String fakeProfileFilename;
 
     public RefreshingProfileDefaultCredentialsProviderTest() {
 
+    }
+
+    /**
+     * Returns whether to skip these tests based on AWS Credentials Environment Variable configuration.
+     * 
+     * As stated in the documentation for the NoSystemPropertyCredentialsTestEnvironment, if environment
+     * variables are configured for this test they will not be hidden and this test cannot verify the
+     * functionality of the RefreshingProfileDefaultCredentialsProvider.
+     * 
+     * In most cases it is acceptable to skip these tests, since if users are running these tests with
+     * the EnvironmentVariableCredentialsProvider that means they will likely be running the Installer
+     * itself with the same configuration, so the the RefreshingProfileDefaultCredentialsProvider will
+     * not be used at all.
+     * 
+     * The only caveat is that any change to the RefreshingProfileDefaultCredentialsProviderTest must
+     * guarantee that this test is run before being accepted for contribution.
+     * 
+     * @return true if AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY is configured in environment
+     */
+    private static boolean shouldSkipTests() {
+        Set<String> environmentKeys = System.getenv().keySet();
+        return environmentKeys.contains(AWS_ACCESS_KEY_ID) || environmentKeys.contains(AWS_SECRET_ACCESS_KEY);
     }
 
     @BeforeClass
@@ -124,6 +153,10 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
     private void runUpdatingCredentialsProviderTest(
     AwsCredentialsProvider credentialsProviderToTest,
             boolean expectUpdate) throws IOException {
+        assumeFalse("Skipping test due to configuration of AWS credentials as Environment Variables." 
+                + " To run this test unset the environment variables "
+                + AWS_ACCESS_KEY_ID + " and " + AWS_SECRET_ACCESS_KEY,
+                shouldSkipTests());
         AwsCredentials expectedCredentials = TEST_CREDENTIALS[0];
         for (int i = 1 ; i < TEST_CREDENTIALS.length ; i++) {
             assertEquals(expectedCredentials, credentialsProviderToTest.resolveCredentials());
