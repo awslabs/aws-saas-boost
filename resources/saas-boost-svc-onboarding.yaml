@@ -759,6 +759,7 @@ Resources:
               - elasticfilesystem:Describe*
               - elasticfilesystem:CreateMountTarget
               - elasticfilesystem:DeleteMountTarget
+              - elasticfilesystem:CreateTags
               - elasticfilesystem:TagResource
               - elasticfilesystem:PutFileSystemPolicy
               - elasticfilesystem:DeleteFileSystemPolicy
