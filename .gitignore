@@ -65,7 +65,6 @@ yarn-debug.log*
 yarn-error.log*
 samconfig.toml
 packaged-template.yaml
-yarn.lock
 jmeter.log
 *.factorypath
 installer/*.log
