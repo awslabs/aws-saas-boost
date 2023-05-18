@@ -760,6 +760,7 @@ Resources:
               - elasticfilesystem:CreateMountTarget
               - elasticfilesystem:DeleteMountTarget
               - elasticfilesystem:CreateTags
+              - elasticfilesystem:TagResource
               - elasticfilesystem:PutFileSystemPolicy
               - elasticfilesystem:DeleteFileSystemPolicy
               - elasticfilesystem:PutLifecycleConfiguration
