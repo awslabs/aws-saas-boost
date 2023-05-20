@@ -1954,7 +1954,7 @@ public class OnboardingService {
         for (Map<String, Object> service : services.values()) {
             Map<String, Object> filesystem = (Map<String, Object>) service.get("filesystem");
             if (filesystem != null) {
-                configureAd = configureAd || (Boolean) filesystem.getOrDefault("configureManagedAd", false)
+                configureAd = configureAd || (Boolean) filesystem.getOrDefault("configureManagedAd", false);
             }
         }
         return configureAd;
@@ -2116,6 +2116,7 @@ public class OnboardingService {
                         "ACTIVE_DIRECTORY_ID"
                 );
                 if (activeDirectorySettings != null) {
+                    String tenantId = parameters.getProperty("TenantId");
                     parameters.setProperty("ActiveDirectoryId",
                             activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_ID", ""));
                     parameters.setProperty("ActiveDirectoryDnsIps",
