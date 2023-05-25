@@ -8,7 +8,7 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
 
     static final Properties DEFAULTS = new Properties();
     static final List<String> REQUIRED_FOR_CREATE = List.of("Environment", "TenantId", "Tier", "VPC", "SubnetPrivateA",
-            "SubnetPrivateB", "ECSCluster", "ECSSecurityGroup");
+            "SubnetPrivateB", "ECSCluster", "ECSSecurityGroup", "ContainerRepository", "ContainerRepositoryTag");
 
     static {
         DEFAULTS.put("Environment", "");
