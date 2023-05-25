@@ -27,8 +27,6 @@ public class CoreStackParameters extends AbstractStackParameters {
         DEFAULTS.put("PublicApiStage", "v1");
         DEFAULTS.put("PrivateApiStage", "v1");
         DEFAULTS.put("Version", "");
-        DEFAULTS.put("DeployActiveDirectory", "false");
-        DEFAULTS.put("ADPasswordParam", "");
         DEFAULTS.put("ApplicationServices", "");
         DEFAULTS.put("AppExtensions", "");
         DEFAULTS.put("CreateMacroResources", "false");
