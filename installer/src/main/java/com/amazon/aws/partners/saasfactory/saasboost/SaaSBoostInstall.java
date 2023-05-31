@@ -1851,6 +1851,7 @@ public class SaaSBoostInstall {
                     .filter(file ->
                             Files.isRegularFile(file) && (
                             file.startsWith("client/web/package.json")
+                            || file.startsWith("client/web/yarn.lock")
                             || file.startsWith("client/web/.npmrc")
                             || file.startsWith("client/web/public")
                             || file.startsWith("client/web/src"))
