@@ -209,6 +209,10 @@ Parameters:
     Description: Active Directory controller hostname to use when joining Windows cluster hosts to domain for FSx
     Type: String
     Default: ''
+  ActiveDirectoryCredentials:
+    Description: Secrets Manager ARN for active directory username and password
+    Type: String
+    Default: ''
   FSxFileSystemType:
     Description: Type of FSx file system to provision
     Type: String
@@ -789,17 +793,9 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource:
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_IPS
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_NAME
-              - Effect: Allow
-                Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD*
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_ADMIN*
               - Effect: Allow
                 Action:
                   - kms:Decrypt
@@ -901,11 +897,12 @@ Resources:
                 [Environment]::SetEnvironmentVariable("ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE", $TRUE, "Machine")
                 Restart-Service AmazonECS
 
-                Write-Output ("Getting SSM Parameters for the Active Directory domain")
-                $directoryName = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_NAME).Parameters[0].Value
-                $username = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER).Parameters[0].Value
-                $password = (Get-SECSecretValue -SecretId /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD -Select 'SecretString') | ConvertTo-SecureString -asPlainText -Force
-                $ipdns = (Get-SSMParameterValue -Name /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_DNS_IPS).Parameters[0].Value
+                Write-Output ("Getting Active Directory credentials from Secrets Manager")
+                $adCredentials = (Get-SECSecretValue -SecretId /saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_ADMIN -Select 'SecretString') | ConvertFrom-Json
+                $username = $adCredentials.username
+                $password = $adCredentials.password | ConvertTo-SecureString -asPlainText -Force
+                $directoryName = "${ActiveDirectoryDnsName}"
+                $ipdns = "${ActiveDirectoryDnsIps}"
                 $ips = $ipdns.Split(",")
 
                 Write-Output ("Reading the existing VPC DNS Server IP")
@@ -1267,6 +1264,7 @@ Resources:
         ActiveDirectoryId: !Ref ActiveDirectoryId
         ActiveDirectoryDnsIps: !Ref ActiveDirectoryDnsIps
         ActiveDirectoryDnsName: !Ref ActiveDirectoryDnsName
+        ActiveDirectoryCredentials: !Ref ActiveDirectoryCredentials
         PrivateSubnetA: !Ref SubnetPrivateA
         PrivateSubnetB: !Ref SubnetPrivateB
         PrivateRouteTable: !Ref PrivateRouteTable

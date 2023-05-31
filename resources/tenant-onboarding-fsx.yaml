@@ -46,6 +46,10 @@ Parameters:
   ECSSecurityGroup:
     Description: Source security group of ECS instances
     Type: AWS::EC2::SecurityGroup::Id
+  ActiveDirectoryCredentials:
+    Description: Secrets Manager ARN for active directory username and password
+    Type: String
+    Default: ''
   ActiveDirectoryId:
     Description: Id of the AWS Managed Microsoft AD. If you are using self-managed Active Directory, leave this blank.
     Type: String
@@ -472,16 +476,27 @@ Resources:
             Fn::Join: ['', ['tenant-', !Select [0, !Split ['-', !Ref TenantId]]]]
           # TODO how do we support non SaaS Boost provisioned AD instances?
           SelfManagedActiveDirectoryConfiguration:
-            OrganizationalUnitDistinguishedName: !Sub OU=Computers,OU=sb-${Environment},DC=${Environment},DC=${AWS::Region},DC=saasboost,DC=com
+            OrganizationalUnitDistinguishedName:
+              !Join
+                - ''
+                - - 'OU=Computers,OU=tenant-'
+                  - !Select [0, !Split ['-', !Ref TenantId]]
+                  - ',DC='
+                  - !Select [0, !Split ['.', !Ref ActiveDirectoryDnsName]]
+                  - ',DC='
+                  - !Select [1, !Split ['.', !Ref ActiveDirectoryDnsName]]
+                  - ',DC='
+                  - !Select [2, !Split ['.', !Ref ActiveDirectoryDnsName]]
             FileSystemAdministratorsGroup: AWS Delegated FSx Administrators
+            # Domain name is limited to 47 characters by FSx
             DomainName: !Ref ActiveDirectoryDnsName
             # Must pass the comma delimited string in as a parameter, because {{resolve:ssm:}} can't
             # be nested inside a Fn::Split. The split happens before the resolution of the parameter.
             DnsIps: !Split [',', !Ref ActiveDirectoryDnsIps]
             # Don't use Domain\Username here - only Username
-            UserName: !Sub '{{resolve:ssm:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_USER}}'
+            UserName: !Sub '{{resolve:secretsmanager:${ActiveDirectoryCredentials}:SecretStrings:username}}'
             # Can't use ssm-secure here
-            Password: !Sub '{{resolve:secretsmanager:/saas-boost/${Environment}/${TenantId}/ACTIVE_DIRECTORY_PASSWORD::::}}'
+            Password: !Sub '{{resolve:secretsmanager:${ActiveDirectoryCredentials}:SecretString:password}}'
         - !Ref 'AWS::NoValue'
       Tags:
         - Key: Name

@@ -32,6 +32,9 @@ import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.codepipeline.CodePipelineClient;
 import software.amazon.awssdk.services.codepipeline.model.ListTagsForResourceResponse;
 import software.amazon.awssdk.services.codepipeline.model.Tag;
+import software.amazon.awssdk.services.directory.DirectoryClient;
+import software.amazon.awssdk.services.directory.model.DescribeDirectoriesResponse;
+import software.amazon.awssdk.services.directory.model.DirectoryDescription;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.EcrException;
 import software.amazon.awssdk.services.ecr.model.ImageIdentifier;
@@ -85,6 +88,7 @@ public class OnboardingService {
     private final Route53Client route53;
     private final SqsClient sqs;
     private final CodePipelineClient codePipeline;
+    private final DirectoryClient ds;
 
     public OnboardingService() {
         if (Utils.isBlank(AWS_REGION)) {
@@ -112,6 +116,7 @@ public class OnboardingService {
         this.route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME);
         this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
         this.codePipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
+        this.ds = Utils.sdkClient(DirectoryClient.builder(), DirectoryClient.SERVICE_NAME);
     }
 
     /**
@@ -1992,6 +1997,20 @@ public class OnboardingService {
                     parameters.setProperty("ECSLoadBalancerHttpsListener",
                             tenantResources.get("HTTPS_LISTENER").get("arn"));
                 }
+
+                if (tenantResources.containsKey("ACTIVE_DIRECTORY_ID")) {
+                    String directoryId = tenantResources.get("ACTIVE_DIRECTORY_ID").get("name");
+                    DescribeDirectoriesResponse directoriesResponse = ds.describeDirectories(request -> request
+                            .directoryIds(directoryId));
+                    DirectoryDescription directory = directoriesResponse.directoryDescriptions().get(0);
+                    parameters.setProperty("ActiveDirectoryId", directoryId);
+                    parameters.setProperty("ActiveDirectoryDnsIps", String.join(",", directory.dnsIpAddrs()));
+                    parameters.setProperty("ActiveDirectoryDnsName", directory.name()); // Not Access URL
+                    if (tenantResources.containsKey("ACTIVE_DIRECTORY_CREDENTIALS")) {
+                        parameters.setProperty("ActiveDirectoryCredentials",
+                                tenantResources.get("ACTIVE_DIRECTORY_CREDENTIALS").get("arn"));
+                    }
+                }
             } catch (Exception e) {
                 throw new RuntimeException("Error parsing resources for tenant " + tenantId, e);
             }
@@ -2108,21 +2127,6 @@ public class OnboardingService {
                         (String) filesystemTierConfig.get("weeklyMaintenanceTime"));
                 if ("FSX_ONTAP".equals(fileSystemType)) {
                     parameters.setProperty("OntapVolumeSize", ((Integer) filesystemTierConfig.get("volumeSize")).toString());
-                }
-                Map<String, String> activeDirectorySettings = getSettings(
-                        context,
-                        "ACTIVE_DIRECTORY_DNS_IPS",
-                        "ACTIVE_DIRECTORY_DNS_NAME",
-                        "ACTIVE_DIRECTORY_ID"
-                );
-                if (activeDirectorySettings != null) {
-                    String tenantId = parameters.getProperty("TenantId");
-                    parameters.setProperty("ActiveDirectoryId",
-                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_ID", ""));
-                    parameters.setProperty("ActiveDirectoryDnsIps",
-                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_IPS", ""));
-                    parameters.setProperty("ActiveDirectoryDnsName",
-                            activeDirectorySettings.getOrDefault(tenantId + "/ACTIVE_DIRECTORY_DNS_NAME", ""));
                 }
             } else {
                 parameters.setProperty("UseEFS", "false");

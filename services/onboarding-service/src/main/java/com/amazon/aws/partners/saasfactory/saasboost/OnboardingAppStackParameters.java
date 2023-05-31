@@ -62,8 +62,9 @@ public class OnboardingAppStackParameters extends AbstractStackParameters {
         DEFAULTS.put("ActiveDirectoryId", "");
         DEFAULTS.put("ActiveDirectoryDnsIps", "");
         DEFAULTS.put("ActiveDirectoryDnsName", "");
+        DEFAULTS.put("ActiveDirectoryCredentials", "");
         DEFAULTS.put("FSxFileSystemType", "FSX_WINDOWS");
-        DEFAULTS.put("FSxWindowsMountDrive", "");
+        DEFAULTS.put("FSxWindowsMountDrive", "G:");
         DEFAULTS.put("FileSystemStorage", "0");
         DEFAULTS.put("FileSystemThroughput", "0");
         DEFAULTS.put("FSxBackupRetention", "0");
