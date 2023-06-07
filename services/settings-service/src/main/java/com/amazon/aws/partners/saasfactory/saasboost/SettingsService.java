@@ -445,10 +445,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
 
                     if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
                         LOGGER.info("AppConfig application services changed");
-                        //LOGGER.info(Utils.toJson(currentAppConfig));
-                        //LOGGER.info(Utils.toJson(updatedAppConfig));
-                        Set<String> removedServices = AppConfigHelper.removedServices(
-                                currentAppConfig, updatedAppConfig);
+                        // Currently you can only remove services if there are no provisioned tenants
+                        Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
                         if (!removedServices.isEmpty()) {
                             LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.",
                                     removedServices);
@@ -461,7 +459,6 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
 
                     // TODO how do we want to deal with tier settings changes?
 
-                    // TODO do we want to allow adding new services to the config?
                     LOGGER.info("Persisting updated app config");
                     updatedAppConfig = dal.setAppConfig(updatedAppConfig);
 
@@ -471,6 +468,8 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     }
 
                     if (fireUpdateAppConfigEvent) {
+                        // The provisioning system can take care of modifying/adding/removing infra
+                        // due to changes in the app config
                         Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                                 AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
                                 Collections.EMPTY_MAP
@@ -536,6 +535,9 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                     case APP_CONFIG_CHANGED:
                         // We produce this event, but currently aren't consuming it
                         break;
+                    case APP_CONFIG_UPDATE_COMPLETED:
+                        //  We produce this event, but currently aren't consuming it
+                        break;
                     default: {
                         LOGGER.error("Can't find app config event for detail-type {}", event.get("detail-type"));
                         // TODO Throw here? Would end up in DLQ.
@@ -561,6 +563,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         if (json != null) {
             AppConfig changedAppConfig = Utils.fromJson(json, AppConfig.class);
             if (changedAppConfig != null) {
+                boolean update = false;
                 AppConfig existingAppConfig = dal.getAppConfig();
                 // Only update the services if they were passed in
                 if (json.contains("services") && changedAppConfig.getServices() != null) {
@@ -600,12 +603,26 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                             if (!newServiceConfig.equals(requestedService)) {
                                 LOGGER.info("Updating serviceConfig from {} to {}", 
                                         requestedService, newServiceConfig);
+                                update = true;
                                 dal.setServiceConfig(newServiceConfig);
                             }
                         } else {
                             LOGGER.error("Can't find app config service {}", changedServiceName);
                         }
                     }
+                }
+                // If there are provisioned tenants, and we just ran an update to the infrastructure
+                // we need to update the tenant environments to reflect any changes
+                if (update) {
+                    List<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
+                    if (!provisionedTenants.isEmpty()) {
+                        LOGGER.info("Updated app config with provisioned tenants");
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                AppConfigEvent.APP_CONFIG_UPDATE_COMPLETED.detailType(),
+                                Collections.EMPTY_MAP);
+                    }
+                } else {
+                    LOGGER.info("No app config changes to process");
                 }
             } else {
                 LOGGER.error("Can't parse event detail as AppConfig {}", json);

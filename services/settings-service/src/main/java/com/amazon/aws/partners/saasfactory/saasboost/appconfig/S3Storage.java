@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
+package com.amazon.aws.partners.saasfactory.saasboost.appconfig;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;

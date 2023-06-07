@@ -26,6 +26,7 @@ public enum OnboardingEvent {
     ONBOARDING_TENANT_ASSIGNED("Onboarding Tenant Assigned"),
     ONBOARDING_STACK_STATUS_CHANGED("Onboarding Stack Status Changed"),
     ONBOARDING_BASE_PROVISIONED("Onboarding Base Provisioned"),
+    ONBOARDING_BASE_UPDATED("Onboarding Base Updated"),
     ONBOARDING_PROVISIONED("Onboarding Provisioned"),
     ONBOARDING_DEPLOYMENT_PIPELINE_CREATED("Onboarding Deployment Pipeline Created"),
     ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED("Onboarding Deployment Pipeline Change"),

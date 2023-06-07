@@ -85,8 +85,7 @@ public class AppConfig {
         return (Utils.isBlank(name) && Utils.isBlank(domainName) && Utils.isBlank(hostedZone)
                 && Utils.isBlank(sslCertificate)
                 && (billing == null || !billing.hasApiKey())
-                && (services == null || services.isEmpty())
-        );
+                && (services == null || services.isEmpty()));
     }
 
     @Override
@@ -108,14 +107,12 @@ public class AppConfig {
             return false;
         }
         final AppConfig other = (AppConfig) obj;
-        return (
-                Utils.nullableEquals(name, other.getName())
+        return (Utils.nullableEquals(name, other.getName())
                 && Utils.nullableEquals(domainName, other.getDomainName())
                 && Utils.nullableEquals(hostedZone, other.getHostedZone())
                 && Utils.nullableEquals(sslCertificate, other.getSslCertificate())
                 && ((services == null && other.services == null) || (servicesEqual(services, other.services)))
-                && Utils.nullableEquals(billing, other.getBilling())
-        );
+                && Utils.nullableEquals(billing, other.getBilling()));
     }
 
     public static boolean servicesEqual(Map<String, ServiceConfig> services, Map<String, ServiceConfig> otherServices) {

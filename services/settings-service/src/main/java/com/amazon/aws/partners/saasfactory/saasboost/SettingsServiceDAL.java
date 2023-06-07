@@ -136,7 +136,7 @@ public class SettingsServiceDAL {
     }
 
     public Setting getSecret(String settingName) {
-        if(settingName.contains("BILLING_API_KEY")) {
+        if (settingName.contains("BILLING_API_KEY")) {
             settingName = APP_BASE_PATH + settingName;
         }        
         return getSetting(settingName, true);

@@ -107,6 +107,17 @@ public class Onboarding {
         }
     }
 
+    public OnboardingStack baseStack() {
+        OnboardingStack baseStack = null;
+        for (OnboardingStack stack : getStacks()) {
+            if (stack.isBaseStack()) {
+                baseStack = stack;
+                break;
+            }
+        }
+        return baseStack;
+    }
+
     public boolean isEcsClusterLocked() {
         return ecsClusterLocked;
     }

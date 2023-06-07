@@ -4,7 +4,8 @@ import java.util.Map;
 
 public enum AppConfigEvent {
     APP_CONFIG_CHANGED("Application Configuration Changed"),
-    APP_CONFIG_RESOURCE_CHANGED("Application Configuration Resource Changed")
+    APP_CONFIG_RESOURCE_CHANGED("Application Configuration Resource Changed"),
+    APP_CONFIG_UPDATE_COMPLETED("Application Configuration Update Completed")
     ;
 
     private final String detailType;

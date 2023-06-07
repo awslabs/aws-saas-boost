@@ -54,7 +54,14 @@ public enum AwsResource {
             "AWS::EC2::SecurityGroup", true),
     PRIVATE_SERVICE_DISCOVERY_NAMESPACE("https://%s.console.aws.amazon.com/cloudmap/home/namespaces/%s",
             "arn:%s:servicediscovery:%s:%s:namespace/%s",
-            "AWS::ServiceDiscovery::PrivateDnsNamespace", false);
+            "AWS::ServiceDiscovery::PrivateDnsNamespace", false),
+    SECRET("https://%s.console.aws.amazon.com/secretsmanager/secret?region=%s&name=%s",
+            "arn:%s:secretsmanager:%s:%s:secret:%s",
+            "AWS::SecretsManager::Secret", true),
+    MANAGED_AD("https://%s.console.aws.amazon.com/directoryservicev2/home?region=%s#!/directories/%s",
+            "arn:%s:ds:%s:%s:directory/%s",
+            "AWS::DirectoryService::MicrosoftAD", true);
+
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AwsResource.class);
 

@@ -210,6 +210,38 @@ public class OnboardingStackListener implements RequestHandler<SNSEvent, Object>
                                         "consoleUrl", namespace.formatUrl(AWS_REGION, physicalResourceId)
                                 ));
                             }
+                        } else if ("AWS::CloudFormation::Stack".equals(resource.resourceType())
+                                && "ad".equals(resource.logicalResourceId())) {
+                            // Active Directory nested stack
+                            DescribeStacksResponse adStackResponse = cfn.describeStacks(req -> req
+                                    .stackName(resource.physicalResourceId())
+                            );
+                            Stack adStack = adStackResponse.stacks().get(0);
+                            for (Output adStackOutput : adStack.outputs()) {
+                                if ("ActiveDirectoryCredentials".equals(adStackOutput.outputKey())) {
+                                    // CloudFormation returns the ARN for a Secrets Manager secret which includes the
+                                    // random -XXXXXX characters on the end. We need just the name of the secret to
+                                    // build the console url for the secret.
+                                    String secretArn = adStackOutput.outputValue();
+                                    String secretName = secretArn.substring(secretArn.indexOf(":secret:") + 8, secretArn.length() - 7);
+                                    tenantResources.put("ACTIVE_DIRECTORY_CREDENTIALS", Map.of(
+                                            "name", secretName,
+                                            "arn", secretArn,
+                                            "consoleUrl", AwsResource.SECRET.formatUrl(AWS_REGION, secretName)
+                                    ));
+                                    LOGGER.info("Publishing update tenant resources event for tenant {} "
+                                            + "ACTIVE_DIRECTORY_CREDENTIALS {}", tenantId, secretName);
+                                } else if ("ActiveDirectoryId".equals(adStackOutput.outputKey())) {
+                                    String directoryId = adStackOutput.outputValue();
+                                    tenantResources.put("ACTIVE_DIRECTORY_ID", Map.of(
+                                            "name", directoryId,
+                                            "arn", AwsResource.MANAGED_AD.formatArn(partition, AWS_REGION, accountId, directoryId),
+                                            "consoleUrl", AwsResource.MANAGED_AD.formatUrl(AWS_REGION, directoryId)
+                                    ));
+                                    LOGGER.info("Publishing update tenant resources event for tenant {} "
+                                            + "ACTIVE_DIRECTORY_ID {}", tenantId, directoryId);
+                                }
+                            }
                         } else {
                             // Match on the resource type and build the console url
                             for (AwsResource awsResource : AwsResource.values()) {

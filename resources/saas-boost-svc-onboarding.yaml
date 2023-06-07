@@ -371,6 +371,7 @@ Resources:
           - Effect: Allow
             Action: 
               - ds:CreateMicrosoftAD
+              - ds:DescribeDirectories
               - secretsmanager:GetRandomPassword
             Resource: 
               - '*'
@@ -555,6 +556,7 @@ Resources:
             Action:
               - elasticloadbalancing:CreateRule
               - elasticloadbalancing:ModifyRule
+              - elasticloadbalancing:SetRulePriorities
               - elasticloadbalancing:DeleteRule
               - elasticloadbalancing:DeleteListener
             Resource:
@@ -1184,6 +1186,7 @@ Resources:
               "prefix": "Onboarding "
             },
             "Application Configuration Changed",
+            "Application Configuration Update Completed",
             "Tenant Deleted",
             "Tenant Enabled",
             "Tenant Disabled"

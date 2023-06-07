@@ -363,6 +363,9 @@ public class OnboardingServiceDAL {
                     .stream()
                     .map(stack -> {
                         Map<String, AttributeValue> stackItem = new HashMap<>();
+                        if (stack.getService() != null) {
+                            stackItem.put("service", AttributeValue.builder().s(stack.getService()).build());
+                        }
                         if (stack.getName() != null) {
                             stackItem.put("name", AttributeValue.builder().s(stack.getName()).build());
                         }
@@ -468,6 +471,7 @@ public class OnboardingServiceDAL {
                         .map(stackItem -> {
                             Map<String, AttributeValue> stack = stackItem.m();
                             return OnboardingStack.builder()
+                                    .service(stack.containsKey("service") ? stack.get("service").s() : null)
                                     .name(stack.containsKey("name") ? stack.get("name").s() : null)
                                     .arn(stack.containsKey("arn") ? stack.get("arn").s() : null)
                                     .baseStack(stack.containsKey("baseStack") ? stack.get("baseStack").bool() : false)

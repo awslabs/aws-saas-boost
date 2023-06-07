@@ -400,7 +400,4 @@ Outputs:
   DNSName:
     Description: DNSName for this tenant's application load balancer
     Value: !GetAtt ApplicationLoadBalancer.DNSName
-  ADPasswordSecret:
-    Description: SecretsManager reference to AD Password
-    Value: !If [ProvisionManagedAD, !GetAtt ad.Outputs.ADPasswordSecret, ""]
 ...

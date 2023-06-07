@@ -62,9 +62,36 @@ public final class AppConfigHelper {
     }
 
     public static Set<String> removedServices(AppConfig existing, AppConfig altered) {
-        Set<String> existingServices = new HashSet<>(existing.getServices().keySet());
-        existingServices.removeAll(altered.getServices().keySet());
-        return existingServices;
+        Set<String> removed = new HashSet<>();
+        for (String existingKey : existing.getServices().keySet()) {
+            boolean found = false;
+            for (String alteredKey : altered.getServices().keySet()) {
+                if (existingKey.equalsIgnoreCase(alteredKey)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                removed.add(existingKey);
+            }
+        }
+        return removed;
+    }
+
+    public static Set<String> addedServices(AppConfig existing, AppConfig altered) {
+        Set<String> added = new HashSet<>();
+        for (String alteredKey : altered.getServices().keySet()) {
+            int found = 0;
+            for (String existingKey : existing.getServices().keySet()) {
+                if (alteredKey.equalsIgnoreCase(existingKey)) {
+                    found++;
+                }
+            }
+            if (found == 0) {
+                added.add(alteredKey);
+            }
+        }
+        return added;
     }
 
     public static boolean isServicesChanged(AppConfig existing, AppConfig altered) {

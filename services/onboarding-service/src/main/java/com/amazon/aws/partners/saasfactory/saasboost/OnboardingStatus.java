@@ -28,7 +28,8 @@ public enum OnboardingStatus {
     deployed,
     failed,
     deleting,
-    deleted;
+    deleted,
+    unknown;
 
     public static OnboardingStatus fromStackStatus(String stackStatus) {
         OnboardingStatus status;
@@ -38,6 +39,7 @@ public enum OnboardingStatus {
                 status = OnboardingStatus.provisioning;
                 break;
             case "UPDATE_IN_PROGRESS":
+            case "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS":
                 status = OnboardingStatus.updating;
                 break;
             case "DELETE_IN_PROGRESS":
@@ -55,11 +57,21 @@ public enum OnboardingStatus {
             case "CREATE_FAILED":
             case "UPDATE_FAILED":
             case "DELETE_FAILED":
+            case "UPDATE_ROLLBACK_IN_PROGRESS":
+            case "UPDATE_ROLLBACK_COMPLETE":
+            case "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS":
             case "UPDATE_ROLLBACK_FAILED":
             case "ROLLBACK_IN_PROGRESS":
             case "ROLLBACK_COMPLETE":
             case "ROLLBACK_FAILED":
                 status = OnboardingStatus.failed;
+                break;
+            case "IMPORT_IN_PROGRESS":
+            case "IMPORT_COMPLETE":
+            case "IMPORT_ROLLBACK_IN_PROGRESS":
+            case "IMPORT_ROLLBACK_FAILED":
+            case "IMPORT_ROLLBACK_COMPLETE":
+                status = OnboardingStatus.unknown;
                 break;
             default:
                 status = Utils.isNotBlank(stackStatus) ? OnboardingStatus.created : null;

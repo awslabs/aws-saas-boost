@@ -129,4 +129,50 @@ public class AppConfigHelperTest {
         altered = AppConfig.builder().services(services2).build();
         assertTrue(AppConfigHelper.isServicesChanged(existing, altered));
     }
+
+    @Test
+    public void testRemovedServices() {
+        AppConfig existing = AppConfig.builder().build();
+        AppConfig altered = AppConfig.builder().build();
+        assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
+
+        Map<String, ServiceConfig> services1 = new HashMap<>();
+        services1.put("foo", ServiceConfig.builder().build());
+        Map<String, ServiceConfig> services2 = new HashMap<>();
+        services2.put("FOO", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        // foo | FOO
+        assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
+
+        // foo | FOO,bar
+        services2.put("bar", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
+
+        // foo | FOO
+        services2.remove("bar");
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
+
+        // foo | bar
+        services2.remove("FOO");
+        services2.put("bar", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertFalse(AppConfigHelper.removedServices(existing, altered).isEmpty());
+
+        // christmas,easter | bar,baz
+        services1.clear();
+        services1.put("christmas", ServiceConfig.builder().build());
+        services1.put("easter", ServiceConfig.builder().build());
+        services2.clear();
+        services2.put("bar", ServiceConfig.builder().build());
+        services2.put("baz", ServiceConfig.builder().build());
+        existing = AppConfig.builder().services(services1).build();
+        altered = AppConfig.builder().services(services2).build();
+        assertFalse(AppConfigHelper.removedServices(existing, altered).isEmpty());
+    }
 }

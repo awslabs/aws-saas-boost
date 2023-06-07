@@ -97,14 +97,13 @@ public class Setting {
             return false;
         }
         final Setting other = (Setting) obj;
-        return (
-                ((name == null && other.name == null) || (name != null && name.equals(other.name))) // Parameter Store is case sensitive
+        return (((name == null && other.name == null) || (name != null && name.equals(other.name))) // Parameter Store is case sensitive
                 && ((value == null && other.value == null) || (value != null && value.equals(other.value)))
-                && ((description == null && other.description == null) || (description != null && description.equalsIgnoreCase(other.description)))
+                && ((description == null && other.description == null)
+                        || (description != null && description.equalsIgnoreCase(other.description)))
                 && ((version == null && other.version == null) || (version != null && version.equals(other.version)))
                 && (readOnly == other.readOnly)
-                && (secure == other.secure)
-        );
+                && (secure == other.secure));
     }
 
     @Override
