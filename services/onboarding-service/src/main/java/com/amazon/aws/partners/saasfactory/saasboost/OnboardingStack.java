@@ -105,7 +105,11 @@ public class OnboardingStack {
             if (stackId.length > 4) {
                 String region = stackId[3];
                 url = String.format(
-                        "https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?filteringText=&filteringStatus=active&viewNested=true&hideStacks=false&stackId=%s",
+                        "https://%s.console.aws.amazon.com/cloudformation/home?"
+                                + "region=%s"
+                                + "#/stacks/stackinfo?filteringText=&filteringStatus=active"
+                                + "&viewNested=true&hideStacks=false"
+                                + "&stackId=%s",
                         region,
                         region,
                         arn

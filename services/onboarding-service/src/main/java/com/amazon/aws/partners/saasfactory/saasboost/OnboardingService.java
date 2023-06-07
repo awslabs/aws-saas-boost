@@ -792,7 +792,6 @@ public class OnboardingService {
                         LOGGER.error(e.getMessage());
                         LOGGER.error(Utils.getFullStackTrace(e));
                         failOnboarding(onboarding.getId(), e.getMessage());
-                        return;
                     }
                 }
             } else {
@@ -822,7 +821,7 @@ public class OnboardingService {
                 // We may need to update the service discovery environment variables if private services were added
                 Properties serviceDiscovery = new Properties();
 
-                boolean update = false;
+                List<String> update = new ArrayList<>();
                 for (Map.Entry<String, Object> serviceConfig : services.entrySet()) {
                     int found = 0;
                     String serviceName = serviceConfig.getKey();
@@ -855,7 +854,9 @@ public class OnboardingService {
                                         LOGGER.error("Updating stack id does not equal existing stack arn");
                                     }
                                     stack.setStatus("UPDATE_IN_PROGRESS");
-                                    update = true;
+                                    update.add(stackId);
+                                    onboarding.setStatus(OnboardingStatus.updating);
+                                    dal.updateOnboarding(onboarding);
                                 } catch (SdkServiceException cfnError) {
                                     // CloudFormation throws a 400 error if it doesn't detect any resources in a stack
                                     // need to be updated. Swallow this error.
@@ -870,6 +871,9 @@ public class OnboardingService {
                             }
                             break;
                         }
+                    }
+                    if (update.isEmpty()) {
+                        LOGGER.warn("No publicly addressable services found to update");
                     }
 
                     if (found == 0) {
@@ -891,9 +895,31 @@ public class OnboardingService {
                             failOnboarding(onboarding.getId(), e.getMessage());
                             return;
                         }
-                        createOnboardingAppStack(onboarding, serviceConfig, pathPriority, parameters,
-                                serviceDiscovery, context);
-                        update = true;
+                        if (!update.isEmpty()) {
+                            // If we had to update existing public services, we really should wait for
+                            // those stacks to be in UPDATE_COMPLETE prior to creating any new service
+                            // stacks to avoid race conditions on the load balancer rule priority values.
+                            //for (String updatingStack : update) {
+                            //    cfn.waiter().waitUntilStackUpdateComplete(request -> request
+                            //            .stackName(updatingStack));
+                            //}
+                            // However, due to our current stack status change listener, we'd mark the
+                            // onboarding record provisioned prematurely because it won't have the new
+                            // service stack in it yet (happens has part of createOnboardingAppStack call
+                            // below) but all of the non base stacks will be in a completed state.
+                            // TODO create a more fine grained set of events to track this use case specifically
+                            try {
+                                // For now we'll arbitrarily give the update stack calls a head start
+                                LOGGER.info("Pausing new service stack creation for existing services to update");
+                                Thread.sleep(10000 * update.size());
+                            } catch (InterruptedException cantSleep) {
+                                LOGGER.error("Unable to pause thread");
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+                        OnboardingStack newServiceStack = createOnboardingAppStack(onboarding, serviceConfig,
+                                pathPriority, parameters, serviceDiscovery, context);
+                        update.add(newServiceStack.getArn());
                     }
                 }
 
@@ -908,7 +934,7 @@ public class OnboardingService {
                     return;
                 }
 
-                if (update) {
+                if (!update.isEmpty()) {
                     onboarding.setStatus(OnboardingStatus.updating);
                     dal.updateOnboarding(onboarding);
 
@@ -2170,12 +2196,13 @@ public class OnboardingService {
         }
     }
 
-    protected void createOnboardingAppStack(Onboarding onboarding,
+    protected OnboardingStack createOnboardingAppStack(Onboarding onboarding,
                                             Map.Entry<String, Object> serviceConfig,
                                             Map<String, Integer> pathPriority,
                                             OnboardingAppStackParameters parameters,
                                             Properties serviceDiscovery,
                                             Context context) {
+        OnboardingStack stack = null;
         try {
             onboardingAppStackServiceParams(serviceConfig, pathPriority, parameters,
                     serviceDiscovery, context);
@@ -2183,7 +2210,7 @@ public class OnboardingService {
             LOGGER.error(e.getMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             failOnboarding(onboarding.getId(), e.getMessage());
-            return;
+            return stack;
         }
 
         // Make the stack name look like what CloudFormation would have done for a nested stack
@@ -2198,7 +2225,7 @@ public class OnboardingService {
 
         try {
             // Now run the onboarding stack to provision the infrastructure for this application service
-            LOGGER.info("OnboardingService::provisionApplication create stack " + stackName);
+            LOGGER.info("OnboardingService create stack " + stackName);
             String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
                     + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
             String stackId;
@@ -2215,30 +2242,29 @@ public class OnboardingService {
                 stackId = cfnResponse.stackId();
 
                 // Save state in the Onboarding database
-                onboarding.setStatus(OnboardingStatus.provisioning);
-                onboarding.addStack(OnboardingStack.builder()
+                stack = OnboardingStack.builder()
                         .service(parameters.getProperty("ServiceName"))
                         .name(stackName)
                         .arn(stackId)
                         .baseStack(false)
                         .status("CREATE_IN_PROGRESS")
-                        .build()
-                );
+                        .build();
+                onboarding.addStack(stack);
+                onboarding.setStatus(OnboardingStatus.provisioning);
                 onboarding = dal.updateOnboarding(onboarding);
-                LOGGER.info("OnboardingService::provisionApplication stack id " + stackId);
+                LOGGER.info("OnboardingService stack id " + stackId);
             } catch (CloudFormationException cfnError) {
                 LOGGER.error("cloudformation::createStack failed", cfnError);
                 LOGGER.error(Utils.getFullStackTrace(cfnError));
                 failOnboarding(onboarding.getId(), cfnError.awsErrorDetails().errorMessage());
-                return;
             }
         } catch (RuntimeException e) {
             // Template parameters validation failed
             LOGGER.error(e.getMessage());
             LOGGER.error(Utils.getFullStackTrace(e));
             failOnboarding(onboarding.getId(), e.getMessage());
-            return;
         }
+        return stack;
     }
 
     protected void savePropertiesFileToS3(S3Client s3, String bucket, String filename,

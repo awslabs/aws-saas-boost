@@ -563,6 +563,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
         if (json != null) {
             AppConfig changedAppConfig = Utils.fromJson(json, AppConfig.class);
             if (changedAppConfig != null) {
+                boolean update = false;
                 AppConfig existingAppConfig = dal.getAppConfig();
                 // Only update the services if they were passed in
                 if (json.contains("services") && changedAppConfig.getServices() != null) {
@@ -602,6 +603,7 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                             if (!newServiceConfig.equals(requestedService)) {
                                 LOGGER.info("Updating serviceConfig from {} to {}", 
                                         requestedService, newServiceConfig);
+                                update = true;
                                 dal.setServiceConfig(newServiceConfig);
                             }
                         } else {
@@ -611,12 +613,16 @@ public class SettingsService implements RequestHandler<Map<String, Object>, APIG
                 }
                 // If there are provisioned tenants, and we just ran an update to the infrastructure
                 // we need to update the tenant environments to reflect any changes
-                List<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
-                if (!provisionedTenants.isEmpty()) {
-                    LOGGER.info("Updated app config with provisioned tenants");
-                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                            AppConfigEvent.APP_CONFIG_UPDATE_COMPLETED.detailType(),
-                            Collections.EMPTY_MAP);
+                if (update) {
+                    List<Map<String, Object>> provisionedTenants = getProvisionedTenants(context);
+                    if (!provisionedTenants.isEmpty()) {
+                        LOGGER.info("Updated app config with provisioned tenants");
+                        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                                AppConfigEvent.APP_CONFIG_UPDATE_COMPLETED.detailType(),
+                                Collections.EMPTY_MAP);
+                    }
+                } else {
+                    LOGGER.info("No app config changes to process");
                 }
             } else {
                 LOGGER.error("Can't parse event detail as AppConfig {}", json);
