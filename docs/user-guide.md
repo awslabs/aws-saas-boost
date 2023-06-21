@@ -27,29 +27,29 @@
     [Metering Instrumentation](#metering-instrumentation)
 
 ## Introduction
-This document introduces software-as-a-service (SaaS) developers and architects to the fundamentals of AWS SaaS Boost. It outlines the concepts associated with preparing your environment and guides you through key elements of the configuration, tenant onboarding, operations, billing, and metrics features of AWS SaaS Boost. 
+This document introduces software-as-a-service (SaaS) developers and architects to the fundamentals of AWS SaaS Boost. It outlines the concepts associated with preparing your environment and guides you through key elements of the configuration, tenant onboarding, operations, billing, and metrics features of AWS SaaS Boost.
 
-While this document provides some insights into the way AWS SaaS Boost works, it is not intended to provide a deep dive into the underlying technology. A more detailed view is covered in the [Developer Guide](./developer-guide.md). 
+While this document provides some insights into the way AWS SaaS Boost works, it is not intended to provide a deep dive into the underlying technology. A more detailed view is covered in the [Developer Guide](./developer-guide.md).
 
 The installation and setup of AWS SaaS Boost is covered in the [Getting Started Guide](./getting-started.md).
 
 ## Overview
-AWS SaaS Boost is an environment that accelerates a single-tenant independent software vendor's (ISV's) path to a SaaS offering by providing a prescriptive, ready-to-use offering that enables them to move their existing solution to a multi-tenant model, minimizing the typical effort and investment associated with moving a solution to a SaaS delivery model. 
+AWS SaaS Boost is an environment that accelerates a single-tenant independent software vendor's (ISV's) path to a SaaS offering by providing a prescriptive, ready-to-use offering that enables them to move their existing solution to a multi-tenant model, minimizing the typical effort and investment associated with moving a solution to a SaaS delivery model.
 
-To better understand the mechanics of AWS SaaS Boost, look at the starting point for many ISVs. AWS SaaS Boost is focused on those organizations that are running monolithic environments (meaning the entire application can be packaged and deployed as a single unit.) In this model, each of the ISV's customers is typically running in their own environments. This might be in the cloud, in a private cloud, or on premises. Each customer is often running a distinct environment. This environment might be managed by the customer or by the ISV. 
+To better understand the mechanics of AWS SaaS Boost, look at the starting point for many ISVs. AWS SaaS Boost is focused on those organizations that are running monolithic environments (meaning the entire application can be packaged and deployed as a single unit.) In this model, each of the ISV's customers is typically running in their own environments. This might be in the cloud, in a private cloud, or on premises. Each customer is often running a distinct environment. This environment might be managed by the customer or by the ISV.
 
-The left side of the diagram in Figure 1 gives a conceptual view of this classic software deployment model. In this mindset, companies will often see themselves as having a series of "customers", each of which has a separately installed version of their product. Since each customer has its own environment, ISVs often allow customers to opt in to the version of the product that they want to run. In this example, each of the three customers is running a different version. It's also common for ISVs to allow one-off customization in this model, creating scenarios where the infrastructure and environment can be unique to each customer. 
- 
+The left side of the diagram in Figure 1 gives a conceptual view of this classic software deployment model. In this mindset, companies will often see themselves as having a series of "customers", each of which has a separately installed version of their product. Since each customer has its own environment, ISVs often allow customers to opt in to the version of the product that they want to run. In this example, each of the three customers is running a different version. It's also common for ISVs to allow one-off customization in this model, creating scenarios where the infrastructure and environment can be unique to each customer.
+
 While this variation offers flexibility, it also adds challenges for these ISVs. You'll notice in the diagram that each customer can also require specific management, operations, configuration, and so on. Supporting this level of per-customer customization often translates into higher operational costs for ISVs. As the ISV business grows, they find that this model limits their ability to scale and accept new customers without absorbing significant overhead. It also undermines their ability to innovate.
 
 ![Figure 1 - Creating a unified experience](images/ug-unified-experience.png?raw=true "Figure 1 - Creating a unified experience")
 <p align="center">Figure 1 - Creating a unified experience</p>
 
-The right side of this diagram highlights what it means to move to the AWS SaaS Boost (multi-tenant) model. Here, you have tenants instead of customers.  Each entity that signs up for a SaaS service that is viewed as a tenant of a single, unified environment that supports all of your tenants. In this model, all tenants are managed, operated, deployed, and supported via a common set of constructs. This means all tenants run the same version of the product. It also means that the deployment of new versions of the product are delivered to all tenants. Essentially, to achieve the economies of scale that align with SaaS tenets, you need to abandon support for one-off variations and require tenants to run in a single, unified experience. 
+The right side of this diagram highlights what it means to move to the AWS SaaS Boost (multi-tenant) model. Here, you have tenants instead of customers.  Each entity that signs up for a SaaS service that is viewed as a tenant of a single, unified environment that supports all of your tenants. In this model, all tenants are managed, operated, deployed, and supported via a common set of constructs. This means all tenants run the same version of the product. It also means that the deployment of new versions of the product are delivered to all tenants. Essentially, to achieve the economies of scale that align with SaaS tenets, you need to abandon support for one-off variations and require tenants to run in a single, unified experience.
 
-While tenants are running in this unified experience, they can still belong to different tiers that influence their experience. Basic-tier tenants, for example, may not have access to the same features or throughput that is available to premium-tier tenants. These variations are managed through configuration, eliminating the need for any one-off customization for each tenant. All of these tenants-regardless of their assigned tier-are managed and operated by a single experience. 
+While tenants are running in this unified experience, they can still belong to different tiers that influence their experience. Basic-tier tenants, for example, may not have access to the same features or throughput that is available to premium-tier tenants. These variations are managed through configuration, eliminating the need for any one-off customization for each tenant. All of these tenants-regardless of their assigned tier-are managed and operated by a single experience.
 
-This, then, is the initial value proposition of AWS SaaS Boost-equip companies with an environment that can move their applications to a SaaS model that allows tenants to be onboarded, managed, and operated collectively. This allows companies to rapidly realize the business and operational advantages associated with a SaaS delivery model. 
+This, then, is the initial value proposition of AWS SaaS Boost-equip companies with an environment that can move their applications to a SaaS model that allows tenants to be onboarded, managed, and operated collectively. This allows companies to rapidly realize the business and operational advantages associated with a SaaS delivery model.
 
 Figure 2 highlights how this model fundamentally changes the way a SaaS provider engages its market. The idea here is to shift away from the notion of "installed" software and move to an "as-a-service" mindset where tenants can easily onboard to a service with minimal friction. This streamlines the introduction of new tenants, allowing the business to grow faster and engage new markets. The SaaS model allows you to add new business without adding significant overhead to your operational footprint.
 
@@ -65,16 +65,16 @@ The approach taken by AWS SaaS Boost is shaped by the following tenets:
 
 It's equally important to note what AWS SaaS Boost is not. Specifically, AWS SaaS Boost is not attempting to represent itself as a platform that spans all the best practices and strategies for implementing SaaS on AWS. Instead, it covers a specific scenario that is focused on accelerating transformation of a monolith to a SaaS model. This means it implements a pattern of migration that limits the investment in refactoring and focuses more on time-to-market.
 
-Figure 3 provides a conceptual view of the key components of AWS SaaS Boost. 
+Figure 3 provides a conceptual view of the key components of AWS SaaS Boost.
 
 ![Figure 3 - Fundamentals of AWS SaaS Boost](images/ug-boost-experience.png?raw=true "Figure 3 - Fundamentals of AWS SaaS Boost")
 <p align="center">Figure 3 - Fundamentals of the AWS SaaS Boost experience</p>
 
-1.	Acquire the solution by cloning the AWS SaaS Boost GitHub repository. 
+1.	Acquire the solution by cloning the AWS SaaS Boost GitHub repository.
 2.	Provision AWS SaaS Boost in your AWS account,
 3.	Configure the environment with the settings that are specific to your environment.
 4.	Containerize and upload an image of your monolithic application or your monolithic application to AWS SaaS Boost. This would be added to your existing build process (as represented in the diagram).
-5.	Provision the tenants. The AWS SaaS Boost administration application provides a built-in mechanism to provision individual tenants, or you could invoke this provisioning process from your own application's sign-up page. The key here is that AWS SaaS Boost owns the responsibility for provisioning and configuring all the pieces needed to enable and activate a tenant. You can then repeat this process to add more tenants to the system without any extra work. 
+5.	Provision the tenants. The AWS SaaS Boost administration application provides a built-in mechanism to provision individual tenants, or you could invoke this provisioning process from your own application's sign-up page. The key here is that AWS SaaS Boost owns the responsibility for provisioning and configuring all the pieces needed to enable and activate a tenant. You can then repeat this process to add more tenants to the system without any extra work.
 6.	Use AWS SaaS Boost to manage and operate your tenant environments.
 
 When all these steps are done, you can focus on your application. When you introduce new features or fix a bug in your application, you can rebuild your solution and upload the new containerized image, and that image is deployed to all the tenants in your system. You essentially get all the management and deployment efficiency that you need in a SaaS environment, addressing all your tenants at once through a single unified experience.
@@ -89,7 +89,7 @@ This low-touch model presumes that you can start running your SaaS solution on A
 
 ISVs that choose the low-touch model are also likely to want to follow and apply changes that are introduced into new versions of AWS SaaS Boost. As new features are introduced, developers may want to download and take advantage of these new capabilities as they are released.
 
-If you are aligned to the low-touch model, the next natural question to ask is this: what makes an ISV solution a good fit for the low-touch experience? The following is a list of attributes that would make a solution a good candidate for AWS SaaS Boost: 
+If you are aligned to the low-touch model, the next natural question to ask is this: what makes an ISV solution a good fit for the low-touch experience? The following is a list of attributes that would make a solution a good candidate for AWS SaaS Boost:
 
 1. You have a monolithic Linux or Windows based web application as your starting point. This is the most fundamental point to start with since this first version of AWS SaaS Boost needs to run your application on a single container. The emphasis here is more on a lift-and-shift mindset that covers applications that aren't yet modernized or decomposed into a collection of separate services. Future versions are likely to look beyond monoliths, but supporting them is not part of the v1.0 offering.
 2. Your application relies on a database. AWS SaaS Boost has built-in abilities to provision and configure your database requirements. If you're a classic relational database user, you'll likely have a ready-to-use option available to you with AWS SaaS Boost. However, if you have more specialized database requirements, you may need to provision your database on its own or customize the AWS SaaS Boost provisioning experience.
@@ -103,10 +103,10 @@ The goal of AWS SaaS Boost is to reduce the amount of development, operational, 
 
 For these scenarios, SaaS organization may need to fork the existing AWS SaaS Boost code base and introduce the customizations that are needed to get their environment up and running. Ideally, these customizations can be captured and merged into the core of AWS SaaS Boost, enabling other ISV developers to take advantage of the new capabilities.
 
-If these customizations come in through an open-source community, they will extend the capabilities of AWS SaaS Boost, enabling it to evolve in a way that reduces the number of ISVs that have to select the customization path. Still, this path is valid and may, for some, represent their best opportunity to maximize the value of AWS SaaS Boost for their business and technical needs. 
+If these customizations come in through an open-source community, they will extend the capabilities of AWS SaaS Boost, enabling it to evolve in a way that reduces the number of ISVs that have to select the customization path. Still, this path is valid and may, for some, represent their best opportunity to maximize the value of AWS SaaS Boost for their business and technical needs.
 
 ## Accessing AWS SaaS Boost
-After you've installed AWS SaaS Boost (using the Getting Started Guide), a message is sent to the email address provided during the install process. This message includes a link that represents the entry point to the AWS SaaS Boost administration application. The message appears as follows:
+After you've installed AWS SaaS Boost (using the Getting Started Guide), a message is sent to the email address provided during the installation process. This message includes a link that represents the entry point to the AWS SaaS Boost administration application. The message appears as follows:
 
 ![Figure 4 - Getting your temporary password](images/ug-welcome-email.png?raw=true "Figure 4 - Getting your temporary password")
 <p align="center">Figure 4 - Getting your temporary password</p>
@@ -116,20 +116,20 @@ Copy the temporary password that is shown here and select the link. It takes you
 ![Figure 5 - Setting up your password](images/ug-change-password.png?raw=true "Figure 5 - Setting up your password")
 <p align="center">Figure 5 - Setting up your password</p>
 
-Enter `admin` for the user name and enter the temporary password that was delivered in the email referenced above. Since you're logging in with a temporary password, you'll be prompted to enter a new password for your account. The screen appears as follows:
+Enter `admin` for the username and enter the temporary password that was delivered in the email referenced above. Since you're logging in with a temporary password, you'll be prompted to enter a new password for your account. The screen appears as follows:
 
 ![Figure 6 - AWS SaaS Boost Login](images/ug-login.png?raw=true "Figure 6 - AWS SaaS Boost Login")
 <p align="center">Figure 6 - AWS SaaS Boost Login</p>
 
 After successfully logging into the system, you'll be placed at the Summary page. This page provides a high-level view of the state of your environment. Upon your initial entry, these settings are populated with minimal data. A sample of the screen is shown below.
 
-As you use AWS SaaS Boost, this screen provides more context that can be helpful. Overall, though, the general role of this page is meant to serve as a way to provide a quick view into the state of the system and provide links to resources that are part of AWS SaaS Boost. 
+As you use AWS SaaS Boost, this screen provides more context that can be helpful. Overall, though, the general role of this page is meant to serve as a way to provide a quick view into the state of the system and provide links to resources that are part of AWS SaaS Boost.
 
 ![Figure 7 - Summary Page](images/ug-summary.png?raw=true "Figure 7 - Summary Page")
 <p align="center">Figure 7 - The Summary Page</p>
 
 ## Configuring Your Application
-After you've logged into the AWS SaaS Boost administration application, configure the environment to align it with the specific needs of your application. To setup the application, select **Application** from the navigation on the left side of the administration application. A page similar to the image below appears.
+After you've logged into the AWS SaaS Boost administration application, configure the environment to align it with the specific needs of your application. To set up the application, select **Application** from the navigation on the left side of the administration application. A page similar to the image below appears.
 
 ![Figure 8 - Configuring the application](images/ug-app-config.png?raw=true "Figure 8 - Configuring the application")
 <p align="center">Figure 8 - Configuring the application</p>
@@ -152,9 +152,9 @@ Now, let's walk through the options that are configured on this page. The follow
 <p align="center">Figure 9 - Selecting a Windows server</p>
 
 - Container Port - The port that is used to access your application. This corresponds to the `EXPOSE` line in your application's Docker file.
-- HealthCheck URL - This URL is essential to the auto scaling footprint of your application. You should provide a URL that can be used to determine if your application is up and running. Generally, this is represented by some HTML entry point that can return a 200 if your application is healthy and able to process requests.
+- HealthCheck URL - This URL is essential to the autoscaling footprint of your application. You should provide a URL that can be used to determine if your application is up and running. Generally, this is represented by some HTML entry point that can return a 200 if your application is healthy and able to process requests.
 
-Tenant context will be provided to your application at runtime. SaaS Boost will expose the  tenant's unique identifier (a GUID) as an environment variable called `TENANT_ID`. You can use this value to add tenant context to your logs, metrics, and other configuration settings.
+Tenant context will be provided to your application at runtime. SaaS Boost will expose the tenant's unique identifier (a GUID) as an environment variable called `TENANT_ID`. You can use this value to add tenant context to your logs, metrics, and other configuration settings.
 
 ### File System
 The file system configuration is optional for AWS SaaS Boost. If your solution relies on a file system as part of its infrastructure footprint, then you'll want to enable this option. Enabling this option creates file-system resources for each tenant that is created by your system. The file system configuration experience will vary based on the operating system you've selected,
@@ -167,7 +167,7 @@ If you've selected Linux as your operating system, selecting the **Provision a f
 The following options can be configured for your file system:
 - Mount Point - Enter the path to mount point of the files that your application uses. This corresponds to the `VOLUME` line in your application's Docker file.
 - Lifecycle - Amazon Elastic File System (Amazon EFS) lifecycle management automatically manages cost-effective file storage for your file systems. When enabled, lifecycle management migrates files that have not been accessed for a set period of time to the Infrequent Access (IA) storage class. You define that period of time by using a lifecycle policy. After lifecycle management moves a file into the IA storage class, the file remains there indefinitely. Amazon EFS lifecycle management uses an internal timer to track when a file was last accessed.
-- Encrypt at rest - Check this box if you want your files to be encrypted at rest. 
+- Encrypt at rest - Check this box if you want your files to be encrypted at rest.
 
 If you've selected Windows as your operating system, the system will display a different set of configuration options (since Windows requires a different type of file system infrastructure). Selecting the **Provision a file system for the application** check box for a Windows operating system will show a page similar to one of the following based on whether you choose "FSx ONTAP" or "FSx Windows":
 
@@ -204,7 +204,7 @@ The first step in configuring the database options is to select the **Provision 
 ![Figure 12 - Configure a database](images/ug-database.png?raw=true "Figure 12 - Configure a database")
 <p align="center">Figure 12 - Configure a database</p>
 
-The goal on this page is to select the type and size of the database that your application will use. The configuration you select here applies to each tenant that is deployed in your system. The database options, at this point, are focused on relational databases. 
+The goal on this page is to select the type and size of the database that your application will use. The configuration you select here applies to each tenant that is deployed in your system. The database options, at this point, are focused on relational databases.
 
 The following options are configured when setting up a database in AWS SaaS Boost:
 - Engine - Select the flavor of AWS relational database that you want to use for your application. The choice you make here is driven by the requirements of your application and, potentially, the features of the various AWS relational database engines.
@@ -273,14 +273,14 @@ The sample application is compatible with PostgreSQL, MySQL/MariaDB, and SQL Ser
 - DB_MASTER_PASSWORD
 
 ## Onboarding Tenants
-The key elements are in place now. The application is configured and you've uploaded a containerized representation of your application. You're now ready to onboard tenants.
+The key elements are in place now. The application is configured, and you've uploaded a containerized representation of your application. You're now ready to onboard tenants.
 
 The goal of the onboarding process is to create an entirely automated, frictionless experience that configures all the resources that are needed to deploy a new tenant in your SaaS environment. The repeatability of this process is essential to the agility of your SaaS organization. Being able to onboard new tenants with minimum friction enables your organization to accelerate your ability to onboard new customers without incurring significant additional operational overhead.
 
-AWS SaaS Boost offers two paths for onboarding tenants: self-service and internally managed. 
+AWS SaaS Boost offers two paths for onboarding tenants: self-service and internally managed.
 
 - With a self-service onboarding experience, your application introduces a sign-up flow where tenants can fill out and submit a registration form. In the scenario, your application integrates with the AWS SaaS Boost API, sending this registration information into the onboarding service.
-- For an internally managed onboarding flow, use the AWS SaaS Boost administration application to fill out all the data needed to provision a new tenant and trigger the onboarding process. 
+- For an internally managed onboarding flow, use the AWS SaaS Boost administration application to fill out all the data needed to provision a new tenant and trigger the onboarding process.
 
 To access the built-in tenant onboarding experience, select the **Onboarding** entry from the navigation pane and the following page will appear:
 
@@ -294,9 +294,9 @@ In this example, the list of tenants is empty. This because you have not yet pro
 
 To complete this form, provide the following settings:
 - Tenant Name - The friendly name of the tenant (often the name of the business)
-- Compute Size - The compute size you specified when you configured the application. The size that was provided at the application level represents the default size for all tenants. AWS SaaS Boost allows you to override this value on a tenant-by-tenant basis, optimizing the performance and scale for individual tenants. To alter the value for the tenant being deployed, select the **Override Application Defaults** box. This allows you to override compute size (as well and min/max instance counts). 
+- Compute Size - The compute size you specified when you configured the application. The size that was provided at the application level represents the default size for all tenants. AWS SaaS Boost allows you to override this value on a tenant-by-tenant basis, optimizing the performance and scale for individual tenants. To alter the value for the tenant being deployed, select the **Override Application Defaults** box. This allows you to override compute size (as well and min/max instance counts).
 - Minimum/Maximum Instance Count - When you select **Override Application Defaults**, you can enter new minimum or maximum instance counts for the tenant being provisioned. The values you enter here should correlate to the tiers of your application. Use this tiering strategy to identify a set of minimum and maximum values that align with this tiering model. The goal here is to avoid having custom sizing for each tenant. Introducing too many sizing variations can undermine the operational agility you're targeting for your SaaS environment.
-- Billing Plan - As your tenants are onboarded, associate them with a specific billing plan. AWS SaaS Boost has a preconfigured range of billing plans. Ultimately, you'll want to better align these billing plan with the options that best align with your business model. This is achieved by configuring your products in Stripe and mapping them to the plans that are managed within AWS SaaS Boost.
+- Billing Plan - As your tenants are onboarded, associate them with a specific billing plan. AWS SaaS Boost has a pre-configured range of billing plans. Ultimately, you'll want to better align these billing plan with the options that best align with your business model. This is achieved by configuring your products in Stripe and mapping them to the plans that are managed within AWS SaaS Boost.
 
 ### Monitoring the Onboarding Process
 After you've submitted a tenant for provisioning, the system allows you to monitor the status of the onboarding progress. If you select the **Onboarding** option from the navigation, the onboarding page provides a list of tenants that are being onboarded. This is true if the tenant is provisioned through the API or the AWS SaaS Boost administration application.
@@ -306,7 +306,7 @@ The image in Figure 17 provides an example of a page where tenants have been pro
 ![Figure 17 - Monitor onboarding status](images/ug-onboarding-status.png?raw=true "Figure 17 - Monitor onboarding status")
 <p align="center">Figure 17 - Monitor onboarding status</p>
 
-This example shows five tenants that have been provisioned. The status of the first four are shown as **Deployed**. This indicates that the tenant has been successfully provisioned. The final tenant in the list has a status of **Failed**. This should be a rare condition that could be triggered by different states of your environment or configuration. 
+This example shows five tenants that have been provisioned. The status of the first four are shown as **Deployed**. This indicates that the tenant has been successfully provisioned. The final tenant in the list has a status of **Failed**. This should be a rare condition that could be triggered by different states of your environment or configuration.
 
 The provisioning process goes through multiple steps, each of which is reflected as a separate phase of the provisioning lifecycle. The states include created, provisioning, provisioned, deploying, and deployed.
 
@@ -318,7 +318,7 @@ When a tenant is fully provisioned, you can examine details about the provisione
 This detail view allows you to navigate directly to the tenant that was provisioned by selecting the link under **Tenant**. You can also access the AWS CloudFormation stack associated with this tenant by selecting the link under **Stack Id**.
 
 ## Managing Tenants
-The onboarding flow described above is used to initially provision a tenant. Once that step is complete, it's unlikely that you'll return to the onboarding page (unless you're looking for specific tenant provisioning details). Instead, access any additional activity for tenants through the **Tenants** navigation on the left. 
+The onboarding flow described above is used to initially provision a tenant. Once that step is complete, it's unlikely that you'll return to the onboarding page (unless you're looking for specific tenant provisioning details). Instead, access any additional activity for tenants through the **Tenants** navigation on the left.
 
 ![Figure 19 - Managing tenants](images/ug-tenant-management.png?raw=true "Figure 19 - Managing tenants")
 <p align="center">Figure 19 - Managing tenants</p>
@@ -329,12 +329,12 @@ This page includes a list of all the tenants in the system along with key attrib
 
 Within this detail view, you'll see two distinct sections. The top half of the page contains more information about the state of the selected tenants. The two key attributes you'll want to pay attention to here are the subdomain the Load Balancer DNS. These attributes play a role in how tenants access their environments.
 
-If you've supplied a subdomain, tenant uses this subdomain to access your SaaS application. The subdomain is combined with the domain that was setup with your application (see [Application Configuration](#application-configuration) above) to construct the URL for each tenant. If you, for example, provide a subdomain of `abccompany` and the domain you setup in the application was `my-saas.com`, then tenant URL would be `abccompany.my-saas.com`. If you setup another tenant as `xyzcompany`, their URL would be `xyzcompany.my-saas.com`.
+If you've supplied a subdomain, tenant uses this subdomain to access your SaaS application. The subdomain is combined with the domain that was set up with your application (see [Application Configuration](#application-configuration) above) to construct the URL for each tenant. If you, for example, provide a subdomain of `abccompany` and the domain you set up in the application was `my-saas.com`, then tenant URL would be `abccompany.my-saas.com`. If you set up another tenant as `xyzcompany`, their URL would be `xyzcompany.my-saas.com`.
 
 ![Figure 20 - Tenant detail](images/ug-tenant-detail.png?raw=true "Figure 20 - Tenant detail")
 <p align="center">Figure 20 - Tenant detail</p>
 
-In the scenario where you do not setup your domain and subdomain, you'd then need to refer to the Load Balancer DNS to get the URL to access a tenant's environment. This URL is available in both scenarios. However, if you're relying on the subdomain model, you don't need to rely on this Load Balancer DNS URL. Generally, this Load Balancer DNS URL would mostly be used as a way to access the system before you've configured your domain.
+In the scenario where you do not set up your domain and subdomain, you'd then need to refer to the Load Balancer DNS to get the URL to access a tenant's environment. This URL is available in both scenarios. However, if you're relying on the subdomain model, you don't need to rely on this Load Balancer DNS URL. Generally, this Load Balancer DNS URL would mostly be used as a way to access the system before you've configured your domain.
 
 The bottom half of this page includes links to AWS resources that were provisioned for this tenant. This provides you with a simple way to navigate to specific tenant resources in the AWS Console.
 
@@ -350,7 +350,7 @@ The **disable/enable** action for tenants is used to change whether a tenant is 
 The **delete** action is used to delete the tenant stack. __**This action is not reversible and all data will be lost**__. All deployed resources such as the database and the file system will be deleted. Before selecting the delete action, make sure you have backups for the resources in case you want to restore a tenant's data.
 
 ## Managing Users
-The AWS SaaS Boost provisioning process created an initial user for your system. However, you'll probably want to introduce additional users to AWS SaaS Boost. To manage these users, select the **Users** link from the navigation pane at the left. This displays the current list of users as shown below. 
+The AWS SaaS Boost provisioning process created an initial user for your system. However, you'll probably want to introduce additional users to AWS SaaS Boost. To manage these users, select the **Users** link from the navigation pane at the left. This displays the current list of users as shown below.
 
 ![Figure 22 - Manage users](images/ug-user-management.png?raw=true "Figure 22 - Manage users")
 <p align="center">Figure 22 - Manage users</p>
@@ -360,36 +360,36 @@ The page displays all the key information about each user. At the top right of t
 ![Figure 23 - Edit user](images/ug-user-edit.png?raw=true "Figure 23 - Edit user")
 <p align="center">Figure 23 - Edit user</p>
 
-This form collects basic user information (username, first name, last name, and email address). It also includes a check box at the bottom of the form that is used to control how the new user is verified. 
-- If the box is checked, the system treats the user as verified and does not send an email for verification. 
+This form collects basic user information (username, first name, last name, and email address). It also includes a check box at the bottom of the form that is used to control how the new user is verified.
+- If the box is checked, the system treats the user as verified and does not send an email for verification.
 - If the box is not checked, the system sends a verification email to the user. When the user attempts to log in, they are required to create a new password.
 
-If you select an individual item from the list of users, you are presented with a detail page for that user (shown in Figure 24). 
+If you select an individual item from the list of users, you are presented with a detail page for that user (shown in Figure 24).
 
 ![Figure 24 - User details](images/ug-user-details.png?raw=true "Figure 24 - User details")
 <p align="center">Figure 24 - User details</p>
 
-From this **User Details** page, you can edit, delete, and disable or enable individual users. These options are all invoked from the **Actions** button at the top right of the page. Choosing Edit displays same form shown in Figure 23. 
+From this **User Details** page, you can edit, delete, and disable or enable individual users. These options are all invoked from the **Actions** button at the top right of the page. Choosing Edit displays same form shown in Figure 23.
 
-Choosing the **Enable** and **Disable** options from the **Actions** list causes the user to be activated or deactivated. This allows you to selectively disable a user's access to the system without deleting the user. 
+Choosing the **Enable** and **Disable** options from the **Actions** list causes the user to be activated or deactivated. This allows you to selectively disable a user's access to the system without deleting the user.
 
 Finally, this same menu includes a **Delete** option that, when selected, deletes the selected user from the system.
 
 ## Operational Insights
-Operations are an essential aspect of any SaaS environment. With AWS SaaS Boost, the goal is to provide a built-in operations experience that can allow SaaS providers to have a single pane of glass that collects key insights about tenant activity. 
+Operations are an essential aspect of any SaaS environment. With AWS SaaS Boost, the goal is to provide a built-in operations experience that can allow SaaS providers to have a single pane of glass that collects key insights about tenant activity.
 
 There are two basic goals for operational insights in AWS SaaS Boost. First, these metrics must be able to be surfaced without requiring any additional instrumentation. While this may narrow the scope of what data is available, it also ensures that SaaS providers are equipped with ready-to-consume insights that are aligned with the lift-and-shift model of AWS SaaS Boost.
 
 The other goal of AWS SaaS Boost operational insights is to remain focused on offering insights that are focused on multi-tenant operational scenarios. Instead of trying to be the single dashboard for all system insights, AWS SaaS Boost creates just those visualizations that are focused on assessing tenant trends and activity.
 
-To access the operational insights, open the Dashboard list from the navigation pane. This displays three categories of visualization (requests, compute, and usage). Each of these entries corresponds to data visualizations that can be used to analyze activity in your SaaS system. 
+To access the operational insights, open the Dashboard list from the navigation pane. This displays three categories of visualization (requests, compute, and usage). Each of these entries corresponds to data visualizations that can be used to analyze activity in your SaaS system.
 
 At the top of each data visualization page, you'll see a set of filters that are common to all of the analytics views. Figure 25 provides a snapshot of the Requests view within the dashboard page.
 
 ![Figure 25 - Graph filtering options](images/ug-dashboard-home.png?raw=true "Figure 25 - Graph filtering options")
 <p align="center">Figure 25 - Graph filtering options</p>
 
-- The dropdown on the left of this Requests page is used to filter the charts on the page by tenant. When you select an individual tenant from the dropdown, all of the graphs are scoped to that tenants. 
+- The dropdown on the left of this Requests page is used to filter the charts on the page by tenant. When you select an individual tenant from the dropdown, all of the graphs are scoped to that tenants.
 - The same is true for the time period at the top right of this page. It is used to adjust the window of time that is reflected in each of the graphs on the page.
 
 ### Request Analytics
@@ -420,7 +420,7 @@ This graph represents three tenants with relatively even distribution. However, 
 #### Request Failures (4XX and 5XX)
 Being able to see trends in error conditions is also valuable. Here, you'll see trending data (on the left) and tenant counts (on the right) that correlate to HTTP 4XX and 5XX errors events.
 
-This follows the pattern shown in Figure 26 where the P50, P70, and P90 percentiles are used to categorize the error conditions. Meanwhile the counts give you a clearer view of which specific tenants may be seeing more of these errors.
+This follows the pattern shown in Figure 26 where the P50, P70, and P90 percentiles are used to categorize the error conditions. Meanwhile, the counts give you a clearer view of which specific tenants may be seeing more of these errors.
 
 ### Compute Analytics
 Compute analytics are used to give you a better sense of how tenants are exercising the compute load placed on your multi-tenant environment. With AWS SaaS Boost, you can create some specific tenant-aware visualizations that help you identify potential scaling or compute bottlenecks.
@@ -428,7 +428,7 @@ Compute analytics are used to give you a better sense of how tenants are exercis
 The breakdown of compute trends is focused on CPU and memory at this point. You'll see a graph on the left that illustrated the general consumption trends and a graph on the right that illustrates specific tenant consumption patterns.
 
 #### CPU Utilization
-When you select **Compute** option from the **Dashboard** menu, you will be presented with a colletion of compute related graphs. CPU utilization is represented with another P50, P70, P90 graph that shows the CPU consumption over a window of time. Each of these three lines gives you a sense of how CPU consumption is distributed across your tenants. Are most tenants pressing the CPU or are most under consumed? These are questions you'll be able to answer from the CPU utilization graph that could influence the sizing of your application and tenant environments. Figure 28 provides an example of a CPU utilization graph. 
+When you select **Compute** option from the **Dashboard** menu, you will be presented with a collection of compute related graphs. CPU utilization is represented with another P50, P70, P90 graph that shows the CPU consumption over a window of time. Each of these three lines gives you a sense of how CPU consumption is distributed across your tenants. Are most tenants pressing the CPU or are most under consumed? These are questions you'll be able to answer from the CPU utilization graph that could influence the sizing of your application and tenant environments. Figure 28 provides an example of a CPU utilization graph.
 
 The CPU utilization also includes a graph that illustrates the tenants that are the top consumers of CPU resources. These two graphs provide a macro level view into which tenants are placing load on the CPU in specific windows of time.
 
@@ -510,10 +510,10 @@ logger.log(event);
 ```
 Here you'll notice that the AWS SaaS Boost code supplies various parameters that are used to classify the metrics. This extra data is essential to enabling more detailed analytics of your tenant activity.
 
-While the expressiveness of the metrics API enables richer data, including calls of this size directly in your code would be invasive to the functionality and readability of your code. The expectation is that you would create wrappers/helper that would hide away most of the detail shown here. Instead, the much of the context can be inferred from the state of the code being executed. Ideally, each metric call (when wrapped) would fit on a single line in your environment.
+While the expressiveness of the metrics API enables richer data, including calls of this size directly in your code would be invasive to the functionality and readability of your code. The expectation is that you would create wrappers/helper that would hide away most of the detail shown here. Instead, much of the context can be inferred from the state of the code being executed. Ideally, each metric call (when wrapped) would fit on a single line in your environment.
 
 ### Building Dashboards
-The data aggregated by the metrics and analytics module of AWS SaaS Boost can be surfaced through any BI tool that can sit on top of Amazon Redshift. To simplify your path to dashboards, AWS has setup Amazon QuickSight.
+The data aggregated by the metrics and analytics module of AWS SaaS Boost can be surfaced through any BI tool that can sit on top of Amazon Redshift. To simplify your path to dashboards, AWS has set up Amazon QuickSight.
 
 As you begin publishing data, you can access QuickSight from the AWS Console and begin creating the analytics views that help you analyze the business and technical trends of your SaaS environment.
 
@@ -551,7 +551,7 @@ To simplify this experience, AWS SaaS Boost has pre-defined a set of plans that 
 As each metering event is sent from AWS SaaS Boost to Stripe, the system uses the AWS SaaS Boost plan configuration data to determine the tenant's plan and resolve that the to a corresponding Stripe product configuration (in AWS SaaS Boost).
 
 ### Creating Stripe Customers (Tenants)
-As new tenants are onboarded via AWS SaaS Boost, each new tenant must have an account created within Stripe. The creation of these customers is handled for you as part of the AWS SaaS Boost onboarding experience. 
+As new tenants are onboarded via AWS SaaS Boost, each new tenant must have an account created within Stripe. The creation of these customers is handled for you as part of the AWS SaaS Boost onboarding experience.
 
 If you return to the onboarding experience and examine the form that is used to onboard tenants, you can now see how the Stripe integration fits with the overall onboarding flow. The image in Figure 33 provides a snapshot of the form that is used to add a new tenant to the system.
 
@@ -565,7 +565,7 @@ This onboarding could also be triggered by an API call to AWS SaaS Boost. This A
 In this model, a SaaS provider would have its own onboarding experience in its application that would collect the registration data, select a plan, and submit that data to the onboarding API The remainder of the onboarding experience would still surface in the AWS SaaS Boost administration application as described above. More specifically, the status of each onboarding tenant could be observed through the onboarding page of AWS SaaS Boost.
 
 ### Metering Instrumentation
-The last piece of the billing puzzle is instrumentation. For billing to work, you'll need to introduce code into your application that publishes metering data to Stripe that is then used to calculate each tenant's bill. 
+The last piece of the billing puzzle is instrumentation. For billing to work, you'll need to introduce code into your application that publishes metering data to Stripe that is then used to calculate each tenant's bill.
 
 What you meter, of course, varies significantly based on the billing model of your SaaS offering. Some providers charge a flat subscription fee, some will meter based on consumption, and some will use a combination of plans. This reality means that the metering model of each application is going to be different. It is recommended that you familiarize yourself with the metering and billing options that are available with Stripe and identify an approach that best fits with the business model of your application.
 
