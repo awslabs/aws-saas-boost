@@ -1,0 +1,139 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Auth0
+Parameters:
+  Environment:
+    Description: SaaS Boost environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
+  AdminCredentials:
+    Description: Secrets Manager secret for the SaaS Boost initial admin user
+    Type: String
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+Resources:
+  Auth0SetupLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-auth0-setup
+      RetentionInDays: 30
+  Auth0SetupExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-auth0-setup-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-auth0-setup-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref AdminCredentials
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:sb-${Environment}-auth0-admin*
+  Auth0SetupLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: Auth0SetupLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-auth0-setup
+      Role: !GetAtt Auth0SetupExecRole.Arn
+      Runtime: java11
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.Auth0Setup
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/Auth0Setup-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+  InvokeAuth0Setup:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt Auth0SetupLambda.Arn
+      Auth0Credentials: !Sub sb-${Environment}-auth0-admin
+      AdminUserCredentials: !Ref AdminCredentials
+      ConnectionName: !Sub sb-${Environment}
+      AdminWebAppUrl: !Ref AdminWebUrl
+Outputs:
+  OidcIssuer:
+    Description: The OIDC issuer for this Auth0 Connection
+    Value: ''
+  OidcDomain:
+    Description: The OIDC domain URL (this can be blank because Auth0 supports OIDC end_session_endpoint)
+    Value: ''
+  OidcTokenEndpoint:
+    Description: The OIDC token endpoint for this Auth0 Connection
+    Value: ''
+  AdminWebAppClientName:
+    Description: Public OAuth app client with PKCE for authorization code grant
+    Value: !GetAtt InvokeAuth0Setup.AdminWebAppClientName
+  AdminWebAppClientId:
+    Description: Public OAuth app client id
+    Value: !GetAtt InvokeAuth0Setup.AdminWebAppClientId
+  ApiAppClientName:
+    Description: Private OAuth app client for client credentials grant
+    Value: !GetAtt InvokeAuth0Setup.ApiAppClientName
+  ApiAppClientId:
+    Description: Private OAuth app client id
+    Value: !GetAtt InvokeAuth0Setup.ApiAppClientId
+  ApiAppClientSecret:
+    Description: Private OAuth app client secret
+    Value: !GetAtt InvokeAuth0Setup.ApiAppClientSecret
+...

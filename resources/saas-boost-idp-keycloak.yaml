@@ -835,21 +835,21 @@ Outputs:
   KeycloakRealm:
     Description: Configured realm for the Keycloak install
     Value: !GetAtt InvokeKeycloakSetup.KeycloakRealm
-  KeycloakIssuer:
+  KeycloakDatabaseEndpoint:
+    Description: Keycloak database hostname
+    Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
+  OidcIssuer:
     Description: The OIDC issuer for this Keycloak install
     Value: !If
       - HasCustomDomain
       - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}
       - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}
-  KeycloakTokenEndpoint:
+  OidcTokenEndpoint:
     Description: The OIDC token endpoint for this Keycloak install
     Value: !If
       - HasCustomDomain
       - !Sub https://${CustomDomainName}/realms/${InvokeKeycloakSetup.KeycloakRealm}/protocol/openid-connect/token
       - !Sub http://${KeycloakLoadBalancer.DNSName}/realms/sb-${Environment}/protocol/openid-connect/token
-  KeycloakDatabaseEndpoint:
-    Description: Keycloak database hostname
-    Value: !GetAtt KeycloakDatabaseInstance.Endpoint.Address
   AdminWebAppClientName:
     Description: Public OAuth app client with PKCE for authorization code grant
     Value: !GetAtt InvokeKeycloakSetup.AdminWebAppClientName

@@ -127,7 +127,7 @@ Resources:
           - Name: REACT_APP_CLIENT_ID
             Value: !Ref AdminWebClientId
           - Name: REACT_APP_SCOPE
-            Value: !Sub openid profile email
+            Value: openid profile email
           - Name: REACT_APP_ISSUER
             Value: !Ref OidcIssuerUrl
           - Name: REACT_APP_IDP_DOMAIN
