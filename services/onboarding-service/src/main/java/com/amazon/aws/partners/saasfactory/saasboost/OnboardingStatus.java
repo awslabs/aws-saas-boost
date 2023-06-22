@@ -29,6 +29,7 @@ public enum OnboardingStatus {
     failed,
     deleting,
     deleted,
+    completed,
     unknown;
 
     public static OnboardingStatus fromStackStatus(String stackStatus) {

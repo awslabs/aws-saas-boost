@@ -1,4 +1,4 @@
----
+#---
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
@@ -81,9 +81,9 @@ Parameters:
   OnboardingServiceById:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Type: String
-  QuotasServiceCheck:
-    Description: Quota Service check limits Lambda ARN
-    Type: String
+#  QuotasServiceCheck:
+#    Description: Quota Service check limits Lambda ARN
+#    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -781,73 +781,73 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  QuotaServiceResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref RootResourceId
-      PathPart: quotas
-  QuotaServiceCheckResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref QuotaServiceResource
-      PathPart: check
-  QuotaServiceCheckMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref QuotaServiceCheckResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QuotasServiceCheck}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  QuotasServiceLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref QuotasServiceCheck
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/quotas/check
-  QuotaServiceCheckResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref QuotaServiceCheckResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
+#  QuotaServiceResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref RootResourceId
+#      PathPart: quotas
+#  QuotaServiceCheckResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref QuotaServiceResource
+#      PathPart: check
+#  QuotaServiceCheckMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref QuotaServiceCheckResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QuotasServiceCheck}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  QuotasServiceLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref QuotasServiceCheck
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/quotas/check
+#  QuotaServiceCheckResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref QuotaServiceCheckResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
   SettingsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -2092,8 +2092,8 @@ Resources:
       - OnboardingServiceResourceCORS
       - OnboardingServiceByIdMethod
       - OnboardingServiceByIdResourceCORS
-      - QuotaServiceCheckMethod
-      - QuotaServiceCheckResourceCORS
+      #- QuotaServiceCheckMethod
+      #- QuotaServiceCheckResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS
       - SettingsServiceOptionsMethod

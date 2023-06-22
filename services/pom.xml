@@ -15,7 +15,6 @@
     <modules>
         <module>metrics-service</module>
         <module>onboarding-service</module>
-        <module>quotas-service</module>
         <module>settings-service</module>
         <module>tenant-service</module>
         <module>tier-service</module>

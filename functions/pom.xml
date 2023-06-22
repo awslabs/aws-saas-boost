@@ -15,14 +15,7 @@
 	<modules>
 		<module>authorizer</module>
         <module>codepipeline-wait-handler</module>
-        <module>core-stack-listener</module>
         <module>ecs-service-update</module>
-        <module>ecs-shutdown-services</module>
-        <module>ecs-startup-services</module>
-        <module>onboarding-app-stack-listener</module>
-        <module>onboarding-stack-listener</module>
-        <module>system-rest-api-client</module>
-        <module>workload-deploy</module>
     </modules>
     <licenses>
         <license>

@@ -21,11 +21,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.retry.AwsRetryPolicy;
 import software.amazon.awssdk.core.SdkClient;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
 import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.acm.AcmClientBuilder;
@@ -46,8 +42,6 @@ import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.Route53ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClientBuilder;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.SsmClientBuilder;
 import software.amazon.awssdk.services.sts.StsClient;
@@ -73,7 +67,6 @@ public class AwsClientBuilderFactory {
     private S3ClientBuilder cachedS3Builder;
     private SsmClientBuilder cachedSsmBuilder;
     private StsClientBuilder cachedStsBuilder;
-    private SecretsManagerClientBuilder cachedSecretsManagerClientBuilder;
     private Route53ClientBuilder cachedRoute53ClientBuilder;
     private AcmClientBuilder cachedAcmClientBuilder;
 
@@ -179,13 +172,6 @@ public class AwsClientBuilderFactory {
             cachedStsBuilder = decorateBuilderWithDefaults(StsClient.builder());
         }
         return cachedStsBuilder;
-    }
-
-    public SecretsManagerClientBuilder secretsManagerBuilder() {
-        if (cachedSecretsManagerClientBuilder == null) {
-            cachedSecretsManagerClientBuilder = decorateBuilderWithDefaults(SecretsManagerClient.builder());
-        }
-        return cachedSecretsManagerClientBuilder;
     }
 
     public Route53ClientBuilder route53Builder() {

@@ -21,6 +21,7 @@ import org.keycloak.representations.idm.*;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +33,7 @@ public class KeycloakUtils {
     public static RealmRepresentation asRealm(String realmName) {
         RealmRepresentation realm = new RealmRepresentation();
         realm.setRealm(realmName);
+        realm.setEnabled(Boolean.TRUE);
         return realm;
     }
 
@@ -78,6 +80,7 @@ public class KeycloakUtils {
         client.setPublicClient(false);
         client.setAttributes(Map.of("use.refresh.tokens", Boolean.FALSE.toString()));
         client.setDefaultClientScopes(scopes);
+        client.setProtocolMappers(new ArrayList<>());
         return client;
     }
 
@@ -96,6 +99,7 @@ public class KeycloakUtils {
         client.setPublicClient(true);
         client.setAttributes(Map.of("pkce.code.challenge.method", "S256"));
         client.setRedirectUris(List.of(redirects));
+        client.setProtocolMappers(new ArrayList<>());
         return client;
     }
 

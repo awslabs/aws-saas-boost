@@ -107,14 +107,14 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
             Path.of("client/web/src/App.js"),
-            Path.of("functions/onboarding-app-stack-listener/pom.xml"));
+            Path.of("functions/authorizer/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
             if (action == UpdateAction.FUNCTIONS) {
                 assertEquals(1, action.getTargets().size());
                 assertEquals(1, UpdateAction.FUNCTIONS.getTargets().size());
-                assertTrue(action.getTargets().contains("onboarding-app-stack-listener"));
+                assertTrue(action.getTargets().contains("authorizer"));
             }
         });
     }
@@ -124,8 +124,8 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.LAYERS, UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
             Path.of("client/web/src/App.js"),
-            Path.of("functions/onboarding-app-stack-listener/pom.xml"),
-            Path.of("layers/apigw-helper/pom.xml"));
+            Path.of("functions/authorizer/pom.xml"),
+            Path.of("layers/utils/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         // the first item in the set iterator should always be LAYERS
@@ -146,7 +146,7 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CUSTOM_RESOURCES, UpdateAction.RESOURCES);
         List<Path> changedPaths = List.of(
             Path.of("resources/saas-boost.yaml"),
-            Path.of("resources/custom-resources/app-services-macro/pom.xml"));
+            Path.of("resources/custom-resources/clear-s3-bucket/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
@@ -156,7 +156,7 @@ public class UpdateWorkflowTest {
             }
             if (action == UpdateAction.CUSTOM_RESOURCES) {
                 assertEquals(1, action.getTargets().size());
-                assertTrue(action.getTargets().contains("app-services-macro"));
+                assertTrue(action.getTargets().contains("clear-s3-bucket"));
             }
         });
     }

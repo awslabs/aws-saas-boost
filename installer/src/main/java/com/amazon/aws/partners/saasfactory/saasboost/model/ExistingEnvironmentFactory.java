@@ -117,8 +117,9 @@ public final class ExistingEnvironmentFactory {
             String baseCloudFormationStackName) {
         LOGGER.debug("Getting CloudFormation stack details for SaaS Boost stack {}", baseCloudFormationStackName);
         Map<String, String> details = new HashMap<>();
-        List<String> requiredOutputs = List.of("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1", 
-                "PrivateSubnet2", "EgressVpc", "LoggingBucket");
+//        List<String> requiredOutputs = List.of("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1",
+//                "PrivateSubnet2", "EgressVpc", "LoggingBucket");
+        List<String> requiredOutputs = List.of("LoggingBucket");
         try {
             DescribeStacksResponse response = cfn.describeStacks(
                     request -> request.stackName(baseCloudFormationStackName));

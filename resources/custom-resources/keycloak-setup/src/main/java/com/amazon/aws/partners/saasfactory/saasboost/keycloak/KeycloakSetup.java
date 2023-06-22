@@ -145,12 +145,12 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
     // Setting up a new Keycloak install programmatically is a multi step process.
     // 1. Create the Keycloak realm for this SaaS Boost environment
     // 2. Create the initial "admin" user
-    // 3. Create the client scopes
-    // 4. Create the app clients
-    // 5. Create the realm roles
-    // 6. Create the user groups
-    // 7. Map the roles to groups
-    // 8. Add users to their groups
+    // 3. Create the realm roles
+    // 4. Create the user groups
+    // 5. Map the roles to groups
+    // 6. Add users to their groups
+    // 7. Create the client scopes
+    // 8. Create the app clients
     // 9. Add protocol mappers to the clients to include roles and additional claims in the tokens
     protected Map<String, String> setupKeycloak(KeycloakAdminApi keycloak, String realmName, String initialUserUsername,
                                                 String initialUserPassword, String initialUserEmail,
@@ -160,7 +160,7 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
 
         // Initial "admin" user of the SaaS Boost admin web app
         UserRepresentation adminUser = keycloak.createUser(realm,
-                KeycloakUtils.asUser(initialUserUsername, initialUserPassword, initialUserEmail));
+                KeycloakUtils.asUser(initialUserUsername, initialUserEmail, initialUserPassword));
 
         // An "admin" role to enable RBAC attributes in the tokens
         RoleRepresentation adminRole = keycloak.createRole(realm, KeycloakUtils.asRole("admin"));
@@ -218,15 +218,18 @@ public class KeycloakSetup implements RequestHandler<Map<String, Object>, Object
 
         // Add the predefined group membership user realm role mapper to the dedicated scopes
         // and mappers for the Admin Web App client so that the access token includes the user's
-        // group and role membership.
+        // group and role membership. This will add a "groups" claim to the id and access token
+        // vended by the admin web app client.
 
-        // The Group Membership protocol mapper is under the built-in microprofile-jwt
-        // client scope
+        // The Group Membership protocol mapper is under the built-in microprofile-jwt client scope
         ClientScopeRepresentation microProfileScope = keycloak.getClientScope(realm, "microprofile-jwt");
         ProtocolMapperRepresentation groupsProtocolMapper = keycloak.getClientScopeProtocolMapper(realm,
                 microProfileScope, "groups");
-        adminWebAppClient.getProtocolMappers().add(groupsProtocolMapper);
-        keycloak.updateClient(realm, adminWebAppClient);
+        // We need to clear out the existing id that maps this model to the microprofile-jwt client
+        // scope or we'll get a unique key violation when we add a copy of it to the admin web app
+        // client's dedicated scopes
+        groupsProtocolMapper.setId(null);
+        adminWebAppClient = keycloak.addClientProtocolMapperModel(realm, adminWebAppClient, groupsProtocolMapper);
 
         // We need to return details of the app clients to CloudFormation
         final Map<String, String> setupResults = new HashMap<>();

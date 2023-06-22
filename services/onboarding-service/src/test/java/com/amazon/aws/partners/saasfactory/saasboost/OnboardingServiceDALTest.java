@@ -31,15 +31,15 @@ public class OnboardingServiceDALTest {
 
     private static UUID onboardingId;
     private static UUID tenantId;
-    private static List<OnboardingStack> stacks;
+//    private static List<OnboardingStack> stacks;
 
     @BeforeClass
     public static void setup() throws Exception {
         onboardingId = UUID.fromString("f11cadd8-9c3c-40be-9106-4d64e2478daf");
         tenantId = UUID.fromString("c9a437c5-68bc-47ab-a4d5-4e6bbd089914");
-        stacks = new ArrayList<>();
-        stacks.add(OnboardingStack.builder().baseStack(true).name("BaseStack").build());
-        stacks.add(OnboardingStack.builder().baseStack(false).name("AppStack").build());
+//        stacks = new ArrayList<>();
+//        stacks.add(OnboardingStack.builder().baseStack(true).name("BaseStack").build());
+//        stacks.add(OnboardingStack.builder().baseStack(false).name("AppStack").build());
     }
     @Test
     public void testToAttributeValueMap() {
@@ -53,9 +53,9 @@ public class OnboardingServiceDALTest {
         onboarding.setStatus(OnboardingStatus.created);
         onboarding.setTenantId(tenantId);
         onboarding.setRequest(new OnboardingRequest("Unit Test", "default"));
-        onboarding.setStacks(stacks);
+//        onboarding.setStacks(stacks);
         onboarding.setZipFile("foobar");
-        onboarding.setEcsClusterLocked(false);
+//        onboarding.setEcsClusterLocked(false);
 
         Map<String, AttributeValue> expected = new HashMap<>();
         expected.put("id", AttributeValue.builder().s(onboardingId.toString()).build());
@@ -68,14 +68,14 @@ public class OnboardingServiceDALTest {
                 "name", AttributeValue.builder().s("Unit Test").build(),
                 "tier", AttributeValue.builder().s("default").build())
         ).build());
-        expected.put("stacks", AttributeValue.builder().l(stacks.stream()
-                .map(stack -> AttributeValue.builder().m(Map.of(
-                        "name", AttributeValue.builder().s(stack.getName()).build(),
-                        "baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build()
-                )).build())
-                .collect(Collectors.toList())
-        ).build());
-        expected.put("ecs_cluster_locked", AttributeValue.builder().bool(false).build());
+//        expected.put("stacks", AttributeValue.builder().l(stacks.stream()
+//                .map(stack -> AttributeValue.builder().m(Map.of(
+//                        "name", AttributeValue.builder().s(stack.getName()).build(),
+//                        "baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build()
+//                )).build())
+//                .collect(Collectors.toList())
+//        ).build());
+//        expected.put("ecs_cluster_locked", AttributeValue.builder().bool(false).build());
 
         Map<String, AttributeValue> actual = OnboardingServiceDAL.toAttributeValueMap(onboarding);
 

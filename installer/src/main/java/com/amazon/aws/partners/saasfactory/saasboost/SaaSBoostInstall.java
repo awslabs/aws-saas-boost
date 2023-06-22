@@ -55,10 +55,6 @@ import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameReques
 import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.model.CreateSecretRequest;
-import software.amazon.awssdk.services.secretsmanager.model.ResourceNotFoundException;
-import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 
@@ -94,7 +90,6 @@ public class SaaSBoostInstall {
     private final S3Client s3;
     private final SsmClient ssm;
     private final LambdaClient lambda;
-    private final SecretsManagerClient secretsManager;
     private final Route53Client route53;
     private final AcmClient acm;
 
@@ -117,8 +112,8 @@ public class SaaSBoostInstall {
         UPDATE_WEB_APP(3, "Update Web Application for existing AWS SaaS Boost deployment.", true),
         UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
         DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
-        CANCEL(6, "Exit installer.", false);
-        //DEBUG(7, "Debug", false);
+        CANCEL(6, "Exit installer.", false),
+        DEBUG(7, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -163,7 +158,6 @@ public class SaaSBoostInstall {
         quickSight = awsClientBuilderFactory.quickSightBuilder().build();
         s3 = awsClientBuilderFactory.s3Builder().build();
         ssm = awsClientBuilderFactory.ssmBuilder().build();
-        secretsManager = awsClientBuilderFactory.secretsManagerBuilder().build();
         route53 = awsClientBuilderFactory.route53Builder().build();
         acm = awsClientBuilderFactory.acmBuilder().build();
 
@@ -187,7 +181,41 @@ public class SaaSBoostInstall {
     }
 
     protected void debug(String existingBucket) {
-        copyAdminWebAppSourceToS3(workingDir, null, null);
+        while (true) {
+            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
+            this.envName = Keyboard.readString();
+            if (validateEnvironmentName(this.envName)) {
+                LOGGER.info("Setting SaaS Boost environment = [{}]", this.envName);
+                break;
+            } else {
+                outputMessage("Entered value is invalid, maximum of 10 alphanumeric characters, and cannot be AWS,"
+                        + " Amazon, or Cognito. Please try again.");
+            }
+        }
+        if (existingBucket != null) {
+            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            try {
+                s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
+            } catch (SdkServiceException s3error) {
+                outputMessage("Bucket " + existingBucket + " does not exist!");
+                throw s3error;
+            }
+        } else {
+            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+            outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
+        }
+
+        // Copy the CloudFormation templates
+        outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+        copyResourcesToS3();
+
+        // Compile all the source code
+        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+        processLambdas();
+
+        // Copy the source files up to S3 where CloudFormation resources expect them to be
+        outputMessage("Uploading admin web app source files to S3");
+        copyAdminWebAppSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
     }
 
     public void start(String existingBucket) {
@@ -257,9 +285,9 @@ public class SaaSBoostInstall {
             case CANCEL:
                 cancel();
                 break;
-            //case DEBUG:
-            //    debug(existingBucket);
-            //    break;
+            case DEBUG:
+                debug(existingBucket);
+                break;
             default:
                 cancel();
         }
@@ -705,17 +733,6 @@ public class SaaSBoostInstall {
         // Delete the SaaS Boost stack
         outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
         deleteCloudFormationStack(this.stackName);
-        // Delete the ActiveDirectory password in SecretsManager if it exists
-        try {
-            secretsManager.deleteSecret(request -> request
-                    .forceDeleteWithoutRecovery(true)
-                    .secretId("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
-                    .build()
-            );
-            outputMessage("ActiveDirectory secretsManager secret deleted.");
-        } catch (ResourceNotFoundException rnfe) {
-            // there is no ACTIVE_DIRECTORY_PASSWORD secret, so there is nothing to delete
-        }
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
         LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
@@ -1662,7 +1679,8 @@ public class SaaSBoostInstall {
         //templateParameters.add(Parameter.builder().parameterKey("ApiDomain").parameterValue(Objects.toString(apiCustomDomaine, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiHostedZone").parameterValue(Objects.toString(apiHostedZone, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiCertificate").parameterValue(Objects.toString(apiCertificate, "")).build());
-        templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
+        //templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
+        templateParameters.add(Parameter.builder().parameterKey("AppPlaneAccountId").parameterValue(Objects.toString("", "")).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
         String stackId = null;

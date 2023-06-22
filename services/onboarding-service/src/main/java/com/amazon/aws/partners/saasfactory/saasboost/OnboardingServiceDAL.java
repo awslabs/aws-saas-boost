@@ -31,7 +31,6 @@ public class OnboardingServiceDAL {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingServiceDAL.class);
     private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
-    private static final String CIDR_BLOCK_TABLE = System.getenv("CIDR_BLOCK_TABLE");
     private final DynamoDbClient ddb;
 
     public OnboardingServiceDAL() {
@@ -211,109 +210,6 @@ public class OnboardingServiceDAL {
         return onboarding;
     }
 
-    public String getCidrBlock(UUID tenantId) {
-        return getCidrBlock(tenantId.toString());
-    }
-
-    public String getCidrBlock(String tenantId) {
-        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
-            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
-        }
-        String cidrBlock = null;
-        try {
-            ScanResponse scan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
-            if (!scan.items().isEmpty()) {
-                for (Map<String, AttributeValue> item : scan.items()) {
-                    if (item.containsKey("tenant_id") && item.get("tenant_id").s().equals(tenantId)) {
-                        cidrBlock = item.get("cidr_block").s();
-                    }
-                }
-            }
-        } catch (DynamoDbException ddbError) {
-            LOGGER.error("dynamodb:Scan error", ddbError);
-            LOGGER.error(Utils.getFullStackTrace(ddbError));
-            throw ddbError;
-        } catch (Exception e) {
-            LOGGER.error("Unexpected error", e);
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return cidrBlock;
-    }
-
-    public boolean availableCidrBlock() {
-        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
-            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
-        }
-        boolean available;
-        try {
-            ScanResponse scan = ddb.scan(r -> r
-                    .tableName(CIDR_BLOCK_TABLE)
-                    .filterExpression("attribute_not_exists(tenant_id)")
-            );
-            available = scan.hasItems() && !scan.items().isEmpty();
-        } catch (DynamoDbException ddbError) {
-            LOGGER.error("dynamodb:Scan error", ddbError);
-            LOGGER.error(Utils.getFullStackTrace(ddbError));
-            throw ddbError;
-        }
-        return available;
-    }
-
-    public String assignCidrBlock(String tenantId) {
-        if (Utils.isBlank(CIDR_BLOCK_TABLE)) {
-            throw new IllegalStateException("Missing required environment variable CIDR_BLOCK_TABLE");
-        }
-        String cidrBlock;
-        try {
-            long scanStartTimeMillis = System.currentTimeMillis();
-            List<String> availableCidrBlocks = new ArrayList<>();
-            ScanResponse fullScan = ddb.scan(r -> r.tableName(CIDR_BLOCK_TABLE));
-            if (!fullScan.items().isEmpty()) {
-                for (Map<String, AttributeValue> item : fullScan.items()) {
-                    // Make sure we're not trying to assign a CIDR block to a tenant that already has one
-                    if (item.containsKey("tenant_id") && tenantId.equals(item.get("tenant_id").s())) {
-                        throw new RuntimeException("CIDR block already assigned for tenant " + tenantId);
-                    }
-                    if (!item.containsKey("tenant_id")) {
-                        availableCidrBlocks.add(item.get("cidr_block").s());
-                    }
-                }
-                // Make sure we have an open CIDR block left to assign
-                if (availableCidrBlocks.isEmpty()) {
-                    throw new RuntimeException("No remaining CIDR blocks");
-                }
-            }
-            long scanTotalTimeMillis = System.currentTimeMillis() - scanStartTimeMillis;
-            LOGGER.info("OnboardingServiceDAL::assignCidrBlock scan " + scanTotalTimeMillis);
-
-            long updateStartTimeMillis = System.currentTimeMillis();
-            String cidr = availableCidrBlocks.get((int) (Math.random() * availableCidrBlocks.size()));
-            // Claim this one for this tenant
-            Map<String, AttributeValue> key = new HashMap<>();
-            key.put("cidr_block", AttributeValue.builder().s(cidr).build());
-            UpdateItemResponse update = ddb.updateItem(r -> r
-                    .tableName(CIDR_BLOCK_TABLE)
-                    .key(key)
-                    .updateExpression("SET tenant_id = :tenantId")
-                    .expressionAttributeValues(
-                            Collections.singletonMap(":tenantId", AttributeValue.builder().s(tenantId).build())
-                    )
-                    .conditionExpression("attribute_not_exists(tenant_id)")
-                    .returnValues(ReturnValue.ALL_NEW)
-            );
-            Map<String, AttributeValue> updated = update.attributes();
-            cidrBlock = updated.get("cidr_block").s();
-            long updateTotalTimeMillis = System.currentTimeMillis() - updateStartTimeMillis;
-            LOGGER.info("OnboardingServiceDAL::assignCidrBlock update " + updateTotalTimeMillis);
-        } catch (DynamoDbException e) {
-            LOGGER.error("OnboardingServiceDAL::assignCidrBlock " + Utils.getFullStackTrace(e));
-            throw e;
-        }
-
-        return cidrBlock;
-    }
-
     public static Map<String, AttributeValue> toAttributeValueMap(Onboarding onboarding) {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("id", AttributeValue.builder().s(onboarding.getId().toString()).build());
@@ -358,37 +254,37 @@ public class OnboardingServiceDAL {
             }
             item.put("request", AttributeValue.builder().m(requestMap).build());
         }
-        if (!onboarding.getStacks().isEmpty()) {
-            item.put("stacks", AttributeValue.builder().l(onboarding.getStacks()
-                    .stream()
-                    .map(stack -> {
-                        Map<String, AttributeValue> stackItem = new HashMap<>();
-                        if (stack.getService() != null) {
-                            stackItem.put("service", AttributeValue.builder().s(stack.getService()).build());
-                        }
-                        if (stack.getName() != null) {
-                            stackItem.put("name", AttributeValue.builder().s(stack.getName()).build());
-                        }
-                        if (stack.getArn() != null) {
-                            stackItem.put("arn", AttributeValue.builder().s(stack.getArn()).build());
-                        }
-                        stackItem.put("baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build());
-                        if (stack.getStatus() != null) {
-                            stackItem.put("status", AttributeValue.builder().s(stack.getStatus()).build());
-                        }
-                        if (stack.getPipeline() != null) {
-                            stackItem.put("pipeline", AttributeValue.builder().s(stack.getPipeline()).build());
-                        }
-                        if (stack.getPipelineStatus() != null) {
-                            stackItem.put("pipelineStatus", AttributeValue.builder().s(stack.getPipelineStatus()).build());
-                        }
-                        return AttributeValue.builder().m(stackItem).build();
-                    })
-                    .collect(Collectors.toList())
-                    ).build()
-            );
-        }
-        item.put("ecs_cluster_locked", AttributeValue.builder().bool(onboarding.isEcsClusterLocked()).build());
+//        if (!onboarding.getStacks().isEmpty()) {
+//            item.put("stacks", AttributeValue.builder().l(onboarding.getStacks()
+//                    .stream()
+//                    .map(stack -> {
+//                        Map<String, AttributeValue> stackItem = new HashMap<>();
+//                        if (stack.getService() != null) {
+//                            stackItem.put("service", AttributeValue.builder().s(stack.getService()).build());
+//                        }
+//                        if (stack.getName() != null) {
+//                            stackItem.put("name", AttributeValue.builder().s(stack.getName()).build());
+//                        }
+//                        if (stack.getArn() != null) {
+//                            stackItem.put("arn", AttributeValue.builder().s(stack.getArn()).build());
+//                        }
+//                        stackItem.put("baseStack", AttributeValue.builder().bool(stack.isBaseStack()).build());
+//                        if (stack.getStatus() != null) {
+//                            stackItem.put("status", AttributeValue.builder().s(stack.getStatus()).build());
+//                        }
+//                        if (stack.getPipeline() != null) {
+//                            stackItem.put("pipeline", AttributeValue.builder().s(stack.getPipeline()).build());
+//                        }
+//                        if (stack.getPipelineStatus() != null) {
+//                            stackItem.put("pipelineStatus", AttributeValue.builder().s(stack.getPipelineStatus()).build());
+//                        }
+//                        return AttributeValue.builder().m(stackItem).build();
+//                    })
+//                    .collect(Collectors.toList())
+//                    ).build()
+//            );
+//        }
+//        item.put("ecs_cluster_locked", AttributeValue.builder().bool(onboarding.isEcsClusterLocked()).build());
         return item;
     }
 
@@ -465,27 +361,27 @@ public class OnboardingServiceDAL {
                 }
                 onboarding.setRequest(request);
             }
-            if (item.containsKey("stacks")) {
-                onboarding.setStacks(item.get("stacks").l()
-                        .stream()
-                        .map(stackItem -> {
-                            Map<String, AttributeValue> stack = stackItem.m();
-                            return OnboardingStack.builder()
-                                    .service(stack.containsKey("service") ? stack.get("service").s() : null)
-                                    .name(stack.containsKey("name") ? stack.get("name").s() : null)
-                                    .arn(stack.containsKey("arn") ? stack.get("arn").s() : null)
-                                    .baseStack(stack.containsKey("baseStack") ? stack.get("baseStack").bool() : false)
-                                    .status(stack.containsKey("status") ? stack.get("status").s() : null)
-                                    .pipeline(stack.containsKey("pipeline") ? stack.get("pipeline").s() : null)
-                                    .pipelineStatus(stack.containsKey("pipelineStatus") ? stack.get("pipelineStatus").s() : null)
-                                    .build();
-                        })
-                        .collect(Collectors.toList())
-                );
-            }
-            if (item.containsKey("ecs_cluster_locked")) {
-                onboarding.setEcsClusterLocked(item.get("ecs_cluster_locked").bool());
-            }
+//            if (item.containsKey("stacks")) {
+//                onboarding.setStacks(item.get("stacks").l()
+//                        .stream()
+//                        .map(stackItem -> {
+//                            Map<String, AttributeValue> stack = stackItem.m();
+//                            return OnboardingStack.builder()
+//                                    .service(stack.containsKey("service") ? stack.get("service").s() : null)
+//                                    .name(stack.containsKey("name") ? stack.get("name").s() : null)
+//                                    .arn(stack.containsKey("arn") ? stack.get("arn").s() : null)
+//                                    .baseStack(stack.containsKey("baseStack") ? stack.get("baseStack").bool() : false)
+//                                    .status(stack.containsKey("status") ? stack.get("status").s() : null)
+//                                    .pipeline(stack.containsKey("pipeline") ? stack.get("pipeline").s() : null)
+//                                    .pipelineStatus(stack.containsKey("pipelineStatus") ? stack.get("pipelineStatus").s() : null)
+//                                    .build();
+//                        })
+//                        .collect(Collectors.toList())
+//                );
+//            }
+//            if (item.containsKey("ecs_cluster_locked")) {
+//                onboarding.setEcsClusterLocked(item.get("ecs_cluster_locked").bool());
+//            }
         }
         return onboarding;
     }

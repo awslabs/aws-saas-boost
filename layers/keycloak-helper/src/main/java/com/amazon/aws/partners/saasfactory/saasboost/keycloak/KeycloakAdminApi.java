@@ -18,6 +18,7 @@ package com.amazon.aws.partners.saasfactory.saasboost.keycloak;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import org.keycloak.representations.idm.*;
+import org.keycloak.util.JsonSerialization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,6 +136,7 @@ public class KeycloakAdminApi {
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() == HttpURLConnection.HTTP_CREATED) {
+                LOGGER.debug("Created client {} {}", client.getName(), client.getClientId());
                 return getClient(realm, client.getClientId());
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from client create, but got {}",
@@ -159,11 +161,11 @@ public class KeycloakAdminApi {
                     .setHeader("Content-Type", "application/json")
                     .PUT(HttpRequest.BodyPublishers.ofString(body))
                     .build();
-            LOGGER.debug("Invoking Keycloak update client scope endpoint {}", request.uri());
+            LOGGER.debug("Invoking Keycloak update client endpoint {}", request.uri());
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() == HttpURLConnection.HTTP_NO_CONTENT) {
-                LOGGER.info("Updated client {}", client.getClientId());
+                LOGGER.info("Updated client {} {}", client.getName(), client.getClientId());
                 return getClient(realm, client.getClientId());
             } else {
                 LOGGER.error("Expected HTTP_NO_CONTENT ({}) from update client, but got {}",
@@ -264,6 +266,39 @@ public class KeycloakAdminApi {
         }
     }
 
+    public ClientRepresentation addClientProtocolMapperModel(RealmRepresentation realm, ClientRepresentation client,
+                                                             ProtocolMapperRepresentation model) {
+        try {
+            URI endpoint = new URI(keycloakHost + "/admin"
+                    + "/realms/" + realm.getRealm()
+                    + "/clients/" + client.getId()
+                    + "/protocol-mappers"
+                    + "/add-models"
+            );
+            HttpRequest request = HttpRequest.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .uri(endpoint)
+                    .setHeader("Authorization", "Bearer " + getBearerToken())
+                    .setHeader("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(Utils.toJson(List.of(model))))
+                    .build();
+            LOGGER.debug("Invoking Keycloak client protocol mapper model {}", request.uri());
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == HttpURLConnection.HTTP_NO_CONTENT) {
+                // let's return the client we just updated
+                LOGGER.debug("Created protocol mapper model {} {}", client.getName(), model.getName());
+                return getClient(realm, client.getClientId());
+            } else {
+                LOGGER.error("Expected HTTP_CREATED ({}) from protocol mapper model create, but got {}",
+                        HttpURLConnection.HTTP_CREATED, response.statusCode());
+                throw new RuntimeException("Unexpected error while creating protocol mapper model: " + model.getName());
+            }
+        } catch (URISyntaxException | IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public RoleRepresentation getRole(RealmRepresentation realm, String roleName) {
         try {
             URI endpoint = new URI(keycloakHost + "/admin/realms/" + realm.getRealm() + "/roles/"
@@ -306,6 +341,7 @@ public class KeycloakAdminApi {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() == HttpURLConnection.HTTP_CREATED) {
                 // let's return the role we just created
+                LOGGER.debug("Created role {}", role.getName());
                 return getRole(realm, role.getName());
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from role create, but got {}",
@@ -332,6 +368,7 @@ public class KeycloakAdminApi {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() == HttpURLConnection.HTTP_CREATED) {
                 // let's return the group we just created
+                LOGGER.debug("Created group {}", group.getName());
                 return getGroup(realm, group.getName());
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from group create, but got {}",
@@ -516,7 +553,7 @@ public class KeycloakAdminApi {
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (HttpURLConnection.HTTP_CREATED == response.statusCode()) {
-                LOGGER.info("Successfully created user " + user.getUsername());
+                LOGGER.info("Created user " + user.getUsername());
                 return getUser(realm, user.getUsername());
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from create user, but got {}",
@@ -603,7 +640,7 @@ public class KeycloakAdminApi {
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (HttpURLConnection.HTTP_CREATED == response.statusCode()) {
-                LOGGER.info("Successfully created client scope " + scope.getName());
+                LOGGER.info("Created client scope {}", scope.getName());
                 return getClientScope(realm, scope.getName());
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from create client scope, but got {}",
@@ -646,23 +683,27 @@ public class KeycloakAdminApi {
     public RealmRepresentation createRealm(RealmRepresentation realm) {
         try {
             URI endpoint = new URI(keycloakHost + "/admin/realms");
+            String requestBody = Utils.toJson(realm);
+            //String requestBody = JsonSerialization.writeValueAsString(JsonSerialization.createObjectNode(realm));
             HttpRequest request = HttpRequest.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1) // EOF reached while reading due to chunked transfer-encoding
                     .uri(endpoint)
                     .setHeader("Authorization", "Bearer " + getBearerToken())
                     .setHeader("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(Utils.toJson(realm)))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
             LOGGER.debug("Invoking Keycloak realm import endpoint {}", request.uri());
+            LOGGER.debug(requestBody);
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (HttpURLConnection.HTTP_CREATED == response.statusCode()) {
-                LOGGER.info("Successfully created realm " + realm.getRealm());
+                LOGGER.info("Created realm {}", realm.getRealm());
                 return getRealm(realm);
             } else {
                 LOGGER.error("Expected HTTP_CREATED ({}) from create realm, but got {}",
                         HttpURLConnection.HTTP_CREATED, response.statusCode());
+                LOGGER.error(response.body());
                 throw new RuntimeException("Keycloak create realm " + realm.getRealm()
                         + " failed with HTTP " + response.statusCode());
             }
@@ -693,7 +734,8 @@ public class KeycloakAdminApi {
             HttpResponse<String> response = httpClient.send(request,
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (HttpURLConnection.HTTP_NO_CONTENT == response.statusCode()) {
-                LOGGER.info("Successfully mapped client role to group");
+                LOGGER.info("Mapped role {} to group {} for client {}",
+                        role.getName(), group.getName(), client.getName());
             } else {
                 throw new RuntimeException("Keycloak clientrole mapping for group failed with HTTP "
                         + response.statusCode());
@@ -727,7 +769,7 @@ public class KeycloakAdminApi {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             // The POST to map realm roles to a group returns a 204 instead of a 201 created...
             if (HttpURLConnection.HTTP_NO_CONTENT == response.statusCode()) {
-                LOGGER.info("Successfully mapped role {} to group {}", role.getName(), group.getName());
+                LOGGER.info("Mapped role {} to group {}", role.getName(), group.getName());
             } else {
                 throw new RuntimeException("Keycloak admin user group attachment failed with HTTP "
                         + response.statusCode());
@@ -757,7 +799,7 @@ public class KeycloakAdminApi {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             // The POST to map client roles to user returns a 204 instead of a 201 created...
             if (HttpURLConnection.HTTP_NO_CONTENT == response.statusCode()) {
-                LOGGER.info("Successfully attached user {} to group {}", user.getUsername(), group.getName());
+                LOGGER.info("Added user {} to group {}", user.getUsername(), group.getName());
             } else {
                 throw new RuntimeException("Keycloak admin user group attachment failed with HTTP "
                         + response.statusCode());
@@ -772,13 +814,13 @@ public class KeycloakAdminApi {
         // access token from the admin-cli client, or are we using the access token
         // passed through from a user sign in via the admin web app client?
         if (passwordGrant != null && passwordGrant.containsKey("access_token")) {
-            LOGGER.debug("Using admin-cli client access token");
+            //LOGGER.debug("Using admin-cli client access token");
             if (Instant.now().plus(Duration.ofSeconds(1)).isAfter(tokenExpiry)) {
                 refreshBearerToken();
             }
             return (String) passwordGrant.get("access_token");
         } else if (Utils.isNotBlank(accessToken)) {
-            LOGGER.debug("Using provided access token");
+            //LOGGER.debug("Using provided access token");
             LOGGER.debug(accessToken);
             return accessToken;
         } else {

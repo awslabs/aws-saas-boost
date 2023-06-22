@@ -21,18 +21,15 @@ import java.util.UUID;
 
 // TODO Make a marker interface of SaaSBoostEvent?
 public enum OnboardingEvent {
-    ONBOARDING_INITIATED("Onboarding Initiated"),
-    ONBOARDING_VALID("Onboarding Validated"),
-    ONBOARDING_TENANT_ASSIGNED("Onboarding Tenant Assigned"),
-    ONBOARDING_STACK_STATUS_CHANGED("Onboarding Stack Status Changed"),
-    ONBOARDING_BASE_PROVISIONED("Onboarding Base Provisioned"),
-    ONBOARDING_BASE_UPDATED("Onboarding Base Updated"),
-    ONBOARDING_PROVISIONED("Onboarding Provisioned"),
-    ONBOARDING_DEPLOYMENT_PIPELINE_CREATED("Onboarding Deployment Pipeline Created"),
-    ONBOARDING_DEPLOYMENT_PIPELINE_CHANGED("Onboarding Deployment Pipeline Change"),
-    ONBOARDING_DEPLOYED("Onboarding Deployed"),
-    ONBOARDING_COMPLETED("Onboarding Completed"),
-    ONBOARDING_FAILED("Onboarding Failed")
+    ONBOARDING_INITIATED("Onboarding Initiated"), // Produce
+    ONBOARDING_VALIDATED("Onboarding Validated"), // Consume
+    ONBOARDING_TENANT_ASSIGNED("Onboarding Tenant Assigned"), // Produce
+    ONBOARDING_PROVISIONING("Onboarding Provisioning"), // Consume (optional)
+    ONBOARDING_PROVISIONED("Onboarding Provisioned"), // Consume (optional)
+    ONBOARDING_DEPLOYING("Onboarding Deploying"), // Consume (optional)
+    ONBOARDING_DEPLOYED("Onboarding Deployed"), // Consume (optional)
+    ONBOARDING_COMPLETED("Onboarding Completed"), // Consume
+    ONBOARDING_FAILED("Onboarding Failed") // Produce/Consume
     ;
 
     private final String detailType;
@@ -61,7 +58,10 @@ public enum OnboardingEvent {
     }
 
     public static boolean validate(Map<String, Object> event, String... requiredKeys) {
-        if (event == null || !event.containsKey("detail")) {
+        if (event == null || !event.containsKey("detail") || !event.containsKey("source")) {
+            return false;
+        }
+        if (!"saas-boost".equals(event.get("source"))) {
             return false;
         }
         try {

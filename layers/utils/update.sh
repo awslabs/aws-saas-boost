@@ -62,7 +62,7 @@ eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'F
 # In case we have multiple environments in the same account/region, this could potentially override the Utils implementation
 # when one environment is updated from underneath another. This shouldn't be an issue unless the Utils upgrade includes a 
 # change to the isBlank, isEmpty, logRequestEvent, or Utils.toJson functions.
-FUNCTIONS=($FUNCTIONS "saas-boost-app-services-macro")
+#FUNCTIONS=($FUNCTIONS "saas-boost-app-services-macro")
 #echo "Updating ${#FUNCTIONS[@]} functions with new layer version"
 
 for FX in ${FUNCTIONS[@]}; do

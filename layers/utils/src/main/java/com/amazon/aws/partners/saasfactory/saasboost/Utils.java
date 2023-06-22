@@ -17,10 +17,10 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -69,6 +69,7 @@ public class Utils {
         MAPPER.setDateFormat(JAVASCRIPT_ISO8601);
         MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
         MAPPER.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         MAPPER.enable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING);
         MAPPER.enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING);
     }

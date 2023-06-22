@@ -30,9 +30,9 @@ public class Onboarding {
     private OnboardingStatus status;
     private UUID tenantId;
     private OnboardingRequest request;
-    private List<OnboardingStack> stacks = new ArrayList<>();
+//    private List<OnboardingStack> stacks = new ArrayList<>();
     private String zipFile;
-    private boolean ecsClusterLocked;
+//    private boolean ecsClusterLocked;
 
     public Onboarding() {
     }
@@ -85,9 +85,9 @@ public class Onboarding {
         this.request = request;
     }
 
-    public List<OnboardingStack> getStacks() {
-        return stacks;
-    }
+//    public List<OnboardingStack> getStacks() {
+//        return stacks;
+//    }
 
     public void setZipFile(String zipFile) {
         this.zipFile = zipFile;
@@ -97,101 +97,101 @@ public class Onboarding {
         return zipFile;
     }
 
-    public void setStacks(List<OnboardingStack> stacks) {
-        this.stacks = stacks != null ? new ArrayList<>(stacks) : new ArrayList<>();
-    }
-
-    public void addStack(OnboardingStack stack) {
-        if (stack != null) {
-            this.stacks.add(stack);
-        }
-    }
-
-    public OnboardingStack baseStack() {
-        OnboardingStack baseStack = null;
-        for (OnboardingStack stack : getStacks()) {
-            if (stack.isBaseStack()) {
-                baseStack = stack;
-                break;
-            }
-        }
-        return baseStack;
-    }
-
-    public boolean isEcsClusterLocked() {
-        return ecsClusterLocked;
-    }
-
-    public void setEcsClusterLocked(boolean locked) {
-        this.ecsClusterLocked = locked;
-    }
-
-    public boolean hasBaseStacks() {
-        return !getStacks()
-                .stream()
-                .filter(OnboardingStack::isBaseStack)
-                .collect(Collectors.toList())
-                .isEmpty();
-    }
-
-    public boolean hasAppStacks() {
-        return !getStacks()
-                .stream()
-                .filter(s -> !s.isBaseStack())
-                .collect(Collectors.toList())
-                .isEmpty();
-    }
-
-    public boolean appStacksDeleted() {
-        return !hasAppStacks() || getStacks()
-                .stream()
-                .filter(s -> !s.isBaseStack())
-                .filter(s -> !"DELETE_COMPLETE".equals(s.getStatus()))
-                .collect(Collectors.toList())
-                .isEmpty();
-    }
-
-    public boolean baseStacksComplete() {
-        return stacksComplete(true);
-    }
-
-    public boolean stacksDeployed() {
-        boolean deployed = true;
-        for (OnboardingStack stack : getStacks()) {
-            if (!stack.isDeployed()) {
-                deployed = false;
-                break;
-            }
-        }
-        return deployed;
-    }
-
-    public boolean stacksComplete() {
-        return stacksComplete(false);
-    }
-
-    protected boolean stacksComplete(boolean baseStacks) {
-        boolean complete = false;
-        if (!getStacks().isEmpty()) {
-            if (baseStacks && !hasBaseStacks()) {
-                // If there are no base stacks, then base stacks can't be complete
-                complete = false;
-            } else {
-                if (baseStacks) {
-                    // All base stacks have to be complete
-                    complete = getStacks().stream()
-                            .filter(stack ->  stack.isBaseStack() && !stack.isComplete())
-                            .collect(Collectors.toList())
-                            .isEmpty();
-                } else {
-                    // All stacks have to be complete
-                    complete = getStacks().stream()
-                            .filter(stack -> !stack.isComplete())
-                            .collect(Collectors.toList())
-                            .isEmpty();
-                }
-            }
-        }
-        return complete;
-    }
+//    public void setStacks(List<OnboardingStack> stacks) {
+//        this.stacks = stacks != null ? new ArrayList<>(stacks) : new ArrayList<>();
+//    }
+//
+//    public void addStack(OnboardingStack stack) {
+//        if (stack != null) {
+//            this.stacks.add(stack);
+//        }
+//    }
+//
+//    public OnboardingStack baseStack() {
+//        OnboardingStack baseStack = null;
+//        for (OnboardingStack stack : getStacks()) {
+//            if (stack.isBaseStack()) {
+//                baseStack = stack;
+//                break;
+//            }
+//        }
+//        return baseStack;
+//    }
+//
+//    public boolean isEcsClusterLocked() {
+//        return ecsClusterLocked;
+//    }
+//
+//    public void setEcsClusterLocked(boolean locked) {
+//        this.ecsClusterLocked = locked;
+//    }
+//
+//    public boolean hasBaseStacks() {
+//        return !getStacks()
+//                .stream()
+//                .filter(OnboardingStack::isBaseStack)
+//                .collect(Collectors.toList())
+//                .isEmpty();
+//    }
+//
+//    public boolean hasAppStacks() {
+//        return !getStacks()
+//                .stream()
+//                .filter(s -> !s.isBaseStack())
+//                .collect(Collectors.toList())
+//                .isEmpty();
+//    }
+//
+//    public boolean appStacksDeleted() {
+//        return !hasAppStacks() || getStacks()
+//                .stream()
+//                .filter(s -> !s.isBaseStack())
+//                .filter(s -> !"DELETE_COMPLETE".equals(s.getStatus()))
+//                .collect(Collectors.toList())
+//                .isEmpty();
+//    }
+//
+//    public boolean baseStacksComplete() {
+//        return stacksComplete(true);
+//    }
+//
+//    public boolean stacksDeployed() {
+//        boolean deployed = true;
+//        for (OnboardingStack stack : getStacks()) {
+//            if (!stack.isDeployed()) {
+//                deployed = false;
+//                break;
+//            }
+//        }
+//        return deployed;
+//    }
+//
+//    public boolean stacksComplete() {
+//        return stacksComplete(false);
+//    }
+//
+//    protected boolean stacksComplete(boolean baseStacks) {
+//        boolean complete = false;
+//        if (!getStacks().isEmpty()) {
+//            if (baseStacks && !hasBaseStacks()) {
+//                // If there are no base stacks, then base stacks can't be complete
+//                complete = false;
+//            } else {
+//                if (baseStacks) {
+//                    // All base stacks have to be complete
+//                    complete = getStacks().stream()
+//                            .filter(stack ->  stack.isBaseStack() && !stack.isComplete())
+//                            .collect(Collectors.toList())
+//                            .isEmpty();
+//                } else {
+//                    // All stacks have to be complete
+//                    complete = getStacks().stream()
+//                            .filter(stack -> !stack.isComplete())
+//                            .collect(Collectors.toList())
+//                            .isEmpty();
+//                }
+//            }
+//        }
+//        return complete;
+//    }
 }
