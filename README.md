@@ -7,6 +7,8 @@ SaaS Boost provides tenant management, deployment automation, analytics dashboar
 
 Jump to the [Getting Started Guide](./docs/getting-started.md) to start working with AWS SaaS Boost today!
 
+[Give us your feedback](https://www.pulse.aws/survey/YOUHWDCP)!
+
 ## Repo Rundown
 
 | Directory | Description |
