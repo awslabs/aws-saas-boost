@@ -96,5 +96,15 @@ limitations under the License.
             <version>${aws.java.sdk.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-events</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>

@@ -17,8 +17,8 @@
 package com.amazon.aws.partners.saasfactory.saasboost.keycloak;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.ArgumentCaptor;
 
@@ -43,9 +43,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.keycloak.KeycloakTestUtils.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doReturn;
@@ -62,7 +60,7 @@ public final class KeycloakApiTest {
     private ArgumentCaptor<HttpRequest> requestCaptor;
     private KeycloakApi api;
 
-    @Before
+    @BeforeEach
     public void setup() {
         mockClient = mock(HttpClient.class);
         requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -81,18 +79,18 @@ public final class KeycloakApiTest {
         assertUserListsEqual(expectedUsers, actualUsers);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void listUsers_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.listUsers(TEST_EVENT);
+        assertThrows(RuntimeException.class, () -> api.listUsers(TEST_EVENT));
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void listUsers_invalidResponse() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_OK, Utils.toJson(null)))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.listUsers(TEST_EVENT);
+        assertThrows(RuntimeException.class, () -> api.listUsers(TEST_EVENT));
     }
 
     @Test
@@ -119,18 +117,18 @@ public final class KeycloakApiTest {
         assertUsersEqual(expected, actual);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void getUser_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.getUser(TEST_EVENT, "anyUser");
+        assertThrows(RuntimeException.class, () -> api.getUser(TEST_EVENT, "anyUser"));
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void getUser_invalidResponse() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_OK, Utils.toJson(null)))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.getUser(TEST_EVENT, "anyUser");
+        assertThrows(RuntimeException.class, () -> api.getUser(TEST_EVENT, "anyUser"));
     }
 
     @Test
@@ -146,11 +144,11 @@ public final class KeycloakApiTest {
         assertUsersEqual(expected, actual);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void createUser_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.createUser(TEST_EVENT, null);
+        assertThrows(RuntimeException.class, () -> api.createUser(TEST_EVENT, null));
     }
 
     @Test
@@ -163,11 +161,11 @@ public final class KeycloakApiTest {
         assertUsersEqual(expected, actual);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void putUser_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.putUser(TEST_EVENT, mockKeycloakUser("user"));
+        assertThrows(RuntimeException.class, () -> api.putUser(TEST_EVENT, mockKeycloakUser("user")));
     }
 
     @Test
@@ -183,11 +181,11 @@ public final class KeycloakApiTest {
         assertUsersEqual(expected, actual);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void deleteUser_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.deleteUser(TEST_EVENT, "anyUser");
+        assertThrows(RuntimeException.class, () -> api.deleteUser(TEST_EVENT, "anyUser"));
     }
 
     @Test
@@ -199,21 +197,21 @@ public final class KeycloakApiTest {
                 .when(mockClient).send(requestCaptor.capture(), any(BodyHandler.class));
         String actualPath = api.getAdminGroupPath(TEST_EVENT);
         assertRequest(requestCaptor.getValue(), "GET", endpoint("/groups?search=" + adminGroupName), null);
-        assertEquals("Path should match", expectedPath, actualPath);
+        assertEquals(expectedPath, actualPath, "Path should match");
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void getAdminGroupPath_wrongStatusCode() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_BAD_GATEWAY, null))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.getAdminGroupPath(TEST_EVENT);
+        assertThrows(RuntimeException.class, () -> api.getAdminGroupPath(TEST_EVENT));
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void getAdminGroupPath_invalidResponse() throws IOException, InterruptedException {
         doReturn(mockResponse(HttpURLConnection.HTTP_OK, Utils.toJson(null)))
                 .when(mockClient).send(any(HttpRequest.class), any(BodyHandler.class));
-        api.getAdminGroupPath(TEST_EVENT);
+        assertThrows(RuntimeException.class, () -> api.getAdminGroupPath(TEST_EVENT));
     }
 
     @Test
@@ -229,15 +227,15 @@ public final class KeycloakApiTest {
         assertNotNull(headers);
         List<String> authHeaders = headers.allValues("Authorization");
         assertNotNull(authHeaders);
-        assertEquals("Request should only have 1 Authorization header", 1, authHeaders.size());
-        assertEquals("Request Authorization header should match event", EXAMPLE_AUTH_HEADER, authHeaders.get(0));
-        assertEquals("Request URI should match", endpoint, request.uri().toString());
-        assertEquals("Request method should match", method, request.method());
+        assertEquals(1, authHeaders.size(), "Request should only have 1 Authorization header");
+        assertEquals(EXAMPLE_AUTH_HEADER, authHeaders.get(0), "Request Authorization header should match event");
+        assertEquals(endpoint, request.uri().toString(), "Request URI should match");
+        assertEquals(method, request.method(), "Request method should match");
         if (body != null) {
             request.bodyPublisher().ifPresentOrElse(
                     publisher -> {
-                        assertEquals("Request body content length should match", 
-                                (long) body.length(), publisher.contentLength());
+                        assertEquals((long) body.length(), publisher.contentLength(),
+                                "Request body content length should match");
                         StringBodySubscriber bodySubscriber = new StringBodySubscriber();
                         publisher.subscribe(bodySubscriber);
                         try {

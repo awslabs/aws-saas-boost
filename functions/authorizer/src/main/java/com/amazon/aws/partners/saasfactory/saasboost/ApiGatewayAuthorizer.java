@@ -174,6 +174,8 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         readResources.add(new AbstractMap.SimpleEntry<>("tenants/*", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("tiers", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("identity", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("identity/providers", "GET"));
 
         List<String> resources = new ArrayList<>();
         for (Map.Entry<String, String> resource : readResources) {
@@ -198,6 +200,7 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers*", "POST"));
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "PUT"));
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "DELETE"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("identity*", "POST"));
 
         List<String> resources = new ArrayList<>();
         for (Map.Entry<String, String> resource : writeResources) {

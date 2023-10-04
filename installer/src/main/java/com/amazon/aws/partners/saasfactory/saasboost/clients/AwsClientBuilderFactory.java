@@ -18,6 +18,7 @@ package com.amazon.aws.partners.saasfactory.saasboost.clients;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.retry.AwsRetryPolicy;
 import software.amazon.awssdk.core.SdkClient;
@@ -36,8 +37,6 @@ import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.IamClientBuilder;
 import software.amazon.awssdk.services.lambda.LambdaClient;
 import software.amazon.awssdk.services.lambda.LambdaClientBuilder;
-import software.amazon.awssdk.services.quicksight.QuickSightClient;
-import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.Route53ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -52,8 +51,8 @@ import java.time.Duration;
 
 public class AwsClientBuilderFactory {
 
-    private static final AwsCredentialsProvider DEFAULT_CREDENTIALS_PROVIDER =
-            RefreshingProfileDefaultCredentialsProvider.builder().build();
+    private static final AwsCredentialsProvider DEFAULT_CREDENTIALS_PROVIDER = DefaultCredentialsProvider.create();
+//            RefreshingProfileDefaultCredentialsProvider.builder().build();
 
     private final Region awsRegion;
     private final AwsCredentialsProvider credentialsProvider;
@@ -63,7 +62,6 @@ public class AwsClientBuilderFactory {
     private EcrClientBuilder cachedEcrBuilder;
     private IamClientBuilder cachedIamBuilder;
     private LambdaClientBuilder cachedLambdaBuilder;
-    private QuickSightClientBuilder cachedQuickSightBuilder;
     private S3ClientBuilder cachedS3Builder;
     private SsmClientBuilder cachedSsmBuilder;
     private StsClientBuilder cachedStsBuilder;
@@ -144,13 +142,6 @@ public class AwsClientBuilderFactory {
             cachedLambdaBuilder = decorateBuilderWithDefaults(LambdaClient.builder());
         }
         return cachedLambdaBuilder;
-    }
-
-    public QuickSightClientBuilder quickSightBuilder() {
-        if (cachedQuickSightBuilder == null) {
-            cachedQuickSightBuilder = decorateBuilderWithDefaults(QuickSightClient.builder());
-        }
-        return cachedQuickSightBuilder;
     }
 
     public S3ClientBuilder s3Builder() {

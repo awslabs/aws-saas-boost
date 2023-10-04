@@ -1,0 +1,67 @@
+{
+  "resource": "/onboarding/{id}",
+  "path": "/onboarding/1234",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "*/*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+    "Host": "hija4ve530.execute-api.us-west-2.amazonaws.com",
+    "User-Agent": "PostmanRuntime/7.32.3",
+    "X-Amzn-Trace-Id": "Root=1-64cd2e83-39ddcf49101abb5e35038d44",
+    "X-Forwarded-For": "127.0.0.1",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https"
+  },
+  "multiValueHeaders": {
+    "Accept": [
+      "*/*"
+    ],
+    "Accept-Encoding": [
+      "gzip, deflate, br"
+    ],
+    "Authorization": [
+      "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    ],
+    "Host": [
+      "hija4ve530.execute-api.us-west-2.amazonaws.com"
+    ],
+    "User-Agent": [
+      "PostmanRuntime/7.32.3"
+    ],
+    "X-Amzn-Trace-Id": [
+      "Root=1-64cd2e83-39ddcf49101abb5e35038d44"
+    ],
+    "X-Forwarded-For": [
+      "127.0.0.1"
+    ],
+    "X-Forwarded-Port": [
+      "443"
+    ],
+    "X-Forwarded-Proto": [
+      "https"
+    ]
+  },
+  "pathParameters": {
+    "id": "1234"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "stage": "v1",
+    "resourceId": "31hb73",
+    "requestId": "8eb3b13f-25d7-45b4-84da-5fb9906f9337",
+    "identity": {
+      "sourceIp": "127.0.0.1",
+      "userAgent": "PostmanRuntime/7.32.3"
+    },
+    "resourcePath": "/onboarding/{id}",
+    "httpMethod": "GET",
+    "apiId": "hija4ve530",
+    "path": "/v1/onboarding/1234",
+    "authorizer": {
+      "principalId": "123456789012",
+      "integrationLatency": 3165
+    }
+  },
+  "isBase64Encoded": false
+}

@@ -86,6 +86,10 @@ Parameters:
   ClearEcrRepoArn:
     Description: Lambda custom resource ARN to delete images before deleting ECR Repositories
     Type: String
+  AppPlaneAccountId:
+    Description: AWS Account hosting the "Application Plane" resources
+    Type: String
+    AllowedPattern: ^\d{12}$
 Conditions:
   UseCognito: !Equals [!Ref IdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref IdentityProvider, 'KEYCLOAK']
@@ -179,10 +183,43 @@ Resources:
             - UseKeycloak
             - !GetAtt keycloak.Outputs.AdminWebAppClientId
             - !GetAtt auth0.Outputs.AdminWebAppClientId
+  EncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: !Sub sb-${Environment}-api-app-client
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:DescribeKey
+            Resource: '*'
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub secretsmanager.${AWS::Region}.amazonaws.com
+  EncryptionKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/sb-${Environment}-api-app-client
+      TargetKeyId: !Ref EncryptionKey
   ApiAppClientSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT
+      KmsKeyId: !Ref EncryptionKeyAlias
       SecretString:
         Fn::If:
           - UseCognito
@@ -191,6 +228,22 @@ Resources:
             - UseKeycloak
             - !Sub '{"client_name": "${keycloak.Outputs.ApiAppClientName}", "client_id": "${keycloak.Outputs.ApiAppClientId}", "client_secret": "${keycloak.Outputs.ApiAppClientSecret}", "token_endpoint": "${keycloak.Outputs.OidcTokenEndpoint}", "api_endpoint": "${ApiGatewayUrl}"}'
             - !Sub '{"client_name": "${auth0.Outputs.ApiAppClientName}", "client_id": "${auth0.Outputs.ApiAppClientId}", "client_secret": "${auth0.Outputs.ApiAppClientSecret}", "token_endpoint": "${auth0.Outputs.OidcTokenEndpoint}", "api_endpoint": "${ApiGatewayUrl}"}'
+  # Allow the Application Plane account to get the API app client
+  # details from Secrets Manager
+  ApiAppClientSecretPolicy:
+    Type: AWS::SecretsManager::ResourcePolicy
+    Properties:
+      SecretId: !Ref ApiAppClientSecret
+      ResourcePolicy: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - '*'
   PrivateApiAppClientSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -270,4 +323,11 @@ Outputs:
     Condition: UseKeycloak
     Description: Keycloak database hostname
     Value: !GetAtt keycloak.Outputs.KeycloakDatabaseEndpoint
+  # This is used for Application Plane integration
+  ApiAppClientEncryptionKey:
+    Description: KMS key used for application plane cross-account access to the API App Client details
+    Value: !GetAtt EncryptionKey.Arn
+  ApiAppClientSecret:
+    Description: Secrets Manager secret with API App Client details
+    Value: !Ref ApiAppClientSecret
 ...

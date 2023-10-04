@@ -16,13 +16,12 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.Properties;
 
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class GitVersionInfoTest {
 
@@ -37,7 +36,7 @@ public final class GitVersionInfoTest {
 
     private Properties properties;
 
-    @Before
+    @BeforeEach
     public void setup() {
         properties = new Properties();
         properties.setProperty(GitVersionInfo.TAG_NAME_PROPERTY, VALID_TAG);
@@ -45,15 +44,19 @@ public final class GitVersionInfoTest {
         properties.setProperty(GitVersionInfo.DESCRIPTION_PROPERTY, VALID_DESC);
     }
     
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testFromProperties_empty() {
         properties.clear();
-        GitVersionInfo.fromProperties(properties);
+        assertThrows(IllegalArgumentException.class, () -> {
+            GitVersionInfo.fromProperties(properties);
+        });
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test
     public void testFromProperties_null() {
-        GitVersionInfo.fromProperties(null);
+        assertThrows(NullPointerException.class, () -> {
+            GitVersionInfo.fromProperties(null);
+        });
     }
 
     @Test

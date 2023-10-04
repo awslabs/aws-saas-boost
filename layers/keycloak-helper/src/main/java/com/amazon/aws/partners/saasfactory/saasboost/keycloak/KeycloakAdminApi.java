@@ -18,7 +18,6 @@ package com.amazon.aws.partners.saasfactory.saasboost.keycloak;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import org.keycloak.representations.idm.*;
-import org.keycloak.util.JsonSerialization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

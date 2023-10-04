@@ -83,6 +83,11 @@ public class MockAwsClientBuilderFactory extends AwsClientBuilderFactory {
             }
 
             @Override
+            public ClientOverrideConfiguration overrideConfiguration() {
+                return null;
+            }
+
+            @Override
             public CloudFormationClientBuilder endpointOverride(URI endpointOverride) {
                 // TODO Auto-generated method stub
                 return null;

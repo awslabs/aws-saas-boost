@@ -24,15 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class KeycloakTestUtils {
     public static void assertUserListsEqual(List<UserRepresentation> expected, List<UserRepresentation> actual) {
         if ((expected == null && actual != null) || (expected != null && actual == null)) {
-            assertEquals("User lists do not match", expected, actual);
+            assertEquals(expected, actual, "User lists do not match");
         }
         if (expected != null && actual != null) {
-            assertEquals("User list sizes must match", expected.size(), actual.size());
+            assertEquals(expected.size(), actual.size(), "User list sizes must match");
             for (int i = 0; i < expected.size(); i++) {
                 UserRepresentation expectedUser = expected.get(i);
                 UserRepresentation actualUser = actual.get(i);
@@ -43,15 +43,15 @@ public final class KeycloakTestUtils {
 
     public static void assertUsersEqual(UserRepresentation expected, UserRepresentation actual) {
         // the keycloak UserRepresentation class doesn't implement .equals :(
-        assertEquals("Id should match", expected.getId(), actual.getId());
-        assertEquals("CreatedTimestamp should match", expected.getCreatedTimestamp(), actual.getCreatedTimestamp());
-        assertEquals("Username should match", expected.getUsername(), actual.getUsername());
-        assertEquals("Enabled should match", expected.isEnabled(), actual.isEnabled());
-        assertEquals("Email should match", expected.getEmail(), actual.getEmail());
-        assertEquals("EmailVerified should match", expected.isEmailVerified(), actual.isEmailVerified());
-        assertEquals("FirstName should match", expected.getFirstName(), actual.getFirstName());
-        assertEquals("LastName should match", expected.getLastName(), actual.getLastName());
-        assertEquals("RequiredActions should match", expected.getRequiredActions(), actual.getRequiredActions());
+        assertEquals(expected.getId(), actual.getId(), "Id should match");
+        assertEquals(expected.getCreatedTimestamp(), actual.getCreatedTimestamp(), "CreatedTimestamp should match");
+        assertEquals(expected.getUsername(), actual.getUsername(), "Username should match");
+        assertEquals(expected.isEnabled(), actual.isEnabled(), "Enabled should match");
+        assertEquals(expected.getEmail(), actual.getEmail(), "Email should match");
+        assertEquals(expected.isEmailVerified(), actual.isEmailVerified(), "EmailVerified should match");
+        assertEquals(expected.getFirstName(), actual.getFirstName(), "FirstName should match");
+        assertEquals(expected.getLastName(), actual.getLastName(), "LastName should match");
+        assertEquals(expected.getRequiredActions(), actual.getRequiredActions(), "RequiredActions should match");
     }
 
     public static UserRepresentation mockKeycloakUser(String username) {

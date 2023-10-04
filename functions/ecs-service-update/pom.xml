@@ -60,13 +60,6 @@ limitations under the License.
 
     <dependencies>
         <dependency>
-            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>Utils</artifactId>
-            <version>1.0.0</version>
-            <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>ecs</artifactId>
             <version>${aws.java.sdk.version}</version>

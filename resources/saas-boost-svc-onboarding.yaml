@@ -36,12 +36,6 @@ Parameters:
   SaaSBoostEventBus:
     Description: SaaS Boost Eventbridge Bus
     Type: String
-  SaaSBoostApi:
-    Description: SaaS Boost API
-    Type: String
-  ApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost API
-    Type: String
   ResourcesBucket:
     Description: S3 bucket containing tenant custom config files (zip archive)
     Type: String
@@ -173,15 +167,15 @@ Resources:
               - events:PutEvents
             Resource:
               - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
-          - Effect: Allow
-            Action:
-              - events:DescribeRule
-              - events:DeleteRule
-              - events:PutRule
-              - events:PutTargets
-              - events:RemoveTargets
-            Resource:
-              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+#          - Effect: Allow
+#            Action:
+#              - events:DescribeRule
+#              - events:DeleteRule
+#              - events:PutRule
+#              - events:PutTargets
+#              - events:RemoveTargets
+#            Resource:
+#              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
           - Effect: Allow
             Action:
               - sqs:SendMessage
@@ -201,35 +195,35 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource:
               - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
-          - Effect: Allow
-            Action:
-              - ecr:ListImages
-              - ecr:CreateRepository
-              - ecr:DeleteRepository
-              - ecr:TagResource
-              - ecr:UntagResource
-              - ecr:ListTagsForResource
-            Resource:
-              - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
-          - Effect: Allow
-            Action:
-              - cloudfront:GetDistribution
-            Resource:
-              - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
-          - Effect: Allow
-            Action:
-              - apigateway:GET
-            Resource:
-              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*
-          - Effect: Allow
-            Action:
-              - lambda:AddPermission
-              - lambda:RemovePermission
-              - lambda:InvokeFunction
-              - lambda:GetFunction
-              - lambda:GetFunctionConfiguration
-            Resource:
-              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
+#          - Effect: Allow
+#            Action:
+#              - ecr:ListImages
+#              - ecr:CreateRepository
+#              - ecr:DeleteRepository
+#              - ecr:TagResource
+#              - ecr:UntagResource
+#              - ecr:ListTagsForResource
+#            Resource:
+#              - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+#          - Effect: Allow
+#            Action:
+#              - cloudfront:GetDistribution
+#            Resource:
+#              - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+#          - Effect: Allow
+#            Action:
+#              - apigateway:GET
+#            Resource:
+#              - !Sub arn:${AWS::Partition}:apigateway:*::/restapis/*
+#          - Effect: Allow
+#            Action:
+#              - lambda:AddPermission
+#              - lambda:RemovePermission
+#              - lambda:InvokeFunction
+#              - lambda:GetFunction
+#              - lambda:GetFunctionConfiguration
+#            Resource:
+#              - !Sub '{{resolve:ssm:/saas-boost/${Environment}/CLEAR_BUCKET_ARN}}'
   OnboardingServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -306,15 +300,15 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Onboarding"
-  OnboardingServiceStartLogs:
+  OnboardingServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-start
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-onboarding-insert
       RetentionInDays: 30
-  OnboardingServiceStart:
+  OnboardingServiceInsert:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-onboarding-start
+      FunctionName: !Sub sb-${Environment}-onboarding-insert
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 300
@@ -413,7 +407,7 @@ Resources:
       FunctionName: !Sub sb-${Environment}-onboarding-events
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
       Runtime: java11
-      Timeout: 45
+      Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::handleOnboardingEvent
       Code:
@@ -426,8 +420,6 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
@@ -462,8 +454,6 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           ONBOARDING_TABLE: !Ref OnboardingTable
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
@@ -484,6 +474,7 @@ Resources:
       FunctionName: !GetAtt OnboardingTenantConfig.Arn
       FunctionResponseTypes:
         - ReportBatchItemFailures
+  # Onboarding events _consumed_ by the control plane onboarding service
   OnboardingServiceEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -496,9 +487,12 @@ Resources:
             "saas-boost"
           ],
           "detail-type": [
-            {
-              "prefix": "Onboarding "
-            },
+            "Onboarding Validated",
+            "Onboarding Provisioning",
+            "Onboarding Provisioned",
+            "Onboarding Deploying",
+            "Onboarding Deployed",
+            "Onboarding Failed",
             "Tenant Deleted",
             "Tenant Enabled",
             "Tenant Disabled"
@@ -519,9 +513,9 @@ Outputs:
   OnboardingServiceGetAllArn:
     Description: Onboarding Service get all onboarding requests Lambda ARN
     Value: !GetAtt OnboardingServiceGetAll.Arn
-  OnboardingServiceStartArn:
-    Description: Onboarding Service start onboarding Lambda ARN
-    Value: !GetAtt OnboardingServiceStart.Arn
+  OnboardingServiceInsertArn:
+    Description: Onboarding Service insert onboarding request Lambda ARN
+    Value: !GetAtt OnboardingServiceInsert.Arn
   OnboardingServiceByIdArn:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Value: !GetAtt OnboardingServiceGetById.Arn

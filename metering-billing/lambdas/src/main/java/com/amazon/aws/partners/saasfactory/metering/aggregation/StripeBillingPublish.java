@@ -29,11 +29,8 @@ import com.stripe.net.RequestOptions;
 import com.stripe.param.UsageRecordCreateOnSubscriptionItemParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -47,22 +44,12 @@ public class StripeBillingPublish implements RequestStreamHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StripeBillingPublish.class);
     private final static String TABLE_NAME = System.getenv(TABLE_ENV_VARIABLE);
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private final DynamoDbClient ddb;
-    private final SecretsManagerClient secrets;
-    private ApiGatewayHelper api;
 
     public StripeBillingPublish() {
         if (Utils.isBlank(TABLE_NAME)) {
             throw new IllegalStateException("Missing required environment variable " + TABLE_ENV_VARIABLE);
-        }
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
         }
         if (Utils.isBlank(API_APP_CLIENT)) {
             throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
@@ -73,7 +60,6 @@ public class StripeBillingPublish implements RequestStreamHandler {
         }
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
         this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
-        this.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
     }
 
     private List<AggregationEntry> getAggregationEntries(String tenantID) {
@@ -225,7 +211,8 @@ public class StripeBillingPublish implements RequestStreamHandler {
 
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) {
-        Stripe.apiKey = BillingUtils.getBillingApiKey(apiGatewayHelper());
+        ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(api);
         LOGGER.info("Fetching tenant IDs in table {}", TABLE_NAME);
         List<TenantConfiguration> tenantConfigurations = TenantConfiguration.getTenantConfigurations(TABLE_NAME, ddb, LOGGER);
         if (tenantConfigurations == null || tenantConfigurations.isEmpty()) {
@@ -263,30 +250,5 @@ public class StripeBillingPublish implements RequestStreamHandler {
                 }
             }
         }
-    }
-
-    protected ApiGatewayHelper apiGatewayHelper() {
-        if (this.api == null) {
-            // Fetch the app client details from SecretsManager
-            LinkedHashMap<String, String> clientDetails;
-            try {
-                GetSecretValueResponse response = secrets.getSecretValue(request -> request
-                        .secretId(API_APP_CLIENT)
-                );
-                clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
-            } catch (SdkServiceException secretsManagerError) {
-                LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
-                throw secretsManagerError;
-            }
-            // Build an API helper with the app client
-            this.api = ApiGatewayHelper.builder()
-                    .host(API_GATEWAY_HOST)
-                    .stage(API_GATEWAY_STAGE)
-                    .clientId(clientDetails.get("client_id"))
-                    .clientSecret(clientDetails.get("client_secret"))
-                    .tokenEndpoint(clientDetails.get("token_endpoint"))
-                    .build();
-        }
-        return this.api;
     }
 }

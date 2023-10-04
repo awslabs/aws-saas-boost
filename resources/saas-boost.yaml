@@ -85,24 +85,6 @@ Conditions:
   AdminWebAppCustomDomainInChina: !And [!Condition InChinaRegion, !Condition HasAdminWebAppCustomDomain]
   AdminWebAppCustomDomainNotInChina: !And [!Condition NotInChinaRegion, !Condition HasAdminWebAppCustomDomain]
 Resources:
-  SSMSaaSBoostEnvironment:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_ENVIRONMENT
-      Type: String
-      Value: !Ref Environment
-  SSMParamSaaSBoostBucket:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
-      Type: String
-      Value: !Ref SaaSBoostBucket
-  SSMParamLambdaSourceFolder:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_LAMBDAS_FOLDER
-      Type: String
-      Value: !Ref LambdaSourceFolder
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
   Logging:
@@ -402,6 +384,26 @@ Resources:
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/KeycloakHelper-lambda.zip
+  SaaSBoostApiClientHelperLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub sb-${Environment}-api-client-helper
+      CompatibleRuntimes:
+        - java17
+        - java11
+        - python3.11
+        - python3.10
+        - python3.9
+        - python3.8
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SaaSBoostApiClientHelper-lambda.zip
+  SaaSBoostApiClientHelperLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref SaaSBoostApiClientHelperLayer
+      Principal: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -574,12 +576,6 @@ Resources:
     Type: AWS::Events::EventBus
     Properties:
       Name: !Sub sb-${Environment}-events
-  SaaSBoostEventBusParam:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
-      Type: String
-      Value: !Ref SaaSBoostEventBus
   SaaSBoostEventBusDlq:
     Type: AWS::SQS::Queue
   SaaSBoostEventBusDlqPolicy:
@@ -610,17 +606,18 @@ Resources:
         Resource:
           - !GetAtt SaaSBoostEventBus.Arn
         Condition:
-          "ForAnyValue:StringEquals":
+          ForAnyValue:StringEquals:
             "events:detail-type":
               - Onboarding Validated
+              - Onboarding Provisioning
               - Onboarding Provisioned
+              - Onboarding Deploying
               - Onboarding Deployed
-              - Onboarding Completed
               - Onboarding Failed
               - Tenant Onboarding Status Changed
               - Tenant Resources Changed
           StringEquals:
-            "events:source": saas-boost
+            events:source: saas-boost
   # Allow App Plane to create rules and targets for Control Plane events
   AppPlaneRuleCreationStatement:
     Type: AWS::Events::EventBusPolicy
@@ -911,6 +908,7 @@ Resources:
                 - - !GetAtt network.Outputs.PublicSubnet1
                   - !GetAtt network.Outputs.PublicSubnet2
             - ''
+        AppPlaneAccountId: !Ref AppPlaneAccountId
   web:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -929,28 +927,6 @@ Resources:
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
         OidcDomainUrl: !GetAtt idp.Outputs.OidcDomainUrl
         SystemIdentityProvider: !Ref SystemIdentityProvider
-#  core:
-#    Type: AWS::CloudFormation::Stack
-#    DependsOn:
-#      - network
-#      - MacroWaitCondition
-#    Properties:
-#      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-core.yaml
-#      Parameters:
-#        Environment: !Ref Environment
-#        SaaSBoostBucket: !Ref SaaSBoostBucket
-#        LambdaSourceFolder: !Ref LambdaSourceFolder
-#        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-#        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-#        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
-#        CodePipelineBucket: !Ref Pipelines
-#        LoggingBucket: !Ref Logging
-#        ApiStage: !Ref ApiStage
-#        ApplicationServices: !Ref ApplicationServices
-#        EventBus: !Ref SaaSBoostEventBus
-#        AppExtensions: !Ref AppExtensions
-#      NotificationARNs:
-#        - !Ref CoreStackListenerTopic
   billing:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -961,22 +937,21 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostApi: !Ref SaaSBoostApi
-        ApiStage: !Ref ApiStage
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
   # To Do - merge this stuff into the billing template
-  stripe:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing-stripe.yaml
-      Parameters:
-        Environment: !Ref Environment
-        SaaSBoostBucket: !Ref SaaSBoostBucket
-        LambdaSourceFolder: !Ref LambdaSourceFolder
-        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        EventBus: !Ref SaaSBoostEventBus
-        SaaSBoostApi: !Ref SaaSBoostApi
-        ApiStage: !Ref ApiStage
+  #stripe:
+  #  Type: AWS::CloudFormation::Stack
+  #  Properties:
+  #    TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing-stripe.yaml
+  #    Parameters:
+  #      Environment: !Ref Environment
+  #      SaaSBoostBucket: !Ref SaaSBoostBucket
+  #      LambdaSourceFolder: !Ref LambdaSourceFolder
+  #      SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+  #      ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+  #      EventBus: !Ref SaaSBoostEventBus
+  #      SaaSBoostApi: !Ref SaaSBoostApi
+  #      ApiStage: !Ref ApiStage
   metrics:
     Type: AWS::CloudFormation::Stack
     # Delete the metrics stack before clearing the S3 buckets because the metrics stack defines
@@ -1008,8 +983,6 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostApi: !Ref SaaSBoostApi
-        ApiStage: !Ref ApiStage
         ResourcesBucket: !Ref Resources
   settings:
     Type: AWS::CloudFormation::Stack
@@ -1081,12 +1054,12 @@ Resources:
         AdminWebAppClientId: !GetAtt idp.Outputs.AdminWebAppClient
         ApiAppClientId: !GetAtt idp.Outputs.ApiAppClient
         PrivateApiAppClientId: !GetAtt idp.Outputs.PrivateApiAppClient
-        BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
+        #BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
         MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
         MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
         MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
         OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
-        OnboardingServiceStart: !GetAtt onboarding.Outputs.OnboardingServiceStartArn
+        OnboardingServiceInsert: !GetAtt onboarding.Outputs.OnboardingServiceInsertArn
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
@@ -1105,7 +1078,7 @@ Resources:
         TierServiceGetAll: !GetAtt tier.Outputs.TierServiceGetAllArn
         TierServiceGetById: !GetAtt tier.Outputs.TierServiceGetByIdArn
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
-        TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
+        TierServiceInsert: !GetAtt tier.Outputs.TierServiceInsertArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
         SystemUserServiceGetAll: !GetAtt sysuser.Outputs.SystemUserServiceGetAllArn
         SystemUserServiceInsert: !GetAtt sysuser.Outputs.SystemUserServiceInsertArn
@@ -1114,13 +1087,12 @@ Resources:
         SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
         SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
         SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
-  SSMParamMetricsAnalyticsDeployed:
+  SSMParamEnvironment:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED
+      Name: !Sub /saas-boost/${Environment}/ENVIRONMENT
       Type: String
-      # start out as false and will update when stack is deployed separately
-      Value: 'false'
+      Value: !Ref Environment
   SSMParamVersion:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1130,9 +1102,27 @@ Resources:
   SSMParamSaaSBoostStack:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_STACK
+      Name: !Sub /saas-boost/${Environment}/STACK_NAME
       Type: String
       Value: !Ref AWS::StackName
+  SSMParamSaaSBoostBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
+      Type: String
+      Value: !Ref SaaSBoostBucket
+  SSMParamLambdaSourceFolder:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/LAMBDAS_FOLDER
+      Type: String
+      Value: !Ref LambdaSourceFolder
+  SSMParamSaaSBoostEventBus:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
+      Type: String
+      Value: !Ref SaaSBoostEventBus
   SSMParamCodePipelineBucket:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1163,6 +1153,24 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/CFN_UTILS_LAYER
       Type: String
       Value: !Ref CloudFormationUtilsLayer
+  SSMParamApiClientHelperLayer:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_CLIENT_HELPER_LAYER
+      Type: String
+      Value: !Ref SaaSBoostApiClientHelperLayer
+  SSMParamApiClientSecretArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_SECRET
+      Type: String
+      Value: !GetAtt idp.Outputs.ApiAppClientSecret
+  SSMParamApiClientSecretKeyArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_KEY
+      Type: String
+      Value: !GetAtt idp.Outputs.ApiAppClientEncryptionKey
 Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources

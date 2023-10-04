@@ -447,8 +447,6 @@ Resources:
         Variables:
           DYNAMODB_TABLE_NAME: !Ref MeteringBillingTable
           DYNAMODB_CONFIG_INDEX_NAME: !Ref TenantConfigurationIndexName
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Handler: com.amazon.aws.partners.saasfactory.metering.aggregation.StripeBillingPublish::handleRequest
       Code:
@@ -589,8 +587,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupBillingSystemListener
@@ -695,8 +691,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           BILL_PUBLISH_EVENT: !Sub sb-${Environment}-bill-publish-event
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::setupTenantBillingListener
@@ -797,8 +791,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_EVENT_BUS: !Ref EventBus
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.BillingIntegration::disableTenantBillingListener
       Code:

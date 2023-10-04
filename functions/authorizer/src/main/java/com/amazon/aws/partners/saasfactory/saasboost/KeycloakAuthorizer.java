@@ -37,7 +37,8 @@ public class KeycloakAuthorizer implements Authorizer {
                 .acceptLeeway(5L) // Allowed seconds of clock skew between token issuer and verifier
                 .withClaim("typ", "Bearer")
                 .withClaim("azp", (claim, token) -> (
-                        List.of(ApiGatewayAuthorizer.ADMIN_WEB_APP_CLIENT_ID, ApiGatewayAuthorizer.API_APP_CLIENT_ID,
+                        List.of(ApiGatewayAuthorizer.ADMIN_WEB_APP_CLIENT_ID,
+                                ApiGatewayAuthorizer.API_APP_CLIENT_ID,
                                 ApiGatewayAuthorizer.PRIVATE_API_APP_CLIENT_ID).contains(claim.asString())
                         )
                 )

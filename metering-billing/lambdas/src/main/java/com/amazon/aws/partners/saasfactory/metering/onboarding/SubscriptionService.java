@@ -32,33 +32,19 @@ import com.stripe.model.Product;
 import com.stripe.model.ProductCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkServiceException;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 
 import java.util.*;
 
 public class SubscriptionService {
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
     private static final Logger LOGGER = LoggerFactory.getLogger(SubscriptionService.class);
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
-    private final SecretsManagerClient secrets;
-    private ApiGatewayHelper api;
 
     public SubscriptionService() {
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
         if (Utils.isBlank(API_APP_CLIENT)) {
             throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
-        this.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
     }
 
     public APIGatewayProxyResponseEvent getPlans(Map<String, Object> event, Context context) {
@@ -70,7 +56,8 @@ public class SubscriptionService {
         Utils.logRequestEvent(event);
 
         APIGatewayProxyResponseEvent response;
-        Stripe.apiKey = BillingUtils.getBillingApiKey(apiGatewayHelper());
+        ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(api);
         if (Stripe.apiKey != null) {
             try {
                 ArrayNode plans = JsonNodeFactory.instance.arrayNode();
@@ -116,28 +103,4 @@ public class SubscriptionService {
         return response;
     }
 
-    protected ApiGatewayHelper apiGatewayHelper() {
-        if (this.api == null) {
-            // Fetch the app client details from SecretsManager
-            LinkedHashMap<String, String> clientDetails;
-            try {
-                GetSecretValueResponse response = secrets.getSecretValue(request -> request
-                        .secretId(API_APP_CLIENT)
-                );
-                clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
-            } catch (SdkServiceException secretsManagerError) {
-                LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
-                throw secretsManagerError;
-            }
-            // Build an API helper with the app client
-            this.api = ApiGatewayHelper.builder()
-                    .host(API_GATEWAY_HOST)
-                    .stage(API_GATEWAY_STAGE)
-                    .clientId(clientDetails.get("client_id"))
-                    .clientSecret(clientDetails.get("client_secret"))
-                    .tokenEndpoint(clientDetails.get("token_endpoint"))
-                    .build();
-        }
-        return this.api;
-    }
 }

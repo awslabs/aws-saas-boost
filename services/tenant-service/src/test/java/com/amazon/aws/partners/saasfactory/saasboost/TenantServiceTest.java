@@ -16,11 +16,12 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
 import java.util.*;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TenantServiceTest {
 
@@ -29,7 +30,7 @@ public class TenantServiceTest {
     private static Map<String, Object> event;
     private static Map<String, Object> eventDetail;
 
-    @BeforeClass
+    @BeforeAll
     public static void setup() throws Exception {
         tenantId = "d1c1e3cc-962f-4f03-b4a8-d8a7c1f986c3";
 
@@ -66,9 +67,9 @@ public class TenantServiceTest {
         Map<String, Tenant.Resource> expected = resources;
         Map<String, Tenant.Resource> actual = TenantService.fromTenantResourcesChangedEvent(event);
 
-        assertEquals("Size unequal", expected.size(), actual.size());
+        assertEquals(expected.size(), actual.size(), "Size unequal");
         expected.keySet().stream().forEach((key) -> {
-            assertEquals("Value mismatch for '" + key + "'", expected.get(key), actual.get(key));
+            assertEquals(expected.get(key), actual.get(key), "Value mismatch for '" + key + "'");
         });
     }
 

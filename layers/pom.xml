@@ -18,6 +18,7 @@
         <module>apigw-helper</module>
 		<module>cloudformation-utils</module>
 		<module>keycloak-helper</module>
+		<module>saas-boost-api-client-helper/java</module>
     </modules>
     <licenses>
         <license>
@@ -49,8 +50,12 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

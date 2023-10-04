@@ -41,7 +41,7 @@ Parameters:
     Description: Identity Provider for the SaaS Boost system users and Control Plane API authorization
     Type: String
     Default: COGNITO
-    AllowedValues: [COGNITO, KEYCLOAK]
+    AllowedValues: [COGNITO, KEYCLOAK, AUTH0]
   CognitoUserPoolId:
     Description: User Pool Id for the Cognito Authorizer
     Type: String
@@ -60,9 +60,9 @@ Parameters:
   PrivateApiAppClientId:
     Description: OAuth App Client Id for private API client credentials grant
     Type: String
-  BillingServiceGetPlans:
-    Description: Billing Service subscription plans Lambda ARN
-    Type: String
+#  BillingServiceGetPlans:
+#    Description: Billing Service subscription plans Lambda ARN
+#    Type: String
   MetricsServiceQuery:
     Description: Metrics Service query Lambda ARN
     Type: String
@@ -75,15 +75,12 @@ Parameters:
   OnboardingServiceGetAll:
     Description: Onboarding Service get all onboarding requests Lambda ARN
     Type: String
-  OnboardingServiceStart:
-    Description: Onboarding Service start onboarding Lambda ARN
+  OnboardingServiceInsert:
+    Description: Onboarding Service insert onboarding request Lambda ARN
     Type: String
   OnboardingServiceById:
     Description: Onboarding Service get onboarding request by id Lambda ARN
     Type: String
-#  QuotasServiceCheck:
-#    Description: Quota Service check limits Lambda ARN
-#    Type: String
   SettingsServiceGetAll:
     Description: Settings Service get all settings Lambda ARN
     Type: String
@@ -135,8 +132,8 @@ Parameters:
   TierServiceUpdate:
     Description: Tier Service update tier Lambda ARN
     Type: String
-  TierServiceCreate:
-    Description: Tier Service create tier Lambda ARN
+  TierServiceInsert:
+    Description: Tier Service insert tier Lambda ARN
     Type: String
   TierServiceDelete:
     Description: Tier Service delete tier Lambda ARN
@@ -233,7 +230,7 @@ Resources:
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-pub-api-log-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-apigw-log-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -284,78 +281,78 @@ Resources:
     Properties:
       RestApiId: !Ref SaaSBoostApi
       Type: TOKEN
-      Name: !Sub sb-${Environment}-pub-api-authorizer
+      Name: !Sub sb-${Environment}-api-authorizer
       AuthorizerCredentials: !GetAtt ApiGatewayLambdaAuthorizerRole.Arn
       IdentitySource: method.request.header.Authorization
       IdentityValidationExpression: ^[Bb]earer [A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$
       AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambda.Arn}/invocations
-  BillingServiceResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref RootResourceId
-      PathPart: 'billing'
-  BillingServicePlansResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref BillingServiceResource
-      PathPart: 'plans'
-  BillingServicePlansResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref BillingServicePlansResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  BillingServiceGetPlansMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref BillingServicePlansResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  BillingServiceGetPlansLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref BillingServiceGetPlans
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/billing/plans
+#  BillingServiceResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref RootResourceId
+#      PathPart: 'billing'
+#  BillingServicePlansResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref BillingServiceResource
+#      PathPart: 'plans'
+#  BillingServicePlansResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref BillingServicePlansResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  BillingServiceGetPlansMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref BillingServicePlansResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  BillingServiceGetPlansLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref BillingServiceGetPlans
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/billing/plans
   MetricsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -669,7 +666,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref OnboardingServiceGetAll
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/onboarding
-  OnboardingServiceStartMethod:
+  OnboardingServiceInsertMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref SaaSBoostApi
@@ -680,19 +677,19 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceStart}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceInsert}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  OnboardingServiceStartLambdaPermission:
+  OnboardingServiceInsertLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref OnboardingServiceStart
+      FunctionName: !Ref OnboardingServiceInsert
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/onboarding
   OnboardingServiceResourceCORS:
     Type: AWS::ApiGateway::Method
@@ -781,73 +778,6 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-#  QuotaServiceResource:
-#    Type: AWS::ApiGateway::Resource
-#    Properties:
-#      RestApiId: !Ref SaaSBoostApi
-#      ParentId: !Ref RootResourceId
-#      PathPart: quotas
-#  QuotaServiceCheckResource:
-#    Type: AWS::ApiGateway::Resource
-#    Properties:
-#      RestApiId: !Ref SaaSBoostApi
-#      ParentId: !Ref QuotaServiceResource
-#      PathPart: check
-#  QuotaServiceCheckMethod:
-#    Type: AWS::ApiGateway::Method
-#    Properties:
-#      RestApiId: !Ref SaaSBoostApi
-#      ResourceId: !Ref QuotaServiceCheckResource
-#      HttpMethod: GET
-#      AuthorizationType: CUSTOM
-#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-#      Integration:
-#        Type: AWS_PROXY
-#        IntegrationHttpMethod: POST
-#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QuotasServiceCheck}/invocations
-#        PassthroughBehavior: WHEN_NO_MATCH
-#      MethodResponses:
-#        - StatusCode: '200'
-#          ResponseModels: {application/json: Empty}
-#          ResponseParameters:
-#            method.response.header.Access-Control-Allow-Origin: false
-#  QuotasServiceLambdaPermission:
-#    Type: AWS::Lambda::Permission
-#    Properties:
-#      Principal: apigateway.amazonaws.com
-#      Action: lambda:InvokeFunction
-#      FunctionName: !Ref QuotasServiceCheck
-#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/quotas/check
-#  QuotaServiceCheckResourceCORS:
-#    Type: AWS::ApiGateway::Method
-#    Properties:
-#      RestApiId: !Ref SaaSBoostApi
-#      ResourceId: !Ref QuotaServiceCheckResource
-#      HttpMethod: OPTIONS
-#      AuthorizationType: NONE
-#      Integration:
-#        Type: MOCK
-#        PassthroughBehavior: WHEN_NO_MATCH
-#        IntegrationResponses:
-#          - StatusCode: '200'
-#            ResponseTemplates: {application/json: ''}
-#            ResponseParameters:
-#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-#              method.response.header.Access-Control-Allow-Origin: "'*'"
-#              method.response.header.Access-Control-Max-Age: "'3600'"
-#              method.response.header.X-Requested-With: "'*'"
-#        RequestTemplates:
-#          application/json: '{"statusCode": 200}'
-#      MethodResponses:
-#        - StatusCode: '200'
-#          ResponseModels: {application/json: Empty}
-#          ResponseParameters:
-#            method.response.header.Access-Control-Allow-Headers: false
-#            method.response.header.Access-Control-Allow-Methods: false
-#            method.response.header.Access-Control-Allow-Origin: false
-#            method.response.header.Access-Control-Max-Age: false
-#            method.response.header.X-Requested-With: false
   SettingsServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1635,7 +1565,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref TierServiceGetAll
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tiers
-  TierServiceCreateMethod:
+  TierServiceInsertMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref SaaSBoostApi
@@ -1647,7 +1577,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceCreate}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceInsert}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
         RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
@@ -1655,12 +1585,12 @@ Resources:
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  TierServiceCreateLambdaPermission:
+  TierServiceInsertLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref TierServiceCreate
+      FunctionName: !Ref TierServiceInsert
       SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/tiers
   TierServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
@@ -2077,8 +2007,8 @@ Resources:
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - BillingServicePlansResourceCORS
-      - BillingServiceGetPlansMethod
+#      - BillingServicePlansResourceCORS
+#      - BillingServiceGetPlansMethod
       - MetricsServiceQueryMethod
       - MetricsServiceQueryResourceCORS
       - MetricsServiceDatasetsMethod
@@ -2088,12 +2018,10 @@ Resources:
       - MetricsServiceAlbQueryByTenantIdMethod
       - MetricsServiceAlbQueryByTenantIdResourceCORS
       - OnboardingServiceGetAllMethod
-      - OnboardingServiceStartMethod
+      - OnboardingServiceInsertMethod
       - OnboardingServiceResourceCORS
       - OnboardingServiceByIdMethod
       - OnboardingServiceByIdResourceCORS
-      #- QuotaServiceCheckMethod
-      #- QuotaServiceCheckResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS
       - SettingsServiceOptionsMethod
@@ -2117,6 +2045,13 @@ Resources:
       - TenantServiceEnableResourceCORS
       - TenantServiceDisableMethod
       - TenantServiceDisableResourceCORS
+      - TierServiceGetAllMethod
+      - TierServiceInsertMethod
+      - TierServiceGetByIdMethod
+      - TierServiceUpdateMethod
+      - TierServiceDeleteMethod
+      - TierServiceByIdResourceCORS
+      - TierServiceResourceCORS
       - SystemUserServiceGetAllMethod
       - SystemUserServiceInsertMethod
       - SystemUserServiceResourceCORS

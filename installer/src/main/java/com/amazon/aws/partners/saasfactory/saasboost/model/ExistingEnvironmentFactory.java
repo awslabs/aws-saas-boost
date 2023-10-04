@@ -56,7 +56,6 @@ public final class ExistingEnvironmentFactory {
             .baseCloudFormationStackName(baseCloudFormationStackName)
             .baseCloudFormationStackInfo(getExistingSaaSBoostStackDetails(cfn, baseCloudFormationStackName))
             .lambdasFolderName(getExistingSaaSBoostLambdasFolder(ssm, environmentName))
-            .metricsAnalyticsDeployed(getExistingSaaSBoostAnalyticsDeployed(ssm, environmentName))
             .name(environmentName)
             .accountId(accountId)
             .build();
@@ -95,7 +94,7 @@ public final class ExistingEnvironmentFactory {
         String stackName = null;
         try {
             GetParameterResponse response = ssm.getParameter(request -> request
-                    .name("/saas-boost/" + environmentName + "/SAAS_BOOST_STACK")
+                    .name("/saas-boost/" + environmentName + "/STACK_NAME")
             );
             stackName = response.parameter().value();
         } catch (ParameterNotFoundException paramStoreError) {
@@ -117,8 +116,7 @@ public final class ExistingEnvironmentFactory {
             String baseCloudFormationStackName) {
         LOGGER.debug("Getting CloudFormation stack details for SaaS Boost stack {}", baseCloudFormationStackName);
         Map<String, String> details = new HashMap<>();
-//        List<String> requiredOutputs = List.of("PublicSubnet1", "PublicSubnet2", "PrivateSubnet1",
-//                "PrivateSubnet2", "EgressVpc", "LoggingBucket");
+        // TODO not sure we need this
         List<String> requiredOutputs = List.of("LoggingBucket");
         try {
             DescribeStacksResponse response = cfn.describeStacks(
@@ -154,12 +152,12 @@ public final class ExistingEnvironmentFactory {
         String lambdasFolder = null;
         try {
             GetParameterResponse response = ssm.getParameter(request -> request
-                    .name("/saas-boost/" + environmentName + "/SAAS_BOOST_LAMBDAS_FOLDER")
+                    .name("/saas-boost/" + environmentName + "/LAMBDAS_FOLDER")
             );
             lambdasFolder = response.parameter().value();
         } catch (ParameterNotFoundException paramStoreError) {
             LOGGER.warn("Parameter /saas-boost/" + environmentName
-                    + "/SAAS_BOOST_LAMBDAS_FOLDER not found setting to default 'lambdas'");
+                    + "/LAMBDAS_FOLDER not found setting to default 'lambdas'");
             lambdasFolder = "lambdas";
         } catch (SdkServiceException ssmError) {
             LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
@@ -170,24 +168,4 @@ public final class ExistingEnvironmentFactory {
         return lambdasFolder;
     }
 
-    // VisibleForTesting
-    static boolean getExistingSaaSBoostAnalyticsDeployed(SsmClient ssm, String environmentName) {
-        LOGGER.debug("Getting existing SaaS Boost Analytics module deployed from Parameter Store");
-        boolean analyticsDeployed = false;
-        try {
-            GetParameterResponse response = ssm.getParameter(request -> request
-                    .name("/saas-boost/" + environmentName + "/METRICS_ANALYTICS_DEPLOYED")
-            );
-            analyticsDeployed = Boolean.parseBoolean(response.parameter().value());
-        } catch (ParameterNotFoundException paramStoreError) {
-            // this means the parameter doesn't exist, so ignore
-        } catch (SdkServiceException ssmError) {
-            // TODO CloudFormation should own this parameter, not the installer...
-            LOGGER.error("ssm:GetParameter error {}", ssmError.getMessage());
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            throw ssmError;
-        }
-        LOGGER.info("Loaded analytics deployed {}", analyticsDeployed);
-        return analyticsDeployed;
-    }
 }

@@ -16,6 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
@@ -74,8 +75,10 @@ public class Utils {
         MAPPER.enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING);
     }
 
-    static final char[] LOWERCASE_LETTERS = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
-    static final char[] UPPERCASE_LETTERS = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
+    static final char[] LOWERCASE_LETTERS = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+    static final char[] UPPERCASE_LETTERS = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'};
     static final char[] NUMBERS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
     static final char[] SYMBOLS = {'!', '#', '$', '%', '&', '*', '+', '-', '.', ':', '=', '?', '^', '_'};
 
@@ -97,7 +100,8 @@ public class Utils {
                 char escapedCharacter = quotedJson.charAt(index);
                 index++;
 
-                if (escapedCharacter == '"' || escapedCharacter == '\\' || escapedCharacter == '/' || escapedCharacter == '\'') {
+                if (escapedCharacter == '"' || escapedCharacter == '\\' || escapedCharacter == '/'
+                        || escapedCharacter == '\'') {
                     // If the character after the backslash is another slash or a quote
                     // then add it to the JSON string we're building. Normal use case is
                     // that the next character should be a double quote mark.
@@ -175,6 +179,10 @@ public class Utils {
         return object;
     }
 
+    public static Map<String, Object> asMap(Object obj) {
+        return fromJson(toJson(obj), LinkedHashMap.class);
+    }
+
     public static boolean isChinaRegion(String region) {
         return isChinaRegion(Region.of(region));
     }
@@ -199,7 +207,8 @@ public class Utils {
         return region.metadata().partition().dnsSuffix();
     }
 
-    public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(AwsSyncClientBuilder<B, C> builder, String service) {
+    public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(
+            AwsSyncClientBuilder<B, C> builder, String service) {
         if (Utils.isBlank(System.getenv("AWS_REGION"))) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -400,6 +409,36 @@ public class Utils {
         return String.valueOf(randomCharacters);
     }
 
+    public static String generatePassword(int passwordLength) {
+        if (passwordLength < 8) {
+            throw new IllegalArgumentException("Invalid password length. Minimum of 8 characters is required.");
+        }
+
+        // Split the classes of characters into separate buckets so we can be sure to use
+        // the correct amount of each type
+        final char[][] chars = {UPPERCASE_LETTERS, LOWERCASE_LETTERS, NUMBERS, SYMBOLS};
+        Random random = new Random();
+        StringBuilder password = new StringBuilder(passwordLength);
+
+        // Randomly select one character from each of the required character types
+        ArrayList<Integer> reqCharBucket = new ArrayList<>(3);
+        reqCharBucket.add(0, 0);
+        reqCharBucket.add(1, 1);
+        reqCharBucket.add(2, 2);
+        reqCharBucket.add(3, 3);
+        while (!reqCharBucket.isEmpty()) {
+            Integer ranReqCharBucket = reqCharBucket.remove(random.nextInt(reqCharBucket.size()));
+            password.append(chars[ranReqCharBucket][random.nextInt(chars[ranReqCharBucket].length)]);
+        }
+
+        // Fill out the rest of the password with randomly selected characters
+        for (int i = 0; i < passwordLength - reqCharBucket.size(); i++) {
+            int charBucket = random.nextInt(chars.length);
+            password.append(chars[charBucket][random.nextInt(chars[charBucket].length)]);
+        }
+        return password.toString();
+    }
+
     public static String getFullStackTrace(Exception e) {
         final StringWriter sw = new StringWriter();
         final PrintWriter pw = new PrintWriter(sw, true);
@@ -409,6 +448,25 @@ public class Utils {
 
     public static void logRequestEvent(Map<String, Object> event) {
         LOGGER.info(toJson(event));
+    }
+
+    public static void logRequestEvent(APIGatewayProxyRequestEvent event) {
+        LOGGER.info(toJson(event));
+    }
+
+    public static boolean warmup(APIGatewayProxyRequestEvent event) {
+        boolean warmup = false;
+        Map<String, Object> body = null;
+        if (isNotEmpty(event.getBody())) {
+            body = fromJson(event.getBody(), LinkedHashMap.class);
+        }
+        Map<String, String> queryParams = event.getQueryStringParameters();
+        if (queryParams != null && "warmup".equals(queryParams.get("source"))) {
+            warmup = true;
+        } else if (body != null && body.containsKey("source") && "warmup".equals(body.get("source"))) {
+            warmup = true;
+        }
+        return warmup;
     }
 
     public static boolean warmup(Map<String, Object> event) {

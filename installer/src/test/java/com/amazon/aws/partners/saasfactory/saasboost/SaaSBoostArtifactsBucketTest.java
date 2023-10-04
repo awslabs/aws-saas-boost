@@ -36,6 +36,7 @@ import static org.junit.Assert.*;
 public class SaaSBoostArtifactsBucketTest {
 
     private static final String ENV_NAME = "env-name";
+    private static final String APP_PLANE_ACCOUNT = "012345678901";
 
     @Mock
     S3Client mockS3;
@@ -52,7 +53,7 @@ public class SaaSBoostArtifactsBucketTest {
         ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
         SaaSBoostArtifactsBucket testBucket =
-                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1);
+                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1, APP_PLANE_ACCOUNT);
         Path localPathToTestPut = Path.of(this.getClass().getClassLoader().getResource("template.yaml").toURI());
         Path exampleRemotePath = Path.of("dir", "dir2");
         testBucket.putFile(mockS3, localPathToTestPut, exampleRemotePath);
@@ -70,7 +71,7 @@ public class SaaSBoostArtifactsBucketTest {
         ArgumentCaptor<CreateBucketRequest> createBucketRequestArgumentCaptor =
                 ArgumentCaptor.forClass(CreateBucketRequest.class);
 
-        SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1);
+        SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).createBucket(createBucketRequestArgumentCaptor.capture());
         // expected, actual
         CreateBucketRequest capturedCreateBucketRequest = createBucketRequestArgumentCaptor.getValue();
@@ -82,7 +83,7 @@ public class SaaSBoostArtifactsBucketTest {
         }
         Mockito.reset(mockS3);
 
-        SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_WEST_2);
+        SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_WEST_2, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).createBucket(createBucketRequestArgumentCaptor.capture());
         assertEquals("Location constraint should be provided for buckets in us-west-2",
                 BucketLocationConstraint.US_WEST_2,
@@ -94,7 +95,7 @@ public class SaaSBoostArtifactsBucketTest {
         ArgumentCaptor<PutBucketEncryptionRequest> putBucketEncryptionRequestArgumentCaptor =
                 ArgumentCaptor.forClass(PutBucketEncryptionRequest.class);
         SaaSBoostArtifactsBucket createdBucket =
-                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1);
+                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).putBucketEncryption(putBucketEncryptionRequestArgumentCaptor.capture());
         PutBucketEncryptionRequest capturedPutBucketEncryptionRequest =
                 putBucketEncryptionRequestArgumentCaptor.getValue();
@@ -113,32 +114,42 @@ public class SaaSBoostArtifactsBucketTest {
         ArgumentCaptor<PutBucketPolicyRequest> putBucketPolicyArgumentCaptor =
                 ArgumentCaptor.forClass(PutBucketPolicyRequest.class);
         SaaSBoostArtifactsBucket createdBucket =
-                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1);
+                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).putBucketPolicy(putBucketPolicyArgumentCaptor.capture());
         PutBucketPolicyRequest capturedPutBucketPolicyRequest = putBucketPolicyArgumentCaptor.getValue();
         assertEquals("Put bucket policy to the wrong bucket.",
                 createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket());
         assertNotNull(capturedPutBucketPolicyRequest.policy());
-        assertEquals("{\n" +
-                "    \"Version\": \"2012-10-17\",\n" +
-                "    \"Statement\": [\n" +
-                "        {\n" +
-                "            \"Sid\": \"DenyNonHttps\",\n" +
-                "            \"Effect\": \"Deny\",\n" +
-                "            \"Principal\": \"*\",\n" +
-                "            \"Action\": \"s3:*\",\n" +
-                "            \"Resource\": [\n" +
-                "                \"arn:aws:s3:::" + createdBucket.getBucketName() + "/*\",\n" +
-                "                \"arn:aws:s3:::" + createdBucket.getBucketName() + "\"\n" +
-                "            ],\n" +
-                "            \"Condition\": {\n" +
-                "                \"Bool\": {\n" +
-                "                    \"aws:SecureTransport\": \"false\"\n" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    ]\n" +
-                "}", capturedPutBucketPolicyRequest.policy());
+        String partition = createdBucket.getRegion().metadata().partition().id();
+        assertEquals("{\n"
+                + "    \"Version\": \"2012-10-17\",\n"
+                + "    \"Statement\": [\n"
+                + "        {\n"
+                + "            \"Sid\": \"DenyNonHttps\",\n"
+                + "            \"Effect\": \"Deny\",\n"
+                + "            \"Principal\": \"*\",\n"
+                + "            \"Action\": \"s3:*\",\n"
+                + "            \"Resource\": [\n"
+                + "                \"arn:" + partition + ":s3:::" + createdBucket.getBucketName() + "/*\",\n"
+                + "                \"arn:" + partition + ":s3:::" + createdBucket.getBucketName() + "\"\n"
+                + "            ],\n"
+                + "            \"Condition\": {\n"
+                + "                \"Bool\": {\n"
+                + "                    \"aws:SecureTransport\": \"false\"\n"
+                + "                }\n"
+                + "            }\n"
+                + "        },\n"
+                + "        {\n"
+                + "            \"Sid\": \"AppPlaneAccountQuickLink\",\n"
+                + "            \"Effect\": \"Allow\",\n"
+                + "            \"Principal\": {\n"
+                + "                \"AWS\": \"arn:aws:iam::" + createdBucket.getAppPlaneAccountId() + ":root\"\n"
+                + "            },\n"
+                + "            \"Action\": \"s3:GetObject\",\n"
+                + "            \"Resource\": \"arn:" + partition + ":s3:::"  + createdBucket.getBucketName() + "/saas-boost-app-integration.yaml\"\n"
+                + "        }\n"
+                + "    ]\n"
+                + "}", capturedPutBucketPolicyRequest.policy());
     }
 
     @Test
@@ -146,31 +157,41 @@ public class SaaSBoostArtifactsBucketTest {
         ArgumentCaptor<PutBucketPolicyRequest> putBucketPolicyArgumentCaptor =
                 ArgumentCaptor.forClass(PutBucketPolicyRequest.class);
         SaaSBoostArtifactsBucket createdBucket =
-                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.CN_NORTHWEST_1);
+                SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.CN_NORTHWEST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).putBucketPolicy(putBucketPolicyArgumentCaptor.capture());
         PutBucketPolicyRequest capturedPutBucketPolicyRequest = putBucketPolicyArgumentCaptor.getValue();
         assertEquals("Put bucket policy to the wrong bucket.",
                 createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket());
         assertNotNull(capturedPutBucketPolicyRequest.policy());
-        assertEquals("{\n" +
-                "    \"Version\": \"2012-10-17\",\n" +
-                "    \"Statement\": [\n" +
-                "        {\n" +
-                "            \"Sid\": \"DenyNonHttps\",\n" +
-                "            \"Effect\": \"Deny\",\n" +
-                "            \"Principal\": \"*\",\n" +
-                "            \"Action\": \"s3:*\",\n" +
-                "            \"Resource\": [\n" +
-                "                \"arn:aws-cn:s3:::" + createdBucket.getBucketName() + "/*\",\n" +
-                "                \"arn:aws-cn:s3:::" + createdBucket.getBucketName() + "\"\n" +
-                "            ],\n" +
-                "            \"Condition\": {\n" +
-                "                \"Bool\": {\n" +
-                "                    \"aws:SecureTransport\": \"false\"\n" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    ]\n" +
-                "}", capturedPutBucketPolicyRequest.policy());
+        String partition = createdBucket.getRegion().metadata().partition().id();
+        assertEquals("{\n"
+                + "    \"Version\": \"2012-10-17\",\n"
+                + "    \"Statement\": [\n"
+                + "        {\n"
+                + "            \"Sid\": \"DenyNonHttps\",\n"
+                + "            \"Effect\": \"Deny\",\n"
+                + "            \"Principal\": \"*\",\n"
+                + "            \"Action\": \"s3:*\",\n"
+                + "            \"Resource\": [\n"
+                + "                \"arn:" + partition + ":s3:::" + createdBucket.getBucketName() + "/*\",\n"
+                + "                \"arn:" + partition + ":s3:::" + createdBucket.getBucketName() + "\"\n"
+                + "            ],\n"
+                + "            \"Condition\": {\n"
+                + "                \"Bool\": {\n"
+                + "                    \"aws:SecureTransport\": \"false\"\n"
+                + "                }\n"
+                + "            }\n"
+                + "        },\n"
+                + "        {\n"
+                + "            \"Sid\": \"AppPlaneAccountQuickLink\",\n"
+                + "            \"Effect\": \"Allow\",\n"
+                + "            \"Principal\": {\n"
+                + "                \"AWS\": \"arn:aws:iam::" + createdBucket.getAppPlaneAccountId() + ":root\"\n"
+                + "            },\n"
+                + "            \"Action\": \"s3:GetObject\",\n"
+                + "            \"Resource\": \"arn:" + partition + ":s3:::"  + createdBucket.getBucketName() + "/saas-boost-app-integration.yaml\"\n"
+                + "        }\n"
+                + "    ]\n"
+                + "}", capturedPutBucketPolicyRequest.policy());
     }
 }

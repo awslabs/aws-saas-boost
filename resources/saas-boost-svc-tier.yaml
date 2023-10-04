@@ -34,13 +34,17 @@ Resources:
   TiersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub sb-${Environment}-tiers
+      TableName: !Sub sb-${Environment}-tiers2
       AttributeDefinitions:
         - AttributeName: id
+          AttributeType: S
+        - AttributeName: default_tier
           AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
+        - AttributeName: default_tier
+          KeyType: RANGE
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
@@ -78,6 +82,7 @@ Resources:
                   - dynamodb:DescribeTable
                   - dynamodb:GetItem
                   - dynamodb:Scan
+                  - dynamodb:Query
                   - dynamodb:PutItem
                   - dynamodb:DeleteItem
                   - dynamodb:UpdateItem
@@ -173,20 +178,20 @@ Resources:
           Value: !Ref Environment
         - Key: "BoostService"
           Value: "Tier"
-  TierServiceCreateLogs:
+  TierServiceInsertLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tier-create
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-tier-insert
       RetentionInDays: 30
-  TierServiceCreate:
+  TierServiceInsert:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-tier-create
+      FunctionName: !Sub sb-${Environment}-tier-insert
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java11
       Timeout: 300
       MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::createTier
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::insertTier
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/TierService-lambda.zip
@@ -243,9 +248,9 @@ Outputs:
   TierServiceUpdateArn:
     Description: Tier Service update tier Lambda ARN
     Value: !GetAtt TierServiceUpdate.Arn
-  TierServiceCreateArn:
-    Description: Tier Service create tier Lambda ARN
-    Value: !GetAtt TierServiceCreate.Arn
+  TierServiceInsertArn:
+    Description: Tier Service insert tier Lambda ARN
+    Value: !GetAtt TierServiceInsert.Arn
   TierServiceDeleteArn:
     Description: Tier Service delete tier Lambda ARN
     Value: !GetAtt TierServiceDelete.Arn

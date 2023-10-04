@@ -24,7 +24,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.quicksight.QuickSightClientBuilder;
+import software.amazon.awssdk.services.cloudformation.CloudFormationClientBuilder;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -36,13 +36,14 @@ public class AwsClientBuilderFactoryTest {
 
     private static final Region DEFAULT_EXPECTED_REGION = null;
     private static final Class<? extends AwsCredentialsProvider> DEFAULT_EXPECTED_CREDENTIALS_PROVIDER_CLASS =
-            RefreshingProfileDefaultCredentialsProvider.class;
+            DefaultCredentialsProvider.class;
+//            RefreshingProfileDefaultCredentialsProvider.class;
 
-    private static QuickSightClientBuilder mockBuilder;
+    private static CloudFormationClientBuilder mockBuilder;
 
     @BeforeClass
     public static void createMockBuilder() {
-        mockBuilder = mock(QuickSightClientBuilder.class);
+        mockBuilder = mock(CloudFormationClientBuilder.class);
         when(mockBuilder.credentialsProvider(any())).thenReturn(mockBuilder);
         when(mockBuilder.region(any())).thenReturn(mockBuilder);
     }
@@ -56,7 +57,7 @@ public class AwsClientBuilderFactoryTest {
     public void buildFactoryWithNoRegion() {
         // this test verifies that a null region is automatically filled with the default profile region
         // in the SDK. this is assumed by the BoostAwsClientBuilderFactory and will fail should that behavior change
-        AwsClientBuilderFactory.builder().build().quickSightBuilder().build();
+        AwsClientBuilderFactory.builder().build().cloudFormationBuilder().build();
     }
 
     @Test

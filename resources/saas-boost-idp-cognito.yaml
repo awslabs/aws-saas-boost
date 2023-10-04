@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 AWSTemplateFormatVersion: 2010-09-09
-Description: AWS SaaS Boost Cognito
+Description: AWS SaaS Boost System User Cognito IdP
 Parameters:
   Environment:
     Description: SaaS Boost environment name

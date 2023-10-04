@@ -17,25 +17,25 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
 import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.lambda.runtime.events.SQSBatchResponse;
 import com.amazonaws.services.lambda.runtime.events.SQSEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
-import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
-import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageBatchRequestEntry;
 import software.amazon.awssdk.services.sqs.model.SendMessageBatchResponse;
 
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -47,8 +47,6 @@ public class OnboardingService {
     private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingService.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
     private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private static final String ONBOARDING_TABLE = System.getenv("ONBOARDING_TABLE");
     private static final String RESOURCES_BUCKET = System.getenv("RESOURCES_BUCKET");
@@ -57,15 +55,18 @@ public class OnboardingService {
     private static final String EVENT_SOURCE = "saas-boost";
     private static final String RESOURCES_BUCKET_TEMP_FOLDER = "00temp/";
     private static final String TENANT_ONBOARDING_STATUS_CHANGED = "Tenant Onboarding Status Changed";
-    private final OnboardingServiceDAL dal;
+    private final OnboardingDataAccessLayer dal;
     private final EventBridgeClient eventBridge;
     private final S3Client s3;
     private final S3Presigner presigner;
     private final SqsClient sqs;
-    private final SecretsManagerClient secrets;
-    private ApiGatewayHelper api;
 
     public OnboardingService() {
+        this(new DefaultDependencyFactory());
+    }
+
+    // Facilitates testing by being able to mock out AWS SDK dependencies
+    public OnboardingService(OnboardingServiceDependencyFactory init) {
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing environment variable AWS_REGION");
         }
@@ -73,24 +74,11 @@ public class OnboardingService {
             throw new IllegalStateException("Missing environment variable ONBOARDING_TABLE");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
-        this.dal = new OnboardingServiceDAL();
-        this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
-        this.s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
-        try {
-            String presignerEndpoint = "https://" + s3.serviceName() + "."
-                    + Region.of(AWS_REGION)
-                    + "."
-                    + Utils.endpointSuffix(AWS_REGION);
-            this.presigner = S3Presigner.builder()
-                    .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
-                    .region(Region.of(AWS_REGION))
-                    .endpointOverride(new URI(presignerEndpoint))
-                    .build();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-        this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
-        this.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
+        this.s3 = init.s3();
+        this.eventBridge = init.eventBridge();
+        this.sqs = init.sqs();
+        this.presigner = init.s3Presigner();
+        this.dal = init.dal();
     }
 
     /**
@@ -99,24 +87,26 @@ public class OnboardingService {
      * @param context
      * @return Onboarding object for id or HTTP 404 if not found
      */
-    public APIGatewayProxyResponseEvent getOnboarding(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent getOnboarding(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
-        Map<String, String> params = (Map<String, String>) event.get("pathParameters");
+        Map<String, String> params = event.getPathParameters();
         String onboardingId = params.get("id");
         Onboarding onboarding = dal.getOnboarding(onboardingId);
         if (onboarding != null) {
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withStatusCode(200)
+                    .withStatusCode(HttpURLConnection.HTTP_OK)
                     .withBody(Utils.toJson(onboarding));
         } else {
-            response = new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(404);
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(HttpURLConnection.HTTP_NOT_FOUND);
         }
 
         return response;
@@ -128,16 +118,16 @@ public class OnboardingService {
      * @param context
      * @return List of onboarding objects
      */
-    public APIGatewayProxyResponseEvent getOnboardings(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent getOnboardings(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
         List<Onboarding> onboardings;
-        Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
+        Map<String, String> queryParams = event.getQueryStringParameters();
         if (queryParams != null && queryParams.containsKey("tenantId")
                 && Utils.isNotBlank(queryParams.get("tenantId"))) {
             onboardings = List.of(dal.getOnboardingByTenantId(queryParams.get("tenantId")));
@@ -146,7 +136,7 @@ public class OnboardingService {
         }
         response = new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
-                .withStatusCode(200)
+                .withStatusCode(HttpURLConnection.HTTP_OK)
                 .withBody(Utils.toJson(onboardings));
 
         return response;
@@ -158,32 +148,33 @@ public class OnboardingService {
      * @param context
      * @return HTTP 200 if updated, HTTP 400 on failure
      */
-    public APIGatewayProxyResponseEvent updateOnboarding(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent updateOnboarding(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
+
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
-        Map<String, String> params = (Map<String, String>) event.get("pathParameters");
+        Map<String, String> params = event.getPathParameters();
         String onboardingId = params.get("id");
-        Onboarding onboarding = Utils.fromJson((String) event.get("body"), Onboarding.class);
+        Onboarding onboarding = Utils.fromJson(event.getBody(), Onboarding.class);
         if (onboarding == null) {
             response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
                     .withBody(Utils.toJson(Map.of("message", "Invalid request body")));
         } else {
             if (onboarding.getId() == null || !onboarding.getId().toString().equals(onboardingId)) {
                 LOGGER.error("Can't update onboarding {} at resource {}", onboarding.getId(), onboardingId);
                 response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(400)
+                        .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                         .withHeaders(CORS)
                         .withBody(Utils.toJson(Map.of("message", "Request body must include id")));
             } else {
                 onboarding = dal.updateOnboarding(onboarding);
                 response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
+                        .withStatusCode(HttpURLConnection.HTTP_OK)
                         .withHeaders(CORS)
                         .withBody(Utils.toJson(onboarding));
             }
@@ -198,26 +189,35 @@ public class OnboardingService {
      * @param context
      * @return HTTP 204 if deleted, HTTP 400 on failure
      */
-    public APIGatewayProxyResponseEvent deleteOnboarding(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent deleteOnboarding(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
+
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
-        Map<String, String> params = (Map<String, String>) event.get("pathParameters");
+        Map<String, String> params = event.getPathParameters();
         String onboardingId = params.get("id");
-        try {
-            //dal.deleteOnboarding(onboardingId);
+        Onboarding onboarding = dal.getOnboarding(onboardingId);
+        if (onboarding == null) {
             response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
-                    .withStatusCode(204); // No content
-        } catch (Exception e) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody(Utils.toJson(Map.of("message", "Failed to delete onboarding record "
-                            + onboardingId)));
+                    .withBody(Utils.toJson(Map.of("message", "Invalid onboarding id")));
+        } else {
+            try {
+                dal.deleteOnboarding(onboarding);
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_NO_CONTENT); // No content
+            } catch (Exception e) {
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_NOT_FOUND)
+                        .withBody(Utils.toJson(Map.of("message", "Failed to delete onboarding record "
+                                + onboardingId)));
+            }
         }
         return response;
     }
@@ -229,44 +229,41 @@ public class OnboardingService {
      * @param context
      * @return Onboarding object in a created state or HTTP 400 if the request does not contain a name
      */
-    public APIGatewayProxyResponseEvent insertOnboarding(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent insertOnboarding(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
+
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalArgumentException("Missing required environment variable SAAS_BOOST_EVENT_BUS");
         }
 
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("OnboardingService::startOnboarding");
-
         Utils.logRequestEvent(event);
 
         // Parse the onboarding request
-        OnboardingRequest onboardingRequest = Utils.fromJson((String) event.get("body"), OnboardingRequest.class);
+        OnboardingRequest onboardingRequest = Utils.fromJson(event.getBody(), OnboardingRequest.class);
         if (null == onboardingRequest) {
             LOGGER.error("Onboarding request is invalid");
             return new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Invalid onboarding request.\"}");
         }
         if (Utils.isBlank(onboardingRequest.getName())) {
             LOGGER.error("Onboarding request is missing tenant name");
             return new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Tenant name is required.\"}");
         }
         if (Utils.isBlank(onboardingRequest.getTier())) {
             LOGGER.error("Onboarding request is missing tier");
             return new APIGatewayProxyResponseEvent()
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
                     .withBody("{\"message\": \"Tier is required.\"}");
         }
-        // TODO check for duplicate tenant name? Do it by just looking at the local onboarding requests,
-        // TODO or make a call out to the tenant service?
 
         // Create a new onboarding request record for a tenant
         Onboarding onboarding = new Onboarding();
@@ -277,76 +274,79 @@ public class OnboardingService {
         onboarding = dal.insertOnboarding(onboarding);
 
         // Generate the presigned URL for this tenant's ZIP archive
-        final String key = RESOURCES_BUCKET_TEMP_FOLDER + onboarding.getId().toString() + ".zip";
-        final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
-        PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
-                .signatureDuration(expires)
-                .putObjectRequest(PutObjectRequest.builder()
-                        .bucket(RESOURCES_BUCKET)
-                        .key(key)
-                        .build()
-                )
-                .build()
-        );
-        onboarding.setZipFile(presignedObject.url().toString());
-        // Don't save the temporary presigned URL to the database. If the user actually uploads
-        // a tenant config file, we'll persist the information then.
+        if (Utils.isNotEmpty(RESOURCES_BUCKET)) {
+            final String key = RESOURCES_BUCKET_TEMP_FOLDER + onboarding.getId().toString() + ".zip";
+            final Duration expires = Duration.ofMinutes(15); // UI times out in 10 min
+            PresignedPutObjectRequest presignedObject = presigner.presignPutObject(request -> request
+                    .signatureDuration(expires)
+                    .putObjectRequest(PutObjectRequest.builder()
+                            .bucket(RESOURCES_BUCKET)
+                            .key(key)
+                            .build()
+                    )
+                    .build()
+            );
+            onboarding.setZipFile(presignedObject.url().toString());
+            // Don't save the temporary presigned URL to the database. If the user actually uploads
+            // a tenant config file, we'll persist the information then.
+        }
 
         // Let everyone know we've created an onboarding request so it can be validated
-        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                 OnboardingEvent.ONBOARDING_INITIATED.detailType(),
                 Map.of("onboardingId", onboarding.getId())
         );
 
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("OnboardingService::startOnboarding exec " + totalTimeMillis);
-
         return new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
-                .withStatusCode(201)
+                .withStatusCode(HttpURLConnection.HTTP_CREATED)
                 .withBody(Utils.toJson(onboarding));
     }
 
-    public void handleOnboardingEvent(Map<String, Object> event, Context context) {
-        if (!OnboardingEvent.validate(event)) {
+    /**
+     * Event listener (EventBridge Rule target) for Onboarding Events. The single public
+     * entry point both reduces the number of EventBridge rules and simplifies debug logging.
+     * @param event the EventBridge event
+     */
+    public void handleOnboardingEvent(Map<String, Object> event) {
+        Utils.logRequestEvent(event);
+        if (OnboardingEvent.validate(event)) {
             String detailType = (String) event.get("detail-type");
             OnboardingEvent onboardingEvent = OnboardingEvent.fromDetailType(detailType);
             if (onboardingEvent != null) {
                 switch (onboardingEvent) {
                     case ONBOARDING_VALIDATED:
                         LOGGER.info("Handling Onboarding Validated");
-                        handleOnboardingValidated(event, context);
+                        handleOnboardingValidated(event);
                         break;
                     case ONBOARDING_PROVISIONING:
                         LOGGER.info("Handling Onboarding Resources Provisioning");
-                        handleOnboardingProvisioning(event, context);
+                        handleOnboardingProvisioning(event);
                         break;
                     case ONBOARDING_PROVISIONED:
                         LOGGER.info("Handling Onboarding Resources Provisioned");
-                        handleOnboardingProvisioned(event, context);
+                        handleOnboardingProvisioned(event);
                         break;
                     case ONBOARDING_DEPLOYING:
                         LOGGER.info("Handling Onboarding Workloads Deploying");
-                        handleOnboardingDeploying(event, context);
+                        handleOnboardingDeploying(event);
                         break;
                     case ONBOARDING_DEPLOYED:
                         LOGGER.info("Handling Onboarding Workloads Deployed");
-                        handleOnboardingDeployed(event, context);
-                        break;
-                    case ONBOARDING_COMPLETED:
-                        LOGGER.info("Handling Onboarding Completed");
-                        handleOnboardingCompleted(event, context);
+                        handleOnboardingDeployed(event);
                         break;
                     case ONBOARDING_FAILED:
                         LOGGER.info("Handling Onboarding Failed");
-                        handleOnboardingFailed(event, context);
+                        handleOnboardingFailed(event);
                         break;
                     default:
                         LOGGER.error("Unknown Onboarding Event!");
                 }
-            } else if (detailType.startsWith("Tenant ")) {
-                LOGGER.info("Handling Tenant Event");
-                handleTenantEvent(event, context);
+            } else if (detailType.startsWith("Billing ")) {
+                // Billing events that effect the onboarding status
+                // Use this entry point for consolidated logging of the onboarding lifecycle
+                LOGGER.info("Handling Billing Event");
+                handleBillingEvent(event);
             } else {
                 LOGGER.error("Can't find onboarding event for detail-type {}", event.get("detail-type"));
                 // TODO Throw here? Would end up in DLQ.
@@ -357,38 +357,7 @@ public class OnboardingService {
         }
     }
 
-    protected ApiGatewayHelper apiGatewayHelper() {
-        if (this.api == null) {
-            // Fetch the app client details from SecretsManager
-            LinkedHashMap<String, String> clientDetails;
-            try {
-                GetSecretValueResponse response = secrets.getSecretValue(request -> request
-                        .secretId(API_APP_CLIENT)
-                );
-                clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
-            } catch (SdkServiceException secretsManagerError) {
-                LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
-                throw secretsManagerError;
-            }
-            // Build an API helper with the app client
-            this.api = ApiGatewayHelper.builder()
-                    .host(API_GATEWAY_HOST)
-                    .stage(API_GATEWAY_STAGE)
-                    .clientId(clientDetails.get("client_id"))
-                    .clientSecret(clientDetails.get("client_secret"))
-                    .tokenEndpoint(clientDetails.get("token_endpoint"))
-                    .build();
-        }
-        return this.api;
-    }
-
-    protected void handleOnboardingValidated(Map<String, Object> event, Context context) {
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
+    protected void handleOnboardingValidated(Map<String, Object> event) {
         if (Utils.isBlank(API_APP_CLIENT)) {
             throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
@@ -408,7 +377,8 @@ public class OnboardingService {
                 // Call the tenant service synchronously to insert the new tenant record
                 LOGGER.info("Calling tenant service insert tenant API");
                 LOGGER.info(Utils.toJson(onboarding.getRequest()));
-                String insertTenantResponseBody = apiGatewayHelper()
+                ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+                String insertTenantResponseBody = api
                         .authorizedRequest("POST", "tenants", Utils.toJson(onboarding.getRequest()));
                 Map<String, Object> insertedTenant = Utils.fromJson(insertTenantResponseBody, LinkedHashMap.class);
                 if (null == insertedTenant) {
@@ -419,16 +389,7 @@ public class OnboardingService {
                 String tenantId = (String) insertedTenant.get("id");
                 onboarding.setTenantId(UUID.fromString(tenantId));
                 onboarding = dal.updateOnboarding(onboarding);
-//
-//                // Assign a CIDR block to this tenant to use for its VPC
-//                try {
-//                    dal.assignCidrBlock(tenantId);
-//                } catch (Exception e) {
-//                    // Unexpected error since we have already validated... but eventual consistency
-//                    failOnboarding(onboarding.getId(), "Could not assign CIDR for tenant VPC");
-//                    return;
-//                }
-//
+
                 // Let the tenant service know the onboarding status
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                         TENANT_ONBOARDING_STATUS_CHANGED,
@@ -439,7 +400,7 @@ public class OnboardingService {
                 );
 
                 // Ready to provision the infrastructure for this tenant
-                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
                         OnboardingEvent.ONBOARDING_TENANT_ASSIGNED.detailType(),
                         Map.of("onboardingId", onboarding.getId(), "tenant", insertedTenant));
             } else {
@@ -453,7 +414,7 @@ public class OnboardingService {
         }
     }
 
-    protected void handleOnboardingProvisioning(Map<String, Object> event, Context context) {
+    protected void handleOnboardingProvisioning(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
                 OnboardingStatus.provisioning.name());
@@ -467,7 +428,7 @@ public class OnboardingService {
         );
     }
 
-    protected void handleOnboardingProvisioned(Map<String, Object> event, Context context) {
+    protected void handleOnboardingProvisioned(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
                 OnboardingStatus.provisioned.name());
@@ -481,7 +442,7 @@ public class OnboardingService {
         );
     }
 
-    protected void handleOnboardingDeploying(Map<String, Object> event, Context context) {
+    protected void handleOnboardingDeploying(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
                 OnboardingStatus.deploying.name());
@@ -495,7 +456,7 @@ public class OnboardingService {
         );
     }
 
-    protected void handleOnboardingDeployed(Map<String, Object> event, Context context) {
+    protected void handleOnboardingDeployed(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
                 OnboardingStatus.deployed.name());
@@ -507,24 +468,9 @@ public class OnboardingService {
                         "onboardingStatus",  onboarding.getStatus()
                 )
         );
-
     }
 
-    protected void handleOnboardingCompleted(Map<String, Object> event, Context context) {
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
-                OnboardingStatus.completed.name());
-        // Let the tenant service know the onboarding status
-        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
-                TENANT_ONBOARDING_STATUS_CHANGED,
-                Map.of(
-                        "tenantId", onboarding.getTenantId(),
-                        "onboardingStatus",  onboarding.getStatus()
-                )
-        );
-    }
-
-    protected void handleOnboardingFailed(Map<String, Object> event, Context context) {
+    protected void handleOnboardingFailed(Map<String, Object> event) {
         Map<String, Object> detail = (Map<String, Object>) event.get("detail");
         Onboarding onboarding = dal.updateStatus((String) detail.get("onboardingId"),
                 OnboardingStatus.failed.name());
@@ -536,6 +482,44 @@ public class OnboardingService {
                         "onboardingStatus",  onboarding.getStatus()
                 )
         );
+    }
+
+    protected void handleBillingEvent(Map<String, Object> event) {
+        String detailType = (String) event.get("detail-type");
+        if ("Billing Subscribed".equals(detailType)) {
+            LOGGER.info("Handling Billing Subscribed Event");
+            handleBillingSubscribedEvent(event);
+        } else {
+            LOGGER.error("Can't find billing event for detail-type {}", event.get("detail-type"));
+        }
+    }
+
+    protected void handleBillingSubscribedEvent(Map<String, Object> event) {
+        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
+        String tenantId = (String) detail.get("tenantId");
+        if (Utils.isNotBlank(tenantId)) {
+            Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
+            if (onboarding != null) {
+                onboarding = dal.updateStatus(onboarding.getId(), OnboardingStatus.completed);
+                // Let the tenant service know the onboarding status
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        TENANT_ONBOARDING_STATUS_CHANGED,
+                        Map.of(
+                                "tenantId", onboarding.getTenantId(),
+                                "onboardingStatus", onboarding.getStatus()
+                        )
+                );
+                // Let everyone know this onboarding request is completed
+                Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                        OnboardingEvent.ONBOARDING_COMPLETED.detailType(),
+                        Map.of("onboardingId", onboarding.getId())
+                );
+            } else {
+                LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
+            }
+        } else {
+            LOGGER.error("Missing tenantId in event detail {}", Utils.toJson(event.get("detail")));
+        }
     }
 
     public SQSBatchResponse processTenantConfigQueue(SQSEvent event, Context context) {
@@ -627,61 +611,70 @@ public class OnboardingService {
         return SQSBatchResponse.builder().withBatchItemFailures(retry).build();
     }
 
-    protected void handleTenantEvent(Map<String, Object> event, Context context) {
-        String detailType = (String) event.get("detail-type");
-        if ("Tenant Deleted".equals(detailType)) {
-            handleTenantDeleted(event, context);
-        } else if ("Tenant Disabled".equals(detailType)) {
-            handleTenantDisabled(event, context);
-        } else if ("Tenant Enabled".equals(detailType)) {
-            handleTenantEnabled(event, context);
-        }
-    }
-
-    protected void handleTenantDeleted(Map<String, Object> event, Context context) {
-        LOGGER.info("Handling Tenant Deleted Event");
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-        if (onboarding != null) {
-
-        } else {
-            // Can't find an onboarding record for this tenant id
-            LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
-            // TODO Throw here? Would end up in DLQ.
-        }
-    }
-
-    protected void handleTenantDisabled(Map<String, Object> event, Context context) {
-        LOGGER.info("Handling Tenant Disabled Event");
-        enableDisableTenant(event, context, true);
-    }
-
-    protected void handleTenantEnabled(Map<String, Object> event, Context context) {
-        LOGGER.info("Handling Tenant Enabled Event");
-        enableDisableTenant(event, context, false);
-    }
-
-    private void enableDisableTenant(Map<String, Object> event, Context context, boolean disable) {
-        Map<String, Object> detail = (Map<String, Object>) event.get("detail");
-        String tenantId = (String) detail.get("tenantId");
-        Onboarding onboarding = dal.getOnboardingByTenantId(tenantId);
-        if (onboarding != null) {
-
-        } else {
-            // Can't find an onboarding record for this tenant id
-            LOGGER.error("Can't find onboarding record for tenant {}", detail.get("tenantId"));
-        }
-    }
-
     protected void failOnboarding(String onboardingId, String message) {
         failOnboarding(UUID.fromString(onboardingId), message);
     }
 
     protected void failOnboarding(UUID onboardingId, String message) {
         dal.updateStatus(onboardingId, OnboardingStatus.failed);
-        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                OnboardingEvent.ONBOARDING_FAILED.detailType(), Map.of("onboardingId", onboardingId,
-                        "message", message));
+        Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, EVENT_SOURCE,
+                OnboardingEvent.ONBOARDING_FAILED.detailType(),
+                Map.of(
+                        "onboardingId", onboardingId,
+                        "message", message)
+        );
+    }
+
+    interface OnboardingServiceDependencyFactory {
+
+        S3Client s3();
+
+        EventBridgeClient eventBridge();
+
+        S3Presigner s3Presigner();
+
+        SqsClient sqs();
+
+        OnboardingDataAccessLayer dal();
+    }
+
+    private static final class DefaultDependencyFactory implements OnboardingServiceDependencyFactory {
+
+        @Override
+        public S3Client s3() {
+            return Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME);
+        }
+
+        @Override
+        public EventBridgeClient eventBridge() {
+            return Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
+        }
+
+        @Override
+        public S3Presigner s3Presigner() {
+            try {
+                return S3Presigner.builder()
+                        .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+                        .region(Region.of(AWS_REGION))
+                        .endpointOverride(new URI("https://" + S3Client.SERVICE_NAME + "."
+                                + Region.of(AWS_REGION)
+                                + "."
+                                + Utils.endpointSuffix(AWS_REGION)))
+                        .build();
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public SqsClient sqs() {
+            return Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
+        }
+
+        @Override
+        public OnboardingDataAccessLayer dal() {
+            return new OnboardingDataAccessLayer(Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
+                    ONBOARDING_TABLE);
+        }
     }
 }

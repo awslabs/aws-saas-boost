@@ -25,6 +25,8 @@ import java.util.*;
 @JsonIgnoreProperties(ignoreUnknown = true, value = {"hasBilling"})
 public class Tenant {
 
+    protected static final List<String> PROVISIONED_STATES = List.of("provisioned", "updating", "updated",
+            "deploying", "deployed", "completed");
     private UUID id;
     private LocalDateTime created;
     private LocalDateTime modified;
@@ -34,16 +36,16 @@ public class Tenant {
     private String name;
     private String subdomain;
     private String hostname;
-    private String billingPlan;
     private Map<String, String> attributes = new HashMap<>();
     private Map<String, Resource> resources = new HashMap<>();
+    private Set<TenantAdminUser> adminUsers = new HashSet<>();
 
     public Tenant() {
     }
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public boolean isProvisioned() {
-        return onboardingStatus != null && !Arrays.asList("failed", "deleting", "deleted").contains(onboardingStatus);
+        return onboardingStatus != null && PROVISIONED_STATES.contains(onboardingStatus);
     }
 
     public UUID getId() {
@@ -118,16 +120,8 @@ public class Tenant {
         this.hostname = hostname;
     }
 
-    public String getBillingPlan() {
-        return billingPlan;
-    }
-
-    public void setBillingPlan(String billingPlan) {
-        this.billingPlan = billingPlan;
-    }
-
     public Map<String, String> getAttributes() {
-        return attributes;
+        return Map.copyOf(attributes);
     }
 
     public void setAttributes(Map<String, String> attributes) {
@@ -135,11 +129,21 @@ public class Tenant {
     }
 
     public Map<String, Resource> getResources() {
-        return resources;
+        return Map.copyOf(resources);
     }
 
     public void setResources(Map<String, Resource> resources) {
         this.resources = resources != null ? resources : new HashMap<>();
+    }
+
+    public Set<TenantAdminUser> getAdminUsers() {
+        return Set.copyOf(adminUsers);
+    }
+
+    public void setAdminUsers(Collection<TenantAdminUser> adminUsers) {
+        if (adminUsers != null) {
+            this.adminUsers.addAll(adminUsers);
+        }
     }
 
     public boolean equals(Object obj) {
@@ -179,28 +183,31 @@ public class Tenant {
                 }
             }
         }
+        boolean adminUsersEqual = adminUsers != null && adminUsers.equals(other.adminUsers);
+
         return (
-                ((id == null && other.id == null) || (id != null && id.equals(other.id)))
-                && ((created == null && other.created == null) || (created != null && created.equals(other.created)))
-                && ((modified == null && other.modified == null) || (modified != null && modified.equals(other.modified)))
+                Objects.equals(id, other.id)
+                && Objects.equals(created, other.created)
+                && Objects.equals(modified, other.modified)
                 && (active == other.active)
-                && ((tier == null && other.tier == null) || (tier != null && tier.equals(other.tier)))
-                && ((onboardingStatus == null && other.onboardingStatus == null) || (onboardingStatus != null && onboardingStatus.equals(other.onboardingStatus)))
-                && ((name == null && other.name == null) || (name != null && name.equals(other.name)))
-                && ((subdomain == null && other.subdomain == null) || (subdomain != null && subdomain.equals(other.subdomain)))
-                && ((hostname == null && other.hostname == null) || (hostname != null && hostname.equals(other.hostname)))
-                && ((billingPlan == null && other.billingPlan == null) || (billingPlan != null && billingPlan.equals(other.billingPlan)))
+                && Objects.equals(tier, other.tier)
+                && Objects.equals(onboardingStatus, other.onboardingStatus)
+                && Objects.equals(name, other.name)
+                && Objects.equals(subdomain, other.subdomain)
+                && Objects.equals(hostname, other.hostname)
                 && ((attributes == null && other.attributes == null) || attributesEqual)
-                && ((resources == null && other.resources == null) || resourcesEqual));
+                && ((resources == null && other.resources == null) || resourcesEqual)
+                && ((adminUsers == null && other.adminUsers == null) || adminUsersEqual));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, hostname, billingPlan)
+        return Objects.hash(id, created, modified, active, tier, onboardingStatus, name, subdomain, hostname)
                 + Arrays.hashCode(attributes != null ? attributes.keySet().toArray(new String[0]) : null)
                 + Arrays.hashCode(attributes != null ? attributes.values().toArray(new Object[0]) : null)
                 + Arrays.hashCode(resources != null ? resources.keySet().toArray(new String[0]) : null)
-                + Arrays.hashCode(resources != null ? resources.values().toArray(new Resource[0]) : null);
+                + Arrays.hashCode(resources != null ? resources.values().toArray(new Resource[0]) : null)
+                + Arrays.hashCode(adminUsers != null ? adminUsers.toArray(new TenantAdminUser[0]) : null);
     }
 
     public static class Resource {
@@ -256,9 +263,9 @@ public class Tenant {
             }
             final Resource other = (Resource) obj;
             return (
-                    ((name == null && other.name == null) || (name != null && name.equals(other.name)))
-                    && ((arn == null && other.arn == null) || (arn != null && arn.equals(other.arn)))
-                    && ((consoleUrl == null && other.consoleUrl == null) || (consoleUrl != null && consoleUrl.equals(other.consoleUrl))));
+                    Objects.equals(name, other.name)
+                    && Objects.equals(arn, other.arn)
+                    && Objects.equals(consoleUrl, other.consoleUrl));
         }
 
         @Override

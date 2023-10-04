@@ -16,8 +16,8 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.net.URIBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -28,6 +28,8 @@ import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.http.*;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
@@ -51,54 +53,57 @@ public class ApiGatewayHelper {
     private static final Aws4Signer SIG_V4 = Aws4Signer.create();
     private static SdkHttpClient HTTP_CLIENT = UrlConnectionHttpClient.create();
     private final Map<String, Map<String, Object>> CLIENT_CREDENTIALS_CACHE = new HashMap<>();
-    private final StsClient sts;
-    private final String protocol;
-    private final String host;
-    private final String stage;
-    private final AppClient appClient;
-    private final String signingRole;
+    private SecretsManagerClient secrets;
+    private StsClient sts;
+    private String protocol;
+    private String host;
+    private String stage;
+    private AppClient appClient;
+    private String signingRole;
 
-    private ApiGatewayHelper(Builder builder) {
+    private ApiGatewayHelper() {
         if (Utils.isBlank(AWS_REGION)) {
             throw new IllegalStateException("Missing environment variable AWS_REGION");
         }
         if (Utils.isBlank(SAAS_BOOST_ENV)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_ENV");
         }
-        this.protocol = builder.protocol;
-        this.host = builder.host;
-        this.stage = builder.stage;
-        this.appClient = builder.appClient;
-        this.signingRole = builder.signingRole;
-        this.sts = builder.sts;
     }
 
-    public String getProtocol() {
-        return protocol;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public String getStage() {
-        return stage;
-    }
-
-    public URL getInvokeUrl() {
+    public static ApiGatewayHelper clientCredentialsHelper(String appClientSecretArn) {
+        ApiGatewayHelper helper = new ApiGatewayHelper();
+        helper.secrets = Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME);
+        // Fetch the app client details from SecretsManager
         try {
-            return new URL(protocol, host, "/" + stage);
-        } catch (MalformedURLException mue) {
-            throw new RuntimeException(mue);
+            GetSecretValueResponse response = helper.secrets.getSecretValue(request -> request
+                    .secretId(appClientSecretArn)
+            );
+            Map<String, String> clientDetails = Utils.fromJson(response.secretString(), LinkedHashMap.class);
+            helper.appClient = AppClient.builder()
+                    .clientName(clientDetails.get("client_name"))
+                    .clientId(clientDetails.get("client_id"))
+                    .clientSecret(clientDetails.get("client_secret"))
+                    .tokenEndpoint(clientDetails.get("token_endpoint"))
+                    .apiEndpoint(clientDetails.get("api_endpoint"))
+                    .build();
+            helper.protocol = helper.appClient.getApiEndpointUrl().getProtocol();
+            helper.host = helper.appClient.getApiEndpointUrl().getHost();
+            helper.stage = helper.appClient.getApiEndpointUrl().getPath().substring(1);
+        } catch (SdkServiceException secretsManagerError) {
+            LOGGER.error(Utils.getFullStackTrace(secretsManagerError));
+            throw secretsManagerError;
         }
+        return helper;
     }
 
-    public AppClient getAppClient() {
-        return appClient;
-    }
-
-    public String getSigningRole() {
-        return signingRole;
+    public static ApiGatewayHelper iamCredentialsHelper(String signingRoleArn, URL apiGatewayUrl) {
+        ApiGatewayHelper helper = new ApiGatewayHelper();
+        helper.sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
+        helper.signingRole = signingRoleArn;
+        helper.protocol = apiGatewayUrl.getProtocol();
+        helper.host = apiGatewayUrl.getHost();
+        helper.stage = apiGatewayUrl.getPath().substring(1);
+        return helper;
     }
 
     public String authorizedRequest(String method, String resource) {
@@ -337,7 +342,7 @@ public class ApiGatewayHelper {
 
     protected static void appendQueryParams(SdkHttpFullRequest.Builder sdkRequestBuilder, URL url)
             throws URISyntaxException {
-        List<NameValuePair> queryParams = URLEncodedUtils.parse(url.toURI(), StandardCharsets.UTF_8);
+        List<NameValuePair> queryParams = new URIBuilder(url.toURI()).getQueryParams();
         if (queryParams != null) {
             for (NameValuePair queryParam : queryParams) {
                 sdkRequestBuilder.appendRawQueryParameter(queryParam.getName(), queryParam.getValue());
@@ -351,115 +356,6 @@ public class ApiGatewayHelper {
                 sdkRequestBuilder.putHeader(header.getKey(), header.getValue());
             }
         }
-    }
-
-    public static Host builder() {
-        return new Builder();
-    }
-
-    public static final class Builder implements Host, Stage, Build {
-
-        private String protocol = "https";
-        private String host;
-        private String stage;
-        private AppClient appClient;
-        private String clientName;
-        private String clientId;
-        private String clientSecret;
-        private String tokenEndpoint;
-        private String signingRole;
-        private StsClient sts;
-
-        private Builder() {
-        }
-
-        public Build protocol(String protocol) {
-            this.protocol = protocol;
-            return this;
-        }
-
-        public Stage host(String host) {
-            this.host = host;
-            return this;
-        }
-
-        public Build stage(String stage) {
-            this.stage = stage;
-            return this;
-        }
-
-        public Build appClient(AppClient appClient) {
-            this.appClient = appClient;
-            return this;
-        }
-
-        public Build clientName(String clientName) {
-            this.clientName = clientName;
-            return this;
-        }
-
-        public Build clientId(String clientId) {
-            this.clientId = clientId;
-            return this;
-        }
-
-        public Build clientSecret(String clientSecret) {
-            this.clientSecret = clientSecret;
-            return this;
-        }
-
-        public Build tokenEndpoint(String tokenEndpoint) {
-            this.tokenEndpoint = tokenEndpoint;
-            return this;
-        }
-
-        public Build signingRole(String signingRole) {
-            this.signingRole = signingRole;
-            return this;
-        }
-
-        public ApiGatewayHelper build() {
-            if (Utils.isNotEmpty(this.signingRole)) {
-                this.sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME);
-            }
-            if (this.appClient == null && Utils.isNotEmpty(this.clientId) && Utils.isNotEmpty(this.clientSecret)
-                    && Utils.isNotEmpty(this.tokenEndpoint)) {
-                this.appClient = AppClient.builder()
-                        .clientName(this.clientName) // optional
-                        .clientId(this.clientId)
-                        .clientSecret(this.clientSecret)
-                        .tokenEndpoint(this.tokenEndpoint)
-                        .build();
-            }
-            return new ApiGatewayHelper(this);
-        }
-    }
-
-    public interface Host {
-        Stage host(String host);
-    }
-
-    public interface Stage {
-        Build stage(String stage);
-    }
-
-    public interface Build {
-
-        Build protocol(String protocol);
-
-        Build appClient(AppClient appClient);
-
-        Build clientName(String clientName);
-
-        Build clientId(String clientId);
-
-        Build clientSecret(String clientSecret);
-
-        Build tokenEndpoint(String tokenEndpoint);
-
-        Build signingRole(String signingRole);
-
-        ApiGatewayHelper build();
     }
 
     private static final class HttpRequest {

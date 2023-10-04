@@ -333,8 +333,6 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
 #          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Tags:
         - Key: "Application"
@@ -401,8 +399,6 @@ Resources:
           S3_ATHENA_BUCKET: !Ref AthenaOutput
           S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
 #          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_GATEWAY_HOST: !Sub ${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref ApiStage
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
       Tags:
         - Key: "Application"

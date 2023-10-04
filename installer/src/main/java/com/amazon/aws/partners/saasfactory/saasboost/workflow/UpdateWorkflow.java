@@ -64,17 +64,14 @@ public class UpdateWorkflow extends AbstractWorkflow {
     private final Environment environment;
     private final Path workingDir;
     private final AwsClientBuilderFactory clientBuilderFactory;
-    private final boolean doesCfnMacroResourceExist;
 
     public UpdateWorkflow(
             Path workingDir, 
             Environment environment, 
-            AwsClientBuilderFactory clientBuilderFactory, 
-            boolean doesCfnMacroResourceExist) {
+            AwsClientBuilderFactory clientBuilderFactory) {
         this.environment = environment;
         this.workingDir = workingDir;
         this.clientBuilderFactory = clientBuilderFactory;
-        this.doesCfnMacroResourceExist = doesCfnMacroResourceExist;
     }
 
     private boolean confirm() {
@@ -127,56 +124,35 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     for (String target : action.getTargets()) {
                         // TODO update this logic for windows
                         File updatedDirectory = new File(action.getDirectoryName(), target);
-                        outputMessage("Updating " + updatedDirectory + " using "
-                                + new File(updatedDirectory, "update.sh"));
-                        // if this fails because update.sh does not exist, does not have the proper
-                        // permissions or any other reason, a runtimeException will be thrown, exiting
-                        // the run() execution
-                        SaaSBoostInstall.executeCommand(
-                                "./update.sh " + environment.getName(), // command to execute
-                                null, // environment to use
-                                updatedDirectory.getAbsoluteFile()); // directory to execute from
+                        if (updatedDirectory.exists()) {
+                            outputMessage("Updating " + updatedDirectory + " using "
+                                    + new File(updatedDirectory, "update.sh"));
+                            // if this fails because update.sh does not exist, does not have the proper
+                            // permissions or any other reason, a runtimeException will be thrown, exiting
+                            // the run() execution
+                            SaaSBoostInstall.executeCommand(
+                                    "./update.sh " + environment.getName(), // command to execute
+                                    null, // environment to use
+                                    updatedDirectory.getAbsoluteFile()); // directory to execute from
+                        } else {
+                            outputMessage("Warning! Directory to update "
+                                    + action.getDirectoryName() + " does not exist!");
+                        }
                     }
                     break;
                 }
                 case RESOURCES: {
                     // upload the template to the Boost Artifacts bucket
                     for (String target : action.getTargets()) {
-                        outputMessage("Updating CloudFormation template: " + target);
-                        environment.getArtifactsBucket().putFile(
-                                clientBuilderFactory.s3Builder().build(), // s3 client
-                                Path.of(action.getDirectoryName(), target), // local path
-                                Path.of(target)); // remote path
-                        if (target.equals("saas-boost-metrics-analytics.yaml")
-                                && environment.isMetricsAnalyticsDeployed()) {
-                            // the metrics-analytics stack is not a child stack of the base stack,
-                            // so just updating the base stack won't update. update it manually.
-                            String analyticsStackName = environment.getBaseCloudFormationStackName() + "-analytics";
-                            // Load up the existing parameters from CloudFormation
-                            Map<String, String> stackParamsMap = new LinkedHashMap<>();
-                            try {
-                                DescribeStacksResponse response = clientBuilderFactory.cloudFormationBuilder().build()
-                                        .describeStacks(request -> request.stackName(analyticsStackName));
-                                if (response.hasStacks() && !response.stacks().isEmpty()) {
-                                    Stack stack = response.stacks().get(0);
-                                    stackParamsMap = stack.parameters().stream()
-                                            .collect(Collectors.toMap(
-                                                Parameter::parameterKey, Parameter::parameterValue));
-                                }
-                            } catch (SdkServiceException cfnError) {
-                                if (cfnError.getMessage().contains("does not exist")) {
-                                    outputMessage("Analytics module CloudFormation stack "
-                                            + analyticsStackName + " not found.");
-                                    System.exit(2);
-                                }
-                                LOGGER.error("cloudformation:DescribeStacks error", cfnError);
-                                LOGGER.error(Utils.getFullStackTrace(cfnError));
-                                throw cfnError;
-                            }
-                            Map<String, String> paramsMap = getCloudFormationParameterMap(
-                                    workingDir.resolve(Path.of("resources", "saas-boost-metrics-analytics.yaml")),
-                                    stackParamsMap);
-                            updateCloudFormationStack(analyticsStackName, paramsMap, target);
+                        if (Path.of(action.getDirectoryName(), target).toFile().exists()) {
+                            outputMessage("Updating CloudFormation template: " + target);
+                            environment.getArtifactsBucket().putFile(
+                                    clientBuilderFactory.s3Builder().build(), // s3 client
+                                    Path.of(action.getDirectoryName(), target), // local path
+                                    Path.of(target)); // remote path
+                        } else {
+                            outputMessage("Warning! Resource to update "
+                                    + Path.of(action.getDirectoryName(), target).toFile() + " does not exist!");
                         }
                     }
                     break;
@@ -192,12 +168,6 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // Update the version number
         outputMessage("Updating Version parameter to " + Constants.VERSION);
         cloudFormationParamMap.put("Version", Constants.VERSION);
-
-        // If CloudFormation macro resources do not exist, that means that another environment that had previously
-        // owned those resources was deleted. In this case we should make sure to create them.
-        if (!doesCfnMacroResourceExist) {
-            cloudFormationParamMap.put("CreateMacroResources", Boolean.TRUE.toString());
-        }
 
         // Always call update stack
         outputMessage("Executing CloudFormation update stack on: " + environment.getBaseCloudFormationStackName());
@@ -510,6 +480,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                         StackStatus.UPDATE_ROLLBACK_FAILED);
                 if (stackStatus == StackStatus.UPDATE_COMPLETE) {
                     outputMessage("CloudFormation stack: " + stackName + " updated successfully.");
+                    outputMessage("You may need to update the CloudFormation Integration Stack in the Application Plane AWS Account.");
                     break;
                 } else if (failureStatuses.contains(stackStatus)) {
                     outputMessage("CloudFormation stack: " + stackName + " update failed.");
@@ -543,23 +514,19 @@ public class UpdateWorkflow extends AbstractWorkflow {
         // CloudFormation will not redeploy an API Gateway stage on update
         outputMessage("Updating API Gateway deployment for stages");
         try {
-            String publicApiName = "sb-" + environment.getName() + "-public-api";
-            String privateApiName = "sb-" + environment.getName() + "-private-api";
+            String apiName = "sb-" + environment.getName() + "-api";
             ApiGatewayClient apigw = clientBuilderFactory.apiGatewayBuilder().build();
             GetRestApisResponse response = apigw.getRestApis();
             if (response.hasItems()) {
                 for (RestApi api : response.items()) {
-                    String apiName = api.name();
-                    boolean isPublicApi = publicApiName.equals(apiName);
-                    boolean isPrivateApi = privateApiName.equals(apiName);
-                    if (isPublicApi || isPrivateApi) {
-                        String stage = isPublicApi ? cloudFormationParamMap.get("PublicApiStage")
-                                : cloudFormationParamMap.get("PrivateApiStage");
+                    if (apiName.equals(api.name())) {
+                        String stage = cloudFormationParamMap.get("ApiStage");
                         outputMessage("Updating API Gateway deployment for " + apiName + " to stage: " + stage);
                         apigw.createDeployment(request -> request
                                 .restApiId(api.id())
                                 .stageName(stage)
                         );
+                        break;
                     }
                 }
             }

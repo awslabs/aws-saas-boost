@@ -21,13 +21,13 @@ import java.util.UUID;
 
 // TODO Make a marker interface of SaaSBoostEvent?
 public enum TenantEvent {
-    TENANT_ONBOARDING_STATUS_CHANGED("Tenant Onboarding Status Changed"),
-    TENANT_RESOURCES_CHANGED("Tenant Resources Changed"),
-    TENANT_HOSTNAME_CHANGED("Tenant Hostname Changed"),
+    TENANT_ONBOARDING_STATUS_CHANGED("Tenant Onboarding Status Changed"), // Consume
+    TENANT_RESOURCES_CHANGED("Tenant Resources Changed"), // Consume
+    TENANT_HOSTNAME_CHANGED("Tenant Hostname Changed"), // Consume
     TENANT_TIER_CHANGED("Tenant Tier Changed"),
-    TENANT_ENABLED("Tenant Enabled"),
-    TENANT_DISABLED("Tenant Disabled"),
-    TENANT_DELETED("Tenant Deleted")
+    TENANT_ENABLED("Tenant Enabled"), // Produce
+    TENANT_DISABLED("Tenant Disabled"), // Produce
+    TENANT_DELETED("Tenant Deleted") // Produce
     ;
 
     private final String detailType;

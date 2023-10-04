@@ -55,25 +55,25 @@ class Aborted extends Error {
   }
 }
 const tenantAPI = {
-  fetchAll: async () => {
-    try {
-      const authorizationToken = await fetchAccessToken()
-      const response = await fetch(`${apiUri}/tenants/provisioned`, {
-        method: 'GET',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: "Bearer " + authorizationToken,
-        },
-      })
+  // fetchAll: async () => {
+  //   try {
+  //     const authorizationToken = await fetchAccessToken()
+  //     const response = await fetch(`${apiUri}/tenants/provisioned`, {
+  //       method: 'GET',
+  //       mode: 'cors',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         Authorization: "Bearer " + authorizationToken,
+  //       },
+  //     })
 
-      const responseJSON = await handleErrorResponse(response)
-      return responseJSON
-    } catch (err) {
-      console.error(err)
-      throw Error('Unable to fetch tenants')
-    }
-  },
+  //     const responseJSON = await handleErrorResponse(response)
+  //     return responseJSON
+  //   } catch (err) {
+  //     console.error(err)
+  //     throw Error('Unable to fetch tenants')
+  //   }
+  // },
   fetchAllAxios: async (ops) => {
     const { signal } = ops
 

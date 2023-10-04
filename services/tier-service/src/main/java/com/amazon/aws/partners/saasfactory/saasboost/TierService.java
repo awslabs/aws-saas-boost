@@ -16,215 +16,263 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.dal.TierDataStore;
-import com.amazon.aws.partners.saasfactory.saasboost.dal.ddb.DynamoTierDataStore;
-import com.amazon.aws.partners.saasfactory.saasboost.dal.exception.TierNotFoundException;
-import com.amazon.aws.partners.saasfactory.saasboost.model.Tier;
 import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
+import java.net.HttpURLConnection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TierService implements RequestHandler<Map<String, Object>, APIGatewayProxyResponseEvent> {
+public class TierService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TierService.class);
-    private static final String TIERS_TABLE = System.getenv("TIERS_TABLE");
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
-
-    private final TierDataStore store;
+    private static final String TIERS_TABLE = System.getenv("TIERS_TABLE");
+    private final TierDataAccessLayer dal;
 
     public TierService() {
-        final long startTimeMillis = System.currentTimeMillis();
-        if (Utils.isEmpty(TIERS_TABLE)) {
+        this(new DefaultDependencyFactory());
+    }
+
+    // Facilitates testing by being able to mock out AWS SDK dependencies
+    public TierService(TierServiceDependencyFactory init) {
+        if (Utils.isBlank(TIERS_TABLE)) {
             throw new IllegalStateException("Missing environment variable TIERS_TABLE");
         }
         LOGGER.info("Version Info: {}", Utils.version(this.getClass()));
-
-        this.store = new DynamoTierDataStore(
-                Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
-                TIERS_TABLE);
-
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
+        this.dal = init.dal();
     }
 
-    @Override
-    public APIGatewayProxyResponseEvent handleRequest(Map<String, Object> event, Context context) {
-        return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-    }
-
-    public APIGatewayProxyResponseEvent getTiers(Map<String, Object> event, Context context) {
+    /**
+     * Get tiers. Integration for GET /tiers endpoint.
+     * Can be filtered to search for tier by name using GET /tiers?name={name}
+     * @param event API Gateway proxy request event
+     * @param context
+     * @return List of tier objects
+     */
+    public APIGatewayProxyResponseEvent getTiers(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
-        final long startTimeMillis = System.currentTimeMillis();
-        Utils.logRequestEvent(event);
-        List<Tier> tiers = store.listTiers();
-        if (tiers.isEmpty()) {
-            // we want to ensure there is always at least a default tier.
-            tiers.add(
-                    store.createTier(Tier.builder()
-                            .name("default")
-                            .description("Default Tier")
-                            .defaultTier(true)
-                            .build()
-                    )
-            );
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TierService::getTiers exec " + totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(tiers));
-    }
-
-    public APIGatewayProxyResponseEvent getTier(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        Utils.logRequestEvent(event);
-        Map<String, String> pathParams = (Map<String, String>) event.get("pathParameters");
-        Tier foundTier = null;
-        try {
-            foundTier = store.getTier(pathParams.get("id"));
-        } catch (TierNotFoundException tnfe) {
-            LOGGER.error("Tier not found", tnfe);
-            long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-            LOGGER.info("TierService::getTier exec " + totalTimeMillis);
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(404)
-                    .withBody("{\"message\":\"Tier not found.\"}");
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TierService::getTier exec " + totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(foundTier));
-    }
-
-    public APIGatewayProxyResponseEvent createTier(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-        final long startTimeMillis = System.currentTimeMillis();
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent().withHeaders(CORS);
-        Utils.logRequestEvent(event);
-        Tier newTier = Utils.fromJson((String) event.get("body"), Tier.class);
-        if (newTier == null) {
-            // Utils.fromJson swallows and logs any exceptions coming from deserialization attempts
-            return response.withStatusCode(400).withBody("{\"message\":\"Body should represent a Tier.\"}");
-        }
-        Tier createdTier = store.createTier(newTier);
-        if (createdTier.defaultTier()) {
-            enforceSingleDefaultTier(createdTier);
-        }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TierService::createTier exec " + totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(createdTier));
-    }
-
-    public APIGatewayProxyResponseEvent updateTier(Map<String, Object> event, Context context) {
-        if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
-        }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        Utils.logRequestEvent(event);
-        Tier providedTier = Utils.fromJson((String) event.get("body"), Tier.class);
-        if (providedTier == null) {
-            // Utils.fromJson swallows and logs any exceptions coming from deserialization attempts
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Body should represent a Tier.\"}");
-        }
-        Map<String, String> pathParams = (Map<String, String>) event.get("pathParameters");
-        if (!pathParams.get("id").equals(providedTier.getId())) {
-            return new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Tier IDs are immutable: body Tier ID must match path parameter.\"}");
-        }
-        Tier updatedTier = providedTier;
-        try {
-            Tier oldTier = store.getTier(providedTier.getId());
-            // TODO validate that user isn't trying to update fields that should not be updated, e.g. created, id
-            updatedTier = store.updateTier(providedTier);
-            if (!oldTier.defaultTier() && updatedTier.defaultTier()) {
-                // we weren't default but now we are, this means all other default
-                // Tiers should be updated to no longer be default,
-                // as we need to enforce only one default Tier at a given time
-                enforceSingleDefaultTier(updatedTier);
+        Map<String, String> params = event.getQueryStringParameters();
+        if (params != null && params.containsKey("name")) {
+            Tier tier = dal.getTierByName(params.get("name"));
+            if (tier ==  null) {
+                return new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_NOT_FOUND);
+            } else {
+                return new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_OK)
+                        .withBody(Utils.toJson(tier));
             }
-        } catch (TierNotFoundException tnfe) {
+        } else {
+            List<Tier> tiers = dal.getTiers();
+            if (tiers.isEmpty()) {
+                // We want to ensure there is always at least a default tier.
+                Tier defaultTier = new Tier();
+                defaultTier.setDefaultTier(true);
+                defaultTier.setName("default");
+                defaultTier.setDescription("Default Tier");
+                tiers.add(dal.insertTier(defaultTier));
+            }
             return new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withStatusCode(404)
-                    .withBody("{\"message\":\"Tier not found.\"}");
+                    .withStatusCode(HttpURLConnection.HTTP_OK)
+                    .withBody(Utils.toJson(tiers));
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TierService::updateTier exec " + totalTimeMillis);
-        return new APIGatewayProxyResponseEvent()
-                .withHeaders(CORS)
-                .withStatusCode(200)
-                .withBody(Utils.toJson(updatedTier));
     }
 
-    public APIGatewayProxyResponseEvent deleteTier(Map<String, Object> event, Context context) {
+    /**
+     * Get tier by id. Integration for GET /tiers/{id} endpoint.
+     * @param event API Gateway proxy request event containing an id path parameter
+     * @param context
+     * @return Tier object for id or HTTP 404 if not found
+     */
+    public APIGatewayProxyResponseEvent getTier(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
-        final long startTimeMillis = System.currentTimeMillis();
-        Utils.logRequestEvent(event);
-        Map<String, String> pathParams = (Map<String, String>) event.get("pathParameters");
-        try {
-            store.deleteTier(pathParams.get("id"));
-        } catch (TierNotFoundException tnfe) {
-            return new APIGatewayProxyResponseEvent()
+        APIGatewayProxyResponseEvent response;
+        Map<String, String> params = event.getPathParameters();
+        String tierId = params.get("id");
+        Tier tier = dal.getTier(tierId);
+        if (tier != null) {
+            response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withStatusCode(404)
-                    .withBody("{\"message\":\"Tier not found.\"}");
+                    .withStatusCode(HttpURLConnection.HTTP_OK)
+                    .withBody(Utils.toJson(tier));
+        } else {
+            response = new APIGatewayProxyResponseEvent()
+                    .withHeaders(CORS)
+                    .withStatusCode(HttpURLConnection.HTTP_NOT_FOUND);
         }
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("TierService::deleteTier exec " + totalTimeMillis);
+
+        return response;
+    }
+
+    /**
+     * Update a tier by id. Integration for PUT /tiers/{id} endpoint.
+     * @param event API Gateway proxy request event containing an id path parameter
+     * @param context
+     * @return HTTP 200 if updated, HTTP 400 on failure
+     */
+    public APIGatewayProxyResponseEvent updateTier(APIGatewayProxyRequestEvent event, Context context) {
+        if (Utils.warmup(event)) {
+            //LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
+        }
+        //Utils.logRequestEvent(event);
+        APIGatewayProxyResponseEvent response;
+        Map<String, String> params = event.getPathParameters();
+        String tierId = params.get("id");
+        Tier tier = Utils.fromJson(event.getBody(), Tier.class);
+        if (tier == null) {
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(Map.of("message", "Invalid request body")));
+        } else {
+            if (tier.getId() == null || !tier.getId().toString().equals(tierId)) {
+                LOGGER.error("Can't update tier {} at resource {}", tier.getId(), tierId);
+                response = new APIGatewayProxyResponseEvent()
+                        .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                        .withHeaders(CORS)
+                        .withBody(Utils.toJson(Map.of("message", "Request body must include id")));
+            } else {
+                Tier existing = dal.getTier(tierId);
+                if (existing == null) {
+                    LOGGER.error("Can't update tier non-existent tier {}", tierId);
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                            .withHeaders(CORS)
+                            .withBody(Utils.toJson(Map.of("message", "No tier with id " + tierId)));
+                } else {
+                    if (!existing.isDefaultTier() && tier.isDefaultTier()) {
+                        // we weren't default but now we are, this means all other default
+                        // Tiers should be updated to no longer be default,
+                        // as we need to enforce only one default Tier at a given time
+                        enforceSingleDefaultTier(tier);
+                    }
+                    tier = dal.updateTier(tier);
+                    response = new APIGatewayProxyResponseEvent()
+                            .withStatusCode(HttpURLConnection.HTTP_OK)
+                            .withHeaders(CORS)
+                            .withBody(Utils.toJson(tier));
+                }
+            }
+        }
+
+        return response;
+    }
+
+    /**
+     * Inserts a new tier. Integration for POST /tiers endpoint
+     * @param event API Gateway proxy request event containing a Tier object in the request body
+     * @param context
+     * @return Tier object in a created state or HTTP 400 if the request does not contain a name
+     */
+    public APIGatewayProxyResponseEvent insertTier(APIGatewayProxyRequestEvent event, Context context) {
+        if (Utils.warmup(event)) {
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
+        }
+
+        Tier tier = Utils.fromJson(event.getBody(), Tier.class);
+        if (null == tier) {
+            LOGGER.error("Tier request is invalid");
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Invalid request body.\"}");
+        }
+        if (Utils.isBlank(tier.getName())) {
+            LOGGER.error("Tier is missing name");
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                    .withHeaders(CORS)
+                    .withBody("{\"message\": \"Tier name is required.\"}");
+        }
+
+        tier = dal.insertTier(tier);
+        if (tier.isDefaultTier()) {
+            enforceSingleDefaultTier(tier);
+        }
         return new APIGatewayProxyResponseEvent()
                 .withHeaders(CORS)
-                .withStatusCode(200);
+                .withStatusCode(HttpURLConnection.HTTP_CREATED)
+                .withBody(Utils.toJson(tier));
+    }
+
+    /**
+     * Delete a tier by id. Integration for DELETE /tier/{id} endpoint.
+     * @param event API Gateway proxy request event containing an id path parameter
+     * @param context
+     * @return HTTP 204 if deleted, HTTP 400 on failure
+     */
+    public APIGatewayProxyResponseEvent deleteTier(APIGatewayProxyRequestEvent event, Context context) {
+        if (Utils.warmup(event)) {
+            //LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
+        }
+        //Utils.logRequestEvent(event);
+        APIGatewayProxyResponseEvent response;
+        Map<String, String> params = event.getPathParameters();
+        String tierId = params.get("id");
+        Tier tier = dal.getTier(tierId);
+        if (tier == null) {
+            response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                    .withHeaders(CORS)
+                    .withBody(Utils.toJson(Map.of("message", "Invalid tier id")));
+        } else {
+            try {
+                dal.deleteTier(tier);
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_NO_CONTENT); // No content
+            } catch (Exception e) {
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                        .withBody(Utils.toJson(Map.of("message", "Failed to delete tier " + tierId)));
+            }
+        }
+        return response;
     }
 
     public void enforceSingleDefaultTier(Tier defaultTier) {
-        List<Tier> defaultTiers = store.listTiers().stream()
-                .filter(tier -> tier.defaultTier())
+        List<Tier> defaultTiers = dal.getTiers().stream()
+                .filter(tier -> tier.isDefaultTier())
                 .collect(Collectors.toList());
         for (Tier t : defaultTiers) {
             if (!t.getId().equals(defaultTier.getId())) {
-                try {
-                    // TODO in the event that multiple users try to update tiers at the same time, different
-                    // TODO lambda invocations may step on each other. to get around this use DDB TransactWriteItems
-                    store.updateTier(Tier.builder(t).defaultTier(false).build());
-                } catch (TierNotFoundException tnfe) {
-                    // race condition between the list we just pulled and the update
-                    LOGGER.error("Could not enforce a single default tier."
-                            + " Found {} default tiers but {} does not exist.", defaultTiers, t);
-                }
+                // TODO in the event that multiple users try to update tiers at the same time, different
+                // TODO lambda invocations may step on each other. to get around this use DDB TransactWriteItems
+                t.setDefaultTier(false);
+                dal.updateTier(t);
             }
+        }
+    }
+
+    interface TierServiceDependencyFactory {
+
+        TierDataAccessLayer dal();
+    }
+
+    private static final class DefaultDependencyFactory implements TierServiceDependencyFactory {
+
+        @Override
+        public TierDataAccessLayer dal() {
+            return new TierDataAccessLayer(Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
+                    TIERS_TABLE);
         }
     }
 }

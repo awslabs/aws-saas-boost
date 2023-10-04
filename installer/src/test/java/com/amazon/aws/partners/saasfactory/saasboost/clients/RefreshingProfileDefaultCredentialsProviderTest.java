@@ -24,11 +24,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.*;
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.profiles.ProfileFile;
+import software.amazon.awssdk.profiles.ProfileFileSupplier;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +55,7 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
     private static final AwsCredentials BEFORE_PERMANENT =
             AwsBasicCredentials.create(BEFORE_ACCESS_KEY, BEFORE_SECRET_KEY);
     private static final AwsCredentials AFTER_PERMANENT =
-            AwsBasicCredentials.create(AFTER_ACCESS_KEY, AFTER_SESSION_TOKEN);
+            AwsBasicCredentials.create(AFTER_ACCESS_KEY, AFTER_SECRET_KEY);
     private static final AwsCredentials BEFORE_TEMPORARY =
             AwsSessionCredentials.create(BEFORE_ACCESS_KEY, BEFORE_SECRET_KEY, BEFORE_SESSION_TOKEN);
     private static final AwsCredentials AFTER_TEMPORARY =
@@ -89,9 +93,12 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
      * 
      * @return true if AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY is configured in environment
      */
-    private static boolean shouldSkipTests() {
+    private static void shouldSkipTests() {
         Set<String> environmentKeys = System.getenv().keySet();
-        return environmentKeys.contains(AWS_ACCESS_KEY_ID) || environmentKeys.contains(AWS_SECRET_ACCESS_KEY);
+        assumeFalse("Skipping test due to configuration of AWS credentials as Environment Variables."
+                        + " To run this test unset the environment variables "
+                        + AWS_ACCESS_KEY_ID + " and " + AWS_SECRET_ACCESS_KEY,
+                environmentKeys.contains(AWS_ACCESS_KEY_ID) || environmentKeys.contains(AWS_SECRET_ACCESS_KEY));
     }
 
     @BeforeClass
@@ -120,6 +127,7 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
      */
     @Test
     public void defaultCredentialsProviderBugStillExists() throws IOException {
+        shouldSkipTests();
         // if we change the profile from under the DefaultCredentials provider, does it return the old credentials?
         fakeProfileFilename = getAbsoluteFakeProfileFilename("fake-credentials-default");
         ProfileUtils.updateOrCreateProfile(
@@ -133,41 +141,63 @@ public class RefreshingProfileDefaultCredentialsProviderTest {
                 ProfileFileSystemSetting.AWS_PROFILE.property(),
                 ProfileFileSystemSetting.AWS_PROFILE.defaultValue());
         DefaultCredentialsProvider defaultCredentialsProvider = DefaultCredentialsProvider.create();
-        runUpdatingCredentialsProviderTest(defaultCredentialsProvider, false);
+        assertEquals("Before change, credentials provider should return \"default\" profile credentials",
+                TEST_CREDENTIALS[0], defaultCredentialsProvider.resolveCredentials());
+
+        //System.out.println("Pausing for a second...");
+        try {
+            Thread.currentThread().sleep(Duration.ofSeconds(1).toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        //System.out.println("Writing \"AFTER\" credentials to profile file");
+        ProfileUtils.updateOrCreateProfile(
+                fakeProfileFilename,
+                ProfileFileSystemSetting.AWS_PROFILE.defaultValue(),
+                TEST_CREDENTIALS[1]);
+        //System.out.println(Files.getLastModifiedTime(Paths.get(fakeProfileFilename)));
+        assertEquals("After change, credentials provider should return \"default\" profile credentials",
+                TEST_CREDENTIALS[1], defaultCredentialsProvider.resolveCredentials());
+        //System.out.println("Modified credentials file reflected in resolveCredentials()");
     }
 
     @Test
     public void refreshingCredentialsProviderFindsNewCredentials() throws IOException {
+        shouldSkipTests();
         fakeProfileFilename = getAbsoluteFakeProfileFilename("fake-credentials-refreshing");
+        //System.out.println("Writing \"BEFORE\" credentials to profile file");
         ProfileUtils.updateOrCreateProfile(
                 fakeProfileFilename,
                 ProfileFileSystemSetting.AWS_PROFILE.defaultValue(),
-                TEST_CREDENTIALS[0]);
-        RefreshingProfileDefaultCredentialsProvider refreshingCredentialsProvider = RefreshingProfileDefaultCredentialsProvider.builder()
-                .profileFilename(fakeProfileFilename)
+                TEST_CREDENTIALS[2]);
+        //System.out.println(Files.getLastModifiedTime(Paths.get(fakeProfileFilename)));
+        DefaultCredentialsProvider refreshingCredentialsProvider = DefaultCredentialsProvider.builder()
+                .reuseLastProviderEnabled(true)
+                .asyncCredentialUpdateEnabled(false)
+                .profileFile(ProfileFileSupplier.reloadWhenModified(
+                        Paths.get(fakeProfileFilename), ProfileFile.Type.CREDENTIALS))
                 .profileName(ProfileFileSystemSetting.AWS_PROFILE.defaultValue())
                 .build();
-        runUpdatingCredentialsProviderTest(refreshingCredentialsProvider, true);
-    }
+        assertEquals("Before change, credentials provider should return \"default\" profile credentials",
+                TEST_CREDENTIALS[2], refreshingCredentialsProvider.resolveCredentials());
 
-    private void runUpdatingCredentialsProviderTest(
-    AwsCredentialsProvider credentialsProviderToTest,
-            boolean expectUpdate) throws IOException {
-        assumeFalse("Skipping test due to configuration of AWS credentials as Environment Variables." 
-                + " To run this test unset the environment variables "
-                + AWS_ACCESS_KEY_ID + " and " + AWS_SECRET_ACCESS_KEY,
-                shouldSkipTests());
-        AwsCredentials expectedCredentials = TEST_CREDENTIALS[0];
-        for (int i = 1 ; i < TEST_CREDENTIALS.length ; i++) {
-            assertEquals(expectedCredentials, credentialsProviderToTest.resolveCredentials());
-            ProfileUtils.updateOrCreateProfile(
-                    fakeProfileFilename,
-                    ProfileFileSystemSetting.AWS_PROFILE.defaultValue(),
-                    TEST_CREDENTIALS[i]);
-            if (expectUpdate) {
-                expectedCredentials = TEST_CREDENTIALS[i];
-            }
+        //System.out.println("Pausing for a second...");
+        try {
+            Thread.currentThread().sleep(Duration.ofSeconds(1).toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
+
+        //System.out.println("Writing \"AFTER\" credentials to profile file");
+        ProfileUtils.updateOrCreateProfile(
+                fakeProfileFilename,
+                ProfileFileSystemSetting.AWS_PROFILE.defaultValue(),
+                TEST_CREDENTIALS[3]);
+        //System.out.println(Files.getLastModifiedTime(Paths.get(fakeProfileFilename)));
+        assertEquals("After change, credentials provider should return \"default\" profile credentials",
+                TEST_CREDENTIALS[3], refreshingCredentialsProvider.resolveCredentials());
+        //System.out.println("Modified credentials file reflected in resolveCredentials()");
     }
 
     private String getAbsoluteFakeProfileFilename(String simpleFilename) {

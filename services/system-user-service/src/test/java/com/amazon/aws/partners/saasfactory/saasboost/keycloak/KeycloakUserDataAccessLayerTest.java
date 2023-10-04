@@ -17,8 +17,7 @@
 package com.amazon.aws.partners.saasfactory.saasboost.keycloak;
 
 import com.amazon.aws.partners.saasfactory.saasboost.SystemUser;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.ArgumentCaptor;
 
@@ -29,11 +28,7 @@ import java.util.Map;
 import java.util.function.UnaryOperator;
 
 import static com.amazon.aws.partners.saasfactory.saasboost.keycloak.KeycloakTestUtils.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -102,17 +97,17 @@ public final class KeycloakUserDataAccessLayerTest {
         final String requiredAction = "UPDATE_PASSWORD";
         keycloakUser.setRequiredActions(List.of(requiredAction));
         SystemUser sysUser = KeycloakUserDataAccessLayer.toSystemUser(keycloakUser);
-        assertEquals("Ids should match", keycloakUser.getId(), sysUser.getId());
-        assertEquals("Created Long timestamp should match", keycloakUser.getCreatedTimestamp().longValue(),
-                sysUser.getCreated().toInstant(ZoneOffset.UTC).toEpochMilli());
-        assertEquals("Modified should be null", null, sysUser.getModified());
-        assertEquals("Active should match enabled", keycloakUser.isEnabled(), sysUser.getActive());
-        assertEquals("Usernames should match", keycloakUser.getUsername(), sysUser.getUsername());
-        assertEquals("FirstName should match", keycloakUser.getFirstName(), sysUser.getFirstName());
-        assertEquals("LastName should match", keycloakUser.getLastName(), sysUser.getLastName());
-        assertEquals("Email should match", keycloakUser.getEmail(), sysUser.getEmail());
-        assertEquals("Email verified should match", keycloakUser.isEmailVerified(), sysUser.getEmailVerified());
-        assertEquals("RequiredAction should match", requiredAction, sysUser.getStatus());
+        assertEquals(keycloakUser.getId(), sysUser.getId(), "Ids should match");
+        assertEquals(keycloakUser.getCreatedTimestamp().longValue(),
+                sysUser.getCreated().toInstant(ZoneOffset.UTC).toEpochMilli(), "Created Long timestamp should match");
+        assertEquals(null, sysUser.getModified(), "Modified should be null");
+        assertEquals(keycloakUser.isEnabled(), sysUser.getActive(), "Active should match enabled");
+        assertEquals(keycloakUser.getUsername(), sysUser.getUsername(), "Usernames should match");
+        assertEquals(keycloakUser.getFirstName(), sysUser.getFirstName(), "FirstName should match");
+        assertEquals(keycloakUser.getLastName(), sysUser.getLastName(), "LastName should match");
+        assertEquals(keycloakUser.getEmail(), sysUser.getEmail(), "Email should match");
+        assertEquals(keycloakUser.isEmailVerified(), sysUser.getEmailVerified(), "Email verified should match");
+        assertEquals(requiredAction, sysUser.getStatus(), "RequiredAction should match");
     }
 
 //    @Test

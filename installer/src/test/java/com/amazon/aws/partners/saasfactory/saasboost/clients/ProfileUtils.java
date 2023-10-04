@@ -7,7 +7,6 @@ import software.amazon.awssdk.profiles.Profile;
 
 import java.io.*;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public class ProfileUtils {
@@ -24,6 +23,7 @@ public class ProfileUtils {
                             .build(),
                     updatingOutputStream);
         }
+        //System.out.println("Modified profile file " + filename);
     }
 
     private static void writeProfileToFileWriter(Profile profile, FileWriter fileWriter) throws IOException {
@@ -32,6 +32,7 @@ public class ProfileUtils {
             fileWriter.write(property.getKey() + " = " + property.getValue() + "\n");
         }
         fileWriter.write("\n");
+        fileWriter.flush();
     }
 
     private static Map<String, String> propertiesFromCredentials(AwsCredentials awsCredentials) {

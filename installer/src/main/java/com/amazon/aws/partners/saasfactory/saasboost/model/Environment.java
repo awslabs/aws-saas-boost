@@ -35,7 +35,6 @@ public final class Environment {
     private String lambdasFolderName;
     private String baseCloudFormationStackName;
     private Map<String, String> baseCloudFormationStackInfo;
-    private boolean metricsAnalyticsDeployed;
 
     private Environment(Builder b) {
         this.name = b.name;
@@ -44,7 +43,6 @@ public final class Environment {
         this.lambdasFolderName = b.lambdasFolderName;
         this.baseCloudFormationStackName = b.baseCloudFormationStackName;
         this.baseCloudFormationStackInfo = b.baseCloudFormationStackInfo;
-        this.metricsAnalyticsDeployed = b.metricsAnalyticsDeployed;
     }
 
     public String getName() {
@@ -95,14 +93,6 @@ public final class Environment {
         this.baseCloudFormationStackInfo = baseCloudFormationStackInfo;
     }
 
-    public boolean isMetricsAnalyticsDeployed() {
-        return this.metricsAnalyticsDeployed;
-    }
-
-    public void setMetricsAnalyticsDeployed(boolean metricsAnalyticsDeployed) {
-        this.metricsAnalyticsDeployed = metricsAnalyticsDeployed;
-    }
-
     /**
      * Retrieves a new empty instance of the {@link Environment.Builder}.
      * 
@@ -139,7 +129,6 @@ public final class Environment {
         private String lambdasFolderName;
         private String baseCloudFormationStackName;
         private Map<String, String> baseCloudFormationStackInfo;
-        private boolean metricsAnalyticsDeployed;
 
         private Builder() {
 
@@ -172,11 +161,6 @@ public final class Environment {
 
         public Builder baseCloudFormationStackInfo(Map<String, String> baseCloudFormationStackInfo) {
             this.baseCloudFormationStackInfo = baseCloudFormationStackInfo;
-            return this;
-        }
-
-        public Builder metricsAnalyticsDeployed(boolean metricsAnalyticsDeployed) {
-            this.metricsAnalyticsDeployed = metricsAnalyticsDeployed;
             return this;
         }
 

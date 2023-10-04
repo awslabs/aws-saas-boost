@@ -70,13 +70,13 @@ public class RefreshingProfileDefaultCredentialsProvider implements AwsCredentia
      */
     @Override
     public AwsCredentials resolveCredentials() {
-        if (profileFilename == null) {
-            return curriedBuilder.build().resolveCredentials();
-        }
-        curriedBuilder.profileFile(ProfileFile.builder()
-                .type(ProfileFile.Type.CREDENTIALS)
-                .content(Path.of(new File(profileFilename).toURI()))
-                .build());
+//        if (profileFilename == null) {
+//            return curriedBuilder.build().resolveCredentials();
+//        }
+//        curriedBuilder.profileFile(ProfileFile.builder()
+//                .type(ProfileFile.Type.CREDENTIALS)
+//                .content(Path.of(new File(profileFilename).toURI()))
+//                .build());
         return curriedBuilder.build().resolveCredentials();
     }
 

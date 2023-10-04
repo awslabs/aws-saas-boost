@@ -60,21 +60,10 @@ limitations under the License.
 
     <dependencies>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging</artifactId>
             <version>3.3.2.Final</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>Utils</artifactId>
-            <version>1.0.0</version>
-            <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
