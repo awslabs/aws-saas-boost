@@ -161,7 +161,7 @@ public class IdentityService {
     protected void handleOnboardingTenantAssignedEvent(Map<String, Object> event) {
         IdentityProviderConfig providerConfig = dal.getProviderConfig();
         if (providerConfig != null) {
-            IdentityProvider provider = IdentityProviderFactory.getInstance().getIdentityProvider(providerConfig);
+            IdentityProvider provider = IdentityProviderFactory.getInstance().getProvider(providerConfig);
             try {
                 // First make sure our custom user attributes are set
                 provider.getApi().addUserAttribute(UserAttribute.builder().name("tenant_id").build());

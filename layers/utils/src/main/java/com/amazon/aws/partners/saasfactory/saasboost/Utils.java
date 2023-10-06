@@ -20,9 +20,11 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
@@ -455,38 +457,59 @@ public class Utils {
     }
 
     public static boolean warmup(APIGatewayProxyRequestEvent event) {
-        boolean warmup = false;
-        Map<String, Object> body = null;
-        if (isNotEmpty(event.getBody())) {
-            body = fromJson(event.getBody(), LinkedHashMap.class);
-        }
         Map<String, String> queryParams = event.getQueryStringParameters();
+        // Before parsing the request body, look to see if the request was
+        // <uri>?source=warmup
         if (queryParams != null && "warmup".equals(queryParams.get("source"))) {
-            warmup = true;
-        } else if (body != null && body.containsKey("source") && "warmup".equals(body.get("source"))) {
-            warmup = true;
+            return true;
         }
-        return warmup;
+        if (isNotEmpty(event.getBody())) {
+            try {
+                // Don't know if request body is an array or an object
+                // Ignore arrays. We're looking for {"source": "warmup"}
+                JsonNode json = MAPPER.readTree(event.getBody());
+                if (json.isObject()) {
+                    Map<String, Object> body = MAPPER.treeToValue(json, LinkedHashMap.class);
+                    if (body.containsKey("source") && "warmup".equals(body.get("source"))) {
+                        return true;
+                    }
+                }
+            } catch (JsonProcessingException jpe) {
+                // swallow
+            }
+        }
+        return false;
     }
 
     public static boolean warmup(Map<String, Object> event) {
-        boolean warmup = false;
+        if ("warmup".equals(event.get("source"))) {
+            // Lambda invocation _not_ through API Gateway
+            return true;
+        }
         if (event.containsKey("queryStringParameters")) {
+            // Before parsing the request body, look to see if the request was
+            // <uri>?source=warmup
             Map<String, String> queryParams = (Map<String, String>) event.get("queryStringParameters");
             if (queryParams != null && "warmup".equals(queryParams.get("source"))) {
-                warmup = true;
-            }
-        } else if (event.containsKey("body")) {
-            Map<String, Object> body = Utils.fromJson((String) event.get("body"), HashMap.class);
-            if (body != null && body.containsKey("source") && "warmup".equals(body.get("source"))) {
-                warmup = true;
-            }
-        } else {
-            if ("warmup".equals(event.get("source"))) {
-                warmup = true;
+                return true;
             }
         }
-        return warmup;
+        if (event.containsKey("body") && isNotEmpty((String) event.get("body"))) {
+            try {
+                // Don't know if request body is an array or an object
+                // Ignore arrays. We're looking for {"source": "warmup"}
+                JsonNode json = MAPPER.readTree((String) event.get("body"));
+                if (json.isObject()) {
+                    Map<String, Object> body = MAPPER.treeToValue(json, LinkedHashMap.class);
+                    if (body.containsKey("source") && "warmup".equals(body.get("source"))) {
+                        return true;
+                    }
+                }
+            } catch (JsonProcessingException jpe) {
+                // swallow
+            }
+        }
+        return false;
     }
 
     public static String version(Class<?> clazz) {

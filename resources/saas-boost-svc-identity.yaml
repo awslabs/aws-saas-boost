@@ -1,0 +1,217 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Identity Service
+Parameters:
+  Environment:
+    Description: Environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostEventBus:
+    Description: SaaS Boost Eventbridge Bus
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  ApiGatewayHelperLayer:
+    Description: API Gateway Helper Layer ARN
+    Type: String
+Resources:
+  IdentityServiceAppPlaneTrustPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Trust policy for App Plane IdP Administration
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource:
+              !If 
+                - AppPlaneSameAccount
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/sb-${Environment}-cp-id-svc-role-${AWS::Region}
+                - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:role/sb-${Environment}-cp-id-svc-role-${AWS::Region}
+  IdentityServiceProviderConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/IDENTITY_PROVIDER_CONFIG
+      SecretString: '{}'
+  IdentityServiceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-identity-svc-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref IdentityServiceAppPlaneTrustPolicy
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-identity-svc-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:PutSecretValue
+                Resource:
+                  - !Ref IdentityServiceProviderConfigSecret
+  IdentityServiceGetProvidersLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-identity-get-providers
+      RetentionInDays: 30
+  IdentityServiceGetProviders:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-identity-get-providers
+      Role: !GetAtt IdentityServiceExecutionRole.Arn
+      Runtime: java17
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProviders
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
+  IdentityServiceSetProviderLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-identity-set-provider
+      RetentionInDays: 30
+  IdentityServiceSetProvider:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-identity-set-provider
+      Role: !GetAtt IdentityServiceExecutionRole.Arn
+      Runtime: java17
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::setProvider
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
+  IdentityServiceGetProviderLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-identity-get-provider
+      RetentionInDays: 30
+  IdentityServiceGetProvider:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-identity-get-provider
+      Role: !GetAtt IdentityServiceExecutionRole.Arn
+      Runtime: java17
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProvider
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
+  IdentityServiceEventHandlerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-identity-event-handler
+      RetentionInDays: 30
+  IdentityServiceEventHandler:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-identity-event-handler
+      Role: !GetAtt IdentityServiceExecutionRole.Arn
+      Runtime: java17
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::handleEvent
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+          IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
+  IdentityServiceEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-identity-events
+      Description: SaaS Boost Identity Service Events
+      EventBusName: !Ref SaaSBoostEventBus
+      EventPattern:
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [
+            "Onboarding Tenant Assigned"
+          ]
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IdentityServiceEventHandler.Arn
+          Id: !Sub sb-${Environment}-identity-events
+  IdentityServiceEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IdentityServiceEventRule.Arn
+...

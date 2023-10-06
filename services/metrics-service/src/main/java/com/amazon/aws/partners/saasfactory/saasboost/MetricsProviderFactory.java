@@ -19,27 +19,27 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IdentityProviderFactory {
+public class MetricsProviderFactory {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(IdentityProviderFactory.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MetricsProviderFactory.class);
 
-    private IdentityProviderFactory() {
+    private MetricsProviderFactory() {
     }
 
-    public static IdentityProviderFactory getInstance() {
-        return IdentityProviderFactoryInstance.instance;
+    public static MetricsProviderFactory getInstance() {
+        return MetricsProviderFactoryInstance.instance;
     }
 
-    public IdentityProvider getProvider(IdentityProviderConfig providerConfig) {
+    public MetricsProvider getProvider(MetricsProviderConfig providerConfig) {
         switch (providerConfig.getType()) {
-            case COGNITO:
-                return new CognitoIdentityProvider(providerConfig.getMetadata());
+            case CLOUDWATCH:
+                return new CloudWatchMetricsProvider(providerConfig.getProperties());
             default:
                 return null;
         }
     }
 
-    private static class IdentityProviderFactoryInstance {
-        public static final IdentityProviderFactory instance = new IdentityProviderFactory();
+    private static class MetricsProviderFactoryInstance {
+        public static final MetricsProviderFactory instance = new MetricsProviderFactory();
     }
 }

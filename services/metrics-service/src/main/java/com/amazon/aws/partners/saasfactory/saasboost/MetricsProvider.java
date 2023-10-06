@@ -16,28 +16,17 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-public enum TimeRange {
-    HOUR_24(24),
-    HOUR_12(12),
-    HOUR_10(10),
-    HOUR_8(8),
-    HOUR_4(4),
-    HOUR_2(2),
-    HOUR_1(1),
-    TODAY(0),
-    DAY_7(7),
-    THIS_WEEK(0),
-    THIS_MONTH(0),
-    DAY_30(30);
+import java.util.Properties;
 
-    private final int valueToSubtract;
+public interface MetricsProvider {
 
-    TimeRange(int valueToSubtract) {
-        this.valueToSubtract = valueToSubtract;
+    enum ProviderType {
+        CLOUDWATCH
     }
 
-    public int getValueToSubtract() {
-        return this.valueToSubtract;
-    }
+    ProviderType type();
 
+    Properties getProperties();
+
+    MetricsProviderApi api();
 }

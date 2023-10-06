@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class CodePipelineWaitHandler implements RequestHandler<Map<String, Object>, Object> {
+public class CodePipelineWaitHandler implements RequestHandler<Map<String, Object>, Void> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CodePipelineWaitHandler.class);
     private final CodePipelineClient codepipeline;
@@ -45,7 +45,7 @@ public class CodePipelineWaitHandler implements RequestHandler<Map<String, Objec
     }
 
     @Override
-    public Object handleRequest(Map<String, Object> event, Context context) {
+    public Void handleRequest(Map<String, Object> event, Context context) {
         //logRequestEvent(event);
 
         Map<String, Object> job = (Map<String, Object>) event.get("CodePipeline.job");
@@ -90,7 +90,6 @@ public class CodePipelineWaitHandler implements RequestHandler<Map<String, Objec
             failJob(jobId, "Error ", context);
             throw e;
         }
-
         return null;
     }
 

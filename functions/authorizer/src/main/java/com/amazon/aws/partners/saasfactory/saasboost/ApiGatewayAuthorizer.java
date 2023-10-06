@@ -159,9 +159,9 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
     public static List<String> readApiResources(TokenAuthorizerRequest event) {
         Set<AbstractMap.SimpleEntry<String, String>> readResources = new LinkedHashSet<>();
         readResources.add(new AbstractMap.SimpleEntry<>("billing/plans", "GET"));
-        readResources.add(new AbstractMap.SimpleEntry<>("metrics/alb/*", "GET"));
-        readResources.add(new AbstractMap.SimpleEntry<>("metrics/datasets", "GET"));
-        readResources.add(new AbstractMap.SimpleEntry<>("metrics/query", "POST")); // Yes, this is a "read" resource
+        //readResources.add(new AbstractMap.SimpleEntry<>("metrics/alb/*", "GET"));
+        //readResources.add(new AbstractMap.SimpleEntry<>("metrics/datasets", "GET"));
+        //readResources.add(new AbstractMap.SimpleEntry<>("metrics/query", "POST")); // Yes, this is a "read" resource
         readResources.add(new AbstractMap.SimpleEntry<>("onboarding", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("onboarding/*", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("settings", "GET"));
@@ -201,6 +201,7 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "PUT"));
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "DELETE"));
         writeResources.add(new AbstractMap.SimpleEntry<>("identity*", "POST"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("metrics*", "POST"));
 
         List<String> resources = new ArrayList<>();
         for (Map.Entry<String, String> resource : writeResources) {
