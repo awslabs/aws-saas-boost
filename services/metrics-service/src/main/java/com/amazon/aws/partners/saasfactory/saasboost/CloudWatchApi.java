@@ -56,6 +56,7 @@ public class CloudWatchApi implements MetricsProviderApi {
                 Unit unit = metric.getMeasure().getType() == Measure.Type.count ? Unit.COUNT : Unit.NONE;
                 emf.setTimestamp(metric.getTimestamp());
                 emf.putProperty("UserId", metric.getContext().getUserId());
+                emf.putProperty("RequestId", metric.getContext().getRequestId());
                 emf.putProperty("Application", metric.getContext().getApplication());
                 emf.putProperty("Action", metric.getContext().getAction());
                 emf.setDimensions(DimensionSet.of(

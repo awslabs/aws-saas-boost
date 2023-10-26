@@ -27,6 +27,7 @@ public class MetricContext extends HashMap<String, String> {
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricContext.class);
     private static final String TENANT_ID = "TenantId";
     private static final String USER_ID = "UserId";
+    private static final String REQUEST_ID = "RequestId";
     private static final String ACTION = "Action";
     private static final String APPLICATION = "Application";
     private static final Map<String, String> DEFAULTS = new HashMap<>();
@@ -34,6 +35,7 @@ public class MetricContext extends HashMap<String, String> {
     static {
         DEFAULTS.put(TENANT_ID, "");
         DEFAULTS.put(USER_ID, "");
+        DEFAULTS.put(REQUEST_ID, "");
         DEFAULTS.put(ACTION, "");
         DEFAULTS.put(APPLICATION, "");
     }
@@ -57,6 +59,14 @@ public class MetricContext extends HashMap<String, String> {
 
     public void setUserId(String userId) {
         put(USER_ID, userId);
+    }
+
+    public String getRequestId() {
+        return get(REQUEST_ID);
+    }
+
+    public void setRequestId(String requestId) {
+        put(REQUEST_ID, requestId);
     }
 
     public String getAction() {

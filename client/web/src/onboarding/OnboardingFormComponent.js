@@ -33,6 +33,7 @@ import {
   SaasBoostCheckbox,
   SaasBoostFileUpload,
 } from '../components/FormComponents'
+import display from "../components/Display";
 
 function showError(message, name) {
   let color = !!name && name === 'MissingECRImageError' ? 'warning' : 'danger'
@@ -54,7 +55,7 @@ OnboardingFormComponent.propTypes = {
   submit: PropTypes.func,
   cancel: PropTypes.func,
   config: PropTypes.object,
-  billingPlans: PropTypes.array,
+  //billingPlans: PropTypes.array,
   onFileSelected: PropTypes.func,
   values: PropTypes.object,
 }
@@ -66,20 +67,21 @@ export default function OnboardingFormComponent(props) {
     submit,
     cancel,
     config,
-    billingPlans,
-    plansLoading,
+    //billingPlans,
+    //plansLoading,
     tiers,
   } = props
-  const { domainName, tier, billing } = config
-  const hasBilling = !!billing
+  //const { domainName, tier, billing } = config
+  const { domainName, tier } = config
+  //const hasBilling = !!billing
   const hasDomain = !!domainName
 
   const initialValues = {
     name: '',
     tier: tiers?.filter((tier) => tier.defaultTier)[0].name || '',
     subdomain: '',
-    billingPlan: '',
-    hasBilling: hasBilling,
+    //billingPlan: '',
+    //hasBilling: hasBilling,
     hasDomain: hasDomain,
   }
 
@@ -105,6 +107,7 @@ export default function OnboardingFormComponent(props) {
     )
   }
 
+  /*
   const getBillingUi = (plans, hasBilling) => {
     const options = plans.map((plan) => {
       return (
@@ -131,6 +134,7 @@ export default function OnboardingFormComponent(props) {
       )
     )
   }
+  */
 
   const getDomainUi = (domainName, hasDomain) => {
     return hasDomain ? (
@@ -172,11 +176,17 @@ export default function OnboardingFormComponent(props) {
         otherwise: Yup.string(),
       })
       .max(25, 'Must be 25 characters or less.'),
+    username: Yup.string()
+        .max(100, 'Must be 100 characters or less.')
+        .required('Required'),
+    email: Yup.string().email()
+        .required('Required'),
+    /*
     billingPlan: Yup.string().when('hasBilling', {
       is: true,
       then: Yup.string().required('Billing plan is a required field'),
       otherwise: Yup.string(),
-    }),
+    }),*/
   })
 
   return (
@@ -205,7 +215,49 @@ export default function OnboardingFormComponent(props) {
                     />
                     {getTiers(tiers, formik.values.tier)}
                     {getDomainUi(domainName, hasDomain)}
-                    {getBillingUi(billingPlans, hasBilling)}
+                    {/* {getBillingUi(billingPlans, hasBilling)} */}
+                    <b>Admin User</b> <hr/>
+                    <SaasBoostInput
+                        label={'User Name'}
+                        name="username"
+                        type="text"
+                        maxLength={100}
+                        placeholder="username"
+                    />
+                    <SaasBoostInput
+                        label={'Email'}
+                        name="email"
+                        type="text"
+                        maxLength={100}
+                        placeholder="email"
+                    />
+                    <SaasBoostInput
+                        label={'Phone Number'}
+                        name="phoneNumber"
+                        type="text"
+                        maxLength={100}
+                        placeholder="phone number"
+                    />
+                    <Row>
+                      <Col lg={6}>
+                        <SaasBoostInput
+                            label={'Given Name'}
+                            name="givenName"
+                            type="text"
+                            maxLength={20}
+                            placeholder="given name"
+                        />
+                      </Col>
+                      <Col lg={6}>
+                        <SaasBoostInput
+                            label={'Family Name'}
+                            name="familyName"
+                            type="text"
+                            maxLength={20}
+                            placeholder="family name"
+                        />
+                      </Col>
+                    </Row>
                     <SaasBoostFileUpload
                       fileMask=".zip"
                       label="(OPTIONAL) Select or drop a .zip file that contains config files for your new tenant"

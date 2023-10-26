@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+#from urllib.request import HTTPHandler, HTTPSHandler, build_opener, install_opener
 
 logger = logging.getLogger()
 
@@ -37,12 +38,22 @@ class SaaSBoostApiHelper:
     api_request = Request(
       url=self.api_endpoint + resource,
       method=method,
-      data=urlencode(body).encode() if body else None
+      data=body.encode() if body else None
     )
     api_request.add_header('Authorization', self.__bearer_token())
     api_request.add_header('Content-Type', 'application/json')
+
+    #http_handler = HTTPHandler(debuglevel=1)
+    #https_handler = HTTPSHandler(debuglevel=1)
+    #opener = build_opener(http_handler, https_handler)
+    #install_opener(opener)
+
     with urlopen(api_request) as api_response:
-      return json.loads(api_response.read().decode())
+      response_data = api_response.read()
+      if response_data:
+        return json.loads(response_data.decode())
+      else:
+        return
   
   def __get_cached_credentials(self):
     cached = self.__credentials_cache.get(self.client_id)

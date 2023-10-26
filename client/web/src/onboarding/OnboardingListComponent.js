@@ -76,14 +76,14 @@ export const OnboardingListComponent = (props) => {
         <Col>{!!error && showError(error, dismissError)}</Col>
       </Row>
       <Row className="mb-3">
-        <Col sm={12} md={8} lg={9}>
+        {/* <Col sm={12} md={8} lg={9}>
           <Alert color="light">
             Onboarding tenants requires an application image to be uploaded for each service. 
             If you haven't done so, view the upload instructions for each service &nbsp;
             <Link to="/summary">here</Link>.
           </Alert>
-        </Col>
-        <Col sm={12} md={4} lg={3}>
+        </Col> */}
+        <Col lg={12}>
           <div className="float-right">
             <Button variant="secondary" className="mr-2" onClick={doRefresh}>
               <span>
@@ -161,8 +161,8 @@ OnboardingListComponent.propTypes = {
   ecrRepository: PropTypes.string,
   awsAccount: PropTypes.string,
   awsRegion: PropTypes.string,
-  showEcrPushModal: PropTypes.bool,
-  toggleEcrPushModal: PropTypes.func,
+  //showEcrPushModal: PropTypes.bool,
+  //toggleEcrPushModal: PropTypes.func,
   clickTenantDetails: PropTypes.func,
 }
 
