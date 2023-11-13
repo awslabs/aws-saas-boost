@@ -21,12 +21,13 @@ import { UserRoutes } from './users'
 import { OnboardingRoutes } from './onboarding'
 import { SettingsRoutes } from './settings'
 import { MetricsRoutes } from './metrics'
+import { IdentityRoutes } from './identity'
 
 const Dashboard = React.lazy(() => import('./dashboard'))
 const routes = [
   { path: '/', exact: true, name: 'Home' },
   { path: '/dashboard', exact: true, name: 'Dashboard', component: Dashboard },
   { path: '/summary', exact: true, name: 'Dashboard', component: Dashboard },
-].concat(TenantRoutes, TierRoutes, UserRoutes, OnboardingRoutes, SettingsRoutes, MetricsRoutes)
+].concat(TenantRoutes, TierRoutes, UserRoutes, OnboardingRoutes, SettingsRoutes, MetricsRoutes, IdentityRoutes)
 
 export default routes

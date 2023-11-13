@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg  PUBLIC '-//W3C//DTD SVG 1.1//EN'  'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'>
+<svg width="738.6" height="351.76" version="1.1" viewBox="-116.8 45.744 738.6 351.76" xmlns="http://www.w3.org/2000/svg" xmlnsxl="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="a" x2="1" gradientTransform="translate(279.97 363.44) rotate(259) scale(287.92)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#333" offset="0"/>
+      <stop stop-color="#9a9a9a" offset=".44363"/>
+      <stop stop-color="#d6d6d6" offset="1"/>
+    </linearGradient>
+  </defs>
+  <g fill="none">
+    <title>Canvas 1</title>
+    <g>
+      <title>Layer 1</title>
+      <path d="m-7 66.244h179.6l45.85 78.35h-270z" fill="#4c4b4d"/>
+      <path d="m-7 66.244h179.6l45.85 78.35h-270z" stroke="#4c4c4e" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m-51.8 143.5-45 78.144 44.288 79.238 269.09-0.05 30.075-53.3h31.875l14.45 22.675 14.05-22.588 30.838-0.1125 14.962 23.35 15.338-23.312 11.938-0.0125 14.312 22.988 13.938-23 47.688 0.0125 14.55 22.8 14.15-22.788 12.15-0.025 14.85 23.825 13.488-23.812h31.662l15.625 25.712 29.288-51.2-44.8-78.675z" fill="url(#a)"/>
+      <path d="m217.72 299.8h338.28l16-26.6-15.6-25.75h-30.6l-14 24.75-15.4-24.683h-11.2l-14.6 23.683-15-23.683h-46.8l-14.4 23.883-14.8-23.883h-11l-15.8 24.083-15.4-24.083h-29.8l-14.6 23.483-15-23.483h-30.8z" fill="#4c4d4c"/>
+      <path d="m217.72 299.8h338.28l16-26.6-15.6-25.75h-30.6l-14 24.75-15.4-24.683h-11.2l-14.6 23.683-15-23.683h-46.8l-14.4 23.883-14.8-23.883h-11l-15.8 24.083-15.4-24.083h-29.8l-14.6 23.483-15-23.483h-30.8z" stroke="#4c4d4c" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m216.95 300.29-43.75 76.712h-180.2l-44.95-76.175z" fill="#4c4d4c"/>
+      <path d="m216.95 300.29-43.75 76.712h-180.2l-44.95-76.175z" stroke="#4c4d4c" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m21 116.28h30.942l-74.979 129.9-14.162-25.356z" fill="#008ab3"/>
+      <path d="m21 116.28h30.942l-74.979 129.9-14.162-25.356z" stroke="#008ab3" stroke-linecap="round"/>
+      <path d="m52.767 116.77-59.692 103.53 30.325 0.0625 44.6-77z" fill="#03b7e9"/>
+      <path d="m52.767 116.77-59.692 103.53 30.325 0.0625 44.6-77z" stroke="#03b7e9" stroke-linecap="round"/>
+      <path d="m-6.8688 221.19 30.319 0.16875 44.95 77.938-16.388 25.169z" fill="#00c2ed"/>
+      <path d="m-6.8688 221.19 30.319 0.16875 44.95 77.938-16.388 25.169z" stroke="#00c2ed" stroke-linecap="round"/>
+      <path d="m-22.581 247.01 14.85-25.356 58.869 103.28-30.306 0.01875z" fill="#03b7e9"/>
+      <path d="m-22.581 247.01 14.85-25.356 58.869 103.28-30.306 0.01875z" stroke="#03b7e9" stroke-linecap="round"/>
+      <path d="m111.95 116.76-15.152 26.594 45.067 76.9 30.05 0.08334z" fill="#00b7e7"/>
+      <path d="m111.95 116.76-15.152 26.594 45.067 76.9 30.05 0.08334z" stroke="#00b7e7" stroke-linecap="round"/>
+      <path d="m112.78 116.28 60.025 103.73 14.85-25.083-44.183-78.631z" fill="#00c2ed"/>
+      <path d="m112.78 116.28 60.025 103.73 14.85-25.083-44.183-78.631z" stroke="#00c2ed" stroke-linecap="round"/>
+      <path d="m188.19 195.73-75.867 129.17 31.475 0.1 60-104.2z" fill="#03b7e9"/>
+      <path d="m188.19 195.73-75.867 129.17 31.475 0.1 60-104.2z" stroke="#03b7e9" stroke-linecap="round"/>
+      <path d="m141.8 221.2 30.283-0.00833-60.508 103.43-14.775-25.2z" fill="#0689b2"/>
+      <path d="m141.8 221.2 30.283-0.00833-60.508 103.43-14.775-25.2z" stroke="#0689b2" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

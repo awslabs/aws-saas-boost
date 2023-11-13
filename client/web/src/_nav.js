@@ -28,7 +28,8 @@ import {
   cilGift,
   cilShieldAlt,
   cilAddressBook,
-  cilCreditCard
+  cilCreditCard,
+  cilSchool
 } from '@coreui/icons'
 import { CNavGroup, CNavItem } from '@coreui/react'
 import { BaseUserRoute } from './users'
@@ -86,7 +87,7 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Identity',
-    to: '/identity',
+    to: '/providers',
     //icon: <CIcon icon={cilLayers} customClassName="nav-icon" />,
     icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
     //disabled: false,
@@ -125,7 +126,7 @@ const _nav = [
     to: BaseUserRoute,
     //icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
     icon: <CIcon icon={cilShieldAlt} customClassName="nav-icon" />,
-  },
+  }
 ]
 
 export default _nav

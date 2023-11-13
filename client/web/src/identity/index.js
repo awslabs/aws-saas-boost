@@ -14,26 +14,22 @@
  * limitations under the License.
  */
 
-import tenants from '../tenant/ducks/index'
-import users from '../users/ducks'
-import onboardings from '../onboarding/ducks'
-import settings from '../settings/ducks'
-import metrics from '../metrics/ducks'
-import {billingPlans} from '../billing/ducks'
-import accessLogMetrics from '../metrics/ducks/accessLogMetrics'
-import options from '../options/ducks'
-import tiers from '../tier/ducks'
-import providers from '../identity/ducks'
+import React from 'react'
 
-export default {
-    tenants,
-    tiers,
-    providers,
-    users,
-    onboardings,
-    settings,
-    metrics,
-    billingPlans,
-    accessLogMetrics,
-    options,
-}
+const ProviderListContainer = React.lazy(() => import('./ProviderListContainer'))
+const ProviderCreateContainer = React.lazy(() => import('./ProviderCreateContainer'))
+
+export const IdentityRoutes = [
+    {
+        path: '/providers',
+        exact: true,
+        name: 'Providers',
+        component: ProviderListContainer
+    },
+    {
+        path: `/providers/:providerId`,
+        exact: true,
+        name: 'Create Provider',
+        component: ProviderCreateContainer
+    }
+]
