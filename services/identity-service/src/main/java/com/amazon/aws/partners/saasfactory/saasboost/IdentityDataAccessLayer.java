@@ -34,8 +34,13 @@ public class IdentityDataAccessLayer {
 
     public List<IdentityProviderConfig> getAvailableProviders() {
         List<IdentityProviderConfig> providers = new ArrayList<>();
+        IdentityProviderConfig activeProvider = getProviderConfig();
         for (IdentityProvider.ProviderType type : IdentityProvider.ProviderType.values()) {
-            providers.add(new IdentityProviderConfig(type));
+            if (activeProvider != null && type == activeProvider.getType()) {
+                providers.add(activeProvider);
+            } else {
+                providers.add(new IdentityProviderConfig(type));
+            }
         }
         return providers;
     }

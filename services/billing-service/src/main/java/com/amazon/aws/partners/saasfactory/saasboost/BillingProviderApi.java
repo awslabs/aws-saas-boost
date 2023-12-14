@@ -16,18 +16,9 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import java.util.Properties;
+import java.util.Collection;
 
-public interface BillingProvider {
+public interface BillingProviderApi {
 
-    enum ProviderType {
-        AWS_MARKETPLACE,
-        STRIPE
-    }
-
-    ProviderType type();
-
-    Properties getProperties();
-
-    BillingProviderApi api();
+    Collection<BillingPlan> getPlans();
 }

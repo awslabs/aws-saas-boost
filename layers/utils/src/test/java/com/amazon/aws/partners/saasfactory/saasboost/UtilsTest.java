@@ -19,6 +19,8 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,7 +74,6 @@ public class UtilsTest {
         String json = "[{\"foo\": \"Santa\", \"bar\": \"Claus\"}]";
         MyPojo[] pojoArray = Utils.fromJson(json, MyPojo[].class);
         List<MyPojo> pojoList = Arrays.asList(pojoArray);
-
     }
 
     public static class MyPojo {

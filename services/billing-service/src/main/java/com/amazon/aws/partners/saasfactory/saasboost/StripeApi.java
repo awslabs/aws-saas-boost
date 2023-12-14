@@ -16,18 +16,20 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import java.util.Properties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public interface BillingProvider {
+import java.util.Collection;
+import java.util.Collections;
 
-    enum ProviderType {
-        AWS_MARKETPLACE,
-        STRIPE
+public class StripeApi implements BillingProviderApi {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(StripeApi.class);
+    private static final String SAAS_BOOST_ENV = System.getenv("SAAS_BOOST_ENV");
+
+    @Override
+    public Collection<BillingPlan> getPlans() {
+        // Stripe Product & Pricing Model
+        return Collections.emptyList();
     }
-
-    ProviderType type();
-
-    Properties getProperties();
-
-    BillingProviderApi api();
 }

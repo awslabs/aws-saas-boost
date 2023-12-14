@@ -158,6 +158,8 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
 
     public static List<String> readApiResources(TokenAuthorizerRequest event) {
         Set<AbstractMap.SimpleEntry<String, String>> readResources = new LinkedHashSet<>();
+        readResources.add(new AbstractMap.SimpleEntry<>("api", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("api/*", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("billing/plans", "GET"));
         //readResources.add(new AbstractMap.SimpleEntry<>("metrics/alb/*", "GET"));
         //readResources.add(new AbstractMap.SimpleEntry<>("metrics/datasets", "GET"));

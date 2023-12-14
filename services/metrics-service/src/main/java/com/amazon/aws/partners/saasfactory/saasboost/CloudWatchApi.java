@@ -18,11 +18,13 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.cloudwatchlogs.emf.exception.InvalidTimestampException;
 import software.amazon.cloudwatchlogs.emf.logger.MetricsLogger;
 import software.amazon.cloudwatchlogs.emf.model.DimensionSet;
 import software.amazon.cloudwatchlogs.emf.model.Unit;
 
 import java.util.Collection;
+import java.util.Objects;
 
 public class CloudWatchApi implements MetricsProviderApi {
 
@@ -53,16 +55,25 @@ public class CloudWatchApi implements MetricsProviderApi {
             emf.setNamespace("sb-" + SAAS_BOOST_ENV);
             //emf.setFlushPreserveDimensions(false);
             for (Metric metric : metrics) {
-                Unit unit = metric.getMeasure().getType() == Measure.Type.count ? Unit.COUNT : Unit.NONE;
-                emf.setTimestamp(metric.getTimestamp());
+                try {
+                    emf.setTimestamp(metric.getTimestamp());
+                } catch (InvalidTimestampException ite) {
+                    LOGGER.error("Invalid timestamp", ite);
+                    LOGGER.error(Utils.toJson(metric));
+                    continue;
+                }
+                emf.putProperty("TenantId", metric.getContext().getTenantId());
                 emf.putProperty("UserId", metric.getContext().getUserId());
                 emf.putProperty("RequestId", metric.getContext().getRequestId());
                 emf.putProperty("Application", metric.getContext().getApplication());
                 emf.putProperty("Action", metric.getContext().getAction());
-                emf.setDimensions(DimensionSet.of(
-                        metric.getName() + " By Tenant", metric.getContext().getTenantId()
-                ));
-                emf.putMetric(metric.getName(), metric.getMeasure().getValue().doubleValue(), unit);
+                if (metric.getMeasure() != null) {
+                    emf.setDimensions(DimensionSet.of(
+                            metric.getName() + " By Tenant", metric.getContext().getTenantId()
+                    ));
+                    Unit unit = Unit.fromValue(Objects.toString(metric.getMeasure().getType(), "None"));
+                    emf.putMetric(metric.getName(), metric.getMeasure().getValue().doubleValue(), unit);
+                }
                 emf.flush();
                 //emf.resetDimensions(false);
             }

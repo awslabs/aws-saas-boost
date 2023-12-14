@@ -18,16 +18,33 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 
 import java.util.Properties;
 
-public interface BillingProvider {
+public class StripeBillingProvider implements BillingProvider {
 
-    enum ProviderType {
-        AWS_MARKETPLACE,
-        STRIPE
+    static final Properties DEFAULTS = new Properties();
+
+    static {
+        DEFAULTS.put("secretKey", "");
     }
 
-    ProviderType type();
+    private final Properties properties;
 
-    Properties getProperties();
+    public StripeBillingProvider(Properties properties) {
+        this.properties = new Properties(DEFAULTS);
+        this.properties.putAll(properties);
+    }
 
-    BillingProviderApi api();
+    @Override
+    public ProviderType type() {
+        return ProviderType.STRIPE;
+    }
+
+    @Override
+    public Properties getProperties() {
+        return (Properties) properties.clone();
+    }
+
+    @Override
+    public BillingProviderApi api() {
+        return new StripeApi();
+    }
 }

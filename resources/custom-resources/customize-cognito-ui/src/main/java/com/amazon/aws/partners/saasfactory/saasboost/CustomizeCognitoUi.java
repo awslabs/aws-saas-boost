@@ -67,6 +67,7 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
         final String requestType = (String) event.get("RequestType");
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String sourceBucket = (String) resourceProperties.get("SourceBucket");
+        final String sourceBucketPrefix = (String) resourceProperties.get("SourceBucketPrefix");
         final String userPoolId = (String) resourceProperties.get("UserPoolId");
         final String userPoolDomain = (String) resourceProperties.get("UserPoolDomain");
 
@@ -78,9 +79,14 @@ public class CustomizeCognitoUi implements RequestHandler<Map<String, Object>, O
                     LOGGER.info("CREATE or UPDATE");
                     try {
                         // Fetch the admin web app source from S3
+                        String bucketPrefix = Objects.toString(sourceBucketPrefix, "");
+                        if (Utils.isNotEmpty(bucketPrefix) && !bucketPrefix.endsWith("/")) {
+                            bucketPrefix = bucketPrefix + "/";
+                        }
+                        String sourceKey = bucketPrefix + ADMIN_WEB_SOURCE_KEY;
                         ResponseInputStream<GetObjectResponse> responseInputStream = s3.getObject(request -> request
                                 .bucket(sourceBucket)
-                                .key(ADMIN_WEB_SOURCE_KEY)
+                                .key(sourceKey)
                                 .build());
                         // Customize the background colors to match the SaaS Boost branding
                         StringBuilder css = new StringBuilder();

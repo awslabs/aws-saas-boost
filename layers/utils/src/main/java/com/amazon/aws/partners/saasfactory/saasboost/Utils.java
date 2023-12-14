@@ -244,7 +244,6 @@ public class Utils {
                 region = Region.AWS_GLOBAL;
                 endpoint = "https://iam.amazonaws.com";
             }
-
         }
 
         C client = builder
