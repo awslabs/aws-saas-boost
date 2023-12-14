@@ -1181,7 +1181,7 @@ public class OnboardingService {
                         Map<String, Object> service = (Map<String, Object>) serviceConfig.getValue();
                         Map<String, Object> serviceCompute = (Map<String, Object>) service.get("compute");
                         String ecrRepo = (String) serviceCompute.get("containerRepo");
-                        String imageTag = (String) serviceCompute.get("containerTag");
+                        String imageTag = (String) serviceCompute.getOrDefault("containerTag", "latest");
                         if (Utils.isNotBlank(ecrRepo)) {
                             try {
                                 ListImagesResponse dockerImages = ecr.listImages(request -> request
@@ -1190,7 +1190,7 @@ public class OnboardingService {
                                 // ListImagesResponse::hasImageIds will return true if the imageIds object is not null
                                 if (dockerImages.hasImageIds()) {
                                     for (ImageIdentifier image : dockerImages.imageIds()) {
-                                        if (image.imageTag().equals(imageTag)) {
+                                        if (imageTag.equals(image.imageTag())) {
                                             imageAvailable = true;
                                             break;
                                         }
