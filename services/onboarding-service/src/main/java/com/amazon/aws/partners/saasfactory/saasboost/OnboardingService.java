@@ -89,6 +89,7 @@ public class OnboardingService {
     private final SqsClient sqs;
     private final CodePipelineClient codePipeline;
     private final DirectoryClient ds;
+    private final OnboardingHelper onboardingHelper;
 
     public OnboardingService() {
         if (Utils.isBlank(AWS_REGION)) {
@@ -117,6 +118,7 @@ public class OnboardingService {
         this.sqs = Utils.sdkClient(SqsClient.builder(), SqsClient.SERVICE_NAME);
         this.codePipeline = Utils.sdkClient(CodePipelineClient.builder(), CodePipelineClient.SERVICE_NAME);
         this.ds = Utils.sdkClient(DirectoryClient.builder(), DirectoryClient.SERVICE_NAME);
+        this.onboardingHelper = new OnboardingHelper();
     }
 
     /**
@@ -834,6 +836,14 @@ public class OnboardingService {
                         if (serviceName.equals(stack.getService())) {
                             found++;
                             if ((Boolean) service.get("public")) {
+                                // TODO: Create new or retrieve existing db password here,
+                                //  though service config isn't passed into the stack, which means
+                                //  no need to support that case when config for existing service stack is update.
+                                //  Tested this by updating existing service config
+                                //  (e.g.,: removing RDS, adding RDS is not possible if tenant is already provisioned)
+                                //  See:
+                                //      https://github.com/awslabs/aws-saas-boost/issues/535
+                                //      https://github.com/awslabs/aws-saas-boost/pull/505
                                 Integer publicPathRulePriority = pathPriority.get(serviceName);
                                 // TODO this will break if there's an existing ALB listener rule with this priority
                                 LOGGER.info("Calling cloudFormation update-stack --stack-name {}", stack.getName());
@@ -1737,6 +1747,15 @@ public class OnboardingService {
                     }
                 }
 
+                // delete all database passwords (if failed - should not block tenant deletion?)
+                try {
+                    LOGGER.info("Deleting all database passwords for tenantId: " + tenantId);
+                    onboardingHelper.deleteAllDatabasePasswords(tenantId);
+                    LOGGER.info("Deleted all database passwords for tenantId: " + tenantId);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to delete all database passwords for tenantId " + tenantId, e);
+                }
+
                 if (update) {
                     onboarding.setStatus(OnboardingStatus.deleting);
                     dal.updateOnboarding(onboarding);
@@ -2226,6 +2245,23 @@ public class OnboardingService {
         try {
             // Now run the onboarding stack to provision the infrastructure for this application service
             LOGGER.info("OnboardingService create stack " + stackName);
+            // create new database password if rds is configured for service
+            if (Boolean.parseBoolean(parameters.getProperty("UseRDS"))) {
+                String serviceName = parameters.getProperty("ServiceName");
+                LOGGER.info("Creating new db password for tenantId: " + tenantId + " and service " + serviceName);
+                try {
+                    software.amazon.awssdk.services.ssm.model.Parameter parameter =
+                            onboardingHelper.createPasswordInParameterStore(tenantId, serviceName);
+                    LOGGER.info("Created new database password for tenantId: " + tenantId
+                            + " and service " + serviceName);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to create new database password for tenantId: " + tenantId
+                            + " and service " + serviceName, e);
+                }
+                // override onboarding app stack parameter RDSPasswordParam
+                String passwordParamName  = onboardingHelper.constructParameterName(tenantId, serviceName);
+                parameters.setProperty("RDSPasswordParam", passwordParamName);
+            }
             String templateUrl = "https://" + SAAS_BOOST_BUCKET + ".s3." + AWS_REGION
                     + "." + Utils.endpointSuffix(AWS_REGION) + "/tenant-onboarding-app.yaml";
             String stackId;

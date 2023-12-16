@@ -198,8 +198,8 @@ Resources:
       Engine: !Ref RDSEngine
       EngineVersion: !Ref RDSEngineVersion
       DatabaseName: !If [DatabaseName, !Ref RDSDatabase, !Ref 'AWS::NoValue']
-      # TODO: Parameterize these
-      BackupRetentionPeriod: 14
+      # TODO: enable back after development completed (disabled in favour of faster tenants provisioning)
+      BackupRetentionPeriod: 0
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
       # PreferredBackupWindow: sat:22:30-sun:02:00
       KmsKeyId: !If [SupportsEncryption, !GetAtt EncryptionKey.Arn, !Ref 'AWS::NoValue']
@@ -239,8 +239,8 @@ Resources:
       VPCSecurityGroups:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref RDSSubnetGroup
-      # TODO: Parameterize these
-      BackupRetentionPeriod: 14
+      # TODO: enable back after development completed (disabled in favour of faster tenants provisioning)
+      BackupRetentionPeriod: 0
       # PreferredMaintenanceWindow: sat:22:30-sun:02:00
       # PreferredBackupWindow: sat:22:30-sun:02:00
       DeleteAutomatedBackups: False

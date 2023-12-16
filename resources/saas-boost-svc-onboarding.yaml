@@ -363,6 +363,11 @@ Resources:
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*
           - Effect: Allow
             Action:
+              - ssm:DeleteParameters
+            Resource:
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/*/app/*/DB_PASSWORD
+          - Effect: Allow
+            Action:
               - secretsmanager:CreateSecret
               - secretsmanager:DeleteSecret
               - secretsmanager:GetSecretValue
