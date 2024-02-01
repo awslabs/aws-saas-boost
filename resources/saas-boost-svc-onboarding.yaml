@@ -250,7 +250,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-get-all
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::getOnboardings
@@ -262,7 +262,6 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -280,7 +279,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-get-by-id
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::getOnboarding
@@ -292,7 +291,6 @@ Resources:
       Environment:
         Variables:
           ONBOARDING_TABLE: !Ref OnboardingTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -310,7 +308,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-insert
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::insertOnboarding
@@ -326,7 +324,6 @@ Resources:
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           RESOURCES_BUCKET: !Ref ResourcesBucket
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -344,7 +341,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-update
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::updateOnboarding
@@ -359,7 +356,6 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -375,7 +371,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-delete
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::deleteOnboarding
@@ -390,7 +386,6 @@ Resources:
           ONBOARDING_TABLE: !Ref OnboardingTable
           SAAS_BOOST_BUCKET: !Ref SaaSBoostBucket
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -406,7 +401,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-events
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::handleOnboardingEvent
@@ -440,7 +435,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-tenant-config-event
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 89 # Must be less than the VisibilityTimeout setting on the queue
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.OnboardingService::processTenantConfigQueue

@@ -114,7 +114,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
           IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
   IdentityServiceSetProviderLogs:
     Type: AWS::Logs::LogGroup
@@ -138,7 +137,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
           IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
   IdentityServiceGetProviderLogs:
     Type: AWS::Logs::LogGroup
@@ -162,7 +160,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
           IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
   IdentityServiceEventHandlerLogs:
     Type: AWS::Logs::LogGroup
@@ -186,7 +183,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
           IDENTITY_PROVIDER_CONFIG: !GetAtt IdentityServiceProviderConfigSecret.Id
   IdentityServiceEventRule:
     Type: AWS::Events::Rule

@@ -220,7 +220,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-pub-requests
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 384
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishRequestCountMetrics
@@ -252,7 +252,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-pub-response
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 384
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishResponseTimeMetrics
@@ -284,7 +284,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-add-partition
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 384
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::addAthenaPartition
@@ -317,7 +317,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-query
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryMetrics
@@ -351,7 +351,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-datasets
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 384
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::getAccessMetricsSignedUrls
@@ -383,7 +383,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-access-log-query
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryAccessLogs

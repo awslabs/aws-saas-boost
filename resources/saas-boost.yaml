@@ -355,7 +355,7 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-utils
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes: [java17]
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/Utils-lambda.zip
@@ -363,7 +363,7 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-apigw-helper
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes: [java17]
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
@@ -371,7 +371,7 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-cloudformation-utils
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes: [java17]
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
@@ -380,7 +380,7 @@ Resources:
     Condition: UseKeycloak
     Properties:
       LayerName: !Sub sb-${Environment}-keycloak-helper
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes: [java17]
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/KeycloakHelper-lambda.zip
@@ -390,7 +390,7 @@ Resources:
       LayerName: !Sub sb-${Environment}-api-client-helper
       CompatibleRuntimes:
         - java17
-        - java11
+        - java17
         - python3.11
         - python3.10
         - python3.9
@@ -459,7 +459,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-bucket
       Role: !GetAtt ClearBucketExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearS3Bucket
@@ -469,9 +469,6 @@ Resources:
       Layers:
          - !Ref SaaSBoostUtilsLayer
          - !Ref CloudFormationUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -554,7 +551,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-ecr-repo
       Role: !GetAtt ClearEcrRepoExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearEcrRepo
@@ -564,9 +561,6 @@ Resources:
       Layers:
          - !Ref SaaSBoostUtilsLayer
          - !Ref CloudFormationUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -687,7 +681,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-start-build
       Role: !GetAtt CodeBuildStartExecRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.StartCodeBuild
@@ -700,7 +694,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -752,7 +745,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-pipeline-waithandler
       Role: !GetAtt CodePipelineWaitHandlerExecRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.CodePipelineWaitHandler
@@ -765,7 +758,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -827,7 +819,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-update-ecs
       Role: !GetAtt CodePipelineUpdateEcsServiceExecRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsServiceUpdate
@@ -836,9 +828,6 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/EcsServiceUpdate-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

@@ -98,7 +98,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-get-all
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::getTiers
@@ -110,7 +110,6 @@ Resources:
       Environment:
         Variables:
           TIERS_TABLE: !Ref TiersTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -128,7 +127,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-get-by-id
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::getTier
@@ -140,7 +139,6 @@ Resources:
       Environment:
         Variables:
           TIERS_TABLE: !Ref TiersTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -158,7 +156,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-update
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::updateTier
@@ -170,7 +168,6 @@ Resources:
       Environment:
         Variables:
           TIERS_TABLE: !Ref TiersTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -188,7 +185,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-insert
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::insertTier
@@ -200,7 +197,6 @@ Resources:
       Environment:
         Variables:
           TIERS_TABLE: !Ref TiersTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -218,7 +214,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-delete
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::deleteTier
@@ -230,7 +226,6 @@ Resources:
       Environment:
         Variables:
           TIERS_TABLE: !Ref TiersTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

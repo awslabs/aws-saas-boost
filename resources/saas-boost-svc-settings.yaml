@@ -117,16 +117,13 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-rds-options
       Role: !GetAtt RdsOptionsExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 720
       MemorySize: 768
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsOptions
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref CloudFormationUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/RdsOptions-lambda.zip
@@ -222,7 +219,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-get-all
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSettings
@@ -231,10 +228,6 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -252,7 +245,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-get-by-id
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSetting
@@ -261,10 +254,6 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -282,7 +271,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-get-secret
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSecret
@@ -294,7 +283,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -312,7 +300,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-update
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateSetting
@@ -324,7 +312,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -342,7 +329,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-update-config
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateAppConfig
@@ -358,7 +345,6 @@ Resources:
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           RESOURCES_BUCKET: !Ref ResourcesBucket
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -376,7 +362,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-get-config
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getAppConfig
@@ -388,7 +374,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -406,7 +391,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-delete-config
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::deleteAppConfig
@@ -418,7 +403,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -436,7 +420,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-app-config-events
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::handleAppConfigEvent
@@ -451,7 +435,6 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
@@ -469,7 +452,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-options
       Role: !GetAtt SettingsServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::options
@@ -482,7 +465,6 @@ Resources:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
           OPTIONS_TABLE: !Ref RdsOptionsTable
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"

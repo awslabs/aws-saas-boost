@@ -126,7 +126,6 @@ Resources:
           BILLING_TABLE: !Ref BillingTable
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost

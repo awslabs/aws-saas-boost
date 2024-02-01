@@ -797,7 +797,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-keycloak-setup
       Role: !GetAtt KeycloakSetupExecRole.Arn
-      Runtime: java11
+      Runtime: java17
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.keycloak.KeycloakSetup
@@ -811,7 +811,6 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: "Application"
           Value: "SaaSBoost"
