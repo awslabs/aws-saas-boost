@@ -1,7 +1,7 @@
 {
   "swagger" : "2.0",
   "info" : {
-    "title" : "sb-workshop-api"
+    "title" : "sb-env-api"
   },
   "basePath" : "/v1",
   "schemes" : [ "https" ],
