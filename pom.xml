@@ -19,8 +19,8 @@
         <module>functions</module>
         <module>installer</module>
         <module>layers</module>
-        <module>metering-billing</module>
-        <module>metrics-analytics</module>
+        <!--<module>metering-billing</module>-->
+        <!--<module>metrics-analytics</module>-->
         <module>services</module>
     </modules>
     <properties>
@@ -29,7 +29,7 @@
         <assembly.version>3.1.1</assembly.version>
         <checkstyle.version>3.3.0</checkstyle.version>
         <compiler.version>3.8.1</compiler.version>
-        <compiler.java.version>11</compiler.java.version>
+        <compiler.java.version>17</compiler.java.version>
         <spotbugs.version>4.7.3.5</spotbugs.version>
         <surefire.version>3.0.0</surefire.version>
         <!-- dependency versions -->

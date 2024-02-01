@@ -21,7 +21,6 @@ import com.amazon.aws.partners.saasfactory.saasboost.GitVersionInfo;
 import com.amazon.aws.partners.saasfactory.saasboost.Keyboard;
 import com.amazon.aws.partners.saasfactory.saasboost.SaaSBoostInstall;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Environment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -38,6 +37,7 @@ import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.cloudformation.model.StackStatus;
 import software.amazon.awssdk.services.cloudformation.model.UpdateStackRequest;
 import software.amazon.awssdk.services.cloudformation.model.UpdateStackResponse;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -63,15 +63,16 @@ public class UpdateWorkflow extends AbstractWorkflow {
 
     private final Environment environment;
     private final Path workingDir;
-    private final AwsClientBuilderFactory clientBuilderFactory;
+    private final S3Client s3;
+    private final CloudFormationClient cfn;
+    private final ApiGatewayClient apigw;
 
-    public UpdateWorkflow(
-            Path workingDir, 
-            Environment environment, 
-            AwsClientBuilderFactory clientBuilderFactory) {
+    public UpdateWorkflow(Path workingDir, Environment environment, S3Client s3, CloudFormationClient cfn, ApiGatewayClient apigw) {
         this.environment = environment;
         this.workingDir = workingDir;
-        this.clientBuilderFactory = clientBuilderFactory;
+        this.s3 = s3;
+        this.cfn = cfn;
+        this.apigw = apigw;
     }
 
     private boolean confirm() {
@@ -112,7 +113,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                     outputMessage("Updating admin web application...");
                     SaaSBoostInstall.copyAdminWebAppSourceToS3(workingDir,
                             environment.getArtifactsBucket().getBucketName(),
-                            clientBuilderFactory.s3Builder().build());
+                            s3);
                     break;
                 }
                 case CUSTOM_RESOURCES:
@@ -147,7 +148,7 @@ public class UpdateWorkflow extends AbstractWorkflow {
                         if (Path.of(action.getDirectoryName(), target).toFile().exists()) {
                             outputMessage("Updating CloudFormation template: " + target);
                             environment.getArtifactsBucket().putFile(
-                                    clientBuilderFactory.s3Builder().build(), // s3 client
+                                    s3, // s3 client
                                     Path.of(action.getDirectoryName(), target), // local path
                                     Path.of(target)); // remote path
                         } else {
@@ -451,7 +452,6 @@ public class UpdateWorkflow extends AbstractWorkflow {
                 .map(entry -> Parameter.builder().parameterKey(entry.getKey()).parameterValue(entry.getValue()).build())
                 .collect(Collectors.toList());
 
-        CloudFormationClient cfn = clientBuilderFactory.cloudFormationBuilder().build();
         LOGGER.info("Executing CloudFormation update stack for " + stackName);
         try {
             UpdateStackResponse updateStackResponse = cfn.updateStack(UpdateStackRequest.builder()
@@ -515,7 +515,6 @@ public class UpdateWorkflow extends AbstractWorkflow {
         outputMessage("Updating API Gateway deployment for stages");
         try {
             String apiName = "sb-" + environment.getName() + "-api";
-            ApiGatewayClient apigw = clientBuilderFactory.apiGatewayBuilder().build();
             GetRestApisResponse response = apigw.getRestApis();
             if (response.hasItems()) {
                 for (RestApi api : response.items()) {

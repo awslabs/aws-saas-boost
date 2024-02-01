@@ -16,9 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.workflow;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -33,13 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
-import com.amazon.aws.partners.saasfactory.saasboost.clients.MockAwsClientBuilderFactory;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Environment;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class UpdateWorkflowTest {
 
@@ -49,12 +45,10 @@ public class UpdateWorkflowTest {
             .build();
     
     private UpdateWorkflow updateWorkflow;
-    private AwsClientBuilderFactory clientBuilderFactory;
     private Path workingDir;
 
-    @Before
+    @BeforeEach
     public void setup() {
-        clientBuilderFactory = new MockAwsClientBuilderFactory();
         workingDir = Paths.get("../");
         try {
             // location is installer/target/something.jar, so we need
@@ -64,10 +58,10 @@ public class UpdateWorkflowTest {
         } catch (URISyntaxException urise) {
             throw new RuntimeException("Failed to determine installation directory for test");
         }
-        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, clientBuilderFactory);
+        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, null, null, null);
     }
 
-    @After
+    @AfterEach
     public void cleanup() {
         for (UpdateAction action : UpdateAction.values()) {
             action.resetTargets();
@@ -96,9 +90,9 @@ public class UpdateWorkflowTest {
         expected.put("DefaultStringParameter", "foobar");
         expected.put("NumericParameter", "1");
 
-        assertEquals("Template has 3 parameters", expected.size(), actual.size());
+        assertEquals(expected.size(), actual.size(), "Template has 3 parameters");
         for (Map.Entry<String, String> entry : expected.entrySet()) {
-            assertEquals(entry.getKey() + " equals " + entry.getValue(), entry.getValue(), actual.get(entry.getKey()));
+            assertEquals(entry.getValue(), actual.get(entry.getKey()), entry.getKey() + " equals " + entry.getValue());
         }
     }
 

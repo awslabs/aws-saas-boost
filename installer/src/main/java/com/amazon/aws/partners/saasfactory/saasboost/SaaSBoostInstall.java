@@ -16,7 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Environment;
 import com.amazon.aws.partners.saasfactory.saasboost.model.EnvironmentLoadException;
 import com.amazon.aws.partners.saasfactory.saasboost.model.ExistingEnvironmentFactory;
@@ -24,9 +23,11 @@ import com.amazon.aws.partners.saasfactory.saasboost.workflow.UpdateWorkflow;
 import com.amazon.aws.partners.saasfactory.saasboost.workflow.Workflow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.acm.model.*;
@@ -50,6 +51,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
+import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -73,7 +75,6 @@ public class SaaSBoostInstall {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SaaSBoostInstall.class);
 
-    private final AwsClientBuilderFactory awsClientBuilderFactory;
     private final ApiGatewayClient apigw;
     private final CloudFormationClient cfn;
     private final EcrClient ecr;
@@ -132,20 +133,17 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        awsClientBuilderFactory = AwsClientBuilderFactory.builder()
-                .region(AWS_REGION)
-                .build();
-
-        apigw = awsClientBuilderFactory.apiGatewayBuilder().build();
-        cfn = awsClientBuilderFactory.cloudFormationBuilder().build();
-        ecr = awsClientBuilderFactory.ecrBuilder().build();
-        iam = awsClientBuilderFactory.iamBuilder().build();
-        lambda = awsClientBuilderFactory.lambdaBuilder().build();
-        s3 = awsClientBuilderFactory.s3Builder().build();
-        ssm = awsClientBuilderFactory.ssmBuilder().build();
-        route53 = awsClientBuilderFactory.route53Builder().build();
-        acm = awsClientBuilderFactory.acmBuilder().build();
-        accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
+        apigw = Utils.sdkClient(ApiGatewayClient.builder(), ApiGatewayClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        iam = Utils.sdkClient(IamClient.builder(), IamClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        lambda = Utils.sdkClient(LambdaClient.builder(), LambdaClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        acm = Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        accountId = sts.getCallerIdentity().account();
     }
 
     public static void main(String[] args) {
@@ -246,10 +244,7 @@ public class SaaSBoostInstall {
                 install(existingBucket);
                 break;
             case UPDATE:
-                workflow = new UpdateWorkflow(
-                    this.workingDir, 
-                    this.environment, 
-                    this.awsClientBuilderFactory);
+                workflow = new UpdateWorkflow(this.workingDir, this.environment, this.s3, this.cfn, this.apigw);
                 break;
             case UPDATE_WEB_APP:
                 SaaSBoostInstall.copyAdminWebAppSourceToS3(this.workingDir,
@@ -1291,7 +1286,7 @@ public class SaaSBoostInstall {
             DirectoryStream<Path> services = Files.newDirectoryStream(workingDir.resolve(Path.of("services")), Files::isDirectory);
             services.forEach(sourceDirectories::add);
 
-            sourceDirectories.add(workingDir.resolve(Path.of("metering-billing", "lambdas")));
+            //sourceDirectories.add(workingDir.resolve(Path.of("metering-billing", "lambdas")));
 
             final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.zip");
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
@@ -1320,7 +1315,7 @@ public class SaaSBoostInstall {
                         }
                     }
                 } else {
-                    LOGGER.warn("No POM file found in {}", sourceDirectory.toString());
+                    LOGGER.warn("No POM file found in {}", sourceDirectory);
                 }
             }
         } catch (IOException ioe) {

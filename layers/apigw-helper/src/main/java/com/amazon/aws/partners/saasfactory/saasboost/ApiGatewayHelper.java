@@ -377,7 +377,7 @@ public class ApiGatewayHelper {
             if (builder.headers != null) {
                 this.headers = Collections.unmodifiableMap(builder.headers);
             } else {
-                this.headers = Collections.unmodifiableMap(Collections.EMPTY_MAP);
+                this.headers = Collections.unmodifiableMap(Collections.emptyMap());
             }
         }
 

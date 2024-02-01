@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
@@ -38,6 +39,7 @@ import software.amazon.awssdk.core.internal.retry.SdkDefaultRetrySetting;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.partitionmetadata.AwsCnPartitionMetadata;
@@ -211,6 +213,17 @@ public class Utils {
 
     public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(
             AwsSyncClientBuilder<B, C> builder, String service) {
+        return sdkClient(builder, service, UrlConnectionHttpClient.builder());
+    }
+
+    public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(
+            AwsSyncClientBuilder<B, C> builder, String service, SdkHttpClient.Builder httpClientBuilder) {
+        return sdkClient(builder, service, httpClientBuilder, EnvironmentVariableCredentialsProvider.create());
+    }
+
+    public static <B extends AwsSyncClientBuilder<B, C> & AwsClientBuilder<?, C>, C> C sdkClient(
+            AwsSyncClientBuilder<B, C> builder, String service, SdkHttpClient.Builder httpClientBuilder,
+            AwsCredentialsProvider credentialsProvider) {
         if (Utils.isBlank(System.getenv("AWS_REGION"))) {
             throw new IllegalStateException("Missing required environment variable AWS_REGION");
         }
@@ -247,8 +260,8 @@ public class Utils {
         }
 
         C client = builder
-                .httpClientBuilder(UrlConnectionHttpClient.builder())
-                .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+                .httpClientBuilder(httpClientBuilder)
+                .credentialsProvider(credentialsProvider)
                 .region(region)
                 .endpointOverride(URI.create(endpoint))
                 .overrideConfiguration(ClientOverrideConfiguration.builder()

@@ -40,11 +40,8 @@ import java.util.stream.Collectors;
 public final class ExistingEnvironmentFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExistingEnvironmentFactory.class);
 
-    public static Environment findExistingEnvironment(
-            SsmClient ssm, 
-            CloudFormationClient cfn, 
-            String environmentName,
-            String accountId) {
+    public static Environment findExistingEnvironment(SsmClient ssm, CloudFormationClient cfn, String environmentName,
+                                                      String accountId) {
         if (Utils.isBlank(environmentName)) {
             throw new EnvironmentLoadException("EnvironmentName cannot be blank.");
         }
@@ -62,10 +59,8 @@ public final class ExistingEnvironmentFactory {
     }
 
     // VisibleForTesting
-    static SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket(
-            SsmClient ssm, 
-            String environmentName, 
-            Region region) {
+    static SaaSBoostArtifactsBucket getExistingSaaSBoostArtifactBucket(SsmClient ssm, String environmentName,
+                                                                       Region region) {
         LOGGER.debug("Getting existing SaaS Boost artifact bucket name from Parameter Store");
         String artifactsBucket = null;
         try {
@@ -111,9 +106,8 @@ public final class ExistingEnvironmentFactory {
     }
 
     // VisibleForTesting
-    static Map<String, String> getExistingSaaSBoostStackDetails(
-            CloudFormationClient cfn, 
-            String baseCloudFormationStackName) {
+    static Map<String, String> getExistingSaaSBoostStackDetails(CloudFormationClient cfn,
+                                                                String baseCloudFormationStackName) {
         LOGGER.debug("Getting CloudFormation stack details for SaaS Boost stack {}", baseCloudFormationStackName);
         Map<String, String> details = new HashMap<>();
         // TODO not sure we need this

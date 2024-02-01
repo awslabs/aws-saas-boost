@@ -16,23 +16,24 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.policybuilder.iam.IamPolicy;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
 import java.nio.file.Path;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class SaaSBoostArtifactsBucketTest {
 
     private static final String ENV_NAME = "env-name";
@@ -41,7 +42,7 @@ public class SaaSBoostArtifactsBucketTest {
     @Mock
     S3Client mockS3;
 
-    @Before
+    @BeforeEach
     public void reset() {
         Mockito.reset(mockS3);
     }
@@ -58,12 +59,13 @@ public class SaaSBoostArtifactsBucketTest {
         Path exampleRemotePath = Path.of("dir", "dir2");
         testBucket.putFile(mockS3, localPathToTestPut, exampleRemotePath);
         Mockito.verify(mockS3).putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture());
-        assertEquals("Put object to the wrong bucket.",
-                testBucket.getBucketName(), putObjectRequestArgumentCaptor.getValue().bucket());
-        assertEquals("Put object to the wrong location.",
-                exampleRemotePath.toString().replace('\\', '/'), putObjectRequestArgumentCaptor.getValue().key());
-        assertEquals("Put different length object to remote location. Wrong file?",
-                localPathToTestPut.toFile().length(), requestBodyArgumentCaptor.getValue().contentLength());
+        assertEquals(testBucket.getBucketName(), putObjectRequestArgumentCaptor.getValue().bucket(),
+                "Put object to the wrong bucket.");
+        assertEquals(exampleRemotePath.toString().replace('\\', '/'),
+                putObjectRequestArgumentCaptor.getValue().key(),
+                "Put object to the wrong location.");
+        assertEquals(localPathToTestPut.toFile().length(), requestBodyArgumentCaptor.getValue().contentLength(),
+                "Put different length object to remote location. Wrong file?");
     }
 
     @Test
@@ -78,16 +80,16 @@ public class SaaSBoostArtifactsBucketTest {
         if (capturedCreateBucketRequest.createBucketConfiguration() != null) {
             // if no createBucketConfiguration is passed in the createBucketRequest,
             // there is implicitly no location constraint (because constraint must be part of the config)
-            assertNull("No location constraint should be provided for buckets in us-east-1",
-                    createBucketRequestArgumentCaptor.getValue().createBucketConfiguration().locationConstraint());
+            assertNull(createBucketRequestArgumentCaptor.getValue().createBucketConfiguration().locationConstraint(),
+                    "No location constraint should be provided for buckets in us-east-1");
         }
         Mockito.reset(mockS3);
 
         SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_WEST_2, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).createBucket(createBucketRequestArgumentCaptor.capture());
-        assertEquals("Location constraint should be provided for buckets in us-west-2",
-                BucketLocationConstraint.US_WEST_2,
-                createBucketRequestArgumentCaptor.getValue().createBucketConfiguration().locationConstraint());
+        assertEquals(BucketLocationConstraint.US_WEST_2,
+                createBucketRequestArgumentCaptor.getValue().createBucketConfiguration().locationConstraint(),
+                "Location constraint should be provided for buckets in us-west-2");
     }
 
     @Test
@@ -99,8 +101,8 @@ public class SaaSBoostArtifactsBucketTest {
         Mockito.verify(mockS3).putBucketEncryption(putBucketEncryptionRequestArgumentCaptor.capture());
         PutBucketEncryptionRequest capturedPutBucketEncryptionRequest =
                 putBucketEncryptionRequestArgumentCaptor.getValue();
-        assertEquals("Put encryption to the wrong bucket.",
-                createdBucket.getBucketName(), capturedPutBucketEncryptionRequest.bucket());
+        assertEquals(createdBucket.getBucketName(), capturedPutBucketEncryptionRequest.bucket(),
+                "Put encryption to the wrong bucket.");
         assertNotNull(capturedPutBucketEncryptionRequest.serverSideEncryptionConfiguration());
         assertNotNull(capturedPutBucketEncryptionRequest.serverSideEncryptionConfiguration().rules());
         assertTrue(capturedPutBucketEncryptionRequest.serverSideEncryptionConfiguration().rules().contains(
@@ -117,11 +119,12 @@ public class SaaSBoostArtifactsBucketTest {
                 SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.US_EAST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).putBucketPolicy(putBucketPolicyArgumentCaptor.capture());
         PutBucketPolicyRequest capturedPutBucketPolicyRequest = putBucketPolicyArgumentCaptor.getValue();
-        assertEquals("Put bucket policy to the wrong bucket.",
-                createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket());
+        assertEquals(createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket(),
+                "Put bucket policy to the wrong bucket.");
         assertNotNull(capturedPutBucketPolicyRequest.policy());
         String partition = createdBucket.getRegion().metadata().partition().id();
-        assertEquals("{\n"
+        IamPolicy createdPolicy = IamPolicy.fromJson(capturedPutBucketPolicyRequest.policy());
+        IamPolicy expectedPolicy = IamPolicy.fromJson("{\n"
                 + "    \"Version\": \"2012-10-17\",\n"
                 + "    \"Statement\": [\n"
                 + "        {\n"
@@ -149,7 +152,8 @@ public class SaaSBoostArtifactsBucketTest {
                 + "            \"Resource\": \"arn:" + partition + ":s3:::"  + createdBucket.getBucketName() + "/saas-boost-app-integration.yaml\"\n"
                 + "        }\n"
                 + "    ]\n"
-                + "}", capturedPutBucketPolicyRequest.policy());
+                + "}");
+        assertEquals(expectedPolicy, createdPolicy);
     }
 
     @Test
@@ -160,11 +164,12 @@ public class SaaSBoostArtifactsBucketTest {
                 SaaSBoostArtifactsBucket.createS3ArtifactBucket(mockS3, ENV_NAME, Region.CN_NORTHWEST_1, APP_PLANE_ACCOUNT);
         Mockito.verify(mockS3).putBucketPolicy(putBucketPolicyArgumentCaptor.capture());
         PutBucketPolicyRequest capturedPutBucketPolicyRequest = putBucketPolicyArgumentCaptor.getValue();
-        assertEquals("Put bucket policy to the wrong bucket.",
-                createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket());
+        assertEquals(createdBucket.getBucketName(), capturedPutBucketPolicyRequest.bucket(),
+                "Put bucket policy to the wrong bucket.");
         assertNotNull(capturedPutBucketPolicyRequest.policy());
         String partition = createdBucket.getRegion().metadata().partition().id();
-        assertEquals("{\n"
+        IamPolicy createdPolicy = IamPolicy.fromJson(capturedPutBucketPolicyRequest.policy());
+        IamPolicy expectedPolicy = IamPolicy.fromJson("{\n"
                 + "    \"Version\": \"2012-10-17\",\n"
                 + "    \"Statement\": [\n"
                 + "        {\n"
@@ -192,6 +197,7 @@ public class SaaSBoostArtifactsBucketTest {
                 + "            \"Resource\": \"arn:" + partition + ":s3:::"  + createdBucket.getBucketName() + "/saas-boost-app-integration.yaml\"\n"
                 + "        }\n"
                 + "    ]\n"
-                + "}", capturedPutBucketPolicyRequest.policy());
+                + "}");
+        assertEquals(expectedPolicy, createdPolicy);
     }
 }
