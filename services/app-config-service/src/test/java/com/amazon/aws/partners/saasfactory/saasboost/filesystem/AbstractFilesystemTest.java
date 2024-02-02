@@ -17,22 +17,17 @@
 package com.amazon.aws.partners.saasfactory.saasboost.filesystem;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystemTierConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.efs.EfsFilesystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.efs.EfsFilesystemTierConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxOntapFilesystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxOntapFilesystemTierConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxWindowsFilesystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx.FsxWindowsFilesystemTierConfig;
-import org.junit.Test;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.efs.EfsFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.efs.EfsFilesystemTierConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx.FsxOntapFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx.FsxOntapFilesystemTierConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx.FsxWindowsFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx.FsxWindowsFilesystemTierConfig;
+import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AbstractFilesystemTest {
 

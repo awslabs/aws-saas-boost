@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.efs;
+package com.amazon.aws.partners.saasfactory.saasboost.filesystem.efs;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 

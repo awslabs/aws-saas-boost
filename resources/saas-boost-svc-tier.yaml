@@ -34,7 +34,7 @@ Resources:
   TiersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub sb-${Environment}-tiers2
+      TableName: !Sub sb-${Environment}-tiers
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
@@ -111,12 +111,12 @@ Resources:
         Variables:
           TIERS_TABLE: !Ref TiersTable
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tier"
+        - Key: BoostService
+          Value: Tier
   TierServiceGetByIdLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -140,12 +140,12 @@ Resources:
         Variables:
           TIERS_TABLE: !Ref TiersTable
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tier"
+        - Key: BoostService
+          Value: Tier
   TierServiceUpdateLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -198,12 +198,12 @@ Resources:
         Variables:
           TIERS_TABLE: !Ref TiersTable
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tier"
+        - Key: BoostService
+          Value: Tier
   TierServiceDeleteLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -227,12 +227,12 @@ Resources:
         Variables:
           TIERS_TABLE: !Ref TiersTable
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Tier"
+        - Key: BoostService
+          Value: Tier
 Outputs:
   TierServiceGetAllArn:
     Description: Tier Service get all tiers Lambda ARN

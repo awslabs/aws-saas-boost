@@ -982,11 +982,18 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+  appconfig:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-app-config.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostApi: !Ref SaaSBoostApi
-        ApiStage: !Ref ApiStage
         ResourcesBucket: !Ref Resources
   tenant:
     Type: AWS::CloudFormation::Stack
@@ -1053,10 +1060,11 @@ Resources:
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
         SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
-        SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
-        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-        SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
-        SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
+        SettingsServiceUpdate: !GetAtt settings.Outputs.SettingsServiceUpdateArn
+        AppConfigServiceOptions: !GetAtt appconfig.Outputs.AppConfigServiceOptionsArn
+        AppConfigServiceGet: !GetAtt appconfig.Outputs.AppConfigServiceGetArn
+        AppConfigServiceUpdate: !GetAtt appconfig.Outputs.AppConfigServiceUpdateArn
+        AppConfigServiceDelete: !GetAtt appconfig.Outputs.AppConfigServiceDeleteArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
         TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn

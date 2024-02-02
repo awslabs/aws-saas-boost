@@ -1,6 +1,6 @@
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs;
+package com.amazon.aws.partners.saasfactory.saasboost.compute.ecs;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractComputeTier;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.AbstractComputeTier;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 

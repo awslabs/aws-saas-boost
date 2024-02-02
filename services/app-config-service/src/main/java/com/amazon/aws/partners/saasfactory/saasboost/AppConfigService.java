@@ -16,6 +16,7 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
+import com.amazon.aws.partners.saasfactory.saasboost.compute.AbstractCompute;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
@@ -28,7 +29,10 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -44,6 +48,8 @@ public class AppConfigService {
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private static final String APP_CONFIG_TABLE = System.getenv("APP_CONFIG_TABLE");
+    private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
+    private static final String RESOURCES_BUCKET = System.getenv("RESOURCES_BUCKET");
     private final AppConfigDataAccessLayer dal;
     private final EventBridgeClient eventBridge;
     private final S3Presigner presigner;
@@ -66,16 +72,24 @@ public class AppConfigService {
         this.presigner = init.s3Presigner();
     }
 
-    public APIGatewayProxyResponseEvent options(APIGatewayProxyRequestEvent event, Context context) {
+    /**
+     * Get existing account settings available to use with the AppConfig. Integration for GET /config/options endpoint.
+     * Contains available supported operating systems, ACM SSL/TLS certificates, Route53 hosted zones,
+     * and orderable RDS engines and instance types.
+     * @param event API Gateway proxy request event
+     * @param context
+     * @return Map of available account settings
+     */
+    public APIGatewayProxyResponseEvent configOptions(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
-        final long startTimeMillis = System.currentTimeMillis();
         LOGGER.info("SettingsService::configOptions");
         //Utils.logRequestEvent(event);
 
+        // TODO This data really needs to come from the Application Plane account!
         Map<String, Object> options = new HashMap<>();
         options.put("osOptions", Arrays.stream(OperatingSystem.values())
                 .collect(
@@ -90,15 +104,13 @@ public class AppConfigService {
                 .withHeaders(CORS)
                 .withBody(Utils.toJson(options));
 
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::configOptions exec " + totalTimeMillis);
         return response;
     }
 
-    public APIGatewayProxyResponseEvent getAppConfig(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent getAppConfig(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
         final long startTimeMillis = System.currentTimeMillis();
@@ -108,7 +120,7 @@ public class AppConfigService {
 
         AppConfig appConfig = dal.getAppConfig();
         response = new APIGatewayProxyResponseEvent()
-                .withStatusCode(200)
+                .withStatusCode(HttpURLConnection.HTTP_OK)
                 .withHeaders(CORS)
                 .withBody(Utils.toJson(appConfig));
 
@@ -117,19 +129,16 @@ public class AppConfigService {
         return response;
     }
 
-    public APIGatewayProxyResponseEvent updateAppConfig(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent updateAppConfig(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing environment variable SAAS_BOOST_EVENT_BUS");
-        }
-        if (Utils.isBlank(RESOURCES_BUCKET)) {
-            throw new IllegalStateException("Missing environment variable RESOURCES_BUCKET");
         }
         if (Utils.isBlank(API_APP_CLIENT)) {
             throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         if (Utils.warmup(event)) {
-            //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            LOGGER.info("Warming up");
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
         final long startTimeMillis = System.currentTimeMillis();
@@ -137,46 +146,35 @@ public class AppConfigService {
         Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
 
-        AppConfig updatedAppConfig = Utils.fromJson((String) event.get("body"), AppConfig.class);
+        AppConfig updatedAppConfig = Utils.fromJson(event.getBody(), AppConfig.class);
         if (updatedAppConfig == null) {
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withBody("{\"message\":\"Invalid request body.\"}");
-        } else if (updatedAppConfig.getName() == null || updatedAppConfig.getName().isEmpty()) {
+        } else if (Utils.isBlank(updatedAppConfig.getName())) {
             LOGGER.error("Can't update application configuration without an app name");
             response = new APIGatewayProxyResponseEvent()
                     .withHeaders(CORS)
-                    .withStatusCode(400)
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withBody("{\"message\":\"Application name is required.\"}");
         } else {
             AppConfig currentAppConfig = dal.getAppConfig();
-            if (currentAppConfig.isEmpty()) {
+            if (currentAppConfig == null || currentAppConfig.isEmpty()) {
                 LOGGER.info("Processing first time app config save");
-                // First time setting the app config object don't bother going through all of the validation
-                updatedAppConfig = dal.setAppConfig(updatedAppConfig);
+                // First time setting the app config object don't bother validating whether we can modify it or not
+                updatedAppConfig = dal.insertAppConfig(updatedAppConfig);
 
                 // If the app config has any databases, get the presigned S3 urls to upload bootstrap files
                 generateDatabaseBootstrapFileUrl(updatedAppConfig);
 
                 Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                         AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
-                        Collections.EMPTY_MAP
+                        Collections.emptyMap()
                 );
 
-                if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
-                    // 1. We didn't have a billing provider and now we do, trigger setup
-                    // Existing provisioned tenants won't be subscribed to a billing plan
-                    // so we don't need to update the tenant stacks.
-                    LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
-                    Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                            "Billing System Setup",
-                            Map.of("message", "System Setup")
-                    );
-                }
-
                 response = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
+                        .withStatusCode(HttpURLConnection.HTTP_OK)
                         .withHeaders(CORS)
                         .withBody(Utils.toJson(updatedAppConfig));
             } else {
@@ -193,43 +191,13 @@ public class AppConfigService {
                         fireUpdateAppConfigEvent = true;
                     }
 
-                    if (AppConfigHelper.isBillingChanged(currentAppConfig, updatedAppConfig)) {
-                        String apiKey1 = currentAppConfig.getBilling() != null
-                                ? currentAppConfig.getBilling().getApiKey() : null;
-                        String apiKey2 = updatedAppConfig.getBilling() != null
-                                ? updatedAppConfig.getBilling().getApiKey() : null;
-                        LOGGER.info("AppConfig billing provider has changed {} != {}", apiKey1, apiKey2);
-                        if (AppConfigHelper.isBillingFirstTime(currentAppConfig, updatedAppConfig)) {
-                            // 1. We didn't have a billing provider and now we do, trigger setup
-                            // Existing provisioned tenants won't be subscribed to a billing plan
-                            // so we don't need to update the tenant stacks.
-                            LOGGER.info("AppConfig now has a billing provider. Triggering billing setup.");
-                            Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
-                                    "Billing System Setup",
-                                    Map.of("message", "System Setup")
-                            );
-                        } else if (AppConfigHelper.isBillingRemoved(currentAppConfig, updatedAppConfig)) {
-                            // 2. We had a billing provider and now we don't, disable integration
-                            LOGGER.info("AppConfig has removed the billing provider.");
-                            // TODO how do we cleanup the billing provider integration?
-                        } else {
-                            // 3. We had a billing provider and we're just changing the value of the key, that is
-                            // taken care of by dal.setAppConfig and we don't need to trigger a setup because
-                            // it's already been done.
-                            LOGGER.info("AppConfig billing provider API key in-place change.");
-                        }
-                    }
-
                     if (AppConfigHelper.isServicesChanged(currentAppConfig, updatedAppConfig)) {
                         LOGGER.info("AppConfig application services changed");
                         // Currently you can only remove services if there are no provisioned tenants
-                        Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig, updatedAppConfig);
+                        Set<String> removedServices = AppConfigHelper.removedServices(currentAppConfig,
+                                updatedAppConfig);
                         if (!removedServices.isEmpty()) {
-                            LOGGER.info("Services {} were removed from AppConfig: deleting their parameters.",
-                                    removedServices);
-                            for (String serviceName : removedServices) {
-                                dal.deleteServiceConfig(currentAppConfig, serviceName);
-                            }
+                            LOGGER.info("Services {} were removed from AppConfig", removedServices);
                         }
                         fireUpdateAppConfigEvent = true;
                     }
@@ -237,7 +205,7 @@ public class AppConfigService {
                     // TODO how do we want to deal with tier settings changes?
 
                     LOGGER.info("Persisting updated app config");
-                    updatedAppConfig = dal.setAppConfig(updatedAppConfig);
+                    updatedAppConfig = dal.updateAppConfig(updatedAppConfig);
 
                     // If the app config has any databases, get the presigned S3 urls to upload bootstrap files
                     if (!provisioned) {
@@ -249,18 +217,18 @@ public class AppConfigService {
                         // due to changes in the app config
                         Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                                 AppConfigEvent.APP_CONFIG_CHANGED.detailType(),
-                                Collections.EMPTY_MAP
+                                Collections.emptyMap()
                         );
                     }
 
                     response = new APIGatewayProxyResponseEvent()
-                            .withStatusCode(200)
+                            .withStatusCode(HttpURLConnection.HTTP_OK)
                             .withHeaders(CORS)
                             .withBody(Utils.toJson(updatedAppConfig));
                 } else {
                     LOGGER.info("App config update validation failed");
                     response = new APIGatewayProxyResponseEvent()
-                            .withStatusCode(400)
+                            .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                             .withHeaders(CORS)
                             .withBody("{\"message\":\"Application config update validation failed.\"}");
                 }
@@ -272,31 +240,34 @@ public class AppConfigService {
         return response;
     }
 
-    public APIGatewayProxyResponseEvent deleteAppConfig(Map<String, Object> event, Context context) {
+    public APIGatewayProxyResponseEvent deleteAppConfig(APIGatewayProxyRequestEvent event, Context context) {
         if (Utils.warmup(event)) {
             //LOGGER.info("Warming up");
-            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(200);
+            return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
-
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsService::deleteAppConfig");
-        Utils.logRequestEvent(event);
+        //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
-
-        try {
-            dal.deleteAppConfig();
+        Map<String, String> params = event.getPathParameters();
+        String id = params.get("id");
+        AppConfig appConfig = dal.getAppConfig();
+        if (appConfig == null || appConfig.getId() == null || !appConfig.getId().toString().equals(id)) {
             response = new APIGatewayProxyResponseEvent()
+                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
-                    .withStatusCode(200);
-        } catch (Exception e) {
-            response = new APIGatewayProxyResponseEvent()
-                    .withHeaders(CORS)
-                    .withStatusCode(400)
-                    .withBody("{\"message\":\"Error deleting application settings.\"}");
+                    .withBody(Utils.toJson(Map.of("message", "Invalid appConfig id")));
+        } else {
+            try {
+                dal.deleteAppConfig(appConfig);
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_NO_CONTENT); // No content
+            } catch (Exception e) {
+                response = new APIGatewayProxyResponseEvent()
+                        .withHeaders(CORS)
+                        .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+                        .withBody(Utils.toJson(Map.of("message", "Failed to delete appConfig " + id)));
+            }
         }
-
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsService::deleteAppConfig exec " + totalTimeMillis);
         return response;
     }
 
@@ -369,11 +340,13 @@ public class AppConfigService {
                                 }
                             }
                             // change s3 bucket name if passed (and if s3 already exists in service config)
-                            if (requestedService.getS3() != null && changedServiceConfig.getS3() != null) {
-                                String existingBucketName = requestedService.getS3().getBucketName();
-                                String newBucketName = changedServiceConfig.getS3().getBucketName();
+                            if (requestedService.getObjectStorage() != null
+                                    && changedServiceConfig.getObjectStorage() != null) {
+                                String existingBucketName = requestedService.getObjectStorage().getBucketName();
+                                String newBucketName = changedServiceConfig.getObjectStorage().getBucketName();
                                 if (!Utils.nullableEquals(existingBucketName, newBucketName)) {
-                                    newServiceConfigBuilder = newServiceConfigBuilder.s3(changedServiceConfig.getS3());
+                                    newServiceConfigBuilder = newServiceConfigBuilder
+                                            .objectStorage(changedServiceConfig.getObjectStorage());
                                 }
                             }
                             ServiceConfig newServiceConfig = newServiceConfigBuilder.build();
@@ -381,11 +354,14 @@ public class AppConfigService {
                                 LOGGER.info("Updating serviceConfig from {} to {}",
                                         requestedService, newServiceConfig);
                                 update = true;
-                                dal.setServiceConfig(newServiceConfig);
+                                existingAppConfig.getServices().put(changedServiceName, newServiceConfig);
                             }
                         } else {
                             LOGGER.error("Can't find app config service {}", changedServiceName);
                         }
+                    }
+                    if (update) {
+                        dal.updateAppConfig(existingAppConfig);
                     }
                 }
                 // If there are provisioned tenants, and we just ran an update to the infrastructure
@@ -396,7 +372,7 @@ public class AppConfigService {
                         LOGGER.info("Updated app config with provisioned tenants");
                         Utils.publishEvent(eventBridge, SAAS_BOOST_EVENT_BUS, "saas-boost",
                                 AppConfigEvent.APP_CONFIG_UPDATE_COMPLETED.detailType(),
-                                Collections.EMPTY_MAP);
+                                Collections.emptyMap());
                     }
                 } else {
                     LOGGER.info("No app config changes to process");
@@ -439,8 +415,10 @@ public class AppConfigService {
                 ServiceConfig service = serviceConfig.getValue();
                 LOGGER.info("Saving bootstrap.sql file for {}", service.getName());
                 service.getDatabase().setBootstrapFilename(key);
-                dal.setServiceConfig(service);
-                break;
+                // TODO fix this
+                throw new UnsupportedOperationException("can't save bootstrap.sql file for " + service.getName());
+                //dal.setServiceConfig(service);
+                //break;
             }
         }
     }

@@ -87,20 +87,23 @@ Parameters:
   SettingsServiceById:
     Description: Settings Service get setting Lambda ARN
     Type: String
-  SettingsServiceOptions:
-    Description: Settings Service get configuration options Lambda ARN
-    Type: String
-  SettingsServiceGetAppConfig:
-    Description: Settings Service get application configuration Lambda ARN
-    Type: String
-  SettingsServiceUpdateAppConfig:
-    Description: Settings Service update application configuration Lambda ARN
-    Type: String
   SettingsServiceGetSecret:
     Description: Settings Service get decrypted secret setting Lambda ARN
     Type: String
-  SettingsServiceDeleteAppConfig:
-    Description: Settings Service delete application configuration Lambda ARN
+  SettingsServiceUpdate:
+    Description: Settings Service update setting Lambda ARN
+    Type: String
+  AppConfigServiceOptions:
+    Description: AppConfig Service get configuration options Lambda ARN
+    Type: String
+  AppConfigServiceGet:
+    Description: AppConfig Service get application configuration Lambda ARN
+    Type: String
+  AppConfigServiceUpdate:
+    Description: AppConfig Service update application configuration Lambda ARN
+    Type: String
+  AppConfigServiceDelete:
+    Description: AppConfig Service delete application configuration Lambda ARN
     Type: String
   TenantServiceGetAll:
     Description: Tenant Service get all tenants Lambda ARN
@@ -220,12 +223,12 @@ Resources:
           API_APP_CLIENT_ID: !Ref ApiAppClientId
           PRIVATE_API_APP_CLIENT_ID: !Ref PrivateApiAppClientId
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Authorizer"
+        - Key: BoostService
+          Value: Authorizer
   ApiGatewayLoggingRole:
     Type: AWS::IAM::Role
     Properties:
@@ -357,25 +360,25 @@ Resources:
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
-      PathPart: 'metrics'
+      PathPart: metrics
   MetricsServiceQueryResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
-      PathPart: 'query'
+      PathPart: query
   MetricsServiceDatasetsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
-      PathPart: 'datasets'
+      PathPart: datasets
   MetricsServiceAlbResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref MetricsServiceResource
-      PathPart: 'alb'
+      PathPart: alb
   MetricsServiceAlbMetricResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -633,7 +636,7 @@ Resources:
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
-      PathPart: 'onboarding'
+      PathPart: onboarding
   OnboardingServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -782,19 +785,7 @@ Resources:
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
-      PathPart: 'settings'
-  SettingsServiceConfigResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref SettingsServiceResource
-      PathPart: 'config'
-  SettingsServiceOptionsResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref SettingsServiceResource
-      PathPart: 'options'
+      PathPart: settings
   SettingsServiceByIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -806,7 +797,7 @@ Resources:
     Properties:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref SettingsServiceByIdResource
-      PathPart: 'secret'
+      PathPart: secret
   SettingsServiceGetAllMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -862,166 +853,33 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  SettingsServiceOptionsMethod:
+  SettingsServiceUpdateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceOptionsResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceOptions}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceOptionsPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceOptions
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/options
-  SettingsServiceOptionsResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceOptionsResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  SettingsServiceGetAppConfigMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceConfigResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAppConfig}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceGetAppConfigLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceGetAppConfig
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/config
-  SettingsServiceUpdateAppConfigMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceConfigResource
+      ResourceId: !Ref SettingsServiceByIdResource
       HttpMethod: PUT
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdateAppConfig}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdate}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
       MethodResponses:
         - StatusCode: '200'
           ResponseModels: {application/json: Empty}
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceUpdateAppConfigLambdaPermission:
+  SettingsServiceUpdateLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceUpdateAppConfig
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/settings/config
-  SettingsServiceDeleteAppConfigMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceConfigResource
-      HttpMethod: DELETE
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceDeleteAppConfig}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  SettingsServiceDeleteAppConfigLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SettingsServiceDeleteAppConfig
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/settings/config
-  SettingsServiceConfigResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref SettingsServiceConfigResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,PUT'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
+      FunctionName: !Ref SettingsServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/settings/{id}
   SettingsServiceGetByIdMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -1122,6 +980,178 @@ Resources:
             ResponseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
               method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  AppConfigServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: appconfig
+  AppConfigServiceOptionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref AppConfigServiceResource
+      PathPart: options
+  AppConfigServiceOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceOptionsResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceOptions}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceOptionsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceOptions
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/appconfig/options
+  AppConfigServiceOptionsResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceOptionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  AppConfigServiceGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceGet}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceGetLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceGet
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/appconfig
+  AppConfigServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/appconfig
+  AppConfigServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceDeleteAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/appconfig
+  AppConfigServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,PUT,DELETE'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Max-Age: "'3600'"
               method.response.header.X-Requested-With: "'*'"
@@ -2023,16 +2053,17 @@ Resources:
       - OnboardingServiceByIdResourceCORS
       - SettingsServiceGetAllMethod
       - SettingsServiceResourceCORS
-      - SettingsServiceOptionsMethod
-      - SettingsServiceOptionsResourceCORS
-      - SettingsServiceGetAppConfigMethod
-      - SettingsServiceUpdateAppConfigMethod
-      - SettingsServiceDeleteAppConfigMethod
-      - SettingsServiceConfigResourceCORS
       - SettingsServiceGetByIdMethod
+      - SettingsServiceUpdateMethod
       - SettingsServiceByIdResourceCORS
       - SettingsServiceSecretMethod
       - SettingsServiceSecretResourceCORS
+      - AppConfigServiceOptionsMethod
+      - AppConfigServiceOptionsResourceCORS
+      - AppConfigServiceGetMethod
+      - AppConfigServiceUpdateMethod
+      - AppConfigServiceDeleteMethod
+      - AppConfigServiceResourceCORS
       - TenantServiceGetAllMethod
       - TenantServiceInsertMethod
       - TenantServiceResourceCORS

@@ -16,9 +16,8 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystem;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.AbstractCompute;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.AbstractFilesystem;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
@@ -34,7 +33,7 @@ public class ServiceConfig {
     private final String description;
     private final String path;
     private final Database database;
-    private final S3Storage s3;
+    private final ObjectStorage objectStorage;
     private final AbstractFilesystem filesystem;
     private final AbstractCompute compute;
 
@@ -44,7 +43,7 @@ public class ServiceConfig {
         this.description = builder.description;
         this.path = builder.path;
         this.database = builder.database;
-        this.s3 = builder.s3;
+        this.objectStorage = builder.objectStorage;
         this.filesystem = builder.filesystem;
         this.compute = builder.compute;
     }
@@ -60,7 +59,7 @@ public class ServiceConfig {
                 .description(other.getDescription())
                 .path(other.getPath())
                 .database(other.getDatabase())
-                .s3(other.s3)
+                .objectStorage(other.objectStorage)
                 .filesystem(other.getFilesystem())
                 .compute(other.getCompute());
     }
@@ -89,8 +88,8 @@ public class ServiceConfig {
         return database != null;
     }
 
-    public S3Storage getS3() {
-        return s3;
+    public ObjectStorage getObjectStorage() {
+        return objectStorage;
     }
 
     public AbstractFilesystem getFilesystem() {
@@ -122,14 +121,14 @@ public class ServiceConfig {
             && Utils.nullableEquals(path, other.path)
             && Utils.nullableEquals(publiclyAddressable, other.publiclyAddressable)
             && Utils.nullableEquals(database, other.database)
-            && Utils.nullableEquals(s3, other.s3)
+            && Utils.nullableEquals(objectStorage, other.objectStorage)
             && Utils.nullableEquals(filesystem, other.filesystem)
             && Utils.nullableEquals(compute, other.compute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, description, path, publiclyAddressable, database, s3, filesystem, compute);
+        return Objects.hash(name, description, path, publiclyAddressable, database, objectStorage, filesystem, compute);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
@@ -141,7 +140,7 @@ public class ServiceConfig {
         private String description;
         private String path;
         private Database database;
-        private S3Storage s3;
+        private ObjectStorage objectStorage;
         private AbstractFilesystem filesystem;
         private AbstractCompute compute;
 
@@ -173,8 +172,8 @@ public class ServiceConfig {
             return this;
         }
 
-        public Builder s3(S3Storage s3) {
-            this.s3 = s3;
+        public Builder objectStorage(ObjectStorage s3) {
+            this.objectStorage = s3;
             return this;
         }
 

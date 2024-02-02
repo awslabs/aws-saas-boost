@@ -192,28 +192,6 @@ public class SettingsService {
         return response;
     }
 
-    // Hack to get Web UI to load until we update to use new AppConfig Service
-    public APIGatewayProxyResponseEvent getAppConfigOptions(APIGatewayProxyRequestEvent event, Context context) {
-        Map<String, Object> options = new HashMap<>();
-        options.put("osOptions", Collections.emptyMap());
-        options.put("dbOptions", Collections.emptyList());
-        options.put("acmOptions", Collections.emptyList());
-        options.put("hostedZoneOptions", Collections.emptyList());
-
-        return new APIGatewayProxyResponseEvent()
-                .withStatusCode(HttpURLConnection.HTTP_OK)
-                .withHeaders(CORS)
-                .withBody(Utils.toJson(options));
-    }
-
-    // Hack to get Web UI to load until we update to use new AppConfig Service
-    public APIGatewayProxyResponseEvent getAppConfig(APIGatewayProxyRequestEvent event, Context context) {
-        return new APIGatewayProxyResponseEvent()
-                .withStatusCode(HttpURLConnection.HTTP_OK)
-                .withHeaders(CORS)
-                .withBody(Utils.toJson(Map.of("services", Collections.emptyMap())));
-    }
-
     interface SettingsServiceDependencyFactory {
 
         SettingsDataAccessLayer dal();

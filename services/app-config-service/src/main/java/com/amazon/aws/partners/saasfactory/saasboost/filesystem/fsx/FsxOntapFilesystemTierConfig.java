@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx;
+package com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.annotation.JsonProperty;

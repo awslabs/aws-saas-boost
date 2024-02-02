@@ -16,152 +16,135 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfig;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.AppConfigHelper;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.BillingProvider;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.ServiceConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class AppConfigHelperTest {
 
     @Test
     public void testIsDomainChanged() {
-        AppConfig existing = AppConfig.builder().build();
-        AppConfig altered = AppConfig.builder().build();
-        assertFalse("Both null", AppConfigHelper.isDomainChanged(existing, altered));
+        AppConfig existing = new AppConfig();
+        AppConfig altered = new AppConfig();
+        assertFalse(AppConfigHelper.isDomainChanged(existing, altered), "Both null");
 
-        existing = AppConfig.builder().domainName("").build();
-        altered = AppConfig.builder().domainName("").build();
-        assertFalse("Both empty", AppConfigHelper.isDomainChanged(existing, altered));
+        existing.setDomainName("");
+        altered.setDomainName("");
+        assertFalse(AppConfigHelper.isDomainChanged(existing, altered), "Both empty");
 
-        existing = AppConfig.builder().domainName("ABC").build();
-        altered = AppConfig.builder().domainName("abc").build();
-        assertFalse("Ignore case", AppConfigHelper.isDomainChanged(existing, altered));
+        existing.setDomainName("ABC");
+        altered.setDomainName("abc");
+        assertFalse(AppConfigHelper.isDomainChanged(existing, altered), "Ignore case");
 
-        existing = AppConfig.builder().build();
-        altered = AppConfig.builder().domainName("abc").build();
-        assertTrue("null != non-empty", AppConfigHelper.isDomainChanged(existing, altered));
+        existing = new AppConfig();
+        altered.setDomainName("abc");
+        assertTrue(AppConfigHelper.isDomainChanged(existing, altered), "null != non-empty");
 
-        existing = AppConfig.builder().domainName("abc").build();
-        altered = AppConfig.builder().build();
-        assertTrue("null != non-empty", AppConfigHelper.isDomainChanged(existing, altered));
+        existing = new AppConfig();
+        existing.setDomainName("abc");
+        altered = new AppConfig();
+        assertTrue(AppConfigHelper.isDomainChanged(existing, altered), "null != non-empty");
 
-        existing = AppConfig.builder().domainName("abc").build();
-        altered = AppConfig.builder().domainName("xzy").build();
-        assertTrue("Different values", AppConfigHelper.isDomainChanged(existing, altered));
-    }
-
-    @Test
-    public void testIsBillingProviderChanged() {
-        AppConfig existing = AppConfig.builder().build();
-        AppConfig altered = AppConfig.builder().build();
-        assertFalse("Both null", AppConfigHelper.isBillingChanged(existing, altered));
-
-        existing = AppConfig.builder().billing(BillingProvider.builder().build()).build();
-        altered =  AppConfig.builder().billing(BillingProvider.builder().build()).build();
-        assertFalse("Both null keys", AppConfigHelper.isBillingChanged(existing, altered));
-
-        String apiKey1 = "AQICAHhcs1hgJKpJfeso9W7CCTmyCVulso9PlceBD2lnnVksMwFVwWN3pbig0jooa4LJ2IbtAAAAzjCBywYJKoZIhvcNAQcGoIG9MIG6AgEAMIG0BgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDGHgQErKnkEmp2kVkQIBEICBhlZ2lux43UJUx2R0Q3DdK80od7FHeWpA5mCLr7uWipkaQ79lxsx2ffRbwAPRbcves2NEWznQJsCm2+bgJRpE1mPEJtSfXwGVCsbf1RUGIAiB0+k+NKCih8qAlBcBsA9iFvRm0kVqoo9acz3ay56pImzWrg8wrjkhGkspnXZhvK7BZg5/zvxZ != AQICAHhcs1hgJKpJfeso9W7CCTmyCVulso9PlceBD2lnnVksMwFVwWN3pbig0jooa4LJ2IbtAAAAzjCBywYJKoZIhvcNAQcGoIG9MIG6AgEAMIG0BgkqhkiG9w0BBwEwHgYJYIZIAWUDBAEuMBEEDGHgQErKnkEmp2kVkQIBEICBhlZ2lux43UJUx2R0Q3DdK80od7FHeWpA5mCLr7uWipkaQ79lxsx2ffRbwAPRbcves2NEWznQJsCm2+bgJRpE1mPEJtSfXwGVCsbf1RUGIAiB0+k+NKCih8qAlBcBsA9iFvRm0kVqoo9acz3ay56pImzWrg8wrjkhGkspnXZhvK7BZg5/zvxZ";
-        existing = AppConfig.builder().billing(BillingProvider.builder().build()).build();
-        altered = AppConfig.builder().billing(BillingProvider.builder().apiKey(apiKey1).build()).build();
-        assertTrue("One null, one not null", AppConfigHelper.isBillingChanged(existing, altered));
-        assertTrue("First time set", AppConfigHelper.isBillingFirstTime(existing, altered));
+        existing = new AppConfig();
+        existing.setDomainName("abc");
+        altered = new AppConfig();
+        altered.setDomainName("xzy");
+        assertTrue(AppConfigHelper.isDomainChanged(existing, altered), "Different values");
     }
 
     @Test
     public void testIsSslCertArnChanged() {
-        AppConfig existing = AppConfig.builder().build();
-        AppConfig altered = AppConfig.builder().build();
-        assertFalse("Both null", AppConfigHelper.isSslArnChanged(existing, altered));
+        AppConfig existing = new AppConfig();
+        AppConfig altered = new AppConfig();
+        assertFalse(AppConfigHelper.isSslArnChanged(existing, altered), "Both null");
 
-        existing = AppConfig.builder().sslCertificate("").build();
-        altered = AppConfig.builder().sslCertificate("").build();
-        assertFalse("Both empty", AppConfigHelper.isSslArnChanged(existing, altered));
+        existing.setSslCertificate("");
+        altered.setSslCertificate("");
+        assertFalse(AppConfigHelper.isSslArnChanged(existing, altered), "Both empty");
 
-        existing = AppConfig.builder().sslCertificate("ABC").build();
-        altered = AppConfig.builder().sslCertificate("abc").build();
-        assertFalse("Ignore case", AppConfigHelper.isSslArnChanged(existing, altered));
+        existing.setSslCertificate("ABC");
+        altered.setSslCertificate("abc");
+        assertFalse(AppConfigHelper.isSslArnChanged(existing, altered), "Ignore case");
 
-        existing = AppConfig.builder().build();
-        altered = AppConfig.builder().sslCertificate("abc").build();
-        assertTrue("null != non-empty", AppConfigHelper.isSslArnChanged(existing, altered));
+        existing = new AppConfig();
+        altered = new AppConfig();
+        altered.setSslCertificate("abc");
+        assertTrue(AppConfigHelper.isSslArnChanged(existing, altered), "null != non-empty");
 
-        existing = AppConfig.builder().sslCertificate("abc").build();
-        altered = AppConfig.builder().build();
-        assertTrue("null != non-empty", AppConfigHelper.isSslArnChanged(existing, altered));
+        existing = new AppConfig();
+        existing.setSslCertificate("abc");
+        altered = new AppConfig();
+        assertTrue(AppConfigHelper.isSslArnChanged(existing, altered), "null != non-empty");
 
-        existing = AppConfig.builder().sslCertificate("abc").build();
-        altered = AppConfig.builder().sslCertificate("xzy").build();
-        assertTrue("Different values", AppConfigHelper.isSslArnChanged(existing, altered));
+        existing = new AppConfig();
+        existing.setSslCertificate("abc");
+        altered = new AppConfig();
+        altered.setSslCertificate("xyz");
+        assertTrue(AppConfigHelper.isSslArnChanged(existing, altered), "Different values");
     }
 
     @Test
     public void testIsServicesChanged() {
-        AppConfig existing = AppConfig.builder().build();
-        AppConfig altered = AppConfig.builder().build();
+        AppConfig existing = new AppConfig();
+        AppConfig altered = new AppConfig();
         assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
 
         Map<String, ServiceConfig> services1 = new HashMap<>();
         services1.put("foo", ServiceConfig.builder().build());
         Map<String, ServiceConfig> services2 = new HashMap<>();
         services2.put("foo", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        existing.setServices(services1);
+        altered.setServices(services2);
         assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
 
+        existing = new AppConfig();
+        existing.setServices(services1);
         services2.put("bar", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        altered.setServices(services2);
         assertTrue(AppConfigHelper.isServicesChanged(existing, altered));
 
         services2.remove("bar");
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        altered.setServices(services2);
         assertFalse(AppConfigHelper.isServicesChanged(existing, altered));
 
         services1.clear();
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        existing.setServices(services1);
         assertTrue(AppConfigHelper.isServicesChanged(existing, altered));
     }
 
     @Test
     public void testRemovedServices() {
-        AppConfig existing = AppConfig.builder().build();
-        AppConfig altered = AppConfig.builder().build();
+        AppConfig existing = new AppConfig();
+        AppConfig altered = new AppConfig();
         assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
 
         Map<String, ServiceConfig> services1 = new HashMap<>();
         services1.put("foo", ServiceConfig.builder().build());
         Map<String, ServiceConfig> services2 = new HashMap<>();
         services2.put("FOO", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        existing.setServices(services1);
+        altered.setServices(services2);
         // foo | FOO
         assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
 
         // foo | FOO,bar
         services2.put("bar", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        altered.setServices(services2);
         assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
 
         // foo | FOO
         services2.remove("bar");
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        altered.setServices(services2);
         assertTrue(AppConfigHelper.removedServices(existing, altered).isEmpty());
 
         // foo | bar
         services2.remove("FOO");
         services2.put("bar", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        altered.setServices(services2);
         assertFalse(AppConfigHelper.removedServices(existing, altered).isEmpty());
 
         // christmas,easter | bar,baz
@@ -171,8 +154,8 @@ public class AppConfigHelperTest {
         services2.clear();
         services2.put("bar", ServiceConfig.builder().build());
         services2.put("baz", ServiceConfig.builder().build());
-        existing = AppConfig.builder().services(services1).build();
-        altered = AppConfig.builder().services(services2).build();
+        existing.setServices(services1);
+        altered.setServices(services2);
         assertFalse(AppConfigHelper.removedServices(existing, altered).isEmpty());
     }
 }

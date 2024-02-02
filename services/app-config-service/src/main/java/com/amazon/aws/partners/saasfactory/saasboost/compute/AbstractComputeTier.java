@@ -1,4 +1,4 @@
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute;
+package com.amazon.aws.partners.saasfactory.saasboost.compute;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;

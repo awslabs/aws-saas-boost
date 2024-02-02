@@ -1,8 +1,8 @@
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs;
+package com.amazon.aws.partners.saasfactory.saasboost.compute.ecs;
 
+import com.amazon.aws.partners.saasfactory.saasboost.EcsLaunchType;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.EcsLaunchType;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.AbstractCompute;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
@@ -100,7 +100,7 @@ public class EcsCompute extends AbstractCompute {
                     this.ecsLaunchType = EcsLaunchType.valueOf(ecsLaunchType);
                 } catch (IllegalArgumentException e) {
                     throw new RuntimeException(
-                        new IllegalArgumentException("Can't find EcsLaunchType for value " + ecsLaunchType)
+                            new IllegalArgumentException("Can't find EcsLaunchType for value " + ecsLaunchType)
                     );
                 }
             }

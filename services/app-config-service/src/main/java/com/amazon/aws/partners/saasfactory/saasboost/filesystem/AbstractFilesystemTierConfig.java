@@ -1,4 +1,4 @@
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem;
+package com.amazon.aws.partners.saasfactory.saasboost.filesystem;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;

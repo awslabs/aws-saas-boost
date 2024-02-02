@@ -6,26 +6,24 @@ import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.acm.model.*;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.HostedZone;
 import software.amazon.awssdk.services.route53.model.ListHostedZonesRequest;
 import software.amazon.awssdk.services.route53.model.ListHostedZonesResponse;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class AppConfigDataAccessLayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AppConfigDataAccessLayer.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
-
-    static final String APP_BASE_PATH = "app/";
-    // e.g. /saas-boost/test/app/APP_NAME or /saas-boost/test/app/myService/SERVICE_JSON
-    static final Pattern SAAS_BOOST_APP_PATTERN = Pattern.compile("^" + PARAMETER_STORE_PREFIX + APP_BASE_PATH + "(.+)$");
-
     private final String appConfigTable;
     private final DynamoDbClient ddb;
     private final AcmClient acm;
@@ -41,198 +39,77 @@ public class AppConfigDataAccessLayer {
     }
 
     public AppConfig getAppConfig() {
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsServiceDAL::getAppConfig");
-        AppConfig appConfig = appConfigFromSettings(getAppConfigSettings());
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::getAppConfig exec " + totalTimeMillis);
-        return appConfig;
-    }
-
-    public AppConfig setAppConfig(AppConfig appConfig) {
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsServiceDAL::setAppConfig");
-        // updateSettingsAndServices sends PUTs to ParameterStore
-        List<Setting> updatedAppConfigSettings = updateSettingsAndSecrets(appConfigToSettings(appConfig));
-        appConfig = appConfigFromSettings(updatedAppConfigSettings);
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::setAppConfig exec " + totalTimeMillis);
-        return appConfig;
-    }
-
-    public ServiceConfig setServiceConfig(ServiceConfig serviceConfig) {
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsServiceDAL::setServiceConfig");
-        List<Setting> updatedServiceConfigSettings = updateSettingsAndSecrets(serviceConfigToSettings(serviceConfig));
-        serviceConfig = appConfigFromSettings(updatedServiceConfigSettings).getServices().get(serviceConfig.getName());
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::setServiceConfig exec " + totalTimeMillis);
-        return serviceConfig;
-    }
-
-    public List<Setting> getAppConfigSettings() {
-        return getAllParametersUnder(PARAMETER_STORE_PREFIX + APP_BASE_PATH, true)
-                .stream()
-                .map(SettingsServiceDAL::fromAppParameterStore)
-                .collect(Collectors.toList());
-    }
-
-    public void deleteAppConfig() {
-        final long startTimeMillis = System.currentTimeMillis();
-        LOGGER.info("SettingsServiceDAL::deleteAppConfig");
-        // NOTE: Could also implement this like deleteTenantSettings by combining SettingsService::REQUIRED_PARAMS
-        // and SettingsService::READ_WRITE_PARAMS and building the Parameter Store path by hand to avoid the call(s)
-        // to getParameters before the call to deleteParameters
-        AppConfig appConfig = getAppConfig();
-        for (String serviceName : appConfig.getServices().keySet()) {
-            deleteServiceConfig(appConfig, serviceName);
-        }
-        List<String> parametersToDelete = appConfigToSettings(appConfig).stream()
-                .map(s -> toParameterStore(s).name())
-                .collect(Collectors.toList());
-        parameterStore.deleteParameters(parametersToDelete);
-        long totalTimeMillis = System.currentTimeMillis() - startTimeMillis;
-        LOGGER.info("SettingsServiceDAL::deleteAppConfig exec " + totalTimeMillis);
-    }
-
-    public void deleteServiceConfig(AppConfig appConfig, String serviceName) {
-        parameterStore.deleteParameters(serviceConfigToSettings(appConfig.getServices().get(serviceName))
-                .stream()
-                .map(s -> toParameterStore(s).name())
-                .collect(Collectors.toList()));
-    }
-
-    public List<Setting> appConfigToSettings(AppConfig appConfig) {
-        List<Setting> settings = new ArrayList<>();
-
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + "APP_NAME")
-                .value(appConfig.getName())
-                .readOnly(false)
-                .build());
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + "DOMAIN_NAME")
-                .value(appConfig.getDomainName())
-                .readOnly(false)
-                .build());
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + "HOSTED_ZONE")
-                .value(appConfig.getHostedZone())
-                .readOnly(false)
-                .build());
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + "SSL_CERT_ARN")
-                .value(appConfig.getSslCertificate())
-                .readOnly(false)
-                .build());
-
-        for (ServiceConfig serviceConfig : appConfig.getServices().values()) {
-            settings.addAll(serviceConfigToSettings(serviceConfig));
-        }
-
-        String billingApiKeySettingValue = null;
-        if (appConfig.getBilling() != null) {
-            billingApiKeySettingValue = appConfig.getBilling().getApiKey();
-        }
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + "BILLING_API_KEY")
-                .value(billingApiKeySettingValue)
-                .readOnly(false)
-                .secure(true)
-                .build());
-
-        return settings;
-    }
-
-    private AppConfig toAppConfig(Map<String, String> appSettings) {
-        AppConfig.Builder appConfigBuilder = AppConfig.builder()
-                .name(appSettings.get(APP_BASE_PATH + "APP_NAME"))
-                .domainName(appSettings.get(APP_BASE_PATH + "DOMAIN_NAME"))
-                .hostedZone(appSettings.get(APP_BASE_PATH + "HOSTED_ZONE"))
-                .sslCertificate(appSettings.get(APP_BASE_PATH + "SSL_CERT_ARN"));
-
-        // TODO we shouldn't assume Settings passed to this function are encrypted or decrypted
-        // but right now we are assuming they're encrypted, because they always are
-        BillingProvider billingProvider = null;
-        Setting billingApiKey = getSetting(APP_BASE_PATH + "BILLING_API_KEY", true);
-        if (billingApiKey != null && Utils.isNotBlank(billingApiKey.getValue())) {
-            billingProvider = BillingProvider.builder()
-                    .apiKey(appSettings.get(APP_BASE_PATH + "BILLING_API_KEY"))
-                    .build();
-        }
-        appConfigBuilder.billing(billingProvider);
-
-        for (Map.Entry<String, String> appSetting : appSettings.entrySet()) {
-            // every key that contains a "/" is necessarily nested under app
-            // e.g. /app/service_001/DB_PASSWORD
-            //      /app/service_001/SERVICE_JSON
-            if (appSetting.getKey().contains("/") && appSetting.getKey().endsWith("SERVICE_JSON")) {
-                ServiceConfig existingServiceConfig = Utils.fromJson(appSetting.getValue(), ServiceConfig.class);
-
-                // if this serviceConfig has a database, override the password with the encrypted version
-                ServiceConfig.Builder editedServiceConfigBuilder = ServiceConfig.builder(existingServiceConfig);
-                if (existingServiceConfig.hasDatabase()) {
-                    Database.Builder editedDatabaseBuilder = Database.builder(existingServiceConfig.getDatabase());
-                    Setting dbMasterPasswordSetting = getSetting(APP_BASE_PATH + existingServiceConfig.getName() + "/DB_PASSWORD", false);
-                    if (dbMasterPasswordSetting != null) {
-                        editedDatabaseBuilder.password(dbMasterPasswordSetting.getValue());
-                    }
-                    editedServiceConfigBuilder.database(editedDatabaseBuilder.build());
+        AppConfig appConfig = null;
+        try {
+            ScanResponse response = ddb.scan(request -> request.tableName(appConfigTable));
+            if (response.hasItems()) {
+                if (response.items().size() == 1) {
+                    appConfig = fromAttributeValueMap(response.items().get(0));
+                } else if (response.items().size() > 1) {
+                    LOGGER.warn("Unexpected number of appConfig items {}", response.items().size());
                 }
-                appConfigBuilder.serviceConfig(editedServiceConfigBuilder.build());
             }
+        } catch (DynamoDbException e) {
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
         }
-
-        return appConfigBuilder.build();
+        return appConfig;
     }
 
-    public List<Setting> serviceConfigToSettings(ServiceConfig serviceConfig) {
-        List<Setting> settings = new ArrayList<>();
-        // we're keeping the DB_PASSWORD separate so we have an accessible form *somewhere*
-        // but that means we need to create the DB_PASSWORD for each Service
-
-        // editedServiceConfig so that we can replace the password in all databases in tiers to have empty passwords
-        // that way we aren't storing actual passwords.
-        ServiceConfig.Builder editedServiceConfigBuilder = ServiceConfig.builder(serviceConfig);
-        String dbPasswordSettingValue = null;
-        if (serviceConfig.hasDatabase()) {
-            dbPasswordSettingValue = serviceConfig.getDatabase().getPassword();
-
-            Setting dbPasswordSetting = Setting.builder()
-                    .name(APP_BASE_PATH + serviceConfig.getName() + "/DB_PASSWORD")
-                    .value(dbPasswordSettingValue)
-                    .secure(true).readOnly(false).build();
-            settings.add(dbPasswordSetting);
-
-            // place the passwordParam so appConfig holders can find the password if they need it
-            // and override password
-            // passwordParam should be an arn of the form
-            // arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/saas-boost/${Environment}/DB_PASSWORD
-            editedServiceConfigBuilder.database(Database.builder(serviceConfig.getDatabase())
-                    .password("**encrypted**")
-                    .passwordParam(toParameterStore(dbPasswordSetting).name())
-                    .build());
+    public AppConfig insertAppConfig(AppConfig appConfig) {
+        // Unique identifier is owned by the DAL
+        if (appConfig.getId() != null) {
+            throw new IllegalArgumentException("Can't insert a new appConfig that already has an id");
         }
+        UUID appConfigId = UUID.randomUUID();
+        appConfig.setId(appConfigId);
 
-        settings.add(Setting.builder()
-                .name(APP_BASE_PATH + serviceConfig.getName() + "/SERVICE_JSON")
-                .value(Utils.toJson(editedServiceConfigBuilder.build()))
-                .readOnly(false).build());
-
-        return settings;
+        // Created and Modified are owned by the DAL since they reflect when the
+        // object was persisted
+        LocalDateTime now = LocalDateTime.now();
+        appConfig.setCreated(now);
+        appConfig.setModified(now);
+        Map<String, AttributeValue> item = toAttributeValueMap(appConfig);
+        try {
+            ddb.putItem(request -> request.tableName(appConfigTable).item(item));
+        } catch (DynamoDbException e) {
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw e;
+        }
+        return appConfig;
     }
 
-    public AppConfig appConfigFromSettings(List<Setting> appConfigSettings) {
-        // Get the secret value for the optional billing provider or you'll always
-        // be testing for empty against the encrypted hash of the "N/A" sentinel string
-        return toAppConfig(
-                appConfigSettings.stream()
-                        .collect(Collectors.toMap(Setting::getName, Setting::getValue)));
+    // Choosing to do a replacement update as you might do in a RDBMS by
+    // setting columns = NULL when they do not exist in the updated value
+    public AppConfig updateAppConfig(AppConfig appConfig) {
+        try {
+            // Created and Modified are owned by the DAL since they reflect when the
+            // object was persisted
+            appConfig.setModified(LocalDateTime.now());
+            Map<String, AttributeValue> item = toAttributeValueMap(appConfig);
+            ddb.putItem(request -> request.tableName(appConfigTable).item(item));
+        } catch (DynamoDbException e) {
+            LOGGER.error("OnboardingServiceDAL::updateOnboarding " + Utils.getFullStackTrace(e));
+            throw e;
+        }
+        return appConfig;
+    }
+
+    public void deleteAppConfig(AppConfig appConfig) {
+        try {
+            ddb.deleteItem(request -> request
+                    .tableName(appConfigTable)
+                    .key(Map.of("id", AttributeValue.builder().s(appConfig.getId().toString()).build()))
+            );
+        } catch (DynamoDbException e) {
+            LOGGER.error(e.awsErrorDetails().errorMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
     }
 
     public List<Map<String, Object>> rdsOptions() {
         List<Map<String, Object>> orderableOptionsByRegion = new ArrayList<>();
-        /*
         QueryResponse response = ddb.query(request -> request
                 .tableName(appConfigTable)
                 .keyConditionExpression("#region = :region")
@@ -240,9 +117,8 @@ public class AppConfigDataAccessLayer {
                 .expressionAttributeValues(Map.of(":region", AttributeValue.builder().s(AWS_REGION).build()))
         );
         response.items().forEach(item ->
-                orderableOptionsByRegion.add(fromAttributeValueMap(item))
+                orderableOptionsByRegion.add(fromRdsOptionsAttributeValueMap(item))
         );
-        */
         return orderableOptionsByRegion;
     }
 
@@ -257,7 +133,6 @@ public class AppConfigDataAccessLayer {
                         .nextToken(nextToken)
                         .build());
                 LOGGER.info("ACM PENDING_VALIDATION and ISSUED certs: {}", response);
-                // documentation says the SDK will never return a null collection, but just in case
                 if (response.certificateSummaryList() != null) {
                     certificateSummaries.addAll(response.certificateSummaryList());
                 }
@@ -278,8 +153,8 @@ public class AppConfigDataAccessLayer {
                     .build());
             LOGGER.info("Listed hostedZones: {}", response);
             if (response.hasHostedZones() && response.hostedZones() != null) {
-                // we only want to list public zones, since we attaching them to an internet-facing
-                // ApplicationLoadBalancer for the tenant
+                // we only want to list public zones, since we're attaching them to an internet-facing
+                // application load balancer for the tenant
                 for (HostedZone zone : response.hostedZones()) {
                     if (zone.config() != null && !zone.config().privateZone()) {
                         allHostedZones.add(zone);
@@ -289,6 +164,95 @@ public class AppConfigDataAccessLayer {
             marker = response.marker();
         } while (marker != null);
         return allHostedZones;
+    }
+
+    protected static Map<String, AttributeValue> toAttributeValueMap(AppConfig appConfig) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("id", AttributeValue.builder().s(appConfig.getId().toString()).build());
+        if (appConfig.getCreated() != null) {
+            item.put("created", AttributeValue.builder().s(
+                    appConfig.getCreated().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
+        }
+        if (appConfig.getModified() != null) {
+            item.put("modified", AttributeValue.builder().s(
+                    appConfig.getModified().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).build());
+        }
+        if (appConfig.getName() != null) {
+            item.put("name", AttributeValue.builder().s(appConfig.getName()).build());
+        }
+        if (appConfig.getDomainName() != null) {
+            item.put("domain_name", AttributeValue.builder().s(appConfig.getDomainName()).build());
+        }
+        if (appConfig.getHostedZone() != null) {
+            item.put("hosted_zone", AttributeValue.builder().s(appConfig.getHostedZone()).build());
+        }
+        if (appConfig.getSslCertificate() != null) {
+            item.put("ssl_certificate", AttributeValue.builder().s(appConfig.getSslCertificate()).build());
+        }
+        if (appConfig.getServices() != null && !appConfig.getServices().isEmpty()) {
+            item.put("services", AttributeValue.builder().m(appConfig.getServices().entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> AttributeValue.builder().s(Utils.toJson(entry.getValue())).build())
+                    )
+            ).build());
+        }
+        return item;
+    }
+
+    protected static AppConfig fromAttributeValueMap(Map<String, AttributeValue> item) {
+        AppConfig appConfig = null;
+        if (item != null && !item.isEmpty()) {
+            appConfig = new AppConfig();
+            if (item.containsKey("id")) {
+                try {
+                    appConfig.setId(UUID.fromString(item.get("id").s()));
+                } catch (IllegalArgumentException e) {
+                    LOGGER.error("Failed to parse UUID from database: " + item.get("id").s());
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                }
+            }
+            if (item.containsKey("created")) {
+                try {
+                    LocalDateTime created = LocalDateTime.parse(item.get("created").s(),
+                            DateTimeFormatter.ISO_DATE_TIME);
+                    appConfig.setCreated(created);
+                } catch (DateTimeParseException e) {
+                    LOGGER.error("Failed to parse created date from database: " + item.get("created").s());
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                }
+            }
+            if (item.containsKey("modified")) {
+                try {
+                    LocalDateTime created = LocalDateTime.parse(item.get("modified").s(),
+                            DateTimeFormatter.ISO_DATE_TIME);
+                    appConfig.setModified(created);
+                } catch (DateTimeParseException e) {
+                    LOGGER.error("Failed to parse created date from database: " + item.get("modified").s());
+                    LOGGER.error(Utils.getFullStackTrace(e));
+                }
+            }
+            if (item.containsKey("name")) {
+                appConfig.setName(item.get("name").s());
+            }
+            if (item.containsKey("domain_name")) {
+                appConfig.setDomainName(item.get("domain_name").s());
+            }
+            if (item.containsKey("hosted_zone")) {
+                appConfig.setHostedZone(item.get("hosted_zone").s());
+            }
+            if (item.containsKey("ssl_certificate")) {
+                appConfig.setSslCertificate(item.get("ssl_certificate").s());
+            }
+            final Map<String, ServiceConfig> services = new LinkedHashMap<>();
+            if (item.containsKey("services")) {
+                item.get("services").m().entrySet().forEach(
+                        entry -> services.put(entry.getKey(), Utils.fromJson(entry.getValue().s(), ServiceConfig.class))
+                );
+            }
+        }
+        return appConfig;
     }
 
     private static final Comparator<Map<String, String>> INSTANCE_TYPE_COMPARATOR = ((instance1, instance2) -> {
@@ -337,7 +301,7 @@ public class AppConfigDataAccessLayer {
             .thenComparing(INSTANCE_GENERATION_COMPARATOR)
             .thenComparing(INSTANCE_SIZE_COMPARATOR);
 
-    public static Map<String, Object> fromAttributeValueMap(Map<String, AttributeValue> item) {
+    public static Map<String, Object> fromRdsOptionsAttributeValueMap(Map<String, AttributeValue> item) {
         Map<String, Object> option = new LinkedHashMap<>();
         option.put("engine", item.get("engine").s());
         option.put("region", item.get("region").s());
@@ -372,29 +336,4 @@ public class AppConfigDataAccessLayer {
         return option;
     }
 
-    public static Setting fromAppParameterStore(Parameter parameter) {
-        Setting setting = null;
-        if (parameter != null) {
-            String parameterStoreName = parameter.name();
-            if (Utils.isEmpty(parameterStoreName)) {
-                throw new RuntimeException("Can't get Setting name for blank Parameter Store name");
-            }
-            String settingName = null;
-            Matcher regex = SAAS_BOOST_APP_PATTERN.matcher(parameterStoreName);
-            if (regex.matches()) {
-                settingName = regex.group(1);
-            }
-            if (settingName == null) {
-                throw new RuntimeException("Parameter Store Parameter " + parameterStoreName + " does not match SaaS Boost app pattern " + SAAS_BOOST_APP_PATTERN);
-            }
-            setting = Setting.builder()
-                    .name(APP_BASE_PATH + settingName)
-                    .value(!"N/A".equals(parameter.value()) ? parameter.value() : "")
-                    .readOnly(false)
-                    .secure(ParameterType.SECURE_STRING == parameter.type())
-                    .version(parameter.version())
-                    .build();
-        }
-        return setting;
-    }
 }

@@ -46,21 +46,6 @@ public final class AppConfigHelper {
                 && !altered.getHostedZone().equalsIgnoreCase(existing.getHostedZone())));
     }
 
-    public static boolean isBillingChanged(AppConfig existing, AppConfig altered) {
-        return ((existing.getBilling() != null && !existing.getBilling().equals(altered.getBilling()))
-                || (altered.getBilling() != null && !altered.getBilling().equals(existing.getBilling())));
-    }
-
-    public static boolean isBillingFirstTime(AppConfig existing, AppConfig altered) {
-        return ((existing.getBilling() == null || !existing.getBilling().hasApiKey())
-                && (altered.getBilling() != null && altered.getBilling().hasApiKey()));
-    }
-
-    public static boolean isBillingRemoved(AppConfig existing, AppConfig altered) {
-        return ((existing.getBilling() != null && existing.getBilling().hasApiKey())
-                && (altered.getBilling() == null || !altered.getBilling().hasApiKey()));
-    }
-
     public static Set<String> removedServices(AppConfig existing, AppConfig altered) {
         Set<String> removed = new HashSet<>();
         for (String existingKey : existing.getServices().keySet()) {

@@ -16,75 +16,93 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
-@JsonDeserialize(builder = AppConfig.Builder.class)
 public class AppConfig {
-    private final String name;
-    private final String domainName;
-    private final String hostedZone;
-    private final String sslCertificate;
-    private final Map<String, ServiceConfig> services;
-    private final BillingProvider billing;
 
-    private AppConfig(Builder builder) {
-        this.name = builder.name;
-        this.domainName = builder.domainName;
-        this.hostedZone = builder.hostedZone;
-        this.sslCertificate = builder.sslCertificate;
-        this.services = builder.services;
-        this.billing = builder.billing;
+    private UUID id;
+    private LocalDateTime created;
+    private LocalDateTime modified;
+    private String name;
+    private String domainName;
+    private String hostedZone;
+    private String sslCertificate;
+    private Map<String, ServiceConfig> services = new LinkedHashMap<>();
+
+    public AppConfig() {
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public UUID getId() {
+        return id;
     }
 
-    public static Builder builder(AppConfig otherAppConfig) {
-        return new Builder()
-                .name(otherAppConfig.name)
-                .domainName(otherAppConfig.domainName)
-                .hostedZone(otherAppConfig.hostedZone)
-                .sslCertificate(otherAppConfig.sslCertificate)
-                .services(otherAppConfig.services)
-                .billing(otherAppConfig.billing);
+    public void setId(UUID id) {
+        this.id = id;
     }
 
     public String getName() {
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public LocalDateTime getCreated() {
+        return created;
+    }
+
+    public void setCreated(LocalDateTime created) {
+        this.created = created;
+    }
+
+    public LocalDateTime getModified() {
+        return modified;
+    }
+
+    public void setModified(LocalDateTime modified) {
+        this.modified = modified;
+    }
+
     public String getDomainName() {
         return domainName;
+    }
+
+    public void setDomainName(String domainName) {
+        this.domainName = domainName;
     }
 
     public String getHostedZone() {
         return hostedZone;
     }
 
+    public void setHostedZone(String hostedZone) {
+        this.hostedZone = hostedZone;
+    }
+
     public String getSslCertificate() {
         return sslCertificate;
     }
 
-    public BillingProvider getBilling() {
-        return billing;
+    public void setSslCertificate(String sslCertificate) {
+        this.sslCertificate = sslCertificate;
     }
 
     public Map<String, ServiceConfig> getServices() {
         return services != null ? Map.copyOf(services) : null;
     }
 
+    public void setServices(Map<String, ServiceConfig> services) {
+        this.services = services != null ? services : new LinkedHashMap<>();
+    }
+
     @JsonIgnore
     public boolean isEmpty() {
-        return (Utils.isBlank(name) && Utils.isBlank(domainName) && Utils.isBlank(hostedZone)
+        return (id == null && Utils.isBlank(name) && Utils.isBlank(domainName) && Utils.isBlank(hostedZone)
                 && Utils.isBlank(sslCertificate)
-                && (billing == null || !billing.hasApiKey())
                 && (services == null || services.isEmpty()));
     }
 
@@ -107,12 +125,12 @@ public class AppConfig {
             return false;
         }
         final AppConfig other = (AppConfig) obj;
-        return (Utils.nullableEquals(name, other.getName())
-                && Utils.nullableEquals(domainName, other.getDomainName())
-                && Utils.nullableEquals(hostedZone, other.getHostedZone())
-                && Utils.nullableEquals(sslCertificate, other.getSslCertificate())
-                && ((services == null && other.services == null) || (servicesEqual(services, other.services)))
-                && Utils.nullableEquals(billing, other.getBilling()));
+        return (Objects.equals(id, other.getId())
+                && Objects.equals(name, other.getName())
+                && Objects.equals(domainName, other.getDomainName())
+                && Objects.equals(hostedZone, other.getHostedZone())
+                && Objects.equals(sslCertificate, other.getSslCertificate())
+                && ((services == null && other.services == null) || (servicesEqual(services, other.services))));
     }
 
     public static boolean servicesEqual(Map<String, ServiceConfig> services, Map<String, ServiceConfig> otherServices) {
@@ -144,60 +162,7 @@ public class AppConfig {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, domainName, hostedZone, sslCertificate, services, billing);
+        return Objects.hash(id, created, modified, name, domainName, hostedZone, sslCertificate, services);
     }
 
-    @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
-    @JsonIgnoreProperties(value = {"serviceConfig"})
-    public static final class Builder {
-        private String name;
-        private String domainName;
-        private String hostedZone;
-        private String sslCertificate;
-        private Map<String, ServiceConfig> services;
-        private BillingProvider billing;
-
-        private Builder() {
-            services = new HashMap<>();
-        }
-
-        public Builder name(String name) {
-            this.name = name;
-            return this;
-        }
-
-        public Builder domainName(String domainName) {
-            this.domainName = domainName;
-            return this;
-        }
-
-        public Builder hostedZone(String hostedZone) {
-            this.hostedZone = hostedZone;
-            return this;
-        }
-
-        public Builder sslCertificate(String sslCertificate) {
-            this.sslCertificate = sslCertificate;
-            return this;
-        }
-
-        public Builder services(Map<String, ServiceConfig> services) {
-            this.services = services != null ? services : new HashMap<>();
-            return this;
-        }
-
-        public Builder serviceConfig(ServiceConfig serviceConfig) {
-            this.services.put(serviceConfig.getName(), serviceConfig);
-            return this;
-        }
-
-        public Builder billing(BillingProvider billing) {
-            this.billing = billing;
-            return this;
-        }
-
-        public AppConfig build() {
-            return new AppConfig(this);
-        }
-    }
 }

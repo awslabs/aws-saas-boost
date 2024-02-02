@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.fsx;
+package com.amazon.aws.partners.saasfactory.saasboost.filesystem.fsx;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.filesystem.AbstractFilesystemTierConfig;
+import com.amazon.aws.partners.saasfactory.saasboost.filesystem.AbstractFilesystemTierConfig;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
 import java.util.Objects;

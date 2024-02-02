@@ -1,6 +1,6 @@
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AppConfigDataAccessLayerTest {
 
@@ -212,7 +212,7 @@ public class AppConfigDataAccessLayerTest {
             //System.out.println("Unsorted:");
             //System.out.println(Utils.toJson(instances));
 
-            Collections.sort(instances, SettingsDataAccessLayer.RDS_INSTANCE_COMPARATOR);
+            Collections.sort(instances, AppConfigDataAccessLayer.RDS_INSTANCE_COMPARATOR);
 
             //System.out.println();
             //System.out.println("Sorted:");
@@ -338,45 +338,45 @@ public class AppConfigDataAccessLayerTest {
                 }
             }
 
-            assertTrue("lastIndexOfT is defined", lastIndexOfT != -1);
-            assertTrue("lastIndexOfM is defined", lastIndexOfM != -1);
-            assertTrue("lastIndexOfM4 is defined", lastIndexOfM4 != -1);
-            assertTrue("firstIndexOfM is defined", firstIndexOfM != -1);
-            assertTrue("firstIndexOfR is defined", firstIndexOfR != -1);
-            assertTrue("firstIndexOfM5 is defined", firstIndexOfM5 != -1);
-            assertTrue("lastIndexOfMicro is defined", lastIndexOfMicro != -1);
-            assertTrue("lastIndexOfSmall is defined", lastIndexOfSmall != -1);
-            assertTrue("lastIndexOfMedium is defined", lastIndexOfMedium != -1);
-            assertTrue("lastIndexOfLarge is defined", lastIndexOfLarge != -1);
-            assertTrue("lastIndexOfXL is defined", lastIndexOfXL != -1);
-            assertTrue("lastIndexOf2XL is defined", lastIndexOf2XL != -1);
-            assertTrue("lastIndexOf4XL is defined", lastIndexOf4XL != -1);
-            assertTrue("lastIndexOf12XL is defined", lastIndexOf12XL != -1);
-            assertTrue("firstIndexOfSmall is defined", firstIndexOfSmall != -1);
-            assertTrue("firstIndexOfMedium is defined", firstIndexOfMedium != -1);
-            assertTrue("firstIndexOfLarge is defined", firstIndexOfLarge != -1);
-            assertTrue("firstIndexOfXL is defined", firstIndexOfXL != -1);
-            assertTrue("firstIndexOf2XL is defined", firstIndexOf2XL != -1);
-            assertTrue("firstIndexOf4XL is defined", firstIndexOf4XL != -1);
-            assertTrue("firstIndexOf12XL is defined", firstIndexOf12XL != -1);
-            assertTrue("firstIndexOf24XL is defined", firstIndexOf24XL != -1);
+            assertTrue(lastIndexOfT != -1, "lastIndexOfT is defined");
+            assertTrue(lastIndexOfM != -1, "lastIndexOfM is defined");
+            assertTrue(lastIndexOfM4 != -1, "lastIndexOfM4 is defined");
+            assertTrue(firstIndexOfM != -1, "firstIndexOfM is defined");
+            assertTrue(firstIndexOfR != -1, "firstIndexOfR is defined");
+            assertTrue(firstIndexOfM5 != -1, "firstIndexOfM5 is defined");
+            assertTrue(lastIndexOfMicro != -1, "lastIndexOfMicro is defined");
+            assertTrue(lastIndexOfSmall != -1, "lastIndexOfSmall is defined");
+            assertTrue(lastIndexOfMedium != -1, "lastIndexOfMedium is defined");
+            assertTrue(lastIndexOfLarge != -1, "lastIndexOfLarge is defined");
+            assertTrue(lastIndexOfXL != -1, "lastIndexOfXL is defined");
+            assertTrue(lastIndexOf2XL != -1, "lastIndexOf2XL is defined");
+            assertTrue(lastIndexOf4XL != -1, "lastIndexOf4XL is defined");
+            assertTrue(lastIndexOf12XL != -1, "lastIndexOf12XL is defined");
+            assertTrue(firstIndexOfSmall != -1, "firstIndexOfSmall is defined");
+            assertTrue(firstIndexOfMedium != -1, "firstIndexOfMedium is defined");
+            assertTrue(firstIndexOfLarge != -1, "firstIndexOfLarge is defined");
+            assertTrue(firstIndexOfXL != -1, "firstIndexOfXL is defined");
+            assertTrue(firstIndexOf2XL != -1, "firstIndexOf2XL is defined");
+            assertTrue(firstIndexOf4XL != -1, "firstIndexOf4XL is defined");
+            assertTrue(firstIndexOf12XL != -1, "firstIndexOf12XL is defined");
+            assertTrue(firstIndexOf24XL != -1, "firstIndexOf24XL is defined");
 
             // T's before M's before R's
-            assertTrue("T's before M's", lastIndexOfT < firstIndexOfM);
-            assertTrue("M's before R's", lastIndexOfM < firstIndexOfR);
+            assertTrue(lastIndexOfT < firstIndexOfM, "T's before M's");
+            assertTrue(lastIndexOfM < firstIndexOfR, "M's before R's");
 
             // Earlier generations before later
-            assertTrue("4th generations before 5th generations", lastIndexOfM4 < firstIndexOfM5);
+            assertTrue(lastIndexOfM4 < firstIndexOfM5, "4th generations before 5th generations");
 
             // Smaller compute size before larger
-            assertTrue("MICRO before SMALL", lastIndexOfMicro < firstIndexOfSmall);
-            assertTrue("SMALL before MEDIUM", lastIndexOfSmall < firstIndexOfMedium);
-            assertTrue("MEDIUM before LARGE", lastIndexOfMedium < firstIndexOfLarge);
-            assertTrue("LARGE before XL", lastIndexOfLarge < firstIndexOfXL);
-            assertTrue("XL before 2XL", lastIndexOfXL < firstIndexOf2XL);
-            assertTrue("2XL before 4XL", lastIndexOf2XL < firstIndexOf4XL);
-            assertTrue("4XL before 12XL", lastIndexOf4XL < firstIndexOf12XL);
-            assertTrue("12XL before 24XL", lastIndexOf2XL < firstIndexOf24XL);
+            assertTrue(lastIndexOfMicro < firstIndexOfSmall, "MICRO before SMALL");
+            assertTrue(lastIndexOfSmall < firstIndexOfMedium, "SMALL before MEDIUM");
+            assertTrue(lastIndexOfMedium < firstIndexOfLarge, "MEDIUM before LARGE");
+            assertTrue(lastIndexOfLarge < firstIndexOfXL, "LARGE before XL");
+            assertTrue(lastIndexOfXL < firstIndexOf2XL, "XL before 2XL");
+            assertTrue(lastIndexOf2XL < firstIndexOf4XL, "2XL before 4XL");
+            assertTrue(lastIndexOf4XL < firstIndexOf12XL, "4XL before 12XL");
+            assertTrue(lastIndexOf2XL < firstIndexOf24XL, "12XL before 24XL");
         }
     }
 }

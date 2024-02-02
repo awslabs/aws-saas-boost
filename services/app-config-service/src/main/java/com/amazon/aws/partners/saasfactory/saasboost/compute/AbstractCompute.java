@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute;
+package com.amazon.aws.partners.saasfactory.saasboost.compute;
 
+import com.amazon.aws.partners.saasfactory.saasboost.OperatingSystem;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.OperatingSystem;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs.EcsCompute;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.ecs.EcsCompute;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -29,7 +29,6 @@ import java.util.Objects;
 
 @JsonTypeInfo(
         use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.PROPERTY,
         property = "type"
 )
 @JsonSubTypes({

@@ -1,25 +1,43 @@
 package com.amazon.aws.partners.saasfactory.saasboost.compute;
 
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractCompute;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.AbstractComputeTier;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs.EcsCompute;
-import com.amazon.aws.partners.saasfactory.saasboost.appconfig.compute.ecs.EcsComputeTier;
-import org.junit.Test;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.ecs.EcsCompute;
+import com.amazon.aws.partners.saasfactory.saasboost.compute.ecs.EcsComputeTier;
+import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AbstractComputeTest {
     @Test
     public void deserialize_ecsCompute_basic() {
-        String ecsJson = "{\"type\":\"ECS\", \"ecsExecEnabled\": true, \"tiers\":{"
-                + "\"Free\":{\"instanceType\":\"t3.medium\", \"cpu\":512, \"memory\":1024, \"min\":1, \"max\":2, \"ec2min\":0, \"ec2max\":5}," 
-                + "\"Gold\":{\"instanceType\":\"t3.large\", \"cpu\":1024, \"memory\":2048, \"min\":2, \"max\":4, \"ec2min\":5, \"ec2max\":9}}}";
-        AbstractCompute compute = Utils.fromJson(ecsJson, AbstractCompute.class);
+        String json = """
+                {
+                    "type": "ECS",
+                    "ecsExecEnabled": true,
+                    "tiers": {
+                        "Free": {
+                            "instanceType": "t3.medium",
+                            "cpu": 512,
+                            "memory": 1024,
+                            "min": 1,
+                            "max": 2,
+                            "ec2min": 0,
+                            "ec2max": 5
+                        },
+                        "Gold": {
+                            "instanceType": "t3.large",
+                            "cpu": 1024,
+                            "memory": 2048,
+                            "min": 2,
+                            "max": 4,
+                            "ec2min": 5,
+                            "ec2max": 9
+                        }
+                    }
+                }""";
+        AbstractCompute compute = Utils.fromJson(json, AbstractCompute.class);
         assertEquals(EcsCompute.class, compute.getClass());
         assertEquals(Boolean.TRUE, ((EcsCompute) compute).getEcsExecEnabled());
         assertNotNull(compute.getTiers());
