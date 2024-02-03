@@ -111,6 +111,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-billing-events
       Role: !GetAtt BillingServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.BillingService::handleBillingEvent

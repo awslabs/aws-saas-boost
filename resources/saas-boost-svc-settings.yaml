@@ -78,6 +78,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-settings-get-all
       Role: !GetAtt SettingsServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSettings
@@ -86,6 +88,9 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -104,6 +109,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-settings-get-by-id
       Role: !GetAtt SettingsServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSetting
@@ -112,6 +119,9 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SettingsService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -130,6 +140,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-settings-get-secret
       Role: !GetAtt SettingsServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSecret
@@ -159,6 +171,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-settings-update
       Role: !GetAtt SettingsServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateSetting
@@ -187,4 +201,7 @@ Outputs:
   SettingsServiceGetSecretArn:
     Description: Settings Service get decrypted secret setting Lambda ARN
     Value: !GetAtt SettingsServiceGetSecret.Arn
+  SettingsServiceUpdateArn:
+    Description: Settings Service update setting Lambda ARN
+    Value: !GetAtt SettingsServiceUpdate.Arn
 ...

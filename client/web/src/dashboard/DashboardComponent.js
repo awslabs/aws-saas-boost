@@ -87,7 +87,7 @@ export const DashboardComponent = (props) => {
   )
 
   const saasBoostEnvironment = useSelector(
-    (state) => selectSettingsById(state, 'SAAS_BOOST_ENVIRONMENT')?.value
+    (state) => selectSettingsById(state, 'ENVIRONMENT')?.value
   )
 
   const countActiveTenants = useSelector((state) => {

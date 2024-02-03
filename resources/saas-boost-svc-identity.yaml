@@ -103,6 +103,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-identity-get-providers
       Role: !GetAtt IdentityServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProviders
@@ -126,6 +128,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-identity-set-provider
       Role: !GetAtt IdentityServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::setProvider
@@ -149,6 +153,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-identity-get-provider
       Role: !GetAtt IdentityServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProvider
@@ -172,6 +178,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-identity-event-handler
       Role: !GetAtt IdentityServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::handleEvent

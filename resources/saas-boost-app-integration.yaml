@@ -237,6 +237,8 @@ Resources:
       FunctionName: !Sub sb-${SaaSBoostEnvironment}-app-plane-events
       Role: !GetAtt AppPlaneEventProducerExecutionRole.Arn
       Runtime: python3.11
+      Architectures:
+        - arm64
       Timeout: 10
       MemorySize: 512
       Handler: index.lambda_handler
@@ -310,6 +312,8 @@ Resources:
       FunctionName: !Sub sb-${SaaSBoostEnvironment}-app-plane-api-client
       Role: !GetAtt AppPlaneApiClientExecutionRole.Arn
       Runtime: python3.11
+      Architectures:
+        - arm64
       Timeout: 30
       MemorySize: 512
       Handler: index.lambda_handler

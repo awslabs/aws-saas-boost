@@ -118,6 +118,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-get-by-id
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUser
@@ -152,6 +154,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-get-all
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUsers
@@ -186,6 +190,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-update
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::updateUser
@@ -220,6 +226,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-insert
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::insertUser
@@ -254,6 +262,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-delete
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::deleteUser
@@ -288,6 +298,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-enable
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::enableUser
@@ -322,6 +334,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-sys-user-disable
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::disableUser

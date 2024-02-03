@@ -85,6 +85,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-auth0-setup
       Role: !GetAtt Auth0SetupExecRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.Auth0Setup

@@ -112,6 +112,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-rds-options
       Role: !GetAtt RdsOptionsExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 720
       MemorySize: 768
       Handler: com.amazon.aws.partners.saasfactory.saasboost.RdsOptions
@@ -221,6 +223,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-app-config-update
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.AppConfigService::updateAppConfig
@@ -236,6 +240,8 @@ Resources:
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
           RESOURCES_BUCKET: !Ref ResourcesBucket
+          OPTIONS_TABLE: !Ref RdsOptionsTable
+          APP_CONFIG_TABLE: !Ref AppConfigTable
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -254,6 +260,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-app-config-get
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.AppConfigService::getAppConfig
@@ -265,6 +273,11 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          OPTIONS_TABLE: !Ref RdsOptionsTable
+          APP_CONFIG_TABLE: !Ref AppConfigTable
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -283,6 +296,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-app-config-delete
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.AppConfigService::deleteAppConfig
@@ -294,6 +309,11 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          OPTIONS_TABLE: !Ref RdsOptionsTable
+          APP_CONFIG_TABLE: !Ref AppConfigTable
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -312,6 +332,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-settings-app-config-events
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.AppConfigService::handleAppConfigEvent
@@ -326,6 +348,9 @@ Resources:
           SAAS_BOOST_ENV: !Ref Environment
           SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
           API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          OPTIONS_TABLE: !Ref RdsOptionsTable
+          APP_CONFIG_TABLE: !Ref AppConfigTable
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -344,6 +369,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-app-config-options
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.AppConfigService::configOptions
@@ -355,7 +382,11 @@ Resources:
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+          RESOURCES_BUCKET: !Ref ResourcesBucket
           OPTIONS_TABLE: !Ref RdsOptionsTable
+          APP_CONFIG_TABLE: !Ref AppConfigTable
       Tags:
         - Key: Application
           Value: SaaSBoost

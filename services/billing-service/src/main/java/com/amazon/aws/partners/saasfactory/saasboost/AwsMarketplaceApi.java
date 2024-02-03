@@ -66,6 +66,6 @@ public class AwsMarketplaceApi extends AbstractBillingProviderApi {
         @Override
         public MarketplaceCatalogClient marketplace() {
             return Utils.sdkClient(MarketplaceCatalogClient.builder(), MarketplaceCatalogClient.SERVICE_NAME);
-        };
+        }
     }
 }

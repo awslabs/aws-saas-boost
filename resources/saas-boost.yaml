@@ -355,7 +355,11 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-utils
-      CompatibleRuntimes: [java17]
+      CompatibleRuntimes:
+        - java17
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/Utils-lambda.zip
@@ -363,7 +367,11 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-apigw-helper
-      CompatibleRuntimes: [java17]
+      CompatibleRuntimes:
+        - java17
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
@@ -371,7 +379,11 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-cloudformation-utils
-      CompatibleRuntimes: [java17]
+      CompatibleRuntimes:
+        - java17
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
@@ -380,7 +392,11 @@ Resources:
     Condition: UseKeycloak
     Properties:
       LayerName: !Sub sb-${Environment}-keycloak-helper
-      CompatibleRuntimes: [java17]
+      CompatibleRuntimes:
+        - java17
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/KeycloakHelper-lambda.zip
@@ -390,11 +406,14 @@ Resources:
       LayerName: !Sub sb-${Environment}-api-client-helper
       CompatibleRuntimes:
         - java17
-        - java17
+        - java11
         - python3.11
         - python3.10
         - python3.9
         - python3.8
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/SaaSBoostApiClientHelper-lambda.zip
@@ -460,6 +479,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-clear-bucket
       Role: !GetAtt ClearBucketExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearS3Bucket
@@ -552,6 +573,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-clear-ecr-repo
       Role: !GetAtt ClearEcrRepoExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearEcrRepo
@@ -682,6 +705,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-start-build
       Role: !GetAtt CodeBuildStartExecRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.StartCodeBuild
@@ -746,6 +771,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-pipeline-waithandler
       Role: !GetAtt CodePipelineWaitHandlerExecRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 600
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.CodePipelineWaitHandler
@@ -820,6 +847,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-update-ecs
       Role: !GetAtt CodePipelineUpdateEcsServiceExecRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsServiceUpdate

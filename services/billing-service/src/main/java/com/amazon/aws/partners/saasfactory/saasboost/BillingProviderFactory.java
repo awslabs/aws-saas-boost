@@ -16,8 +16,8 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-        import org.slf4j.Logger;
-        import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BillingProviderFactory {
 

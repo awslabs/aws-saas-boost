@@ -24,12 +24,15 @@ public class AppConfigDataAccessLayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AppConfigDataAccessLayer.class);
     private static final String AWS_REGION = System.getenv("AWS_REGION");
+    private final String dbOptionsTable;
     private final String appConfigTable;
     private final DynamoDbClient ddb;
     private final AcmClient acm;
     private final Route53Client route53;
 
-    public AppConfigDataAccessLayer(DynamoDbClient ddb, String appConfigTable, AcmClient acm, Route53Client route53) {
+    public AppConfigDataAccessLayer(DynamoDbClient ddb, String dbOptionsTable, String appConfigTable,
+                                    AcmClient acm, Route53Client route53) {
+        this.dbOptionsTable = dbOptionsTable;
         this.appConfigTable = appConfigTable;
         this.ddb = ddb;
         this.acm = acm;
@@ -111,7 +114,7 @@ public class AppConfigDataAccessLayer {
     public List<Map<String, Object>> rdsOptions() {
         List<Map<String, Object>> orderableOptionsByRegion = new ArrayList<>();
         QueryResponse response = ddb.query(request -> request
-                .tableName(appConfigTable)
+                .tableName(dbOptionsTable)
                 .keyConditionExpression("#region = :region")
                 .expressionAttributeNames(Map.of("#region", "region"))
                 .expressionAttributeValues(Map.of(":region", AttributeValue.builder().s(AWS_REGION).build()))

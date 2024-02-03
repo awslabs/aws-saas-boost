@@ -47,6 +47,7 @@ public class AppConfigService {
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
     private static final String AWS_REGION = System.getenv("AWS_REGION");
     private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
+    private static final String OPTIONS_TABLE = System.getenv("OPTIONS_TABLE");
     private static final String APP_CONFIG_TABLE = System.getenv("APP_CONFIG_TABLE");
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
     private static final String RESOURCES_BUCKET = System.getenv("RESOURCES_BUCKET");
@@ -119,6 +120,10 @@ public class AppConfigService {
         APIGatewayProxyResponseEvent response;
 
         AppConfig appConfig = dal.getAppConfig();
+        // The Web UI won't work if it receives null
+        if (appConfig == null) {
+            appConfig = new AppConfig();
+        }
         response = new APIGatewayProxyResponseEvent()
                 .withStatusCode(HttpURLConnection.HTTP_OK)
                 .withHeaders(CORS)
@@ -489,7 +494,7 @@ public class AppConfigService {
         @Override
         public AppConfigDataAccessLayer dal() {
             return new AppConfigDataAccessLayer(Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME),
-                    APP_CONFIG_TABLE, Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME),
+                    OPTIONS_TABLE, APP_CONFIG_TABLE, Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME),
                     Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME));
         }
 

@@ -38,13 +38,9 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
-        - AttributeName: default_tier
-          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
-        - AttributeName: default_tier
-          KeyType: RANGE
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
@@ -99,6 +95,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tier-get-all
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::getTiers
@@ -128,6 +126,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tier-get-by-id
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::getTier
@@ -157,6 +157,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tier-update
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::updateTier
@@ -186,6 +188,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tier-insert
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::insertTier
@@ -215,6 +219,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tier-delete
       Role: !GetAtt TierServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TierService::deleteTier

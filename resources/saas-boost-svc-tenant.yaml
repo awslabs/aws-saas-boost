@@ -108,6 +108,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-get-by-id
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::getTenant
@@ -139,6 +141,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-get-all
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::getTenants
@@ -170,6 +174,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-update
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::updateTenant
@@ -201,6 +207,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-insert
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::insertTenant
@@ -232,6 +240,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-delete
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::deleteTenant
@@ -263,6 +273,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-enable
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::enableTenant
@@ -294,6 +306,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-disable
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::disableTenant
@@ -325,6 +339,8 @@ Resources:
       FunctionName: !Sub sb-${Environment}-tenants-events
       Role: !GetAtt TenantServiceExecutionRole.Arn
       Runtime: java17
+      Architectures:
+        - arm64
       Timeout: 45
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.TenantService::handleTenantEvent

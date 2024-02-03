@@ -167,9 +167,10 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         readResources.add(new AbstractMap.SimpleEntry<>("onboarding", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("onboarding/*", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("settings", "GET"));
-        readResources.add(new AbstractMap.SimpleEntry<>("settings/config", "GET"));
-        readResources.add(new AbstractMap.SimpleEntry<>("settings/options", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("settings/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("appconfig", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("appconfig/*", "GET"));
+        readResources.add(new AbstractMap.SimpleEntry<>("appconfig/options", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("sysusers", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "GET"));
         readResources.add(new AbstractMap.SimpleEntry<>("tenants", "GET"));
@@ -189,7 +190,7 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
     public static List<String> writeApiResources(TokenAuthorizerRequest event) {
         Set<AbstractMap.SimpleEntry<String, String>> writeResources = new LinkedHashSet<>();
         writeResources.add(new AbstractMap.SimpleEntry<>("onboarding*", "POST"));
-        writeResources.add(new AbstractMap.SimpleEntry<>("settings/config*", "PUT"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("appconfig*", "PUT"));
         writeResources.add(new AbstractMap.SimpleEntry<>("sysusers*", "POST"));
         writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "DELETE"));
         writeResources.add(new AbstractMap.SimpleEntry<>("sysusers/*", "PUT"));
@@ -215,7 +216,7 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
     public static List<String> privateApiResources(TokenAuthorizerRequest event) {
         Set<AbstractMap.SimpleEntry<String, String>> privateResources = new LinkedHashSet<>();
         privateResources.add(new AbstractMap.SimpleEntry<>("quotas/check", "GET"));
-        privateResources.add(new AbstractMap.SimpleEntry<>("settings/config", "DELETE"));
+        privateResources.add(new AbstractMap.SimpleEntry<>("appconfig", "DELETE"));
         privateResources.add(new AbstractMap.SimpleEntry<>("settings/*/secret", "GET"));
         privateResources.add(new AbstractMap.SimpleEntry<>("tenants*", "POST"));
 

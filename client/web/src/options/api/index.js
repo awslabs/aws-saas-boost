@@ -15,10 +15,9 @@
  */
 
 import axios from 'axios'
-import appConfig from '../../config/appConfig'
 import { Aborted, getApiServer } from '../../api/common'
 
-const apiServer = getApiServer('/settings')
+const apiServer = getApiServer('appconfig')
 
 const optionsAPI = {
   fetchOptions: async (ops) => {
