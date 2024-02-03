@@ -69,4 +69,4 @@ jmeter.log
 *.factorypath
 installer/*.log
 security-check/*.log
-saas-boost-install*.log*
+*install*.log*

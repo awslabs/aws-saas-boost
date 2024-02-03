@@ -38,7 +38,7 @@ fi
 
 # check for Java
 if ! command -v java >/dev/null 2>&1; then
-	echo "Java version 11 or higher must be installed."
+	echo "Java version 17 or higher must be installed."
 	exit 2
 fi
 

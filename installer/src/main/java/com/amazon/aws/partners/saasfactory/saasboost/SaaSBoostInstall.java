@@ -57,6 +57,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -72,6 +73,11 @@ import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotBlank;
 import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotEmpty;
 
 public class SaaSBoostInstall {
+
+    static {
+        System.setProperty("logger.timestamp",
+                DateTimeFormatter.ofPattern("yyyy-MM-dd-HH:mm:ss").format(LocalDateTime.now()));
+    }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SaaSBoostInstall.class);
 
@@ -616,14 +622,14 @@ public class SaaSBoostInstall {
         } else {
             outputMessage("Reusing existing artifacts bucket " + existingBucket);
             saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION, appPlaneAccountId);
-            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-            copyResourcesToS3();
             try {
                 s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
             } catch (SdkServiceException s3error) {
                 outputMessage("Bucket " + existingBucket + " does not exist!");
                 throw s3error;
             }
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyResourcesToS3();
         }
 
         // Copy the source files up to S3 where CloudFormation resources expect them to be
