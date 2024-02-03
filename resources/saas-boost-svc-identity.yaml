@@ -30,9 +30,12 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
-  ApiGatewayHelperLayer:
-    Description: API Gateway Helper Layer ARN
+  AppPlaneAccountId:
+    Description: Application Plane account to communicate with this Control Plane. Leave blank to use the same AWS account for your application plane resources.
     Type: String
+    Default: ''
+Conditions:
+  AppPlaneSameAccount: !Equals ['', !Ref AppPlaneAccountId]
 Resources:
   IdentityServiceAppPlaneTrustPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -110,7 +113,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProviders
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/IdentityService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -135,7 +138,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::setProvider
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/IdentityService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -160,7 +163,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::getProvider
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/IdentityService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -185,7 +188,7 @@ Resources:
       Handler: com.amazon.aws.partners.saasfactory.saasboost.IdentityService::handleEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}IdentityService-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/IdentityService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
       Environment:
@@ -218,4 +221,14 @@ Resources:
       FunctionName: !Ref IdentityServiceEventHandler
       Principal: events.amazonaws.com
       SourceArn: !GetAtt IdentityServiceEventRule.Arn
+Outputs:
+  IdentityServiceGetProvidersArn:
+    Description: Identity Service get all providers Lambda ARN
+    Value: !GetAtt IdentityServiceGetProviders.Arn
+  IdentityServiceGetProviderArn:
+    Description: Identity Service get active identity provider Lambda ARN
+    Value: !GetAtt IdentityServiceGetProvider.Arn
+  IdentityServiceSetProviderArn:
+    Description: Identity Service set active identity provider Lambda ARN
+    Value: !GetAtt IdentityServiceSetProvider.Arn
 ...

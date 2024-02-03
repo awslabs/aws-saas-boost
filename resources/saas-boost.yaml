@@ -72,9 +72,9 @@ Parameters:
     Type: String
     Default: 1.0
   AppPlaneAccountId:
-    Description: AWS Account hosting the "Application Plane" resources
+    Description: Application Plane account to communicate with this Control Plane. Leave blank to use the same AWS account for your application plane resources.
     Type: String
-    AllowedPattern: ^\d{12}$
+    Default: ''
 Conditions:
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
@@ -84,6 +84,7 @@ Conditions:
   HasSystemIdPCustomDomain: !Not [!Equals [!Ref SystemIdentityProviderDomain, '']]
   AdminWebAppCustomDomainInChina: !And [!Condition InChinaRegion, !Condition HasAdminWebAppCustomDomain]
   AdminWebAppCustomDomainNotInChina: !And [!Condition NotInChinaRegion, !Condition HasAdminWebAppCustomDomain]
+  AppPlaneSameAccount: !Equals ['', !Ref AppPlaneAccountId]
 Resources:
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
@@ -422,7 +423,11 @@ Resources:
     Properties:
       Action: lambda:GetLayerVersion
       LayerVersionArn: !Ref SaaSBoostApiClientHelperLayer
-      Principal: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1060,6 +1065,17 @@ Resources:
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
+  identity:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-identity.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
+        AppPlaneAccountId: !If [AppPlaneSameAccount, !Ref AWS::AccountId, !Ref AppPlaneAccountId]
   api:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -1113,6 +1129,9 @@ Resources:
         SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
         SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
         SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
+        IdentityServiceGetProviders: !GetAtt identity.Outputs.IdentityServiceGetProvidersArn
+        IdentityServiceGetProvider: !GetAtt identity.Outputs.IdentityServiceGetProviderArn
+        IdentityServiceSetProvider: !GetAtt identity.Outputs.IdentityServiceSetProviderArn
   SSMParamEnvironment:
     Type: AWS::SSM::Parameter
     Properties:

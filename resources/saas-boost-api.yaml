@@ -162,6 +162,15 @@ Parameters:
   SystemUserServiceDisable:
     Description: System User Service disable user Lambda ARN
     Type: String
+  IdentityServiceGetProviders:
+    Description: Identity Service get all providers Lambda ARN
+    Type: String
+  IdentityServiceGetProvider:
+    Description: Identity Service get active identity provider Lambda ARN
+    Type: String
+  IdentityServiceSetProvider:
+    Description: Identity Service set active identity provider Lambda ARN
+    Type: String
 Resources:
   AuthorizerExecRole:
     Type: AWS::IAM::Role
@@ -2033,6 +2042,153 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+  IdentityServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'identity'
+  IdentityServiceProvidersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref IdentityServiceResource
+      PathPart: 'providers'
+  IdentityServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  IdentityServiceGetProviderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceGetProvider}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceGetProviderLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceGetProvider
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/identity
+  IdentityServiceSetProviderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceSetProvider}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceSetProviderLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceSetProvider
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/identity
+  IdentityServiceGetProvidersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceProvidersResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceGetProviders}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceGetProvidersLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceGetProviders
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/identity/providers
+  IdentityServiceProvidersResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceProvidersResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
   # To Do: Remove deployment from CloudFormation and deal with it either through
   # CodePipeline or a custom resource, or some other external deployment action.
   ApiDeployment:
@@ -2095,6 +2251,11 @@ Resources:
       - SystemUserServiceEnableResourceCORS
       - SystemUserServiceDisableMethod
       - SystemUserServiceDisableResourceCORS
+      - IdentityServiceResourceCORS
+      - IdentityServiceGetProviderMethod
+      - IdentityServiceSetProviderMethod
+      - IdentityServiceGetProvidersMethod
+      - IdentityServiceProvidersResourceCORS
     Properties:
       RestApiId: !Ref SaaSBoostApi
   ApiGatewayStage:

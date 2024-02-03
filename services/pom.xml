@@ -19,6 +19,7 @@
         <module>tenant-service</module>
         <module>tier-service</module>
         <module>system-user-service</module>
+        <module>identity-service</module>
     </modules>
     <licenses>
         <license>
