@@ -23,6 +23,10 @@ if [ ! -d "${CURRENT_DIR}/layers/utils" ]; then
         echo "Directory ${CURRENT_DIR}/layers/utils not found."
         exit 2
 fi
+if [ ! -d "${CURRENT_DIR}/layers/saas-boost-api-client-helper/java" ]; then
+        echo "Directory ${CURRENT_DIR}/layers/saas-boost-api-client-helper not found."
+        exit 2
+fi
 
 # Check for installer dir
 if [ ! -d "${CURRENT_DIR}/installer" ]; then
@@ -84,6 +88,14 @@ echo "Building utils..."
 mvn --quiet -Dspotbugs.skip > /dev/null 2>&1
 if [ $? -ne 0 ]; then
         echo "Error building utilities for SaaS Boost."
+        exit 2
+fi
+
+cd ${CURRENT_DIR}/layers/saas-boost-api-client-helper/java
+echo "Building SaaS Boost API helper..."
+mvn --quiet -Dspotbugs.skip > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+        echo "Error building SaaS Boost API helper for SaaS Boost."
         exit 2
 fi
 

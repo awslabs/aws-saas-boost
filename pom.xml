@@ -15,12 +15,10 @@
     </licenses>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
+        <module>layers</module>
+        <module>installer</module>
         <module>resources/custom-resources</module>
         <module>functions</module>
-        <module>installer</module>
-        <module>layers</module>
-        <!--<module>metering-billing</module>-->
-        <!--<module>metrics-analytics</module>-->
         <module>services</module>
     </modules>
     <properties>

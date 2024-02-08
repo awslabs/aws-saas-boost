@@ -91,7 +91,6 @@ Resources:
   Logging:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -137,7 +136,6 @@ Resources:
   Pipelines:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -162,17 +160,11 @@ Resources:
   AthenaOutput:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       LifecycleConfiguration:
         Rules:
           - Id: DeleteContentAfter5Day
             Status: 'Enabled'
             ExpirationInDays: 5
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -205,7 +197,6 @@ Resources:
   Resources:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -233,7 +224,6 @@ Resources:
   AdminWeb:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -702,6 +692,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
                 Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/*
   CodeBuildStartLambda:
     Type: AWS::Lambda::Function
@@ -1085,6 +1076,10 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CodePipelineBucket: !Ref Pipelines
+        StartCodeBuildLambda: !GetAtt CodeBuildStartLambda.Arn
+        SSMParamSaaSBoostBucket: !Ref SSMParamSaaSBoostBucket
+        SSMParamLambdaSourceFolder: !Ref SSMParamLambdaSourceFolder
         SaaSBoostApi: !Ref SaaSBoostApi
         RootResourceId: !GetAtt SaaSBoostApi.RootResourceId
         ApiStage: !Ref ApiStage

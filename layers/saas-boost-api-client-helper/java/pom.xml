@@ -34,11 +34,11 @@ limitations under the License.
         <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
         <assembly.version>3.1.1</assembly.version>
         <checkstyle.version>3.3.0</checkstyle.version>
-        <spotbugs.version>4.3.0</spotbugs.version>
+        <spotbugs.version>4.7.3.5</spotbugs.version>
         <compiler.version>3.8.1</compiler.version>
         <compiler.java.version>11</compiler.java.version>
         <surefire.version>3.0.0</surefire.version>
-        <junit.version>4.13.2</junit.version>
+        <junit.version>5.9.3</junit.version>
         <slf4j.version>1.7.32</slf4j.version>
         <aws.java.sdk.version>2.20.120</aws.java.sdk.version>
         <jackson.version>2.13.3</jackson.version>
@@ -164,7 +164,7 @@ limitations under the License.
                         <includeOnlyProperty>^git.closest.tag.name</includeOnlyProperty>
                     </includeOnlyProperties>
                     <commitIdGenerationMode>full</commitIdGenerationMode>
-                    <dotGitDirectory>${project.basedir}/../.git</dotGitDirectory>
+                    <dotGitDirectory>${project.basedir}/../../../.git</dotGitDirectory>
                     <failOnNoGitDirectory>false</failOnNoGitDirectory>
                     <gitDescribe>
                         <!-- look for lightweight and annotated tags: GitHub does not create annotated tags -->
@@ -177,8 +177,14 @@ limitations under the License.
 
     <dependencies>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>

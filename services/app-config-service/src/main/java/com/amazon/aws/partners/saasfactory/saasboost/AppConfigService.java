@@ -252,14 +252,18 @@ public class AppConfigService {
         }
         //Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
-        Map<String, String> params = event.getPathParameters();
-        String id = params.get("id");
+        //Map<String, String> params = event.getPathParameters();
+        //String id = params.get("id");
         AppConfig appConfig = dal.getAppConfig();
-        if (appConfig == null || appConfig.getId() == null || !appConfig.getId().toString().equals(id)) {
+        //if (appConfig == null || appConfig.getId() == null || !appConfig.getId().toString().equals(id)) {
+        if (appConfig == null) {
             response = new APIGatewayProxyResponseEvent()
-                    .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
                     .withHeaders(CORS)
-                    .withBody(Utils.toJson(Map.of("message", "Invalid appConfig id")));
+                    .withStatusCode(HttpURLConnection.HTTP_NO_CONTENT); // No content
+            //response = new APIGatewayProxyResponseEvent()
+            //        .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
+            //        .withHeaders(CORS)
+            //        .withBody(Utils.toJson(Map.of("message", "Invalid appConfig id")));
         } else {
             try {
                 dal.deleteAppConfig(appConfig);
@@ -270,7 +274,7 @@ public class AppConfigService {
                 response = new APIGatewayProxyResponseEvent()
                         .withHeaders(CORS)
                         .withStatusCode(HttpURLConnection.HTTP_BAD_REQUEST)
-                        .withBody(Utils.toJson(Map.of("message", "Failed to delete appConfig " + id)));
+                        .withBody(Utils.toJson(Map.of("message", "Failed to delete appConfig")));
             }
         }
         return response;

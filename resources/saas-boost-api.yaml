@@ -27,6 +27,18 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  SSMParamSaaSBoostBucket:
+    Description: Parameter Store entry for SaaS Boost assets bucket
+    Type: String
+  SSMParamLambdaSourceFolder:
+    Description: Parameter Store entry for SaaS Boost assets bucket lambda source folder
+    Type: String
   SaaSBoostApi:
     Description: API Gateway REST API
     Type: String
@@ -265,6 +277,230 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/apigateway/${SaaSBoostApi}
       RetentionInDays: 30
+  ApiDocsCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:listBucket
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/api-docs/*
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/codebuild-cache/*
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/codebuild-cache/*
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/${LambdaSourceFolder}/ApiDocs-lambda.zip
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionCode
+                Resource:
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-api-docs
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParamSaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParamLambdaSourceFolder}
+  ApiDocsCodeBuildLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/sb-${Environment}-api-docs
+      RetentionInDays: 14
+  ApiDocsCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub sb-${Environment}-api-docs
+      ServiceRole: !Ref ApiDocsCodeBuildRole
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Cache:
+        Type: S3
+        Location: !Sub ${CodePipelineBucket}/codebuild-cache
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        Type: ARM_CONTAINER
+        EnvironmentVariables:
+          - Name: SAAS_BOOST_ENV
+            Value: !Ref Environment
+          - Name: SOURCE_BUCKET
+            Value: !Ref SaaSBoostBucket
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - if [ "$AWS_DEFAULT_REGION" = "cn-northwest-1" ] || [ "$AWS_DEFAULT_REGION" = "cn-north-1" ]; then npm config set registry https://registry.npm.taobao.org; fi
+                - aws s3 cp s3://$SOURCE_BUCKET/api-docs/src.zip src.zip
+                - unzip src.zip
+                - aws s3 cp s3://$SOURCE_BUCKET/api-docs/swagger.json ./resources/api-docs/swagger.json
+            build:
+              commands:
+                - cd ./resources/api-docs
+                - npm install
+                - cd ../../
+            post_build:
+              commands:
+                - cd ./resources/api-docs
+                - bash update.sh $SAAS_BOOST_ENV
+          cache:
+            paths:
+              - $CODEBUILD_SRC_DIR/resources/api-docs/node_modules/**/*
+  InvokeStartCodeBuild:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Ref StartCodeBuildLambda
+      Project: !Ref ApiDocsCodeBuildProject
+      Wait: true
+  ApiDocsBuildEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-event-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-event-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource: !GetAtt ApiDocsCodeBuildProject.Arn
+  ApiDocsBuildRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-api-docs-build
+      Description: SaaS Boost API Docs new source event
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created",
+            "Object Deleted"
+          ],
+          "detail": {
+            "bucket": {
+              "name": [
+                "${SaaSBoostBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "api-docs/"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ApiDocsCodeBuildProject.Arn
+          RoleArn: !GetAtt ApiDocsBuildEventRole.Arn
+          Id: !Sub sb-${Environment}-api-docs-build
+  ApiDocsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  ApiDocsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-api-docs
+      RetentionInDays: 30
+  ApiDocs:
+    Type: AWS::Lambda::Function
+    DependsOn: InvokeStartCodeBuild
+    Properties:
+      FunctionName: !Sub sb-${Environment}-api-docs
+      Role: !GetAtt ApiDocsExecutionRole.Arn
+      Runtime: nodejs16.x
+      Timeout: 30
+      MemorySize: 512
+      Handler: app.handler
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ApiDocs-lambda.zip
+      Environment:
+        Variables:
+          SWAGGER_UI_URL_PATH: /docs
   ApiGatewayLambdaAuthorizerRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2189,6 +2425,74 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
+  ApiDocsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'docs'
+  ApiDocsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref ApiDocsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiDocs.Arn}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  ApiDocsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiDocs
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/docs  
+  ApiDocsProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref ApiDocsResource
+      PathPart: '{proxy+}'
+  ApiDocsProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref ApiDocsProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiDocs.Arn}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+        CacheKeyParameters:
+          - method.request.path.proxy
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  ApiDocsProxyLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiDocs
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/ANY/docs/{proxy+}
   # To Do: Remove deployment from CloudFormation and deal with it either through
   # CodePipeline or a custom resource, or some other external deployment action.
   ApiDeployment:
@@ -2256,6 +2560,8 @@ Resources:
       - IdentityServiceSetProviderMethod
       - IdentityServiceGetProvidersMethod
       - IdentityServiceProvidersResourceCORS
+      - ApiDocsProxyMethod
+      - ApiDocsGetMethod
     Properties:
       RestApiId: !Ref SaaSBoostApi
   ApiGatewayStage:

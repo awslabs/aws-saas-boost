@@ -151,7 +151,8 @@ public class SaaSBoostApiHelper {
         BufferedReader responseReader = null;
         String responseBody;
         try {
-            LOGGER.debug("Executing API Request {}", apiExecuteRequest.httpRequest().getUri().toString());
+            LOGGER.debug("Executing API Request {} {}", apiExecuteRequest.httpRequest().method(),
+                    apiExecuteRequest.httpRequest().getUri().toString());
             HttpExecuteResponse apiResponse = HTTP_CLIENT.prepareRequest(apiExecuteRequest).call();
             responseReader = new BufferedReader(new InputStreamReader(apiResponse.responseBody().get(),
                     StandardCharsets.UTF_8));
@@ -348,7 +349,7 @@ public class SaaSBoostApiHelper {
             if (builder.headers != null) {
                 this.headers = Collections.unmodifiableMap(builder.headers);
             } else {
-                this.headers = Collections.unmodifiableMap(Collections.EMPTY_MAP);
+                this.headers = Collections.emptyMap();
             }
         }
 
@@ -381,7 +382,7 @@ public class SaaSBoostApiHelper {
         }
 
         public Map<String, String> getHeaders() {
-            return Collections.unmodifiableMap(headers);
+            return headers;
         }
 
         public URL toUrl() {

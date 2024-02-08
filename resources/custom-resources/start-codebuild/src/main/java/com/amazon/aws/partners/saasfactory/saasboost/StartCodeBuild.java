@@ -21,10 +21,7 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.codebuild.CodeBuildClient;
-import software.amazon.awssdk.services.codebuild.model.Build;
-import software.amazon.awssdk.services.codebuild.model.CodeBuildException;
-import software.amazon.awssdk.services.codebuild.model.StartBuildResponse;
-import software.amazon.awssdk.services.codebuild.model.StatusType;
+import software.amazon.awssdk.services.codebuild.model.*;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -50,6 +47,8 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
         final String requestType = (String) event.get("RequestType");
         final Map<String, Object> resourceProperties = (Map<String, Object>) event.get("ResourceProperties");
         final String project = (String) resourceProperties.get("Project");
+        final String buildSpec = (String) resourceProperties.get("BuildSpec");
+        final Boolean wait = Boolean.valueOf((String) resourceProperties.get("Wait"));
 
         ExecutorService service = Executors.newSingleThreadExecutor();
         Map<String, Object> responseData = new HashMap<>();
@@ -58,17 +57,43 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
                 if ("Create".equalsIgnoreCase(requestType) || "Update".equalsIgnoreCase(requestType)) {
                     LOGGER.info("CREATE or UPDATE");
                     try {
-                        StartBuildResponse response = codeBuild.startBuild(request -> request
-                                .projectName(project)
-                                .build()
-                        );
+                        StartBuildRequest.Builder requestBuilder = StartBuildRequest.builder();
+                        requestBuilder = requestBuilder.projectName(project);
+                        if (Utils.isNotBlank(buildSpec)) {
+                            requestBuilder = requestBuilder.buildspecOverride(buildSpec);
+                        }
+                        StartBuildResponse response = codeBuild.startBuild(requestBuilder.build());
                         Build build = response.build();
                         if (StatusType.FAILED == build.buildStatus() || StatusType.FAULT == build.buildStatus()) {
                             responseData.put("Reason", "CodeBuild start build failed");
                             CloudFormationResponse.send(event, context, "FAILED", responseData);
                         } else {
-                            responseData.put("Build", build.id());
-                            CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                            if (wait) {
+                                // wait for the build to complete
+                                // note that the CodeBuild project has a defined timeout
+                                LOGGER.info("Waiting for max {} minutes for build {} to complete",
+                                        build.timeoutInMinutes(), build.id());
+                                ReverseBackoff backoff = new ReverseBackoff(30f, 0.25f, 0.2f);
+                                while (!"COMPLETED".equals(build.currentPhase())) {
+                                    long delay = (long) backoff.delay() * 1000;
+                                    LOGGER.info("Waiting {}ms for build {} to complete", delay, build.id());
+                                    Thread.sleep(delay);
+                                    build = getBuild(codeBuild, build.id());;
+                                }
+
+                                if (StatusType.SUCCEEDED == build.buildStatus()) {
+                                    responseData.put("Build", build.id());
+                                    responseData.put("BuildStatus", build.buildStatusAsString());
+                                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                                } else {
+                                    responseData.put("Reason", build.buildStatusAsString());
+                                    CloudFormationResponse.send(event, context, "FAILED", responseData);
+                                }
+                            } else {
+                                responseData.put("Build", build.id());
+                                responseData.put("BuildStatus", build.buildStatusAsString());
+                                CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                            }
                         }
                     } catch (CodeBuildException codeBuildError) {
                         LOGGER.error("codebuild:StartBuild", codeBuildError.getMessage());
@@ -102,5 +127,51 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
             service.shutdown();
         }
         return null;
+    }
+
+    protected Build getBuild(CodeBuildClient codeBuild, String buildId) {
+        Build build = null;
+        try {
+            BatchGetBuildsResponse buildsResponse = codeBuild.batchGetBuilds(request -> request
+                    .ids(buildId)
+            );
+            if (buildsResponse.hasBuilds() && buildsResponse.builds().size() == 1) {
+                build = buildsResponse.builds().get(0);
+            }
+        } catch (CodeBuildException cbe) {
+            LOGGER.error(cbe.awsErrorDetails().errorMessage());
+            LOGGER.error(Utils.getFullStackTrace(cbe));
+            throw cbe;
+        } catch (Exception e) {
+            LOGGER.error(e.getMessage());
+            LOGGER.error(Utils.getFullStackTrace(e));
+            throw new RuntimeException(e);
+        }
+        return build;
+    }
+
+    static final class ReverseBackoff {
+
+        private float initialDelay;
+        private float reducingFactor;
+        private float minDelay;
+        private float delay;
+
+        public ReverseBackoff(float initialDelay, float minDelay, float reducingFactor) {
+            this.initialDelay = initialDelay;
+            this.delay = this.initialDelay;
+            this.minDelay = minDelay;
+            this.reducingFactor = reducingFactor;
+        }
+
+        public float delay() {
+            float current = Math.max(delay - (delay * reducingFactor), 0f);
+            if (delay == initialDelay) {
+                delay = current;
+                return initialDelay;
+            }
+            delay = current;
+            return Math.max(delay, minDelay);
+        }
     }
 }

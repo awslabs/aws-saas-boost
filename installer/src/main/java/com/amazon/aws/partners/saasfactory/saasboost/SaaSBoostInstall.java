@@ -24,7 +24,6 @@ import com.amazon.aws.partners.saasfactory.saasboost.workflow.Workflow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -40,21 +39,18 @@ import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.*;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.*;
-import software.amazon.awssdk.services.lambda.LambdaClient;
-import software.amazon.awssdk.services.lambda.model.InvocationType;
-import software.amazon.awssdk.services.lambda.model.InvokeResponse;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.HostedZone;
 import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameRequest;
 import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameResponse;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
 import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -87,7 +83,6 @@ public class SaaSBoostInstall {
     private final IamClient iam;
     private final S3Client s3;
     private final SsmClient ssm;
-    private final LambdaClient lambda;
     private final Route53Client route53;
     private final AcmClient acm;
 
@@ -99,12 +94,13 @@ public class SaaSBoostInstall {
     private String lambdaSourceFolder = "lambdas";
     private String stackName;
     private Map<String, String> baseStackDetails = new HashMap<>();
+    private SaaSBoostApiHelper api;
 
     protected enum ACTION {
         INSTALL(1, "Install AWS SaaS Boost", false),
         UPDATE(2, "Update AWS SaaS Boost", true),
-        DELETE(3, "Delete AWS SaaS Boost", true),
-        UPDATE_WEB_APP(4, "Update Admin Web Application", true),
+        UPDATE_WEB_APP(3, "Update Admin Web Application", true),
+        DELETE(4, "Delete AWS SaaS Boost", true),
         CANCEL(5, "Exit", false),
         DEBUG(6, "Debug", false);
 
@@ -143,7 +139,6 @@ public class SaaSBoostInstall {
         cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
         ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
         iam = Utils.sdkClient(IamClient.builder(), IamClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
-        lambda = Utils.sdkClient(LambdaClient.builder(), LambdaClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
         s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
         ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
         route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
@@ -163,14 +158,15 @@ public class SaaSBoostInstall {
         } catch (Exception e) {
             outputMessage("===========================================================");
             outputMessage("Installation Error: " + e.getLocalizedMessage());
-            outputMessage("Please see detailed log file saas-boost-install.log");
+            outputMessage("Please see detailed log file installer-"
+                    + System.getProperty("logger.timestamp") + ".log");
             LOGGER.error(Utils.getFullStackTrace(e));
         }
     }
 
     protected void debug(String existingBucket) {
         while (true) {
-            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
+            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (dev, test, uat, prod, etc...): ");
             this.envName = Keyboard.readString();
             if (validateEnvironmentName(this.envName)) {
                 LOGGER.info("Setting SaaS Boost environment = [{}]", this.envName);
@@ -636,6 +632,10 @@ public class SaaSBoostInstall {
         outputMessage("Uploading admin web app source files to S3");
         copyAdminWebAppSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
 
+        // Copy the Api docs (SwaggerUI) source files up to S3 where CloudFormation resources expect them to be
+        outputMessage("Uploading api docs source files to S3");
+        copyApiDocsSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
+
         // Run CloudFormation create stack
         outputMessage("Running CloudFormation");
         this.stackName = "sb-" + envName;
@@ -658,19 +658,22 @@ public class SaaSBoostInstall {
     protected void delete() {
         // Confirm delete
         outputMessage("****** W A R N I N G");
-        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and ALL deployed tenant resources will be deleted!");
+        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and "
+                + "ALL deployed tenant resources will be deleted!");
         while (true) {
             System.out.print("Enter the SaaS Boost environment name to confirm: ");
             String confirmEnvName = Keyboard.readString();
             if (isNotBlank(confirmEnvName) && this.envName.equalsIgnoreCase(confirmEnvName)) {
-                System.out.println("SaaS Boost environment " + this.envName + " for AWS Account " + this.accountId + " in region " + AWS_REGION + " will be deleted. This action cannot be undone!");
+                System.out.println("SaaS Boost environment " + this.envName + " for AWS Account " + this.accountId
+                        + " in region " + AWS_REGION + " will be deleted. This action cannot be undone!");
                 break;
             } else {
                 outputMessage("Entered value is incorrect, please try again.");
             }
         }
 
-        System.out.print("Are you sure you want to delete the SaaS Boost environment " + this.envName + "? Enter y to continue or n to cancel: ");
+        System.out.print("Are you sure you want to delete the SaaS Boost environment "
+                + this.envName + "? Enter y to continue or n to cancel: ");
         boolean continueDelete = Keyboard.readBoolean();
         if (!continueDelete) {
             outputMessage("Canceled Delete of AWS SaaS Boost environment");
@@ -680,25 +683,22 @@ public class SaaSBoostInstall {
         }
 
         // Delete all the provisioned tenants
-        List<LinkedHashMap<String, Object>> tenants = getProvisionedTenants();
-        for (LinkedHashMap<String, Object> tenant : tenants) {
+        List<Map<String, Object>> tenants = getProvisionedTenants();
+        LOGGER.debug("Deleting {} provisioned tenants", tenants.size());
+        for (Map<String, Object> tenant : tenants) {
             outputMessage("Deleting AWS SaaS Boost tenant " + tenant.get("id"));
             deleteProvisionedTenant(tenant);
         }
 
         // Clear all the images from ECR or CloudFormation won't be able to delete the repository
-        try {
-            for (String ecrRepo : getEcrRepositories()) {
-                outputMessage("Deleting images from ECR repository " + ecrRepo);
-                deleteEcrImages(ecrRepo);
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error", ssmError);
-            LOGGER.error(Utils.getFullStackTrace(ssmError));
-            // throw ssmError;
+        LOGGER.debug("Getting list of ECR repos to clear");
+        for (String ecrRepo : getEcrRepositories()) {
+            outputMessage("Deleting images from ECR repository " + ecrRepo);
+            deleteEcrImages(ecrRepo);
         }
 
         // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
+        LOGGER.debug("Deleting AppConfig");
         deleteApplicationConfig();
 
         // Delete the SaaS Boost stack
@@ -739,43 +739,6 @@ public class SaaSBoostInstall {
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
     }
 
-    private List<String> getEcrRepositories() {
-        List<String> repos = new ArrayList<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "settings/config");
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
-        try {
-            LOGGER.info("Invoking getSettings API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.error("got response back: {}", response);
-                String configJson = response.payload().asUtf8String();
-                HashMap<String, Object> config = Utils.fromJson(configJson, HashMap.class);
-                HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
-                for (String serviceName : services.keySet()) {
-                    HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
-                    Map<String, Object> compute = (Map<String, Object>) service.get("compute");
-                    repos.add((String) compute.get("containerRepo"));
-                }
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(Utils.getFullStackTrace(lambdaError));
-            throw lambdaError;
-        }
-        return repos;
-    }
-
     protected void cancel() {
         outputMessage("Cancelling.");
         System.exit(0);
@@ -807,151 +770,98 @@ public class SaaSBoostInstall {
         return workingDir;
     }
 
-    protected List<LinkedHashMap<String, Object>> getProvisionedTenants() {
-        List<LinkedHashMap<String, Object>> provisionedTenants = new ArrayList<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants");
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
-        try {
-            LOGGER.info("Invoking get provisioned tenants API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                String responseBody = response.payload().asUtf8String();
-                LOGGER.info("Response Body");
-                LOGGER.info(responseBody);
-                provisionedTenants = Utils.fromJson(responseBody, ArrayList.class);
-                LOGGER.info("Loaded " + provisionedTenants.size() + " tenants");
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(Utils.getFullStackTrace(lambdaError));
-            throw lambdaError;
+    protected SaaSBoostApiHelper api() {
+        if (api == null) {
+            SaaSBoostApiHelper.SaaSBoostApiHelperDependencyFactory init = () ->
+                    Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME,
+                            ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+            String secretId = "/saas-boost/" + envName + "/PRIVATE_API_APP_CLIENT";
+            api = new SaaSBoostApiHelper(init, secretId);
         }
-        return provisionedTenants;
+        return api;
     }
 
-    private LinkedHashMap<String, Object> getTenant(String tenantId) {
-        LinkedHashMap<String, Object> tenantDetail = new LinkedHashMap<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants/" + tenantId);
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
-        try {
-            LOGGER.info("Invoking get tenant by id API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                String responseBody = response.payload().asUtf8String();
-                LOGGER.info("Response Body");
-                LOGGER.info(responseBody);
-                tenantDetail = Utils.fromJson(responseBody, LinkedHashMap.class);
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(Utils.getFullStackTrace(lambdaError));
-            throw lambdaError;
+    protected List<Map<String, Object>> getProvisionedTenants() {
+        LOGGER.info("Calling tenant service to fetch all provisioned tenants");
+        String getTenantsResponseBody = api().authorizedRequest("GET", "tenants?status=provisioned");
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+        if (tenants == null) {
+            tenants = new ArrayList<>();
         }
-        return tenantDetail;
+        return tenants;
+    }
+
+    protected Map<String, Object> getTenant(String tenantId) {
+        LOGGER.info("Calling tenant service to fetch tenant {}", tenantId);
+        String getTenantResponseBody = api().authorizedRequest("GET", "tenants/" + tenantId);
+        Map<String, Object> tenant = Utils.fromJson(getTenantResponseBody, HashMap.class);
+        if (tenant == null) {
+            return Collections.emptyMap();
+        }
+        return tenant;
+    }
+
+    protected Map<String, Object> getAppConfig() {
+        LOGGER.info("Calling appConfig service to fetch appConfig");
+        String getAppConfigResponseBody = api().authorizedRequest("GET", "appconfig");
+        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, HashMap.class);
+        if (appConfig == null) {
+            return Collections.emptyMap();
+        }
+        return appConfig;
     }
 
     protected void deleteApplicationConfig() {
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "settings/config");
-        detail.put("method", "DELETE");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
+        LOGGER.info("Calling appConfig service to delete appConfig");
         try {
-            LOGGER.info("Invoking delete application config API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (!response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(Utils.getFullStackTrace(lambdaError));
-            throw lambdaError;
+            api().authorizedRequest("DELETE", "appconfig");
+        } catch (Exception apiError) {
+            LOGGER.error(apiError.getMessage());
         }
     }
 
-    protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
+    protected void deleteProvisionedTenant(Map<String, Object> tenant) {
         // TODO we can parallelize to improve performance with lots of tenants
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants/" + tenant.get("id"));
-        detail.put("method", "DELETE");
-        String tenantId = (String) tenant.get("id");
-        Map<String, String> tenantIdOnly = new HashMap<>();
-        tenantIdOnly.put("id", tenantId);
-        detail.put("body", Utils.toJson(tenantIdOnly));
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
+        LOGGER.info("Calling tenant service to delete tenant {}", tenant.get("id"));
         try {
-            LOGGER.info("Invoking delete tenant API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.info("got response back: {}", response);
-                // wait for tenant to reach deleted
-                final String DELETED = "deleted";
-                LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
-                String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
-                while (!deleted) {
-                    if (LocalDateTime.now().compareTo(timeout) > 0) {
-                        // we've timed out retrying
-                        outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. "
-                                + "Please check CloudFormation in your AWS Console for more details.");
-                        // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
-                        // due to Tenant resources having cross-dependencies with other resources. stop here to let
-                        // the user figure out what went wrong
-                        throw new RuntimeException("Delete failed.");
-                    }
-                    outputMessage("Waiting 1 minute for tenant " + tenantId
-                            + " to reach deleted from " + tenantStatus);
-                    Thread.sleep(60 * 1000L); // 1 minute
-                    tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                    deleted = tenantStatus.equalsIgnoreCase(DELETED);
+            String tenantId = (String) tenant.get("id");
+            api().authorizedRequest("DELETE", "tenants/" + tenant.get("id"));
+            // wait for tenant to reach deleted
+            final String DELETED = "deleted";
+            LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
+            String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+            boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
+            while (!deleted) {
+                if (LocalDateTime.now().compareTo(timeout) > 0) {
+                    // we've timed out retrying
+                    outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. "
+                            + "Please check CloudFormation in your AWS Console for more details.");
+                    // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
+                    // due to Tenant resources having cross-dependencies with other resources. stop here to let
+                    // the user figure out what went wrong
+                    throw new RuntimeException("Delete failed.");
                 }
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                outputMessage("Waiting 1 minute for tenant " + tenantId
+                        + " to reach deleted from " + tenantStatus);
+                Thread.sleep(60 * 1000L); // 1 minute
+                tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                deleted = tenantStatus.equalsIgnoreCase(DELETED);
             }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(Utils.getFullStackTrace(lambdaError));
-            throw lambdaError;
-        } catch (InterruptedException ie) {
-            LOGGER.error("Exception in waiting");
-            LOGGER.error(Utils.getFullStackTrace(ie));
-            throw new RuntimeException(ie);
+        } catch (Exception e) {
+            LOGGER.error(e.getMessage());
         }
+    }
+
+    protected List<String> getEcrRepositories() {
+        List<String> repos = new ArrayList<>();
+        Map<String, Object> appConfig = getAppConfig();
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        for (String serviceName : services.keySet()) {
+            Map<String, Object> service = (Map<String, Object>) services.get(serviceName);
+            Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+            repos.add((String) compute.get("containerRepo"));
+        }
+        return repos;
     }
 
     protected void deleteEcrImages(String ecrRepo) {
@@ -1292,8 +1202,6 @@ public class SaaSBoostInstall {
             DirectoryStream<Path> services = Files.newDirectoryStream(workingDir.resolve(Path.of("services")), Files::isDirectory);
             services.forEach(sourceDirectories::add);
 
-            //sourceDirectories.add(workingDir.resolve(Path.of("metering-billing", "lambdas")));
-
             final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.zip");
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
             for (ListIterator<Path> iter = sourceDirectories.listIterator(); iter.hasNext();) {
@@ -1481,7 +1389,7 @@ public class SaaSBoostInstall {
         }
 
         // Sync files to the web bucket
-        outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
+        outputMessage("Synchronizing AWS SaaS Boost web application files to s3");
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(webDir)) {
             filesToUpload = stream
@@ -1531,6 +1439,76 @@ public class SaaSBoostInstall {
             }
         } catch (IOException ioe) {
             LOGGER.error("Error walking client/web directory", ioe);
+            LOGGER.error(Utils.getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
+    }
+
+    public static void copyApiDocsSourceToS3(Path workingDir, String artifactsBucket, S3Client s3) {
+        Path webDir = workingDir.resolve(Path.of("resources", "api-docs"));
+        if (!Files.isDirectory(webDir)) {
+            outputMessage("Error, can't find resources/api-docs directory at " + webDir.toAbsolutePath().toString());
+            System.exit(2);
+        }
+
+        // Sync files to the web bucket
+        outputMessage("Synchronizing AWS SaaS Boost API Docs (Swagger) files to s3");
+        List<Path> filesToUpload;
+        try (Stream<Path> stream = Files.walk(webDir)) {
+            filesToUpload = stream
+                    .filter(file ->
+                            Files.isRegularFile(file) && (
+                                    file.startsWith("resources/api-docs/app.js")
+                                            || file.startsWith("resources/api-docs/package.json")
+                                            || file.startsWith("resources/api-docs/package-lock.json")
+                                            || file.startsWith("resources/api-docs/buildspec_no_post_build.yaml")
+                                            || file.startsWith("resources/api-docs/update.sh"))
+                    )
+                    .collect(Collectors.toList());
+            outputMessage("Uploading " + filesToUpload.size() + " files to S3");
+
+            // Create a ZIP archive of the source files so we only call s3 put object once
+            // and so we can trigger the CodeBuild project off of that single s3 event
+            // (instead of triggering CodeBuild 180+ times -- once for each file put to s3).
+            try {
+                ByteArrayOutputStream src = new ByteArrayOutputStream();
+                ZipOutputStream zip = new ZipOutputStream(src);
+                for (Path fileToUpload : filesToUpload) {
+                    // java.nio.file.Path will use OS dependent file separators
+                    String fileName = fileToUpload.toFile().toString().replace('\\', '/');
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zip.putNextEntry(entry);
+                    zip.write(Files.readAllBytes(fileToUpload)); // all of our files are very small
+                    zip.closeEntry();
+                }
+                zip.close();
+                try {
+                    // Now copy the Swagger source files up to the artifacts bucket
+                    // This will trigger a CodeBuild project to build and deploy the app
+                    // if done after the initial install of SaaS Boost
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(artifactsBucket)
+                            .key("api-docs/src.zip")
+                            .build(), RequestBody.fromBytes(src.toByteArray())
+                    );
+                    // Copy the swagger definition file up to the artifacts bucket separately
+                    // because we use it as an event source to trigger future builds of the
+                    // api docs site
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(artifactsBucket)
+                            .key("api-docs/swagger.json")
+                            .build(), workingDir.resolve(Path.of("resources", "api-docs", "swagger.json")));
+                } catch (SdkServiceException s3Error) {
+                    LOGGER.error("s3:PutObject error", s3Error);
+                    LOGGER.error(Utils.getFullStackTrace(s3Error));
+                    throw s3Error;
+                }
+            } catch (IOException ioe) {
+                LOGGER.error("ZIP archive generation failed");
+                throw new RuntimeException(Utils.getFullStackTrace(ioe));
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error walking resources/api-docs directory", ioe);
             LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }

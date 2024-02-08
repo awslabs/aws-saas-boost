@@ -37,12 +37,16 @@ LAMBDAS_FOLDER=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boo
 if [ -z $LAMBDAS_FOLDER ]; then
     LAMBDAS_FOLDER="lambdas/"
 fi
+if [[ $LAMBDAS_FOLDER != */ ]]; then
+    LAMBDAS_FOLDER="$LAMBDAS_FOLDER/"
+fi
 echo "Lambdas folder = $LAMBDAS_FOLDER"
 echo "Function code = $LAMBDA_CODE"
 
 # Do a fresh build of the project
 rm -rf build
 mkdir build
+npm install
 zip -r build/$LAMBDA_CODE app.js package.json package-lock.json swagger.json node_modules
 
 # And copy it up to S3

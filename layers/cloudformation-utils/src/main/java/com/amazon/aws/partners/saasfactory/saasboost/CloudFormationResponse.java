@@ -79,6 +79,7 @@ public class CloudFormationResponse {
         LOGGER.info("curl -H 'Content-Type: \"\"' -X PUT -d '" + responseBody + "' \"" + responseUrl + "\"");
 
         HttpRequest request = HttpRequest.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .uri(URI.create(responseUrl))
                 .setHeader("Content-Type", "")
                 .PUT(HttpRequest.BodyPublishers.ofString(responseBody, StandardCharsets.UTF_8))
