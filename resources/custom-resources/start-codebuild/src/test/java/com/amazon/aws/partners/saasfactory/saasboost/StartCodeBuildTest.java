@@ -22,22 +22,4 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class StartCodeBuildTest {
 
-    @Test
-    void testReverseBackoff() {
-        float initialDelay = 30f;
-        float minDelay = 0.25f;
-        float factor = 0.2f;
-
-        StartCodeBuild.ReverseBackoff backoff = new StartCodeBuild.ReverseBackoff(initialDelay, minDelay, factor);
-        int iter = 0;
-        long total = 0;
-        long timeout = 60 * 5 * 1000;
-        while (total <= timeout) {
-            ++iter;
-            long delay = Math.round(backoff.delay() * 1000.0f);
-            total += delay;
-            //System.out.printf("%d %5.2f %5.2f%n", iter, (delay / 1000.0f), (total / 1000.0f));
-        }
-        assertEquals(722, iter);
-    }
 }

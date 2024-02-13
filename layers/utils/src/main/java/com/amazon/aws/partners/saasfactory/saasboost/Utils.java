@@ -453,7 +453,7 @@ public class Utils {
         return password.toString();
     }
 
-    public static String getFullStackTrace(Exception e) {
+    public static String getFullStackTrace(Throwable e) {
         final StringWriter sw = new StringWriter();
         final PrintWriter pw = new PrintWriter(sw, true);
         e.printStackTrace(pw);

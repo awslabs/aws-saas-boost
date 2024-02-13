@@ -205,6 +205,7 @@ public class ApiGatewayAuthorizer implements RequestStreamHandler {
         writeResources.add(new AbstractMap.SimpleEntry<>("tiers/*", "DELETE"));
         writeResources.add(new AbstractMap.SimpleEntry<>("identity*", "POST"));
         writeResources.add(new AbstractMap.SimpleEntry<>("metrics*", "POST"));
+        writeResources.add(new AbstractMap.SimpleEntry<>("settings/*", "PUT"));
 
         List<String> resources = new ArrayList<>();
         for (Map.Entry<String, String> resource : writeResources) {

@@ -85,7 +85,7 @@ public class SettingsService {
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
-        //Utils.logRequestEvent(event);
+        Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
         Map<String, String> params = event.getPathParameters();
         String settingName = params.get("id");
@@ -157,7 +157,7 @@ public class SettingsService {
             return new APIGatewayProxyResponseEvent().withHeaders(CORS).withStatusCode(HttpURLConnection.HTTP_OK);
         }
 
-        //Utils.logRequestEvent(event);
+        Utils.logRequestEvent(event);
         APIGatewayProxyResponseEvent response;
         Map<String, String> params = event.getPathParameters();
         String key = params.get("id");

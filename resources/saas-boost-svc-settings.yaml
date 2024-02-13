@@ -80,8 +80,8 @@ Resources:
       Runtime: java17
       Architectures:
         - arm64
-      Timeout: 300
-      MemorySize: 1024
+      Timeout: 30
+      MemorySize: 2112 # AWS Lambda Power Tuning balanced strategy
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSettings
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -111,8 +111,8 @@ Resources:
       Runtime: java17
       Architectures:
         - arm64
-      Timeout: 300
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 2112 # AWS Lambda Power Tuning balanced strategy
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSetting
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -142,8 +142,8 @@ Resources:
       Runtime: java17
       Architectures:
         - arm64
-      Timeout: 300
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 2112 # AWS Lambda Power Tuning balanced strategy
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::getSecret
       Code:
         S3Bucket: !Ref SaaSBoostBucket
@@ -173,8 +173,8 @@ Resources:
       Runtime: java17
       Architectures:
         - arm64
-      Timeout: 300
-      MemorySize: 512
+      Timeout: 30
+      MemorySize: 3072 # AWS Lambda Power Tuning balanced strategy
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SettingsService::updateSetting
       Code:
         S3Bucket: !Ref SaaSBoostBucket

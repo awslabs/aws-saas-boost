@@ -20,6 +20,8 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.internal.waiters.ResponseOrException;
+import software.amazon.awssdk.core.waiters.WaiterResponse;
 import software.amazon.awssdk.services.codebuild.CodeBuildClient;
 import software.amazon.awssdk.services.codebuild.model.*;
 
@@ -73,20 +75,26 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
                                 // note that the CodeBuild project has a defined timeout
                                 LOGGER.info("Waiting for max {} minutes for build {} to complete",
                                         build.timeoutInMinutes(), build.id());
-                                ReverseBackoff backoff = new ReverseBackoff(30f, 0.25f, 0.2f);
-                                while (!"COMPLETED".equals(build.currentPhase())) {
-                                    long delay = (long) backoff.delay() * 1000;
-                                    LOGGER.info("Waiting {}ms for build {} to complete", delay, build.id());
-                                    Thread.sleep(delay);
-                                    build = getBuild(codeBuild, build.id());;
-                                }
-
-                                if (StatusType.SUCCEEDED == build.buildStatus()) {
-                                    responseData.put("Build", build.id());
-                                    responseData.put("BuildStatus", build.buildStatusAsString());
-                                    CloudFormationResponse.send(event, context, "SUCCESS", responseData);
-                                } else {
-                                    responseData.put("Reason", build.buildStatusAsString());
+                                CodeBuildWaiter waiter = new CodeBuildWaiter(codeBuild);
+                                WaiterResponse<BatchGetBuildsResponse> waiterResponse = waiter.waitUntilBuildComplete(
+                                        BatchGetBuildsRequest.builder().ids(build.id()).build()
+                                );
+                                ResponseOrException<BatchGetBuildsResponse> completedBuildResponse = waiterResponse
+                                        .matched();
+                                if (completedBuildResponse.response().isPresent()) {
+                                    build = completedBuildResponse.response().get().builds().get(0);
+                                    if (StatusType.SUCCEEDED == build.buildStatus()) {
+                                        responseData.put("Build", build.id());
+                                        responseData.put("BuildStatus", build.buildStatusAsString());
+                                        CloudFormationResponse.send(event, context, "SUCCESS", responseData);
+                                    } else {
+                                        responseData.put("Reason", build.buildStatusAsString());
+                                        CloudFormationResponse.send(event, context, "FAILED", responseData);
+                                    }
+                                } else if (completedBuildResponse.exception().isPresent()) {
+                                    Throwable error = completedBuildResponse.exception().get();
+                                    LOGGER.error(Utils.getFullStackTrace(error));
+                                    responseData.put("Reason", error.getMessage());
                                     CloudFormationResponse.send(event, context, "FAILED", responseData);
                                 }
                             } else {
@@ -129,49 +137,4 @@ public class StartCodeBuild implements RequestHandler<Map<String, Object>, Objec
         return null;
     }
 
-    protected Build getBuild(CodeBuildClient codeBuild, String buildId) {
-        Build build = null;
-        try {
-            BatchGetBuildsResponse buildsResponse = codeBuild.batchGetBuilds(request -> request
-                    .ids(buildId)
-            );
-            if (buildsResponse.hasBuilds() && buildsResponse.builds().size() == 1) {
-                build = buildsResponse.builds().get(0);
-            }
-        } catch (CodeBuildException cbe) {
-            LOGGER.error(cbe.awsErrorDetails().errorMessage());
-            LOGGER.error(Utils.getFullStackTrace(cbe));
-            throw cbe;
-        } catch (Exception e) {
-            LOGGER.error(e.getMessage());
-            LOGGER.error(Utils.getFullStackTrace(e));
-            throw new RuntimeException(e);
-        }
-        return build;
-    }
-
-    static final class ReverseBackoff {
-
-        private float initialDelay;
-        private float reducingFactor;
-        private float minDelay;
-        private float delay;
-
-        public ReverseBackoff(float initialDelay, float minDelay, float reducingFactor) {
-            this.initialDelay = initialDelay;
-            this.delay = this.initialDelay;
-            this.minDelay = minDelay;
-            this.reducingFactor = reducingFactor;
-        }
-
-        public float delay() {
-            float current = Math.max(delay - (delay * reducingFactor), 0f);
-            if (delay == initialDelay) {
-                delay = current;
-                return initialDelay;
-            }
-            delay = current;
-            return Math.max(delay, minDelay);
-        }
-    }
 }
