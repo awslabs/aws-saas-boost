@@ -203,8 +203,8 @@ public class SaaSBoostInstall {
             for (ACTION action : ACTION.values()) {
                 System.out.println(action.getPrompt());
             }
-            System.out.print("Please select an option to continue (1-" + ACTION.values().length + "): ");
-            Integer option = Keyboard.readInt();
+            //System.out.print("Please select an option to continue (1-" + ACTION.values().length + "): ");
+            Integer option = 1;
             if (option != null) {
                 installOption = ACTION.ofChoice(option);
                 if (installOption != null) {
@@ -287,10 +287,10 @@ public class SaaSBoostInstall {
         String emailAddress;
         while (true) {
             System.out.print("Enter the email address for your AWS SaaS Boost administrator: ");
-            emailAddress = Keyboard.readString();
+            emailAddress = "saas-admin@unicornday.com";
             if (validateEmail(emailAddress)) {
                 System.out.print("Enter the email address address again to confirm: ");
-                String emailAddress2 = Keyboard.readString();
+                String emailAddress2 = "saas-admin@unicornday.com";
                 if (emailAddress.equals(emailAddress2)) {
                     LOGGER.info("Setting SaaS Boost admin email = [{}]", emailAddress);
                     break;
