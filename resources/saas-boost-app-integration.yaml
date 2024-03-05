@@ -2,19 +2,25 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: AWS SaaS Boost Control Plane Integration
 Parameters:
-  SaaSBoostEnvironment:
+  Environment:
     Description: SaaS Boost control plane environment label
     Type: String
-  SaaSBoostEventBusArn:
+  EventBusArn:
     Description: SaaS Boost control plane EventBus ARN
     Type: String
-  SaaSBoostApiAppClientSecretArn:
+  ApiAppClientSecretArn:
     Description: SaaS Boost API App Client SecretsManager ARN
     Type: String
-  SaaSBoostEncryptionKeyArn:
+  EncryptionKeyArn:
     Description: SaaS Boost KMS key ARN for SecretsManager secrets
     Type: String
-  SaaSBoostApiHelperLayerArn:
+  UtilsLayerArn:
+    Description: SaaS Boost Utils Lambda Layer ARN
+    Type: String
+  CloudFormationUtilsLayerArn:
+    Description: SaaS Boost CloudFormation Utils Lambda Layer ARN
+    Type: String
+  ApiHelperLayerArn:
     Description: SaaS Boost API Helper Lambda Layer ARN
     Type: String
 Resources:
@@ -24,7 +30,7 @@ Resources:
   AppPlaneEventBus:
     Type: AWS::Events::EventBus
     Properties:
-      Name: !Select [1, !Split ['/', !Ref SaaSBoostEventBusArn]]
+      Name: !Select [1, !Split ['/', !Ref EventBusArn]]
   AppPlaneEventBusDlq:
     Type: AWS::SQS::Queue
   AppPlaneEventBusDlqPolicy:
@@ -48,7 +54,7 @@ Resources:
   ControlPlaneEventBusToAppPlaneEventBusRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${SaaSBoostEnvironment}-ctrl-plane-events-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-ctrl-plane-events-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -60,7 +66,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${SaaSBoostEnvironment}-ctrl-plane-events-policy
+        - PolicyName: !Sub sb-${Environment}-ctrl-plane-events-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -71,9 +77,9 @@ Resources:
   SaaSBoostEventsSubscriberRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${SaaSBoostEnvironment}-ctrl-plane-events
+      Name: !Sub sb-${Environment}-ctrl-plane-events
       Description: App Plane Subscription to SaaS Boost Control Plane Events
-      EventBusName: !Ref SaaSBoostEventBusArn
+      EventBusName: !Ref EventBusArn
       EventPattern:
         source:
           - saas-boost
@@ -89,7 +95,7 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt AppPlaneEventBus.Arn
-          Id: !Sub sb-${SaaSBoostEnvironment}-ctrl-plane-events
+          Id: !Sub sb-${Environment}-ctrl-plane-events
           RoleArn: !GetAtt ControlPlaneEventBusToAppPlaneEventBusRole.Arn
   # This policy allows access to the OAuth app client details in the control
   # plane's Secrets Manager. This app client can do a client credentials grant
@@ -98,7 +104,7 @@ Resources:
   ControlPlaneApiTrustPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: !Sub sb-${SaaSBoostEnvironment}-api-policy-${AWS::Region}
+      ManagedPolicyName: !Sub sb-${Environment}-api-policy-${AWS::Region}
       Description: Access to the API client secret from the SaaS Boost control plane account
       Path: '/'
       PolicyDocument:
@@ -108,38 +114,50 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource:
-              - !Ref SaaSBoostApiAppClientSecretArn
+              - !Ref ApiAppClientSecretArn
           - Effect: Allow
             Action:
               - kms:Decrypt
               - kms:DescribeKey
             Resource:
-              - !Ref SaaSBoostEncryptionKeyArn
+              - !Ref EncryptionKeyArn
   # Save some things in Parameter Store to make them easier to use in other places
   ControlPlaneApiTrustPolicyParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${SaaSBoostEnvironment}/app/API_CLIENT_TRUST_POLICY
+      Name: !Sub /saas-boost/${Environment}/app/API_CLIENT_TRUST_POLICY
       Type: String
       Value: !Ref ControlPlaneApiTrustPolicy
   AppPlaneEventBusParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${SaaSBoostEnvironment}/app/EVENT_BUS
+      Name: !Sub /saas-boost/${Environment}/app/EVENT_BUS
       Type: String
       Value: !Ref AppPlaneEventBus
   ApiClientSecretParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${SaaSBoostEnvironment}/app/API_APP_CLIENT_SECRET
+      Name: !Sub /saas-boost/${Environment}/app/API_APP_CLIENT_SECRET
       Type: String
-      Value: !Ref SaaSBoostApiAppClientSecretArn
+      Value: !Ref ApiAppClientSecretArn
+  UtilsLayerParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/UTILS_LAYER
+      Type: String
+      Value: !Ref UtilsLayerArn
+  CloudFormationUtilsLayerParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/CFN_LAYER
+      Type: String
+      Value: !Ref CloudFormationUtilsLayerArn
   ApiClientHelperLayerParam:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${SaaSBoostEnvironment}/app/API_CLIENT_HELPER_LAYER
+      Name: !Sub /saas-boost/${Environment}/app/API_CLIENT_HELPER_LAYER
       Type: String
-      Value: !Ref SaaSBoostApiHelperLayerArn
+      Value: !Ref ApiHelperLayerArn
   
   #
   # Below are some optional resources for debugging and getting started
@@ -154,7 +172,7 @@ Resources:
   SaaSBoostEventsLogsResourcePolicy:
     Type: AWS::Logs::ResourcePolicy
     Properties:
-      PolicyName: !Sub sb-${SaaSBoostEnvironment}-event-logs
+      PolicyName: !Sub sb-${Environment}-event-logs
       PolicyDocument: 
         !Join
           - ''
@@ -172,7 +190,7 @@ Resources:
   SaaSBoostEventsTargetRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub sb-${SaaSBoostEnvironment}-ctrl-plane-event-logger
+      Name: !Sub sb-${Environment}-ctrl-plane-event-logger
       Description: SaaS Boost Control Plane Event Logger Target
       EventBusName: !Ref AppPlaneEventBus
       EventPattern:
@@ -190,12 +208,12 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt SaaSBoostEventsLogs.Arn
-          Id: !Sub sb-${SaaSBoostEnvironment}-event-logger
+          Id: !Sub sb-${Environment}-event-logger
   # Example event producer role
   AppPlaneEventProducerExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${SaaSBoostEnvironment}-event-producer-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-event-producer-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -207,7 +225,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${SaaSBoostEnvironment}-event-producer-policy
+        - PolicyName: !Sub sb-${Environment}-event-producer-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -223,18 +241,18 @@ Resources:
               - Effect: Allow
                 Action:
                   - events:PutEvents
-                Resource: !Ref SaaSBoostEventBusArn
+                Resource: !Ref EventBusArn
   AppPlaneEventProducerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${SaaSBoostEnvironment}-app-plane-events
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-app-plane-events
       RetentionInDays: 30
   # Sample app plane event producer
   AppPlaneEventProducer:
     Type: AWS::Lambda::Function
     DependsOn: AppPlaneEventProducerLogs
     Properties:
-      FunctionName: !Sub sb-${SaaSBoostEnvironment}-app-plane-events
+      FunctionName: !Sub sb-${Environment}-app-plane-events
       Role: !GetAtt AppPlaneEventProducerExecutionRole.Arn
       Runtime: python3.11
       Architectures:
@@ -280,12 +298,12 @@ Resources:
                 print(str(eventbridge_error))
       Environment:
         Variables:
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBusArn
+          SAAS_BOOST_EVENT_BUS: !Ref EventBusArn
   # Example SaaS Boost API client role
   AppPlaneApiClientExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${SaaSBoostEnvironment}-api-client-role-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-api-client-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -302,14 +320,14 @@ Resources:
   AppPlaneApiClientLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${SaaSBoostEnvironment}-app-plane-api-client
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-app-plane-api-client
       RetentionInDays: 30
   # Sample SaaS Boost API client using the helper Lambda Layer
   AppPlaneApiClient:
     Type: AWS::Lambda::Function
     DependsOn: AppPlaneApiClientLogs
     Properties:
-      FunctionName: !Sub sb-${SaaSBoostEnvironment}-app-plane-api-client
+      FunctionName: !Sub sb-${Environment}-app-plane-api-client
       Role: !GetAtt AppPlaneApiClientExecutionRole.Arn
       Runtime: python3.11
       Architectures:
@@ -345,8 +363,8 @@ Resources:
 
               return response
       Layers:
-         - !Ref SaaSBoostApiHelperLayerArn
+         - !Ref ApiHelperLayerArn
       Environment:
         Variables:
-          API_CLIENT_SECRET: !Ref SaaSBoostApiAppClientSecretArn
+          API_CLIENT_SECRET: !Ref ApiAppClientSecretArn
 ...

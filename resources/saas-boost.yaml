@@ -354,6 +354,16 @@ Resources:
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/Utils-lambda.zip
+  SaaSBoostUtilsLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref SaaSBoostUtilsLayer
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   ApiGatewayHelperLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
@@ -378,6 +388,16 @@ Resources:
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
+  CloudFormationUtilsLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref CloudFormationUtilsLayer
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   KeycloakHelperLayer:
     Type: AWS::Lambda::LayerVersion
     Condition: UseKeycloak
