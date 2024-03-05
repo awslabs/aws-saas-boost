@@ -105,7 +105,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-identity-get-providers
       Role: !GetAtt IdentityServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -130,7 +130,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-identity-set-provider
       Role: !GetAtt IdentityServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -155,7 +155,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-identity-get-provider
       Role: !GetAtt IdentityServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -180,7 +180,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-identity-event-handler
       Role: !GetAtt IdentityServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300

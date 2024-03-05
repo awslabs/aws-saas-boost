@@ -107,7 +107,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-get-by-id
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -140,7 +140,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-get-all
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -173,7 +173,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-update
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -206,7 +206,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-insert
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -239,7 +239,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-delete
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -272,7 +272,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-enable
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -305,7 +305,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-disable
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -338,7 +338,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tenants-events
       Role: !GetAtt TenantServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 45

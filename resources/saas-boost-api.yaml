@@ -224,7 +224,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-authorizer
       Role: !GetAtt AuthorizerExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 30

@@ -69,7 +69,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-product-setup
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:
@@ -159,7 +159,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-event-process
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:
@@ -235,7 +235,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-aggregate
-      Runtime: java17
+      Runtime: java21
       Timeout: 900
       MemorySize: 384
       Environment:
@@ -440,7 +440,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-publish-external
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:
@@ -581,7 +581,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-system-setup
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:
@@ -685,7 +685,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-tenant-setup
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:
@@ -785,7 +785,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub sb-${Environment}-bill-tenant-disable
-      Runtime: java17
+      Runtime: java21
       Timeout: 300
       MemorySize: 384
       Environment:

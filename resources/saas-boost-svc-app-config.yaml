@@ -111,7 +111,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-rds-options
       Role: !GetAtt RdsOptionsExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 720
@@ -222,7 +222,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-app-config-update
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -259,7 +259,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-app-config-get
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -295,7 +295,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-app-config-delete
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -331,7 +331,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-settings-app-config-events
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -368,7 +368,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-app-config-options
       Role: !GetAtt AppConfigServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300

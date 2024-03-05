@@ -232,7 +232,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-customize-cognito-ui
       Role: !GetAtt CustomizeCognitoUiExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 600
@@ -308,7 +308,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-cognito-client-details
       Role: !GetAtt CognitoAppClientDetailsExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 600

@@ -110,7 +110,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-billing-events
       Role: !GetAtt BillingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300

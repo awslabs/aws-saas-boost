@@ -94,7 +94,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-get-all
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -125,7 +125,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-get-by-id
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -156,7 +156,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-update
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -187,7 +187,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-insert
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -218,7 +218,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-tier-delete
       Role: !GetAtt TierServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300

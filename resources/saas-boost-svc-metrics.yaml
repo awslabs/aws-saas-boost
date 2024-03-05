@@ -220,7 +220,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-pub-requests
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -254,7 +254,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-pub-response
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -288,7 +288,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-add-partition
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -323,7 +323,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-query
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -359,7 +359,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-datasets
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -393,7 +393,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-metrics-access-log-query
       Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300

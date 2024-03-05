@@ -250,7 +250,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-get-all
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -281,7 +281,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-get-by-id
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -312,7 +312,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-insert
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -347,7 +347,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-update
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -379,7 +379,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-delete
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -411,7 +411,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-events
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
@@ -447,7 +447,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-onboarding-tenant-config-event
       Role: !GetAtt OnboardingServiceExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 89 # Must be less than the VisibilityTimeout setting on the queue

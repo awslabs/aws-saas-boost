@@ -348,6 +348,7 @@ Resources:
       LayerName: !Sub sb-${Environment}-utils
       CompatibleRuntimes:
         - java17
+        - java21
       CompatibleArchitectures:
         - arm64
         - x86_64 
@@ -370,6 +371,7 @@ Resources:
       LayerName: !Sub sb-${Environment}-apigw-helper
       CompatibleRuntimes:
         - java17
+        - java21
       CompatibleArchitectures:
         - arm64
         - x86_64 
@@ -382,6 +384,7 @@ Resources:
       LayerName: !Sub sb-${Environment}-cloudformation-utils
       CompatibleRuntimes:
         - java17
+        - java21
       CompatibleArchitectures:
         - arm64
         - x86_64 
@@ -405,6 +408,7 @@ Resources:
       LayerName: !Sub sb-${Environment}-keycloak-helper
       CompatibleRuntimes:
         - java17
+        - java21
       CompatibleArchitectures:
         - arm64
         - x86_64 
@@ -416,8 +420,10 @@ Resources:
     Properties:
       LayerName: !Sub sb-${Environment}-api-client-helper
       CompatibleRuntimes:
+        - java21
         - java17
         - java11
+        - python3.12
         - python3.11
         - python3.10
         - python3.9
@@ -493,7 +499,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-bucket
       Role: !GetAtt ClearBucketExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -587,7 +593,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-ecr-repo
       Role: !GetAtt ClearEcrRepoExecutionRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 900
@@ -720,7 +726,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-start-build
       Role: !GetAtt CodeBuildStartExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 600
@@ -786,7 +792,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-pipeline-waithandler
       Role: !GetAtt CodePipelineWaitHandlerExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 600
@@ -862,7 +868,7 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-update-ecs
       Role: !GetAtt CodePipelineUpdateEcsServiceExecRole.Arn
-      Runtime: java17
+      Runtime: java21
       Architectures:
         - arm64
       Timeout: 300
