@@ -22,6 +22,7 @@
         <module>services</module>
     </modules>
     <properties>
+        <saasboost.rootdir>${project.basedir}</saasboost.rootdir>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- plugin versions -->
         <assembly.version>3.1.1</assembly.version>
@@ -139,6 +140,10 @@
                             <classpathDependencyExclude>org.apache.logging.log4j:log4j-slf4j-impl</classpathDependencyExclude>
                         </classpathDependencyExcludes>
                         <jvm>${env.JAVA_HOME}/bin/java</jvm>
+                        <environmentVariables>
+                            <AWS_REGION>us-east-1</AWS_REGION>
+                            <SAAS_BOOST_ENV>test</SAAS_BOOST_ENV>
+                        </environmentVariables>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -209,7 +214,7 @@
                 <version>${checkstyle.version}</version>
                 <configuration>
                     <encoding>UTF-8</encoding>
-                    <configLocation>resources/checkstyle/checkstyle.xml</configLocation>
+                    <configLocation>${saasboost.rootdir}/resources/checkstyle/checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
                     <failOnViolation>true</failOnViolation>

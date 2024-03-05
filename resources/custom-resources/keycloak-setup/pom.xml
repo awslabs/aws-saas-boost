@@ -31,10 +31,12 @@ limitations under the License.
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
+    
     <properties>
+        <saasboost.rootdir>${project.basedir}/../../..</saasboost.rootdir>
         <checkstyle.maxAllowedViolations>10</checkstyle.maxAllowedViolations>
     </properties>
-
+    
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>

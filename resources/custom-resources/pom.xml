@@ -23,6 +23,9 @@
         <module>redshift-table</module>
         <module>start-codebuild</module>
     </modules>
+    <properties>
+        <saasboost.rootdir>${project.basedir}/../..</saasboost.rootdir>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

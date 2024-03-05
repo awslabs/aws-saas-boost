@@ -21,6 +21,9 @@
         <module>system-user-service</module>
         <module>identity-service</module>
     </modules>
+    <properties>
+        <saasboost.rootdir>${project.basedir}/..</saasboost.rootdir>
+    </properties>
     <licenses>
         <license>
             <name>Apache-2.0</name>

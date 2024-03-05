@@ -34,6 +34,7 @@ limitations under the License.
     </licenses>
 
     <properties>
+        <saasboost.rootdir>${project.basedir}/..</saasboost.rootdir>
         <checkstyle.maxAllowedViolations>90</checkstyle.maxAllowedViolations>
     </properties>
 

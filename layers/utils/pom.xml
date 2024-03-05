@@ -33,6 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
+        <saasboost.rootdir>${project.basedir}/../..</saasboost.rootdir>
         <checkstyle.maxAllowedViolations>4</checkstyle.maxAllowedViolations>
         <jackson.version>2.14.2</jackson.version>
     </properties>
