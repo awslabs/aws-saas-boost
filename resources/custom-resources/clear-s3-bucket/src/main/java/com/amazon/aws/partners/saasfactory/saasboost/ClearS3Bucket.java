@@ -73,36 +73,34 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                         String keyMarker = null;
                         String versionIdMarker = null;
                         do {
-                            ListObjectVersionsRequest request;
-                            if (Utils.isNotBlank(keyMarker) && Utils.isNotBlank(versionIdMarker)) {
-                                request = ListObjectVersionsRequest.builder()
-                                        .bucket(bucket)
-                                        .prefix(prefix)
-                                        .keyMarker(keyMarker)
-                                        .versionIdMarker(versionIdMarker)
-                                        .build();
-                            } else if (Utils.isNotBlank(keyMarker)) {
-                                request = ListObjectVersionsRequest.builder()
-                                        .bucket(bucket)
-                                        .prefix(prefix)
-                                        .keyMarker(keyMarker)
-                                        .build();
-                            } else {
-                                request = ListObjectVersionsRequest.builder()
-                                        .bucket(bucket)
-                                        .prefix(prefix)
-                                        .build();
+                            ListObjectVersionsRequest.Builder request = ListObjectVersionsRequest.builder()
+                                    .bucket(bucket)
+                                    .prefix(prefix);
+                            if (Utils.isNotBlank(versionIdMarker)) {
+                                request = request.versionIdMarker(versionIdMarker);
                             }
-                            response = s3.listObjectVersions(request);
+                            if (Utils.isNotBlank(keyMarker)) {
+                                request = request.keyMarker(keyMarker);
+                            }
+                            response = s3.listObjectVersions(request.build());
                             keyMarker = response.nextKeyMarker();
                             versionIdMarker = response.nextVersionIdMarker();
                             response.versions()
                                     .stream()
                                     .map(version ->
-                                        ObjectIdentifier.builder()
-                                                .key(version.key())
-                                                .versionId(version.versionId())
-                                                .build()
+                                            ObjectIdentifier.builder()
+                                                    .key(version.key())
+                                                    .versionId(version.versionId())
+                                                    .build()
+                                    )
+                                    .forEachOrdered(toDelete::add);
+                            response.deleteMarkers()
+                                    .stream()
+                                    .map(marker ->
+                                            ObjectIdentifier.builder()
+                                                    .key(marker.key())
+                                                    .versionId(marker.versionId())
+                                                    .build()
                                     )
                                     .forEachOrdered(toDelete::add);
                         } while (response.isTruncated());
@@ -111,20 +109,14 @@ public class ClearS3Bucket implements RequestHandler<Map<String, Object>, Object
                         ListObjectsV2Response response;
                         String token = null;
                         do {
-                            ListObjectsV2Request request;
+                            ListObjectsV2Request.Builder request = ListObjectsV2Request.builder()
+                                    .bucket(bucket)
+                                    .prefix(prefix);
                             if (Utils.isNotBlank(token)) {
-                                request = ListObjectsV2Request.builder()
-                                        .bucket(bucket)
-                                        .prefix(prefix)
-                                        .continuationToken(token)
-                                        .build();
-                            } else {
-                                request = ListObjectsV2Request.builder()
-                                        .bucket(bucket)
-                                        .prefix(prefix)
-                                        .build();
+                                request = request.continuationToken(token);
+
                             }
-                            response = s3.listObjectsV2(request);
+                            response = s3.listObjectsV2(request.build());
                             token = response.nextContinuationToken();
                             response.contents()
                                     .stream()

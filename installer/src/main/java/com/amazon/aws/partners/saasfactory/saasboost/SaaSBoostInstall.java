@@ -1598,6 +1598,15 @@ public class SaaSBoostInstall {
                                         .build()
                         )
                         .forEachOrdered(toDelete::add);
+                listObjectResponse.deleteMarkers()
+                        .stream()
+                        .map(marker ->
+                                ObjectIdentifier.builder()
+                                        .key(marker.key())
+                                        .versionId(marker.versionId())
+                                        .build()
+                        )
+                        .forEachOrdered(toDelete::add);
             } while (listObjectResponse.isTruncated());
         } else {
             LOGGER.info("Bucket " + bucket + " is not versioned (" + versioningResponse.status() + ")");
@@ -1677,16 +1686,20 @@ public class SaaSBoostInstall {
         quickCreateLink.append("sb-");
         quickCreateLink.append(envName);
         quickCreateLink.append("-integration");
-        quickCreateLink.append("&param_SaaSBoostEnvironment=");
+        quickCreateLink.append("&param_Environment=");
         quickCreateLink.append(envName);
         Map<String, String> params = getQuickCreateLinkParameters();
-        quickCreateLink.append("&param_SaaSBoostEventBusArn=");
+        quickCreateLink.append("&param_EventBusArn=");
         quickCreateLink.append(params.get("EVENT_BUS"));
-        quickCreateLink.append("&param_SaaSBoostApiAppClientSecretArn=");
+        quickCreateLink.append("&param_ApiAppClientSecretArn=");
         quickCreateLink.append(params.get("API_APP_CLIENT_SECRET"));
-        quickCreateLink.append("&param_SaaSBoostEncryptionKeyArn=");
+        quickCreateLink.append("&param_EncryptionKeyArn=");
         quickCreateLink.append(params.get("API_APP_CLIENT_KEY"));
-        quickCreateLink.append("&param_SaaSBoostApiHelperLayerArn=");
+        quickCreateLink.append("&param_UtilsLayerArn=");
+        quickCreateLink.append(params.get("UTILS_LAYER"));
+        quickCreateLink.append("&param_CloudFormationUtilsLayerArn=");
+        quickCreateLink.append(params.get("CFN_UTILS_LAYER"));
+        quickCreateLink.append("&param_ApiHelperLayerArn=");
         quickCreateLink.append(params.get("API_CLIENT_HELPER_LAYER"));
         return quickCreateLink.toString();
     }
@@ -1699,6 +1712,8 @@ public class SaaSBoostInstall {
                             "/saas-boost/" + envName + "/EVENT_BUS",
                             "/saas-boost/" + envName + "/API_APP_CLIENT_SECRET",
                             "/saas-boost/" + envName + "/API_APP_CLIENT_KEY",
+                            "/saas-boost/" + envName + "/UTILS_LAYER",
+                            "/saas-boost/" + envName + "/CFN_UTILS_LAYER",
                             "/saas-boost/" + envName + "/API_CLIENT_HELPER_LAYER"
                     ))
             );
@@ -1706,7 +1721,7 @@ public class SaaSBoostInstall {
                     .stream()
                     .forEach(parameter -> params.put(
                             parameter.name().substring(parameter.name().lastIndexOf("/") + 1), parameter.value()));
-            // ParameterStore only has the name of the event bus but we need the whole ARN
+            // ParameterStore only has the name of the event bus, but we need the whole ARN
             params.put("EVENT_BUS",
                     "arn:" + AWS_REGION.metadata().partition().id() + ":events:" + AWS_REGION.id()
                     + ":" + accountId + ":event-bus/" + params.get("EVENT_BUS"));
