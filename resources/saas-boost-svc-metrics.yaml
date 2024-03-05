@@ -43,6 +43,127 @@ Parameters:
     Description: The API Gateway REST API stage name for the SaaS Boost private API
     Type: String
 Resources:
+  MetricsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-metrics
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MetricsDLQ.Arn
+        maxReceiveCount: 10
+      SqsManagedSseEnabled: true
+  MetricsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub sb-${Environment}-metrics-dlq
+      SqsManagedSseEnabled: true
+      RedriveAllowPolicy: !Sub |
+        {
+          "redrivePermission": "byQueue",
+          "sourceQueueArns": ["arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:sb-${Environment}-metrics"]
+        }
+  MetricsQueueEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100
+      MaximumBatchingWindowInSeconds: 30
+      Enabled: true
+      EventSourceArn: !GetAtt MetricsQueue.Arn
+      FunctionName: !GetAtt MetricsQueueProcessor.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+  MetricsServiceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-metrics-svc-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-metrics-svc-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:SendMessageBatch
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt MetricsQueue.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt MetricsDLQ.Arn
+  MetricsQueueProcessorLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-queue-processor
+      RetentionInDays: 30
+  MetricsQueueProcessor:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-metrics-queue-processor
+      Role: !GetAtt MetricsServiceExecutionRole.Arn
+      Runtime: java21
+      Timeout: 300
+      MemorySize: 2112
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricsService::processMetricsQueue
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}MetricsService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          METRICS_DLQ: !Ref MetricsDLQ
+  MetricsServicePutMetricsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-put
+      RetentionInDays: 30
+  MetricsServicePutMetrics:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub sb-${Environment}-metrics-put
+      Role: !GetAtt MetricsServiceExecutionRole.Arn
+      Runtime: java21
+      Timeout: 300
+      MemorySize: 2112
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricsService::putMetrics
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}MetricsService-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          METRICS_QUEUE: !Ref MetricsQueue
+          METRICS_DLQ: !Ref MetricsDLQ
+
 #  AccessLogsDatabase:
 #    Type: AWS::Glue::Database
 #    Properties:
@@ -135,358 +256,361 @@ Resources:
 #            Parameters:
 #              serialization.format: 1
 #              input.regex: '([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*):([0-9]*) ([^ ]*)[:-]([0-9]*) ([-.0-9]*) ([-.0-9]*) ([-.0-9]*) (|[-0-9]*) (-|[-0-9]*) ([-0-9]*) ([-0-9]*) \"([^ ]*) ([^ ]*) (- |[^ ]*)\" \"([^\"]*)\" ([A-Z0-9-]+) ([A-Za-z0-9.-]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\" \"([^\"]*)\" ([-.0-9]*) ([^ ]*) \"([^\"]*)\" \"([^\"]*)\" \"([^ ]*)\" \"([^\s]+)\" \"([^\s]+)\"(.*)'
-  MetricServiceExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub sb-${Environment}-metrics-svc-role-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub sb-${Environment}-metrics-svc-policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:DescribeLogStreams
-                Resource:
-                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-              - Effect: Allow
-                Action:
-                  - athena:ListDataCatalogs
-                  - athena:ListWorkGroups
-                  - cloudwatch:GetMetricData
-                  - cloudwatch:ListMetrics
-                  - application-autoscaling:DescribeScalableTargets
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - s3:GetBucketLocation
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}
-#                  - !Sub arn:${AWS::Partition}:s3:::${AccessLogs}
-              - Effect: Allow
-                Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetObject
-                  - s3:ListMultipartUploadParts
-                  - s3:PutObject
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}/*
-#                  - !Sub arn:${AWS::Partition}:s3:::${AccessLogs}/*
-              - Effect: Allow
-                Action:
-                  - glue:GetTable
-                  - glue:GetDatabase
-                  - glue:GetPartitions
-                Resource:
-#                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:database/${AccessLogsDatabase}
-#                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:table/${AccessLogsDatabase}/${AccessLogsTable}
-                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog
-                  - !Sub arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
-              - Effect: Allow
-                Action:
-                  - athena:*
-                Resource:
-                  - !Sub arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
-  MetricsServicePublishRequestCountLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-pub-requests
-      RetentionInDays: 30
-  MetricsServicePublishRequestCount:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-pub-requests
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 900
-      MemorySize: 384
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishRequestCountMetrics
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  MetricsServicePublishResponseTimeLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-pub-response
-      RetentionInDays: 30
-  MetricsServicePublishResponseTime:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-pub-response
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 900
-      MemorySize: 384
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishResponseTimeMetrics
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  MetricsServiceAddAthenaPartitionLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-add-partition
-      RetentionInDays: 30
-  MetricsServiceAddAthenaPartition:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-add-partition
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 900
-      MemorySize: 384
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::addAthenaPartition
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-#          ACCESS_LOGS_PATH: !Sub s3://${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  MetricServiceQueryLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-query
-      RetentionInDays: 30
-  MetricServiceQuery:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-query
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 300
-      MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryMetrics
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  MetricsServiceGetDatasetsLog:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-datasets
-      RetentionInDays: 30
-  MetricsServiceGetDatasets:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-datasets
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 900
-      MemorySize: 384
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::getAccessMetricsSignedUrls
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  MetricsServiceQueryAccessLogLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-access-log-query
-      RetentionInDays: 30
-  MetricsServiceQueryAccessLog:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub sb-${Environment}-metrics-access-log-query
-      Role: !GetAtt MetricServiceExecutionRole.Arn
-      Runtime: java21
-      Architectures:
-        - arm64
-      Timeout: 300
-      MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryAccessLogs
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
-      Layers:
-        - !Ref SaaSBoostUtilsLayer
-        - !Ref ApiGatewayHelperLayer
-      Environment:
-        Variables:
-#          ATHENA_DATABASE: !Ref AccessLogsDatabase
-          S3_ATHENA_BUCKET: !Ref AthenaOutput
-          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
-#          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
-          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
-      Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
-          Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Metrics"
-  PublishRequestCountEvent:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub sb-${Environment}-metrics-count
-      Description: A scheduled task to publish access log metrics to s3 web bucket
-      # Run this every 30 minutes
-      ScheduleExpression: "cron(0/30 * * * ? *)"
-      State: DISABLED
-      Targets:
-        - Arn: !GetAtt MetricsServicePublishRequestCount.Arn
-          Id: MetricsServicePublishRequestCount
-  PublishResponseTimeMetricsEvent:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub sb-${Environment}-metrics-latency
-      Description: A scheduled task to publish access log metrics to s3 web bucket
-      # Run this every 30 minutes
-      ScheduleExpression: "cron(0/30 * * * ? *)"
-      State: DISABLED
-      Targets:
-        - Arn: !GetAtt MetricsServicePublishResponseTime.Arn
-          Id: MetricsServicePublishResponseTime
-  AddAthenaPartitionEvent:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub sb-${Environment}-metrics-athena-partition
-      Description: A scheduled task to add partition for access logs daily
-      # Run at 00:15 every day
-      ScheduleExpression: "cron(15 0 * * ? *)"
-      State: DISABLED
-      Targets:
-        - Arn: !GetAtt MetricsServiceAddAthenaPartition.Arn
-          Id: MetricsServiceAddAthenaPartition
-  MetricsServicePublishRequestCountPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt MetricsServicePublishRequestCount.Arn
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt PublishRequestCountEvent.Arn
-  MetricsServicePublishResponseTimePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt MetricsServicePublishResponseTime.Arn
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt PublishResponseTimeMetricsEvent.Arn
-  MetricsServiceAddAthenaPartitionPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt MetricsServiceAddAthenaPartition.Arn
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt AddAthenaPartitionEvent.Arn
+#  MetricServiceExecutionRole:
+#    Type: AWS::IAM::Role
+#    Properties:
+#      RoleName: !Sub sb-${Environment}-metrics-svc-role-${AWS::Region}
+#      Path: '/'
+#      AssumeRolePolicyDocument:
+#        Version: 2012-10-17
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service:
+#                - lambda.amazonaws.com
+#            Action:
+#              - sts:AssumeRole
+#      Policies:
+#        - PolicyName: !Sub sb-${Environment}-metrics-svc-policy
+#          PolicyDocument:
+#            Version: 2012-10-17
+#            Statement:
+#              - Effect: Allow
+#                Action:
+#                  - logs:PutLogEvents
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+#              - Effect: Allow
+#                Action:
+#                  - logs:CreateLogStream
+#                  - logs:DescribeLogStreams
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+#              - Effect: Allow
+#                Action:
+#                  - athena:ListDataCatalogs
+#                  - athena:ListWorkGroups
+#                  - cloudwatch:GetMetricData
+#                  - cloudwatch:ListMetrics
+#                  - application-autoscaling:DescribeScalableTargets
+#                Resource: '*'
+#              - Effect: Allow
+#                Action:
+#                  - s3:GetBucketLocation
+#                  - s3:ListBucket
+#                  - s3:ListBucketMultipartUploads
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}
+##                  - !Sub arn:${AWS::Partition}:s3:::${AccessLogs}
+#              - Effect: Allow
+#                Action:
+#                  - s3:AbortMultipartUpload
+#                  - s3:GetObject
+#                  - s3:ListMultipartUploadParts
+#                  - s3:PutObject
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:s3:::${AthenaOutput}/*
+##                  - !Sub arn:${AWS::Partition}:s3:::${AccessLogs}/*
+#              - Effect: Allow
+#                Action:
+#                  - glue:GetTable
+#                  - glue:GetDatabase
+#                  - glue:GetPartitions
+#                Resource:
+##                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:database/${AccessLogsDatabase}
+##                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:table/${AccessLogsDatabase}/${AccessLogsTable}
+#                  - !Sub arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog
+#                  - !Sub arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
+#              - Effect: Allow
+#                Action:
+#                  - athena:*
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
+#              - Effect: Allow
+#                Action:
+#                  - secretsmanager:GetSecretValue
+#                Resource:
+#                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
+#  MetricsServicePublishRequestCountLogs:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-pub-requests
+#      RetentionInDays: 30
+#  MetricsServicePublishRequestCount:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-pub-requests
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 900
+#      MemorySize: 384
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishRequestCountMetrics
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  MetricsServicePublishResponseTimeLogs:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-pub-response
+#      RetentionInDays: 30
+#  MetricsServicePublishResponseTime:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-pub-response
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 900
+#      MemorySize: 384
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::publishResponseTimeMetrics
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  MetricsServiceAddAthenaPartitionLogs:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-add-partition
+#      RetentionInDays: 30
+#  MetricsServiceAddAthenaPartition:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-add-partition
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 900
+#      MemorySize: 384
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::addAthenaPartition
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+##          ACCESS_LOGS_PATH: !Sub s3://${AccessLogs}/access-logs/AWSLogs/${AWS::AccountId}/elasticloadbalancing/${AWS::Region}
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  MetricServiceQueryLogs:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-query
+#      RetentionInDays: 30
+#  MetricServiceQuery:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-query
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 300
+#      MemorySize: 1024
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryMetrics
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#        - !Ref ApiGatewayHelperLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+#          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  MetricsServiceGetDatasetsLog:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-datasets
+#      RetentionInDays: 30
+#  MetricsServiceGetDatasets:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-datasets
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 900
+#      MemorySize: 384
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::getAccessMetricsSignedUrls
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  MetricsServiceQueryAccessLogLogs:
+#    Type: AWS::Logs::LogGroup
+#    Properties:
+#      LogGroupName: !Sub /aws/lambda/sb-${Environment}-metrics-access-log-query
+#      RetentionInDays: 30
+#  MetricsServiceQueryAccessLog:
+#    Type: AWS::Lambda::Function
+#    Properties:
+#      FunctionName: !Sub sb-${Environment}-metrics-access-log-query
+#      Role: !GetAtt MetricServiceExecutionRole.Arn
+#      Runtime: java21
+#      Architectures:
+#        - arm64
+#      Timeout: 300
+#      MemorySize: 1024
+#      Handler: com.amazon.aws.partners.saasfactory.saasboost.MetricService::queryAccessLogs
+#      Code:
+#        S3Bucket: !Ref SaaSBoostBucket
+#        S3Key: !Sub ${LambdaSourceFolder}/MetricsService-lambda.zip
+#      Layers:
+#        - !Ref SaaSBoostUtilsLayer
+#        - !Ref ApiGatewayHelperLayer
+#      Environment:
+#        Variables:
+##          ATHENA_DATABASE: !Ref AccessLogsDatabase
+#          S3_ATHENA_BUCKET: !Ref AthenaOutput
+#          S3_ATHENA_OUTPUT_PATH: !Sub s3://${AthenaOutput}/query-results/
+##          ACCESS_LOGS_TABLE: !Ref AccessLogsTable
+#          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+#      Tags:
+#        - Key: "Application"
+#          Value: "SaaSBoost"
+#        - Key: "Environment"
+#          Value: !Ref Environment
+#        - Key: "BoostService"
+#          Value: "Metrics"
+#  PublishRequestCountEvent:
+#    Type: AWS::Events::Rule
+#    Properties:
+#      Name: !Sub sb-${Environment}-metrics-count
+#      Description: A scheduled task to publish access log metrics to s3 web bucket
+#      # Run this every 30 minutes
+#      ScheduleExpression: "cron(0/30 * * * ? *)"
+#      State: DISABLED
+#      Targets:
+#        - Arn: !GetAtt MetricsServicePublishRequestCount.Arn
+#          Id: MetricsServicePublishRequestCount
+#  PublishResponseTimeMetricsEvent:
+#    Type: AWS::Events::Rule
+#    Properties:
+#      Name: !Sub sb-${Environment}-metrics-latency
+#      Description: A scheduled task to publish access log metrics to s3 web bucket
+#      # Run this every 30 minutes
+#      ScheduleExpression: "cron(0/30 * * * ? *)"
+#      State: DISABLED
+#      Targets:
+#        - Arn: !GetAtt MetricsServicePublishResponseTime.Arn
+#          Id: MetricsServicePublishResponseTime
+#  AddAthenaPartitionEvent:
+#    Type: AWS::Events::Rule
+#    Properties:
+#      Name: !Sub sb-${Environment}-metrics-athena-partition
+#      Description: A scheduled task to add partition for access logs daily
+#      # Run at 00:15 every day
+#      ScheduleExpression: "cron(15 0 * * ? *)"
+#      State: DISABLED
+#      Targets:
+#        - Arn: !GetAtt MetricsServiceAddAthenaPartition.Arn
+#          Id: MetricsServiceAddAthenaPartition
+#  MetricsServicePublishRequestCountPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Action: lambda:InvokeFunction
+#      FunctionName: !GetAtt MetricsServicePublishRequestCount.Arn
+#      Principal: events.amazonaws.com
+#      SourceArn: !GetAtt PublishRequestCountEvent.Arn
+#  MetricsServicePublishResponseTimePermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Action: lambda:InvokeFunction
+#      FunctionName: !GetAtt MetricsServicePublishResponseTime.Arn
+#      Principal: events.amazonaws.com
+#      SourceArn: !GetAtt PublishResponseTimeMetricsEvent.Arn
+#  MetricsServiceAddAthenaPartitionPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Action: lambda:InvokeFunction
+#      FunctionName: !GetAtt MetricsServiceAddAthenaPartition.Arn
+#      Principal: events.amazonaws.com
+#      SourceArn: !GetAtt AddAthenaPartitionEvent.Arn
 Outputs:
+  MetricsServicePutArn:
+    Description: Metrics Service put Lambda ARN
+    Value: !GetAtt MetricsServicePutMetrics.Arn
 #  AccessLogsDatabase:
 #    Description: Athena Database for ALB Access Logs
 #    Value: !Ref AccessLogsDatabase
 #  AccessLogsTable:
 #    Description: Athena Access Logs Table
 #    Value: !Ref AccessLogsTable
-  QueryArn:
-    Description: Metrics Service query Lambda ARN
-    Value: !GetAtt MetricServiceQuery.Arn
-  DatasetsArn:
-    Description: Metrics Service datasets Lambda ARN
-    Value: !GetAtt MetricsServiceGetDatasets.Arn
-  AlbQueryArn:
-    Description: Metrics Service ALB metric query Lambda ARN
-    Value: !GetAtt MetricsServiceQueryAccessLog.Arn
+#  QueryArn:
+#    Description: Metrics Service query Lambda ARN
+#    Value: !GetAtt MetricServiceQuery.Arn
+#  DatasetsArn:
+#    Description: Metrics Service datasets Lambda ARN
+#    Value: !GetAtt MetricsServiceGetDatasets.Arn
+#  AlbQueryArn:
+#    Description: Metrics Service ALB metric query Lambda ARN
+#    Value: !GetAtt MetricsServiceQueryAccessLog.Arn
 ...

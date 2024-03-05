@@ -1117,9 +1117,10 @@ Resources:
         ApiAppClientId: !GetAtt idp.Outputs.ApiAppClient
         PrivateApiAppClientId: !GetAtt idp.Outputs.PrivateApiAppClient
         #BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
-        MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
-        MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
-        MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
+        #MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
+        #MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
+        #MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
+        MetricsServicePut: !GetAtt metrics.Outputs.MetricsServicePutArn
         OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
         OnboardingServiceInsert: !GetAtt onboarding.Outputs.OnboardingServiceInsertArn
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn

@@ -75,14 +75,17 @@ Parameters:
 #  BillingServiceGetPlans:
 #    Description: Billing Service subscription plans Lambda ARN
 #    Type: String
-  MetricsServiceQuery:
-    Description: Metrics Service query Lambda ARN
-    Type: String
-  MetricsServiceDatasets:
-    Description: Metrics Service datasets Lambda ARN
-    Type: String
-  MetricsServiceAlbQuery:
-    Description: Metrics Service ALB metric query Lambda ARN
+#  MetricsServiceQuery:
+#    Description: Metrics Service query Lambda ARN
+#    Type: String
+#  MetricsServiceDatasets:
+#    Description: Metrics Service datasets Lambda ARN
+#    Type: String
+#  MetricsServiceAlbQuery:
+#    Description: Metrics Service ALB metric query Lambda ARN
+#    Type: String
+  MetricsServicePut:
+    Description: Metrics Service put metrics request Lambda ARN
     Type: String
   OnboardingServiceGetAll:
     Description: Onboarding Service get all onboarding requests Lambda ARN
@@ -608,72 +611,39 @@ Resources:
       RestApiId: !Ref SaaSBoostApi
       ParentId: !Ref RootResourceId
       PathPart: metrics
-  MetricsServiceQueryResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceResource
-      PathPart: query
-  MetricsServiceDatasetsResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceResource
-      PathPart: datasets
-  MetricsServiceAlbResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceResource
-      PathPart: alb
-  MetricsServiceAlbMetricResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceAlbResource
-      PathPart: '{metric}'
-  MetricsServiceAlbQueryResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceAlbMetricResource
-      PathPart: '{timerange}'
-  MetricsServiceAlbQueryByTenantIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ParentId: !Ref MetricsServiceAlbQueryResource
-      PathPart: '{id}'
-  MetricsServiceQueryMethod:
+  MetricsServicePutMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceQueryResource
+      ResourceId: !Ref MetricsServiceResource
       HttpMethod: POST
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServicePut}/invocations
         PassthroughBehavior: WHEN_NO_MATCH
       MethodResponses:
         - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
+          ResponseModels:
+            application/json: Empty
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
-  MetricsServiceQueryLambdaPermission:
+#      RequestModels:
+#        application/json: !Ref MetricListModel
+  MetricsServicePutLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Principal: apigateway.amazonaws.com
       Action: lambda:InvokeFunction
-      FunctionName: !Ref MetricsServiceQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics/query
-  MetricsServiceQueryResourceCORS:
+      FunctionName: !Ref MetricsServicePut
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics
+  MetricsServiceResourceCORS:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceQueryResource
+      ResourceId: !Ref MetricsServiceResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -681,10 +651,11 @@ Resources:
         PassthroughBehavior: WHEN_NO_MATCH
         IntegrationResponses:
           - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
+            ResponseTemplates:
+              application/json: ''
             ResponseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
               method.response.header.Access-Control-Max-Age: "'3600'"
               method.response.header.X-Requested-With: "'*'"
@@ -692,192 +663,284 @@ Resources:
           application/json: '{"statusCode": 200}'
       MethodResponses:
         - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
+          ResponseModels:
+            application/json: Empty
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: false
             method.response.header.Access-Control-Allow-Methods: false
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Max-Age: false
             method.response.header.X-Requested-With: false
-  MetricsServiceDatasetsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceDatasetsResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  MetricsServiceDatasetsLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MetricsServiceDatasets
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/datasets
-  MetricsServiceDatasetsResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceDatasetsResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  MetricsServiceAlbQueryMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceAlbQueryResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      RequestParameters:
-        method.request.path.metric: true
-        method.request.path.timerange: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters:
-          integration.request.path.metric: 'method.request.path.metric'
-          integration.request.path.timerange: 'method.request.path.timerange'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  MetricsServiceAlbQueryLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}
-  MetricsServiceAlbQueryResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceAlbQueryResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
-  MetricsServiceAlbQueryByTenantIdMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
-      HttpMethod: GET
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
-      RequestParameters:
-        method.request.path.metric: true
-        method.request.path.timerange: true
-        method.request.path.id: true
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
-        PassthroughBehavior: WHEN_NO_MATCH
-        RequestParameters:
-          integration.request.path.metric: 'method.request.path.metric'
-          integration.request.path.timerange: 'method.request.path.timerange'
-          integration.request.path.id: 'method.request.path.id'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-  MetricsServiceAlbQueryByTenantIdLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Principal: apigateway.amazonaws.com
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref MetricsServiceAlbQuery
-      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
-  MetricsServiceAlbQueryByTenantIdResourceCORS:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref SaaSBoostApi
-      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        PassthroughBehavior: WHEN_NO_MATCH
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseTemplates: {application/json: ''}
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Max-Age: "'3600'"
-              method.response.header.X-Requested-With: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels: {application/json: Empty}
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Max-Age: false
-            method.response.header.X-Requested-With: false
+#  MetricsServiceQueryResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: query
+#  MetricsServiceDatasetsResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: datasets
+#  MetricsServiceAlbResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: alb
+#  MetricsServiceAlbMetricResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbResource
+#      PathPart: '{metric}'
+#  MetricsServiceAlbQueryResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbMetricResource
+#      PathPart: '{timerange}'
+#  MetricsServiceAlbQueryByTenantIdResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbQueryResource
+#      PathPart: '{id}'
+#  MetricsServiceQueryMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceQueryResource
+#      HttpMethod: POST
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceQueryLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics/query
+#  MetricsServiceQueryResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceQueryResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceDatasetsMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceDatasetsResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceDatasetsLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceDatasets
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/datasets
+#  MetricsServiceDatasetsResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceDatasetsResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceAlbQueryMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      RequestParameters:
+#        method.request.path.metric: true
+#        method.request.path.timerange: true
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        RequestParameters:
+#          integration.request.path.metric: 'method.request.path.metric'
+#          integration.request.path.timerange: 'method.request.path.timerange'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceAlbQueryLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceAlbQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}
+#  MetricsServiceAlbQueryResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceAlbQueryByTenantIdMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      RequestParameters:
+#        method.request.path.metric: true
+#        method.request.path.timerange: true
+#        method.request.path.id: true
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        RequestParameters:
+#          integration.request.path.metric: 'method.request.path.metric'
+#          integration.request.path.timerange: 'method.request.path.timerange'
+#          integration.request.path.id: 'method.request.path.id'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceAlbQueryByTenantIdLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceAlbQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
+#  MetricsServiceAlbQueryByTenantIdResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
   OnboardingServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -2500,14 +2563,16 @@ Resources:
     DependsOn:
 #      - BillingServicePlansResourceCORS
 #      - BillingServiceGetPlansMethod
-      - MetricsServiceQueryMethod
-      - MetricsServiceQueryResourceCORS
-      - MetricsServiceDatasetsMethod
-      - MetricsServiceDatasetsResourceCORS
-      - MetricsServiceAlbQueryMethod
-      - MetricsServiceAlbQueryResourceCORS
-      - MetricsServiceAlbQueryByTenantIdMethod
-      - MetricsServiceAlbQueryByTenantIdResourceCORS
+#      - MetricsServiceQueryMethod
+#      - MetricsServiceQueryResourceCORS
+#      - MetricsServiceDatasetsMethod
+#      - MetricsServiceDatasetsResourceCORS
+#      - MetricsServiceAlbQueryMethod
+#      - MetricsServiceAlbQueryResourceCORS
+#      - MetricsServiceAlbQueryByTenantIdMethod
+#      - MetricsServiceAlbQueryByTenantIdResourceCORS
+      - MetricsServiceResourceCORS
+      - MetricsServicePutMethod
       - OnboardingServiceGetAllMethod
       - OnboardingServiceInsertMethod
       - OnboardingServiceResourceCORS
