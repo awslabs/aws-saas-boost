@@ -16,18 +16,23 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class UtilsTest {
 
     @Test
     public void testIsChinaRegion() {
-        assertFalse("N. Virginia is not in China", Utils.isChinaRegion("us-east-1"));
-        assertFalse("US Gov Cloud is not in China", Utils.isChinaRegion("us-gov-west-1"));
-        assertTrue("Beijing is in China", Utils.isChinaRegion("cn-north-1"));
-        assertTrue("Ningxia is in China", Utils.isChinaRegion("cn-northwest-1"));
+        assertFalse(Utils.isChinaRegion("us-east-1"), "N. Virginia is not in China");
+        assertFalse(Utils.isChinaRegion("us-gov-west-1"), "US Gov Cloud is not in China");
+        assertTrue(Utils.isChinaRegion("cn-north-1"), "Beijing is in China");
+        assertTrue(Utils.isChinaRegion("cn-northwest-1"), "Ningxia is in China");
     }
 
     @Test
@@ -41,8 +46,9 @@ public class UtilsTest {
         String randomString = Utils.randomString(1000);
         for (int ch = 0; ch < randomString.length(); ch++) {
             String character = String.valueOf(randomString.charAt(ch));
-            assertEquals("Character " + character + " is illegal", -1, illegalCharacters.indexOf(character));
-            assertTrue("Character " + character + " is legal", legalCharacters.contains(character));
+            assertEquals(-1, illegalCharacters.indexOf(character),
+                    "Character " + character + " is illegal");
+            assertTrue(legalCharacters.contains(character), "Character " + character + " is legal");
         }
     }
 
@@ -61,5 +67,36 @@ public class UtilsTest {
         assertEquals("foo_bar", Utils.toSnakeCase("foo baR"));
         assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBaz"));
         assertEquals("foo_bar_baz", Utils.toSnakeCase("fooBarBAZ"));
+    }
+
+    @Test
+    public void testCollectionFromJson() {
+        String json = "[{\"foo\": \"Santa\", \"bar\": \"Claus\"}]";
+        MyPojo[] pojoArray = Utils.fromJson(json, MyPojo[].class);
+        List<MyPojo> pojoList = Arrays.asList(pojoArray);
+    }
+
+    public static class MyPojo {
+        private String foo;
+        private String bar;
+
+        public MyPojo() {
+        }
+
+        public String getFoo() {
+            return foo;
+        }
+
+        public void setFoo(String foo) {
+            this.foo = foo;
+        }
+
+        public String getBar() {
+            return bar;
+        }
+
+        public void setBar(String bar) {
+            this.bar = bar;
+        }
     }
 }

@@ -15,15 +15,11 @@
 	<modules>
 		<module>authorizer</module>
         <module>codepipeline-wait-handler</module>
-        <module>core-stack-listener</module>
         <module>ecs-service-update</module>
-        <module>ecs-shutdown-services</module>
-        <module>ecs-startup-services</module>
-        <module>onboarding-app-stack-listener</module>
-        <module>onboarding-stack-listener</module>
-        <module>system-rest-api-client</module>
-        <module>workload-deploy</module>
     </modules>
+    <properties>
+        <saasboost.rootdir>${project.basedir}/..</saasboost.rootdir>
+    </properties>
     <licenses>
         <license>
             <name>Apache-2.0</name>
@@ -48,12 +44,31 @@
             <artifactId>aws-lambda-java-log4j2</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-tests</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-nop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>Utils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

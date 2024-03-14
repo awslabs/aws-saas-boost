@@ -33,7 +33,7 @@ const log = logger.getLogger('onboarding')
 log.setLevel(log.levels.INFO)
 
 export default function OnboardingListContainer() {
-  const [showEcrPushModal, setShowEcrPushModal] = useState(false)
+  //const [showEcrPushModal, setShowEcrPushModal] = useState(false)
   const dispatch = useDispatch()
   const history = useHistory()
 
@@ -61,10 +61,12 @@ export default function OnboardingListContainer() {
     dispatch(fetchOnboardings())
   }
 
+  /*
   const toggleEcrPushModal = () => {
     setShowEcrPushModal((state) => !state)
   }
-
+  */
+  
   useEffect(() => {
     const onboardingResponse = dispatch(fetchOnboardings())
     return () => {
@@ -87,8 +89,8 @@ export default function OnboardingListContainer() {
       showOnboardRequestForm={showOnboardRequestForm}
       awsAccount={globalConfig.awsAccount}
       awsRegion={globalConfig.region}
-      showEcrPushModal={showEcrPushModal}
-      toggleEcrPushModal={toggleEcrPushModal}
+      //showEcrPushModal={showEcrPushModal}
+      //toggleEcrPushModal={toggleEcrPushModal}
       clickTenantDetails={clickTenantDetails}
     />
   )

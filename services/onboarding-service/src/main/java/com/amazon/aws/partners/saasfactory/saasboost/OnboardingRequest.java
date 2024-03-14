@@ -16,78 +16,94 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
+@JsonDeserialize(builder = OnboardingRequest.Builder.class)
 public class OnboardingRequest {
 
-    private String name;
-    private String tier;
-    private String subdomain;
-    private String billingPlan;
-    private Map<String, String> attributes = new LinkedHashMap<>();
+    private final String name;
+    private final String tier;
+    private final String subdomain;
+    private final Map<String, String> attributes;
+    private final Set<Map<String, Object>> adminUsers;
 
-    public OnboardingRequest(String name) {
-        this(name, "default");
-    }
-
-    public OnboardingRequest(String name, String tier) {
-        this(name, tier, null, null);
-    }
-
-    @JsonCreator
-    public OnboardingRequest(@JsonProperty("name") String name, @JsonProperty("tier") String tier,
-                             @JsonProperty("subdomain") String subdomain,
-                             @JsonProperty("billingPlan") String billingPlan) {
-        if (name == null) {
-            throw new IllegalArgumentException("name is required");
-        }
-        this.name = name;
-        this.tier = tier != null ? tier : "default";
-        this.subdomain = subdomain;
-        this.billingPlan = Utils.isBlank(billingPlan) ? null : billingPlan;
+    private OnboardingRequest(Builder builder) {
+        this.name = builder.name;
+        this.tier = builder.tier;
+        this.subdomain = builder.subdomain;
+        this.attributes = builder.attributes;
+        this.adminUsers = builder.adminUsers;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public String getTier() {
         return tier;
-    }
-
-    public void setTier(String tier) {
-        this.tier = tier;
     }
 
     public String getSubdomain() {
         return subdomain;
     }
 
-    public void setSubdomain(String subdomain) {
-        this.subdomain = subdomain;
-    }
-
-    public String getBillingPlan() {
-        return billingPlan;
-    }
-
-    public void setBillingPlan(String billingPlan) {
-        this.billingPlan = billingPlan;
-    }
-
     public Map<String, String> getAttributes() {
-        return attributes;
+        return Map.copyOf(attributes);
     }
 
-    public void setAttributes(Map<String, String> attributes) {
-        this.attributes = attributes != null ? attributes : new LinkedHashMap<>();
+    public Set<Map<String, Object>> getAdminUsers() {
+        return Set.copyOf(adminUsers);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
+    public static final class Builder {
+        private String name;
+        private String tier;
+        private String subdomain;
+        private Map<String, String> attributes = new LinkedHashMap<>();
+        private Set<Map<String, Object>> adminUsers = new LinkedHashSet<>();
+
+        private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder tier(String tier) {
+            this.tier = tier;
+            return this;
+        }
+
+        public Builder subdomain(String subdomain) {
+            this.subdomain = subdomain;
+            return this;
+        }
+
+        public Builder attributes(Map<String, String> attributes) {
+            if (attributes != null) {
+                this.attributes.putAll(attributes);
+            }
+            return this;
+        }
+
+        public Builder adminUsers(Collection<Map<String, Object>> adminUsers) {
+            if (adminUsers != null) {
+                this.adminUsers.addAll(adminUsers);
+            }
+            return this;
+        }
+
+        public OnboardingRequest build() {
+            return new OnboardingRequest(this);
+        }
     }
 }

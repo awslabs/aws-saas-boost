@@ -16,9 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost.workflow;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -33,13 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
-import com.amazon.aws.partners.saasfactory.saasboost.clients.MockAwsClientBuilderFactory;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Environment;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class UpdateWorkflowTest {
 
@@ -49,12 +45,10 @@ public class UpdateWorkflowTest {
             .build();
     
     private UpdateWorkflow updateWorkflow;
-    private AwsClientBuilderFactory clientBuilderFactory;
     private Path workingDir;
 
-    @Before
+    @BeforeEach
     public void setup() {
-        clientBuilderFactory = new MockAwsClientBuilderFactory();
         workingDir = Paths.get("../");
         try {
             // location is installer/target/something.jar, so we need
@@ -64,10 +58,10 @@ public class UpdateWorkflowTest {
         } catch (URISyntaxException urise) {
             throw new RuntimeException("Failed to determine installation directory for test");
         }
-        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, clientBuilderFactory, true);
+        updateWorkflow = new UpdateWorkflow(workingDir, testEnvironment, null, null, null);
     }
 
-    @After
+    @AfterEach
     public void cleanup() {
         for (UpdateAction action : UpdateAction.values()) {
             action.resetTargets();
@@ -96,9 +90,9 @@ public class UpdateWorkflowTest {
         expected.put("DefaultStringParameter", "foobar");
         expected.put("NumericParameter", "1");
 
-        assertEquals("Template has 3 parameters", expected.size(), actual.size());
+        assertEquals(expected.size(), actual.size(), "Template has 3 parameters");
         for (Map.Entry<String, String> entry : expected.entrySet()) {
-            assertEquals(entry.getKey() + " equals " + entry.getValue(), entry.getValue(), actual.get(entry.getKey()));
+            assertEquals(entry.getValue(), actual.get(entry.getKey()), entry.getKey() + " equals " + entry.getValue());
         }
     }
 
@@ -107,14 +101,14 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
             Path.of("client/web/src/App.js"),
-            Path.of("functions/onboarding-app-stack-listener/pom.xml"));
+            Path.of("functions/authorizer/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
             if (action == UpdateAction.FUNCTIONS) {
                 assertEquals(1, action.getTargets().size());
                 assertEquals(1, UpdateAction.FUNCTIONS.getTargets().size());
-                assertTrue(action.getTargets().contains("onboarding-app-stack-listener"));
+                assertTrue(action.getTargets().contains("authorizer"));
             }
         });
     }
@@ -124,8 +118,8 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.LAYERS, UpdateAction.CLIENT, UpdateAction.FUNCTIONS);
         List<Path> changedPaths = List.of(
             Path.of("client/web/src/App.js"),
-            Path.of("functions/onboarding-app-stack-listener/pom.xml"),
-            Path.of("layers/apigw-helper/pom.xml"));
+            Path.of("functions/authorizer/pom.xml"),
+            Path.of("layers/utils/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         // the first item in the set iterator should always be LAYERS
@@ -146,7 +140,7 @@ public class UpdateWorkflowTest {
         Set<UpdateAction> expectedActions = EnumSet.of(UpdateAction.CUSTOM_RESOURCES, UpdateAction.RESOURCES);
         List<Path> changedPaths = List.of(
             Path.of("resources/saas-boost.yaml"),
-            Path.of("resources/custom-resources/app-services-macro/pom.xml"));
+            Path.of("resources/custom-resources/clear-s3-bucket/pom.xml"));
         Collection<UpdateAction> actualActions = updateWorkflow.getUpdateActionsFromPaths(changedPaths);
         assertEquals(expectedActions, actualActions);
         actualActions.forEach(action -> {
@@ -156,7 +150,7 @@ public class UpdateWorkflowTest {
             }
             if (action == UpdateAction.CUSTOM_RESOURCES) {
                 assertEquals(1, action.getTargets().size());
-                assertTrue(action.getTargets().contains("app-services-macro"));
+                assertTrue(action.getTargets().contains("clear-s3-bucket"));
             }
         });
     }

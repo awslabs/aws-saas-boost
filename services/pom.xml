@@ -15,12 +15,15 @@
     <modules>
         <module>metrics-service</module>
         <module>onboarding-service</module>
-        <module>quotas-service</module>
         <module>settings-service</module>
         <module>tenant-service</module>
         <module>tier-service</module>
         <module>system-user-service</module>
+        <module>identity-service</module>
     </modules>
+    <properties>
+        <saasboost.rootdir>${project.basedir}/..</saasboost.rootdir>
+    </properties>
     <licenses>
         <license>
             <name>Apache-2.0</name>
@@ -45,8 +48,16 @@
             <artifactId>aws-lambda-java-log4j2</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-tests</artifactId>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
@@ -55,6 +66,13 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-nop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>Utils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

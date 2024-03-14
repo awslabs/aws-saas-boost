@@ -24,6 +24,9 @@ Parameters:
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
     Type: String
+  KeycloakHelperLayer:
+    Description: Keycloak Helper Layer ARN
+    Type: String
   Environment:
     Description: Environment name
     Type: String
@@ -65,6 +68,9 @@ Resources:
               - cognito-idp:ListUsers
               - cognito-idp:AdminInitiateAuth
               - cognito-idp:ListUserPoolClients
+              - cognito-idp:AdminAddUserToGroup
+              - cognito-idp:AdminListGroupsForUser
+              - cognito-idp:AdminRemoveUserFromGroup
             Resource:
               - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
   SystemUserServiceExecutionRole:
@@ -111,7 +117,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-get-by-id
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUser
@@ -120,6 +128,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -127,7 +136,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -145,7 +153,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-get-all
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::getUsers
@@ -154,6 +164,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -161,7 +172,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -179,7 +189,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-update
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::updateUser
@@ -188,6 +200,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -195,7 +208,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -213,7 +225,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-insert
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::insertUser
@@ -222,6 +236,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -229,7 +244,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -247,7 +261,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-delete
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::deleteUser
@@ -256,6 +272,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -263,7 +280,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -281,7 +297,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-enable
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::enableUser
@@ -290,6 +308,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -297,7 +316,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -315,7 +333,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-sys-user-disable
       Role: !GetAtt SystemUserServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
       Handler: com.amazon.aws.partners.saasfactory.saasboost.SystemUserService::disableUser
@@ -324,6 +344,7 @@ Resources:
         S3Key: !Sub ${LambdaSourceFolder}/SystemUserService-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
+        - !If [UseKeycloak, !Ref KeycloakHelperLayer, !Ref 'AWS::NoValue']
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
@@ -331,7 +352,6 @@ Resources:
           COGNITO_USER_POOL: !If [UseCognito, !Ref CognitoUserPoolId, !Ref 'AWS::NoValue']
           KEYCLOAK_HOST: !If [UseKeycloak, !Ref KeycloakHost, !Ref 'AWS::NoValue']
           KEYCLOAK_REALM: !If [UseKeycloak, !Ref KeycloakRealm, !Ref 'AWS::NoValue']
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost

@@ -30,11 +30,11 @@ import {
 } from './ducks'
 import TenantViewComponent from './TenantViewComponent'
 import { selectConfig, fetchConfig } from '../settings/ducks'
-import { selectAllPlans, fetchPlans } from '../billing/ducks'
+//import { selectAllPlans, fetchPlans } from '../billing/ducks'
 
 const mapDispatchToProps = {
   fetchTenantThunk,
-  fetchPlans,
+  //fetchPlans,
   fetchConfig,
   dismissError,
   editedTenant,
@@ -49,7 +49,7 @@ const mapStateToProps = (state, props) => {
   const { tenantId } = params
   const { tenants } = state
   const tenant = !!tenantId ? tenants.entities[tenantId] : undefined
-  const plans = selectAllPlans(state)
+  //const plans = selectAllPlans(state)
   const config = selectConfig(state)
   const detail = !!tenant
     ? {
@@ -63,7 +63,7 @@ const mapStateToProps = (state, props) => {
     detail: detail,
     loading: tenants.loading,
     error: tenants.error,
-    plans: plans,
+    //plans: plans,
     config: config,
   }
 }
@@ -102,7 +102,7 @@ class TenantContainer extends Component {
       }
     }
     this.props.fetchConfig()
-    this.props.fetchPlans()
+    //this.props.fetchPlans()
   }
 
   toggleEdit() {
@@ -116,10 +116,8 @@ class TenantContainer extends Component {
 
   saveTenant(values, { setSubmitting }) {
     // dispatch save tenant call to thunk
-    //remove the "hasBilling" field as it's only a client side property for convenience
-    const { hasBilling, ...valToSend } = values
     console.log('saveTenant!')
-    const dispatchResponse = this.props.editedTenant({ values: valToSend })
+    const dispatchResponse = this.props.editedTenant({ values: values })
     dispatchResponse
       .then(unwrapResult)
       .then((tenant) => {
@@ -177,7 +175,7 @@ class TenantContainer extends Component {
             handleSubmit={this.saveTenant}
             dismissError={dismissError}
             config={config}
-            plans={plans}
+            //plans={plans}
           />
         )}
       </div>
@@ -200,7 +198,7 @@ TenantContainer.propTypes = {
   detail: PropTypes.object,
   loading: PropTypes.string,
   config: PropTypes.object,
-  plans: PropTypes.array,
+  //plans: PropTypes.array,
 }
 
 export const TenantContainerWithRouter = connect(

@@ -49,7 +49,7 @@ fi
 aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
 
 # Find all the functions for this microservice
-eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-tier-\`)] | [].FunctionName' --output text"\)
+eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-tiers-\`)] | [].FunctionName' --output text"\)
 FUNCTIONS=($FUNCTIONS)
 for FX in "${FUNCTIONS[@]}"; do
 	printf "Updating function code for %s\n" $FX

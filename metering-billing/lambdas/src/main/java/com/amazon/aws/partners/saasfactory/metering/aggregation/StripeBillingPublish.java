@@ -15,10 +15,10 @@
  */
 package com.amazon.aws.partners.saasfactory.metering.aggregation;
 
-
 import com.amazon.aws.partners.saasfactory.metering.common.AggregationEntry;
 import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
 import com.amazon.aws.partners.saasfactory.metering.common.TenantConfiguration;
+import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
@@ -36,10 +36,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.amazon.aws.partners.saasfactory.metering.common.Constants.*;
 
@@ -47,32 +44,22 @@ public class StripeBillingPublish implements RequestStreamHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StripeBillingPublish.class);
     private final static String TABLE_NAME = System.getenv(TABLE_ENV_VARIABLE);
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
     private final DynamoDbClient ddb;
 
     public StripeBillingPublish() {
-        long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(TABLE_NAME)) {
             throw new IllegalStateException("Missing required environment variable " + TABLE_ENV_VARIABLE);
         }
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
         // Used by TenantConfiguration
         if (Utils.isBlank(System.getenv("DYNAMODB_CONFIG_INDEX_NAME"))) {
             throw new IllegalStateException("Missing required environment variable DYNAMODB_CONFIG_INDEX_NAME");
         }
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
-        ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
+        this.ddb = Utils.sdkClient(DynamoDbClient.builder(), DynamoDbClient.SERVICE_NAME);
     }
 
     private List<AggregationEntry> getAggregationEntries(String tenantID) {
@@ -224,7 +211,8 @@ public class StripeBillingPublish implements RequestStreamHandler {
 
     @Override
     public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) {
-        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+        ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(api);
         LOGGER.info("Fetching tenant IDs in table {}", TABLE_NAME);
         List<TenantConfiguration> tenantConfigurations = TenantConfiguration.getTenantConfigurations(TABLE_NAME, ddb, LOGGER);
         if (tenantConfigurations == null || tenantConfigurations.isEmpty()) {

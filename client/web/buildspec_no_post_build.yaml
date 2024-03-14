@@ -1,0 +1,17 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - if [ "$REACT_APP_AWS_REGION" = "cn-northwest-1" ] || [ "$REACT_APP_AWS_REGION" = "cn-north-1" ]; then npm config set registry https://registry.npm.taobao.org; fi
+      - npm install --global yarn
+      - aws s3 cp s3://$SOURCE_BUCKET/${SOURCE_BUCKET_PREFIX}client/web/src.zip src.zip
+      - unzip src.zip
+  build:
+    commands:
+      - cd ./client/web
+      - yarn
+      - yarn build
+      - cd ../../
+cache:
+  paths:
+    - $CODEBUILD_SRC_DIR/client/web/node_modules/**/*

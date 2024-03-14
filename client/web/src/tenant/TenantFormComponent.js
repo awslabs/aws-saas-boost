@@ -25,7 +25,7 @@ const initialTenant = {
   name: '',
   description: '',
   subdomain: '',
-  planId: '',
+  //planId: '',
 }
 
 const TenantForm = (props) => {
@@ -36,9 +36,10 @@ const TenantForm = (props) => {
     error,
     dismissError,
     config,
-    plans,
+    //plans,
   } = props
-  const { domainName, billing } = config
+  //const { domainName, billing } = config
+  const { domainName } = config
 
   const hasDomain = () => {
     return !!domainName
@@ -46,8 +47,8 @@ const TenantForm = (props) => {
 
   const initialValues = {
     ...tenant,
-    hasBilling: !!billing,
-    planId: tenant.planId || billing?.planId || 'product_none',
+    //hasBilling: !!billing,
+    //planId: tenant.planId || billing?.planId || 'product_none',
   }
 
   const showError = (error, dismissError) => {
@@ -69,7 +70,7 @@ const TenantForm = (props) => {
     }
     return undefined
   }
-
+/*
   const getBillingUi = (plans, hasBilling) => {
     const options = plans.map((plan) => {
       return (
@@ -95,7 +96,7 @@ const TenantForm = (props) => {
       )
     )
   }
-
+*/
   const getDomainUi = (domainName) => {
     return hasDomain() ? (
       <Row>
@@ -141,11 +142,11 @@ const TenantForm = (props) => {
           })
           .max(25, 'Must be 25 characters or less.')
           .nullable(),
-        planId: Yup.string().when('hasBilling', {
-          is: true,
-          then: Yup.string().required('Billing plan is a required field'),
-          otherwise: Yup.string(),
-        }),
+        // planId: Yup.string().when('hasBilling', {
+        //   is: true,
+        //   then: Yup.string().required('Billing plan is a required field'),
+        //   otherwise: Yup.string(),
+        // }),
       })}
       onSubmit={handleSubmit}
     >
@@ -168,7 +169,7 @@ const TenantForm = (props) => {
                   <Card.Body>
                     <SaasBoostInput label="Name" name="name" type="text" />
                     {getDomainUi(domainName)}
-                    {getBillingUi(plans, !!billing)}
+                    {/* {getBillingUi(plans, !!billing)} */}
                   </Card.Body>
                   <Card.Footer>
                     <Button variant="danger" onClick={handleCancel}>
@@ -200,7 +201,7 @@ TenantForm.propTypes = {
   tenant: PropTypes.object,
   error: PropTypes.string,
   config: PropTypes.object,
-  plans: PropTypes.array,
+  //plans: PropTypes.array,
 }
 
 export default TenantForm

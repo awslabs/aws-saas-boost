@@ -26,11 +26,33 @@ const apiServer = axios.create({
       'Content-Type': 'application/json',
     },
   },
-})
+});
+const appConfigServer = axios.create({
+  baseURL: `${apiUri}/appconfig`,
+  headers: {
+    common: {
+      'Content-Type': 'application/json'
+    }
+  }
+});
 const CancelToken = axios.CancelToken
 const source = CancelToken.source()
 
 apiServer.interceptors.request.use(async (r) => {
+  //Obtain and pass along Authorization token
+  const authorizationToken = await fetchAccessToken()
+  r.headers.Authorization = "Bearer " + authorizationToken
+
+  //Configure the AbortSignal
+  r.signal.onabort = () => {
+    source.cancel()
+  }
+  r.cancelToken = source.token
+
+  return r
+})
+
+appConfigServer.interceptors.request.use(async (r) => {
   //Obtain and pass along Authorization token
   const authorizationToken = await fetchAccessToken()
   r.headers.Authorization = "Bearer " + authorizationToken
@@ -103,7 +125,7 @@ const settingsAPI = {
     const { signal } = ops
 
     try {
-      const response = await apiServer.get('/config', { signal })
+      const response = await appConfigServer.get('/', { signal })
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -117,7 +139,7 @@ const settingsAPI = {
   updateConfig: async (config, ops) => {
     const { signal } = ops
     try {
-      const response = await apiServer.put('/config', config, { signal })
+      const response = await appConfigServer.put('/', config, { signal })
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -131,7 +153,7 @@ const settingsAPI = {
   createConfig: async (config, ops) => {
     const { signal } = ops
     try {
-      const response = await apiServer.post('/config', config, { signal })
+      const response = await appConfigServer.post('/', config, { signal })
       return response.data
     } catch (err) {
       if (axios.isCancel(err)) {
@@ -145,7 +167,7 @@ const settingsAPI = {
   fetchDbOptions: async (ops) => {
     const { signal } = ops
     try {
-      const response = await apiServer.get('/options', {
+      const response = await appConfigServer.get('/options', {
         signal,
       })
       return response.data

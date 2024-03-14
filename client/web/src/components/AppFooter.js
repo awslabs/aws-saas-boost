@@ -26,7 +26,7 @@ const AppFooter = (props) => {
   const { children, ...attributes } = props
   const version = useSelector((state) => selectSettingsById(state, SETTINGS.VERSION))
   const saasBoostEnvironment = useSelector((state) =>
-    selectSettingsById(state, 'SAAS_BOOST_ENVIRONMENT'),
+    selectSettingsById(state, 'ENVIRONMENT'),
   )
 
   const prettyVersion = (versionParameter) => {

@@ -17,6 +17,7 @@
 package com.amazon.aws.partners.saasfactory.metering.onboarding;
 
 import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
+import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
@@ -37,20 +38,12 @@ import java.util.*;
 public class SubscriptionService {
     private static final Map<String, String> CORS = Map.of("Access-Control-Allow-Origin", "*");
     private static final Logger LOGGER = LoggerFactory.getLogger(SubscriptionService.class);
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
+    private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
 
     public SubscriptionService() {
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
     }
 
@@ -63,7 +56,8 @@ public class SubscriptionService {
         Utils.logRequestEvent(event);
 
         APIGatewayProxyResponseEvent response;
-        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+        ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(api);
         if (Stripe.apiKey != null) {
             try {
                 ArrayNode plans = JsonNodeFactory.instance.arrayNode();
@@ -108,4 +102,5 @@ public class SubscriptionService {
 
         return response;
     }
+
 }

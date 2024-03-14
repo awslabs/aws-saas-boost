@@ -16,7 +16,6 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import com.amazon.aws.partners.saasfactory.saasboost.clients.AwsClientBuilderFactory;
 import com.amazon.aws.partners.saasfactory.saasboost.model.Environment;
 import com.amazon.aws.partners.saasfactory.saasboost.model.EnvironmentLoadException;
 import com.amazon.aws.partners.saasfactory.saasboost.model.ExistingEnvironmentFactory;
@@ -24,9 +23,10 @@ import com.amazon.aws.partners.saasfactory.saasboost.workflow.UpdateWorkflow;
 import com.amazon.aws.partners.saasfactory.saasboost.workflow.Workflow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.acm.AcmClient;
 import software.amazon.awssdk.services.acm.model.*;
@@ -34,21 +34,11 @@ import software.amazon.awssdk.services.apigateway.ApiGatewayClient;
 import software.amazon.awssdk.services.cloudformation.CloudFormationClient;
 import software.amazon.awssdk.services.cloudformation.model.*;
 import software.amazon.awssdk.services.cloudformation.model.Parameter;
-import software.amazon.awssdk.services.cloudformation.model.ResourceStatus;
 import software.amazon.awssdk.services.cloudformation.model.Stack;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.*;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iam.model.*;
-import software.amazon.awssdk.services.lambda.LambdaClient;
-import software.amazon.awssdk.services.lambda.model.InvocationType;
-import software.amazon.awssdk.services.lambda.model.InvokeResponse;
-import software.amazon.awssdk.services.quicksight.QuickSightClient;
-import software.amazon.awssdk.services.quicksight.model.*;
-import software.amazon.awssdk.services.quicksight.model.ListUsersRequest;
-import software.amazon.awssdk.services.quicksight.model.ListUsersResponse;
-import software.amazon.awssdk.services.quicksight.model.Tag;
-import software.amazon.awssdk.services.quicksight.model.User;
 import software.amazon.awssdk.services.route53.Route53Client;
 import software.amazon.awssdk.services.route53.model.HostedZone;
 import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameRequest;
@@ -56,16 +46,14 @@ import software.amazon.awssdk.services.route53.model.ListHostedZonesByNameRespon
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
-import software.amazon.awssdk.services.secretsmanager.model.CreateSecretRequest;
-import software.amazon.awssdk.services.secretsmanager.model.ResourceNotFoundException;
-import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 import software.amazon.awssdk.services.ssm.SsmClient;
 import software.amazon.awssdk.services.ssm.model.*;
+import software.amazon.awssdk.services.sts.StsClient;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -82,19 +70,19 @@ import static com.amazon.aws.partners.saasfactory.saasboost.Utils.isNotEmpty;
 
 public class SaaSBoostInstall {
 
+    static {
+        System.setProperty("logger.timestamp",
+                DateTimeFormatter.ofPattern("yyyy-MM-dd-HH:mm:ss").format(LocalDateTime.now()));
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(SaaSBoostInstall.class);
 
-    private final AwsClientBuilderFactory awsClientBuilderFactory;
     private final ApiGatewayClient apigw;
     private final CloudFormationClient cfn;
     private final EcrClient ecr;
     private final IamClient iam;
-    // TODO do we need to reassign the quicksight client between getQuickSightUsername and setupQuicksight?
-    private QuickSightClient quickSight;
     private final S3Client s3;
     private final SsmClient ssm;
-    private final LambdaClient lambda;
-    private final SecretsManagerClient secretsManager;
     private final Route53Client route53;
     private final AcmClient acm;
 
@@ -106,19 +94,15 @@ public class SaaSBoostInstall {
     private String lambdaSourceFolder = "lambdas";
     private String stackName;
     private Map<String, String> baseStackDetails = new HashMap<>();
-    private boolean useAnalyticsModule = false;
-    private boolean useQuickSight = false;
-    private String quickSightUsername;
-    private String quickSightUserArn;
+    private SaaSBoostApiHelper api;
 
     protected enum ACTION {
-        INSTALL(1, "New AWS SaaS Boost install.", false),
-        ADD_ANALYTICS(2, "Install Metrics and Analytics into existing AWS SaaS Boost deployment.", true),
-        UPDATE_WEB_APP(3, "Update Web Application for existing AWS SaaS Boost deployment.", true),
-        UPDATE(4, "Update existing AWS SaaS Boost deployment.", true),
-        DELETE(5, "Delete existing AWS SaaS Boost deployment.", true),
-        CANCEL(6, "Exit installer.", false);
-        //DEBUG(7, "Debug", false);
+        INSTALL(1, "Install AWS SaaS Boost", false),
+        UPDATE(2, "Update AWS SaaS Boost", true),
+        UPDATE_WEB_APP(3, "Update Admin Web Application", true),
+        DELETE(4, "Delete AWS SaaS Boost", true),
+        CANCEL(5, "Exit", false),
+        DEBUG(6, "Debug", false);
 
         private final int choice;
         private final String prompt;
@@ -151,23 +135,16 @@ public class SaaSBoostInstall {
     }
 
     public SaaSBoostInstall() {
-        awsClientBuilderFactory = AwsClientBuilderFactory.builder()
-                .region(AWS_REGION)
-                .build();
-
-        apigw = awsClientBuilderFactory.apiGatewayBuilder().build();
-        cfn = awsClientBuilderFactory.cloudFormationBuilder().build();
-        ecr = awsClientBuilderFactory.ecrBuilder().build();
-        iam = awsClientBuilderFactory.iamBuilder().build();
-        lambda = awsClientBuilderFactory.lambdaBuilder().build();
-        quickSight = awsClientBuilderFactory.quickSightBuilder().build();
-        s3 = awsClientBuilderFactory.s3Builder().build();
-        ssm = awsClientBuilderFactory.ssmBuilder().build();
-        secretsManager = awsClientBuilderFactory.secretsManagerBuilder().build();
-        route53 = awsClientBuilderFactory.route53Builder().build();
-        acm = awsClientBuilderFactory.acmBuilder().build();
-
-        accountId = awsClientBuilderFactory.stsBuilder().build().getCallerIdentity().account();
+        apigw = Utils.sdkClient(ApiGatewayClient.builder(), ApiGatewayClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        cfn = Utils.sdkClient(CloudFormationClient.builder(), CloudFormationClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        ecr = Utils.sdkClient(EcrClient.builder(), EcrClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        iam = Utils.sdkClient(IamClient.builder(), IamClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        s3 = Utils.sdkClient(S3Client.builder(), S3Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        ssm = Utils.sdkClient(SsmClient.builder(), SsmClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        route53 = Utils.sdkClient(Route53Client.builder(), Route53Client.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        acm = Utils.sdkClient(AcmClient.builder(), AcmClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        StsClient sts = Utils.sdkClient(StsClient.builder(), StsClient.SERVICE_NAME, ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+        accountId = sts.getCallerIdentity().account();
     }
 
     public static void main(String[] args) {
@@ -181,13 +158,51 @@ public class SaaSBoostInstall {
         } catch (Exception e) {
             outputMessage("===========================================================");
             outputMessage("Installation Error: " + e.getLocalizedMessage());
-            outputMessage("Please see detailed log file saas-boost-install.log");
-            LOGGER.error(getFullStackTrace(e));
+            outputMessage("Please see detailed log file installer-"
+                    + System.getProperty("logger.timestamp") + ".log");
+            LOGGER.error(Utils.getFullStackTrace(e));
         }
     }
 
     protected void debug(String existingBucket) {
-        copyAdminWebAppSourceToS3(workingDir, null, null);
+        while (true) {
+            System.out.print("Enter name of the AWS SaaS Boost environment to deploy (dev, test, uat, prod, etc...): ");
+            this.envName = Keyboard.readString();
+            if (validateEnvironmentName(this.envName)) {
+                LOGGER.info("Setting SaaS Boost environment = [{}]", this.envName);
+                break;
+            } else {
+                outputMessage("Entered value is invalid, maximum of 10 alphanumeric characters, and cannot be AWS,"
+                        + " Amazon, or Cognito. Please try again.");
+            }
+        }
+        if (existingBucket != null) {
+            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
+            try {
+                s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
+            } catch (SdkServiceException s3error) {
+                outputMessage("Bucket " + existingBucket + " does not exist!");
+                throw s3error;
+            }
+        }
+//        else {
+//            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+//            outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
+//        }
+//
+//        // Copy the CloudFormation templates
+//        outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+//        copyResourcesToS3();
+//
+//        // Compile all the source code
+//        outputMessage("Compiling Lambda functions and uploading to S3 artifacts bucket. This will take some time...");
+//        processLambdas();
+//
+//        // Copy the source files up to S3 where CloudFormation resources expect them to be
+//        outputMessage("Uploading admin web app source files to S3");
+//        copyAdminWebAppSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
+        outputMessage("Log into the Application Plane AWS Account and run the CloudFormation Integration Stack");
+        outputMessage(quickCreateLink());
     }
 
     public void start(String existingBucket) {
@@ -195,7 +210,7 @@ public class SaaSBoostInstall {
         outputMessage("Welcome to the AWS SaaS Boost Installer");
         outputMessage("Installer Version: " + VERSION);
 
-        // Do we have Maven, Node and AWS CLI on the PATH?
+        // Do we have Maven and the AWS CLI on the PATH?
         checkEnvironment();
 
         ACTION installOption;
@@ -228,38 +243,22 @@ public class SaaSBoostInstall {
 
         switch (installOption) {
             case INSTALL:
-                installSaaSBoost(existingBucket);
+                install(existingBucket);
                 break;
             case UPDATE:
-                workflow = new UpdateWorkflow(
-                    this.workingDir, 
-                    this.environment, 
-                    this.awsClientBuilderFactory, 
-                    doesCfnMacroResourceExist());
+                workflow = new UpdateWorkflow(this.workingDir, this.environment, this.s3, this.cfn, this.apigw);
                 break;
             case UPDATE_WEB_APP:
                 SaaSBoostInstall.copyAdminWebAppSourceToS3(this.workingDir,
                         this.saasBoostArtifactsBucket.getBucketName(), this.s3);
                 break;
-            case ADD_ANALYTICS:
-                this.useAnalyticsModule = true;
-                System.out.print("Would you like to setup Amazon Quicksight for the Analytics module?"
-                        + "You must have already registered for Quicksight in your account (y or n)? ");
-                this.useQuickSight = Keyboard.readBoolean();
-                if (this.useQuickSight) {
-                    getQuickSightUsername();
-                }
-                installAnalyticsModule();
-                break;
             case DELETE:
-                deleteSaasBoostInstallation();
+                delete();
+                break;
+            case DEBUG:
+                debug(existingBucket);
                 break;
             case CANCEL:
-                cancel();
-                break;
-            //case DEBUG:
-            //    debug(existingBucket);
-            //    break;
             default:
                 cancel();
         }
@@ -270,7 +269,7 @@ public class SaaSBoostInstall {
         }
     }
 
-    protected void installSaaSBoost(String existingBucket) {
+    protected void install(String existingBucket) {
         LOGGER.info("Performing new installation of AWS SaaS Boost");
         while (true) {
             System.out.print("Enter name of the AWS SaaS Boost environment to deploy (Ex. dev, test, uat, prod, etc.): ");
@@ -304,16 +303,17 @@ public class SaaSBoostInstall {
 
         String systemIdentityProvider;
         while (true) {
-            System.out.print("Enter the identity provider to use for system users (Cognito or Keycloak) Press Enter for 'Cognito': ");
+            System.out.print("Enter the identity provider to use for system users (Cognito, Keycloak, or Auth0) Press Enter for 'Cognito': ");
             systemIdentityProvider = Keyboard.readString();
             if (isNotBlank(systemIdentityProvider)) {
                 if (systemIdentityProvider.toUpperCase().equals("COGNITO")
-                        || systemIdentityProvider.toUpperCase().equals("KEYCLOAK")) {
+                        || systemIdentityProvider.toUpperCase().equals("KEYCLOAK")
+                        || systemIdentityProvider.toUpperCase().equals("AUTH0")) {
                     systemIdentityProvider = systemIdentityProvider.toUpperCase();
                     LOGGER.info("Setting Identity Provider = [{}]", systemIdentityProvider);
                     break;
                 } else {
-                    outputMessage("Invalid identity provider. Enter either Cognito or Keycloak.");
+                    outputMessage("Invalid identity provider. Enter either Cognito, Keycloak, or Auth0.");
                 }
             } else {
                 systemIdentityProvider = "COGNITO";
@@ -407,10 +407,19 @@ public class SaaSBoostInstall {
             }
         }
 
-        boolean useCustomDomainForAdminWebApp = Utils.isChinaRegion(AWS_REGION);
+        String auth0ApiKey = "";
+        String auth0ApiClientId = "";
+        if ("AUTH0".equals(systemIdentityProvider)) {
+
+        }
+
+        Boolean useCustomDomainForAdminWebApp = Utils.isChinaRegion(AWS_REGION);
         if (!useCustomDomainForAdminWebApp) {
-            System.out.print("Would you like to use a custom domain name for the SaaS Boost admin web console (y or n)? ");
+            System.out.print("Would you like to use a custom domain name for the SaaS Boost admin web console (y or n) Press Enter for 'n'? ");
             useCustomDomainForAdminWebApp = Keyboard.readBoolean();
+            if (useCustomDomainForAdminWebApp == null) {
+                useCustomDomainForAdminWebApp = Boolean.FALSE;
+            }
         }
         String adminWebAppCustomDomain = null;
         String adminWebAppHostedZone = null;
@@ -549,16 +558,16 @@ public class SaaSBoostInstall {
             }
         }
 
-        System.out.print("Would you like to install the metrics and analytics module of AWS SaaS Boost (y or n)? ");
-        this.useAnalyticsModule = Keyboard.readBoolean();
-
-        // If installing the analytics module, ask about QuickSight.
-        if (useAnalyticsModule) {
-            System.out.print("Would you like to setup Amazon Quicksight for the Analytics module? You must have already registered for Quicksight in your account (y or n)? ");
-            this.useQuickSight = Keyboard.readBoolean();
-        }
-        if (this.useQuickSight) {
-            getQuickSightUsername();
+        String appPlaneAccountId;
+        while (true) {
+            System.out.print("Enter the AWS Account ID when you will install the application plane components for this SaaS Boost control plane: ");
+            appPlaneAccountId = Objects.toString(Keyboard.readString(), "").replace("-", "");
+            if (validateAwsAccountId(appPlaneAccountId)) {
+                LOGGER.info("Setting app plane account = [{}]", appPlaneAccountId);
+                break;
+            } else {
+                outputMessage("Entered value is invalid. Enter a 12 digit AWS Account ID. Please try again.");
+            }
         }
 
         System.out.println();
@@ -574,12 +583,7 @@ public class SaaSBoostInstall {
                 + (isNotBlank(identityProviderCustomDomain) ? identityProviderCustomDomain : "N/A"));
         outputMessage("Custom Domain for SaaS Boost Admin Web Console: "
                 + (isNotBlank(adminWebAppCustomDomain) ? adminWebAppCustomDomain : "N/A"));
-        outputMessage("Install optional Analytics Module: " + this.useAnalyticsModule);
-        if (this.useAnalyticsModule && isNotBlank(this.quickSightUsername)) {
-            outputMessage("Amazon QuickSight user for Analytics Module: " + this.quickSightUsername);
-        } else {
-            outputMessage("Amazon QuickSight user for Analytics Module: N/A");
-        }
+        outputMessage("Application Plane Account ID: " + appPlaneAccountId);
 
         System.out.println();
         System.out.print("Continue (y or n)? ");
@@ -600,7 +604,8 @@ public class SaaSBoostInstall {
         if (existingBucket == null) {
             // Create the S3 artifacts bucket
             outputMessage("Creating S3 artifacts bucket");
-            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION);
+            saasBoostArtifactsBucket = SaaSBoostArtifactsBucket.createS3ArtifactBucket(s3, envName, AWS_REGION
+                    , appPlaneAccountId);
             outputMessage("Created S3 artifacts bucket: " + saasBoostArtifactsBucket);
 
             // Copy the CloudFormation templates
@@ -612,59 +617,63 @@ public class SaaSBoostInstall {
             processLambdas();
         } else {
             outputMessage("Reusing existing artifacts bucket " + existingBucket);
-            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION);
-            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
-            copyResourcesToS3();
+            saasBoostArtifactsBucket = new SaaSBoostArtifactsBucket(existingBucket, AWS_REGION, appPlaneAccountId);
             try {
                 s3.headBucket(request -> request.bucket(saasBoostArtifactsBucket.getBucketName()));
             } catch (SdkServiceException s3error) {
                 outputMessage("Bucket " + existingBucket + " does not exist!");
                 throw s3error;
             }
+            outputMessage("Uploading CloudFormation templates to S3 artifacts bucket");
+            copyResourcesToS3();
         }
 
         // Copy the source files up to S3 where CloudFormation resources expect them to be
         outputMessage("Uploading admin web app source files to S3");
         copyAdminWebAppSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
 
+        // Copy the Api docs (SwaggerUI) source files up to S3 where CloudFormation resources expect them to be
+        outputMessage("Uploading api docs source files to S3");
+        copyApiDocsSourceToS3(workingDir, saasBoostArtifactsBucket.getBucketName(), s3);
+
         // Run CloudFormation create stack
         outputMessage("Running CloudFormation");
         this.stackName = "sb-" + envName;
         createSaaSBoostStack(stackName, emailAddress, systemIdentityProvider, identityProviderCustomDomain,
                 identityProviderHostedZone, identityProviderCertificate, adminWebAppCustomDomain,
-                adminWebAppHostedZone, adminWebAppCertificate);
+                adminWebAppHostedZone, adminWebAppCertificate, appPlaneAccountId);
 
         this.environment = ExistingEnvironmentFactory.findExistingEnvironment(
                 ssm, cfn, this.envName, this.accountId);
         this.baseStackDetails = environment.getBaseCloudFormationStackInfo();
-        if (useAnalyticsModule) {
-            LOGGER.info("Install metrics and analytics module");
-            // The analytics module stack reads baseStackDetails for its CloudFormation template parameters
-            // because we're not yet creating the analytics resources as a nested child stack of the main stack
-            installAnalyticsModule();
-        }
 
-        outputMessage("Check the admin email box for the temporary password.");
+        outputMessage("Check the admin email inbox for the temporary password.");
         outputMessage("AWS SaaS Boost Artifacts Bucket: " + saasBoostArtifactsBucket);
         outputMessage("AWS SaaS Boost Console URL is: " + baseStackDetails.get("AdminWebUrl"));
+
+        outputMessage("Log into the Application Plane AWS Account and run the CloudFormation Integration Stack:");
+        outputMessage(quickCreateLink());
     }
 
-    protected void deleteSaasBoostInstallation() {
+    protected void delete() {
         // Confirm delete
         outputMessage("****** W A R N I N G");
-        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and ALL deployed tenant resources will be deleted!");
+        outputMessage("Deleting the AWS SaaS Boost environment is IRREVERSIBLE and "
+                + "ALL deployed tenant resources will be deleted!");
         while (true) {
             System.out.print("Enter the SaaS Boost environment name to confirm: ");
             String confirmEnvName = Keyboard.readString();
             if (isNotBlank(confirmEnvName) && this.envName.equalsIgnoreCase(confirmEnvName)) {
-                System.out.println("SaaS Boost environment " + this.envName + " for AWS Account " + this.accountId + " in region " + AWS_REGION + " will be deleted. This action cannot be undone!");
+                System.out.println("SaaS Boost environment " + this.envName + " for AWS Account " + this.accountId
+                        + " in region " + AWS_REGION + " will be deleted. This action cannot be undone!");
                 break;
             } else {
                 outputMessage("Entered value is incorrect, please try again.");
             }
         }
 
-        System.out.print("Are you sure you want to delete the SaaS Boost environment " + this.envName + "? Enter y to continue or n to cancel: ");
+        System.out.print("Are you sure you want to delete the SaaS Boost environment "
+                + this.envName + "? Enter y to continue or n to cancel: ");
         boolean continueDelete = Keyboard.readBoolean();
         if (!continueDelete) {
             outputMessage("Canceled Delete of AWS SaaS Boost environment");
@@ -674,48 +683,27 @@ public class SaaSBoostInstall {
         }
 
         // Delete all the provisioned tenants
-        List<LinkedHashMap<String, Object>> tenants = getProvisionedTenants();
-        for (LinkedHashMap<String, Object> tenant : tenants) {
+        List<Map<String, Object>> tenants = getProvisionedTenants();
+        LOGGER.debug("Deleting {} provisioned tenants", tenants.size());
+        for (Map<String, Object> tenant : tenants) {
             outputMessage("Deleting AWS SaaS Boost tenant " + tenant.get("id"));
             deleteProvisionedTenant(tenant);
         }
 
         // Clear all the images from ECR or CloudFormation won't be able to delete the repository
-        try {
-            for (String ecrRepo : getEcrRepositories()) {
-                outputMessage("Deleting images from ECR repository " + ecrRepo);
-                deleteEcrImages(ecrRepo);
-            }
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:GetParameter error", ssmError);
-            LOGGER.error(getFullStackTrace(ssmError));
-            // throw ssmError;
+        LOGGER.debug("Getting list of ECR repos to clear");
+        for (String ecrRepo : getEcrRepositories()) {
+            outputMessage("Deleting images from ECR repository " + ecrRepo);
+            deleteEcrImages(ecrRepo);
         }
 
         // Clear all the Parameter Store entries for this environment that CloudFormation doesn't own
+        LOGGER.debug("Deleting AppConfig");
         deleteApplicationConfig();
-
-        // Delete the analytics stack if it exists
-        String analyticsStackName = analyticsStackName();
-        if (checkCloudFormationStack(analyticsStackName)) {
-            outputMessage("Deleting AWS SaaS Boost Analytics Module stack: " + analyticsStackName);
-            deleteCloudFormationStack(analyticsStackName);
-        }
 
         // Delete the SaaS Boost stack
         outputMessage("Deleting AWS SaaS Boost stack: " + this.stackName);
         deleteCloudFormationStack(this.stackName);
-        // Delete the ActiveDirectory password in SecretsManager if it exists
-        try {
-            secretsManager.deleteSecret(request -> request
-                    .forceDeleteWithoutRecovery(true)
-                    .secretId("/saas-boost/" + envName + "/ACTIVE_DIRECTORY_PASSWORD")
-                    .build()
-            );
-            outputMessage("ActiveDirectory secretsManager secret deleted.");
-        } catch (ResourceNotFoundException rnfe) {
-            // there is no ACTIVE_DIRECTORY_PASSWORD secret, so there is nothing to delete
-        }
 
         // Finally, remove the S3 artifacts bucket that this installer created outside of CloudFormation
         LOGGER.info("Clean up s3 bucket: " + saasBoostArtifactsBucket);
@@ -745,183 +733,10 @@ public class SaaSBoostInstall {
         } catch (SdkServiceException ssmError) {
             outputMessage("Failed to delete all Parameter Store entries");
             LOGGER.error("ssm:DeleteParameters error", ssmError);
-            LOGGER.error(getFullStackTrace(ssmError));
+            LOGGER.error(Utils.getFullStackTrace(ssmError));
         }
 
         outputMessage("Delete of SaaS Boost environment " + this.envName + " complete.");
-    }
-
-    private List<String> getEcrRepositories() {
-        List<String> repos = new ArrayList<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "settings/config");
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
-        try {
-            LOGGER.info("Invoking getSettings API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.error("got response back: {}", response);
-                String configJson = response.payload().asUtf8String();
-                HashMap<String, Object> config = Utils.fromJson(configJson, HashMap.class);
-                HashMap<String, Object> services = (HashMap<String, Object>) config.get("services");
-                for (String serviceName : services.keySet()) {
-                    HashMap<String, Object> service = (HashMap<String, Object>) services.get(serviceName);
-                    Map<String, Object> compute = (Map<String, Object>) service.get("compute");
-                    repos.add((String) compute.get("containerRepo"));
-                }
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(getFullStackTrace(lambdaError));
-            throw lambdaError;
-        }
-        return repos;
-    }
-
-    protected void installAnalyticsModule() {
-        LOGGER.info("Installing Analytics module into existing AWS SaaS Boost installation.");
-        outputMessage("Analytics will be deployed into the existing AWS SaaS Boost environment " + this.envName + ".");
-
-        String metricsStackName = analyticsStackName();
-        try {
-            DescribeStacksResponse metricsStackResponse = cfn.describeStacks(request -> request.stackName(metricsStackName));
-            if (metricsStackResponse.hasStacks()) {
-                outputMessage("AWS SaaS Boost Analytics stack with name: " + metricsStackName + " is already deployed");
-                System.exit(2);
-            }
-        } catch (CloudFormationException cfnError) {
-            // Calling describe-stacks on a stack name that doesn't exist is an exception
-            if (!cfnError.getMessage().contains("Stack with id " + metricsStackName + " does not exist")) {
-                LOGGER.error("cloudformation:DescribeStacks error {}", cfnError.getMessage());
-                LOGGER.error(getFullStackTrace(cfnError));
-                throw cfnError;
-            }
-        }
-
-        outputMessage("===========================================================");
-        outputMessage("");
-        outputMessage("Would you like to continue the Analytics module installation with the following options?");
-        outputMessage("Existing AWS SaaS Boost environment : " + envName);
-        if (useQuickSight) {
-            outputMessage("Amazon QuickSight user for Analytics Module: " + quickSightUsername);
-        } else {
-            outputMessage("Amazon QuickSight user for Analytics Module: N/A");
-        }
-
-        System.out.print("Continue (y or n)? ");
-        boolean continueInstall = Keyboard.readBoolean();
-        if (!continueInstall) {
-            outputMessage("Canceled installation of AWS SaaS Boost Analytics");
-            cancel();
-        }
-        outputMessage("Continuing installation of AWS SaaS Boost Analytics");
-        outputMessage("===========================================================");
-        outputMessage("Installing AWS SaaS Boost Metrics and Analytics Module");
-        outputMessage("===========================================================");
-
-        // Generate a password for the RedShift database if we don't already have one
-        String dbPassword;
-        String dbPasswordParam = "/saas-boost/" + this.envName + "/REDSHIFT_MASTER_PASSWORD";
-        try {
-            GetParameterResponse existingDbPasswordResponse = ssm.getParameter(GetParameterRequest.builder()
-                    .name(dbPasswordParam)
-                    .withDecryption(true)
-                    .build()
-            );
-            // We actually need the secret value because we need to give it to QuickSight
-            dbPassword = existingDbPasswordResponse.parameter().value();
-            // And, we'll add the parameter version to the end of the name just in case it's greater than 1
-            // so that CloudFormation can properly fetch the secret value
-            dbPasswordParam = dbPasswordParam + ":" + existingDbPasswordResponse.parameter().version();
-            LOGGER.info("Reusing existing RedShift password for Analytics");
-        } catch (SdkServiceException noSuchParameter) {
-            LOGGER.info("Generating new random RedShift password for Analytics");
-            // Save the database password as a secret
-            dbPassword = generatePassword(16);
-            try {
-                LOGGER.info("Saving RedShift password secret to Parameter Store");
-                ssm.putParameter(PutParameterRequest.builder()
-                        .name(dbPasswordParam)
-                        .type(ParameterType.SECURE_STRING)
-                        .overwrite(true)
-                        .value(dbPassword)
-                        .build()
-                );
-            } catch (SdkServiceException ssmError) {
-                LOGGER.error("ssm:PutParamter error {}", ssmError.getMessage());
-                LOGGER.error(getFullStackTrace(ssmError));
-                throw ssmError;
-            }
-            // CloudFormation ssm-secure resolution needs a version number, which is guaranteed to be 1
-            // in this case where we just created it
-            dbPasswordParam = dbPasswordParam + ":1";
-        }
-        outputMessage("Redshift Database User Password stored in secure SSM Parameter: " + dbPasswordParam);
-
-        // Run CloudFormation
-        outputMessage("Creating CloudFormation stack " + metricsStackName + " for Analytics Module");
-        String databaseName = "sb_analytics_" + this.envName.replaceAll("-", "_");
-        createMetricsStack(metricsStackName, dbPasswordParam, databaseName);
-
-        // TODO Why doesn't the CloudFormation template own this?
-        LOGGER.info("Update SSM param METRICS_ANALYTICS_DEPLOYED to true");
-        try {
-            ssm.putParameter(request -> request
-                    .name("/saas-boost/" + this.envName + "/METRICS_ANALYTICS_DEPLOYED")
-                    .type(ParameterType.STRING)
-                    .overwrite(true)
-                    .value("true")
-            );
-        } catch (SdkServiceException ssmError) {
-            LOGGER.error("ssm:PutParameter error {}", ssmError.getMessage());
-            LOGGER.error(getFullStackTrace(ssmError));
-            throw ssmError;
-        }
-
-        // Upload the JSON path file for Redshift to the bucket provisioned by CloudFormation
-        Map<String, String> outputs = getMetricStackOutputs(metricsStackName);
-        String metricsBucket = outputs.get("MetricsBucket");
-        Path jsonPathFile = workingDir.resolve(Path.of("metrics-analytics", "deploy", "artifacts", "metrics_redshift_jsonpath.json"));
-
-        LOGGER.info("Copying json files for Metrics and Analytics from {} to {}", jsonPathFile.toString(), metricsBucket);
-        try {
-            s3.putObject(PutObjectRequest.builder()
-                    .bucket(metricsBucket)
-                    .key("metrics_redshift_jsonpath.json")
-                    .contentType("text/json")
-                    .build(), RequestBody.fromFile(jsonPathFile)
-            );
-        } catch (SdkServiceException s3Error) {
-            LOGGER.error("s3:PutObject error {}", s3Error.getMessage());
-            LOGGER.error(getFullStackTrace(s3Error));
-            outputMessage("Error copying " + jsonPathFile.toString() + " to " + metricsBucket);
-            // TODO Why don't we bail here if that file is required?
-            outputMessage("Continuing with installation so you will need to manually upload that file.");
-        }
-
-        // Setup the quicksight dataset
-        if (useQuickSight) {
-            outputMessage("Set up Amazon Quicksight for Analytics Module");
-            try {
-                // TODO does this fail if it's run more than once?
-                setupQuickSight(metricsStackName, outputs, dbPassword);
-            } catch (Exception e) {
-                outputMessage("Error with setup of Quicksight datasource and dataset. Check log file.");
-                outputMessage("Message: " + e.getMessage());
-                LOGGER.error(getFullStackTrace(e));
-                System.exit(2);
-            }
-        }
     }
 
     protected void cancel() {
@@ -955,202 +770,98 @@ public class SaaSBoostInstall {
         return workingDir;
     }
 
-    protected void getQuickSightUsername() {
-        Region quickSightRegion;
-        QuickSightClient oldClient = null;
-        while (true) {
-            System.out.print("Region where you registered for Amazon QuickSight (Press Enter for " + AWS_REGION.id() + "): ");
-            String quickSightAccountRegion = Keyboard.readString();
-            if (isBlank(quickSightAccountRegion)) {
-                quickSightRegion = AWS_REGION;
-            } else {
-                // Make sure we got a valid AWS region string
-                quickSightRegion = Region.regions().stream().filter(request -> request
-                        .id()
-                        .equals(quickSightAccountRegion))
-                        .findAny()
-                        .orElse(null);
-            }
-            if (quickSightRegion != null) {
-                // Update the SDK client for the proper AWS region if we need to
-                if (!AWS_REGION.equals(quickSightRegion)) {
-                    oldClient = quickSight;
-                    quickSight = awsClientBuilderFactory.quickSightBuilder().region(quickSightRegion).build();
-                }
-                // See if there are QuickSight users in this account in this region
-                LinkedHashMap<String, User> quickSightUsers = getQuickSightUsers();
-                if (!quickSightUsers.isEmpty()) {
-                    String defaultQuickSightUsername = quickSightUsers.keySet().stream().findFirst().orElse(null);
-                    System.out.print("Amazon Quicksight user name (Press Enter for '" + defaultQuickSightUsername + "'): ");
-                    this.quickSightUsername = Keyboard.readString();
-                    if (isBlank(this.quickSightUsername)) {
-                        this.quickSightUsername = defaultQuickSightUsername;
-                    }
-                    if (quickSightUsers.containsKey(this.quickSightUsername)) {
-                        this.quickSightUserArn = quickSightUsers.get(this.quickSightUsername).arn();
-                        break;
-                    } else {
-                        outputMessage("Entered value is not a valid Quicksight user in your account, please try again.");
-                    }
-                } else {
-                    outputMessage("No users found in QuickSight. Please register in your AWS Account and try install again.");
-                    System.exit(2);
-                }
-            } else {
-                outputMessage("Entered value is not a region, please try again.");
-            }
+    protected SaaSBoostApiHelper api() {
+        if (api == null) {
+            SaaSBoostApiHelper.SaaSBoostApiHelperDependencyFactory init = () ->
+                    Utils.sdkClient(SecretsManagerClient.builder(), SecretsManagerClient.SERVICE_NAME,
+                            ApacheHttpClient.builder(), DefaultCredentialsProvider.create());
+            String secretId = "/saas-boost/" + envName + "/PRIVATE_API_APP_CLIENT";
+            api = new SaaSBoostApiHelper(init, secretId);
         }
-        // If we changed the QuickSight SDK client region to look up the username, put it back
-        if (oldClient != null) {
-            quickSight = oldClient;
-        }
+        return api;
     }
 
-    protected List<LinkedHashMap<String, Object>> getProvisionedTenants() {
-        List<LinkedHashMap<String, Object>> provisionedTenants = new ArrayList<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants");
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
-        try {
-            LOGGER.info("Invoking get provisioned tenants API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                String responseBody = response.payload().asUtf8String();
-                LOGGER.info("Response Body");
-                LOGGER.info(responseBody);
-                provisionedTenants = Utils.fromJson(responseBody, ArrayList.class);
-                LOGGER.info("Loaded " + provisionedTenants.size() + " tenants");
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(getFullStackTrace(lambdaError));
-            throw lambdaError;
+    protected List<Map<String, Object>> getProvisionedTenants() {
+        LOGGER.info("Calling tenant service to fetch all provisioned tenants");
+        String getTenantsResponseBody = api().authorizedRequest("GET", "tenants?status=provisioned");
+        List<Map<String, Object>> tenants = Utils.fromJson(getTenantsResponseBody, ArrayList.class);
+        if (tenants == null) {
+            tenants = new ArrayList<>();
         }
-        return provisionedTenants;
+        return tenants;
     }
 
-    private LinkedHashMap<String, Object> getTenant(String tenantId) {
-        LinkedHashMap<String, Object> tenantDetail = new LinkedHashMap<>();
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants/" + tenantId);
-        detail.put("method", "GET");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
-        try {
-            LOGGER.info("Invoking get tenant by id API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                String responseBody = response.payload().asUtf8String();
-                LOGGER.info("Response Body");
-                LOGGER.info(responseBody);
-                tenantDetail = Utils.fromJson(responseBody, LinkedHashMap.class);
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(getFullStackTrace(lambdaError));
-            throw lambdaError;
+    protected Map<String, Object> getTenant(String tenantId) {
+        LOGGER.info("Calling tenant service to fetch tenant {}", tenantId);
+        String getTenantResponseBody = api().authorizedRequest("GET", "tenants/" + tenantId);
+        Map<String, Object> tenant = Utils.fromJson(getTenantResponseBody, HashMap.class);
+        if (tenant == null) {
+            return Collections.emptyMap();
         }
-        return tenantDetail;
+        return tenant;
+    }
+
+    protected Map<String, Object> getAppConfig() {
+        LOGGER.info("Calling appConfig service to fetch appConfig");
+        String getAppConfigResponseBody = api().authorizedRequest("GET", "appconfig");
+        Map<String, Object> appConfig = Utils.fromJson(getAppConfigResponseBody, HashMap.class);
+        if (appConfig == null) {
+            return Collections.emptyMap();
+        }
+        return appConfig;
     }
 
     protected void deleteApplicationConfig() {
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "settings/config");
-        detail.put("method", "DELETE");
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes(StandardCharsets.UTF_8);
+        LOGGER.info("Calling appConfig service to delete appConfig");
         try {
-            LOGGER.info("Invoking delete application config API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (!response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
-            }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(getFullStackTrace(lambdaError));
-            throw lambdaError;
+            api().authorizedRequest("DELETE", "appconfig");
+        } catch (Exception apiError) {
+            LOGGER.error(apiError.getMessage());
         }
     }
 
-    protected void deleteProvisionedTenant(LinkedHashMap<String, Object> tenant) {
+    protected void deleteProvisionedTenant(Map<String, Object> tenant) {
         // TODO we can parallelize to improve performance with lots of tenants
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("resource", "tenants/" + tenant.get("id"));
-        detail.put("method", "DELETE");
-        String tenantId = (String) tenant.get("id");
-        Map<String, String> tenantIdOnly = new HashMap<>();
-        tenantIdOnly.put("id", tenantId);
-        detail.put("body", Utils.toJson(tenantIdOnly));
-        Map<String, Object> systemApiRequest = new HashMap<>();
-        systemApiRequest.put("detail", detail);
-        final byte[] payload = Utils.toJson(systemApiRequest).getBytes();
+        LOGGER.info("Calling tenant service to delete tenant {}", tenant.get("id"));
         try {
-            LOGGER.info("Invoking delete tenant API");
-            InvokeResponse response = lambda.invoke(request -> request
-                    .functionName("sb-" + this.envName + "-private-api-client")
-                    .invocationType(InvocationType.REQUEST_RESPONSE)
-                    .payload(SdkBytes.fromByteArray(payload))
-            );
-            if (response.sdkHttpResponse().isSuccessful()) {
-                LOGGER.info("got response back: {}", response);
-                // wait for tenant to reach deleted
-                final String DELETED = "deleted";
-                LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
-                String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
-                while (!deleted) {
-                    if (LocalDateTime.now().compareTo(timeout) > 0) {
-                        // we've timed out retrying
-                        outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. "
-                                + "Please check CloudFormation in your AWS Console for more details.");
-                        // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
-                        // due to Tenant resources having cross-dependencies with other resources. stop here to let
-                        // the user figure out what went wrong
-                        throw new RuntimeException("Delete failed.");
-                    }
-                    outputMessage("Waiting 1 minute for tenant " + tenantId
-                            + " to reach deleted from " + tenantStatus);
-                    Thread.sleep(60 * 1000L); // 1 minute
-                    tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
-                    deleted = tenantStatus.equalsIgnoreCase(DELETED);
+            String tenantId = (String) tenant.get("id");
+            api().authorizedRequest("DELETE", "tenants/" + tenant.get("id"));
+            // wait for tenant to reach deleted
+            final String DELETED = "deleted";
+            LocalDateTime timeout = LocalDateTime.now().plus(60, ChronoUnit.MINUTES);
+            String tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+            boolean deleted = tenantStatus.equalsIgnoreCase(DELETED);
+            while (!deleted) {
+                if (LocalDateTime.now().compareTo(timeout) > 0) {
+                    // we've timed out retrying
+                    outputMessage("Timed out waiting for tenant " + tenantId + " to reach deleted state. "
+                            + "Please check CloudFormation in your AWS Console for more details.");
+                    // if a tenant delete fails, trying to delete the rest of the stack is guaranteed to fail
+                    // due to Tenant resources having cross-dependencies with other resources. stop here to let
+                    // the user figure out what went wrong
+                    throw new RuntimeException("Delete failed.");
                 }
-            } else {
-                LOGGER.warn("Private API client Lambda returned HTTP " + response.sdkHttpResponse().statusCode());
-                throw new RuntimeException(response.sdkHttpResponse().statusText().get());
+                outputMessage("Waiting 1 minute for tenant " + tenantId
+                        + " to reach deleted from " + tenantStatus);
+                Thread.sleep(60 * 1000L); // 1 minute
+                tenantStatus = (String) getTenant(tenantId).get("onboardingStatus");
+                deleted = tenantStatus.equalsIgnoreCase(DELETED);
             }
-        } catch (SdkServiceException lambdaError) {
-            LOGGER.error("lambda:Invoke error", lambdaError);
-            LOGGER.error(getFullStackTrace(lambdaError));
-            throw lambdaError;
-        } catch (InterruptedException ie) {
-            LOGGER.error("Exception in waiting");
-            LOGGER.error(getFullStackTrace(ie));
-            throw new RuntimeException(ie);
+        } catch (Exception e) {
+            LOGGER.error(e.getMessage());
         }
+    }
+
+    protected List<String> getEcrRepositories() {
+        List<String> repos = new ArrayList<>();
+        Map<String, Object> appConfig = getAppConfig();
+        Map<String, Object> services = (Map<String, Object>) appConfig.get("services");
+        for (String serviceName : services.keySet()) {
+            Map<String, Object> service = (Map<String, Object>) services.get(serviceName);
+            Map<String, Object> compute = (Map<String, Object>) service.get("compute");
+            repos.add((String) compute.get("containerRepo"));
+        }
+        return repos;
     }
 
     protected void deleteEcrImages(String ecrRepo) {
@@ -1171,7 +882,7 @@ public class SaaSBoostInstall {
                 token = response.nextToken();
             } catch (SdkServiceException ecrError) {
                 LOGGER.error("ecr:ListImages error", ecrError);
-                LOGGER.error(getFullStackTrace(ecrError));
+                LOGGER.error(Utils.getFullStackTrace(ecrError));
                 throw ecrError;
             }
         } while (token != null);
@@ -1189,142 +900,14 @@ public class SaaSBoostInstall {
                 }
             } catch (SdkServiceException ecrError) {
                 LOGGER.error("ecr:batchDeleteImage error", ecrError);
-                LOGGER.error(getFullStackTrace(ecrError));
+                LOGGER.error(Utils.getFullStackTrace(ecrError));
                 throw ecrError;
             }
         }
     }
 
-    protected Map<String, String> getMetricStackOutputs(String stackName) {
-        // Get the Redshift outputs from the metrics CloudFormation stack
-        Map<String, String> outputs = null;
-        try {
-            DescribeStacksResponse stacksResponse = cfn.describeStacks(DescribeStacksRequest.builder().stackName(stackName).build());
-            outputs = stacksResponse.stacks().get(0).outputs().stream().collect(Collectors.toMap(Output::outputKey, Output::outputValue));
-            for (String requiredOutput : Arrays.asList("RedshiftDatabaseName", "RedshiftEndpointAddress", "RedshiftCluster", "RedshiftEndpointPort", "MetricsBucket")) {
-                if (outputs.get(requiredOutput) == null) {
-                    outputMessage("Error, CloudFormation stack: " + stackName + " missing required output: " + requiredOutput);
-                    outputMessage(("Aborting the installation due to error"));
-                    System.exit(2);
-                }
-            }
-        } catch (SdkServiceException cloudFormationError) {
-            LOGGER.error("cloudformation:DescribeStack error", cloudFormationError);
-            LOGGER.error(getFullStackTrace(cloudFormationError));
-            outputMessage("getMetricStackOutputs: Unable to load Metrics and Analytics CloudFormation stack: " + stackName);
-            System.exit(2);
-        }
-        return outputs;
-    }
-
-    protected void setupQuickSight(String stackName, Map<String, String> outputs, String dbPassword) {
-        /* TODO Note that this entire QuickSight setup is not owned by CloudFormation like most everything
-         * else and therefore won't be cleaned up properly when SaaS Boost is deleted/uninstalled.
-         */
-        LOGGER.info("User for QuickSight: " + this.quickSightUsername);
-        LOGGER.info("Create data source in QuickSight for metrics Redshift table in Region: " + AWS_REGION.id());
-        final CreateDataSourceResponse createDataSourceResponse = quickSight.createDataSource(CreateDataSourceRequest.builder()
-                .dataSourceId("sb-" + this.envName + "-metrics-source")
-                .name("sb-" + this.envName + "-metrics-source")
-                .awsAccountId(accountId)
-                .type(DataSourceType.REDSHIFT)
-                .dataSourceParameters(DataSourceParameters.builder()
-                        .redshiftParameters(RedshiftParameters.builder()
-                                .database(outputs.get("RedshiftDatabaseName"))
-                                .host(outputs.get("RedshiftEndpointAddress"))
-                                .clusterId(outputs.get("RedshiftCluster"))
-                                .port(Integer.valueOf(outputs.get("RedshiftEndpointPort")))
-                                .build()
-                        )
-                        .build()
-                )
-                .credentials(DataSourceCredentials.builder()
-                        .credentialPair(CredentialPair.builder()
-                                .username("metricsadmin")
-                                .password(dbPassword)
-                                .build()
-                        )
-                        .build()
-                )
-                .permissions(ResourcePermission.builder()
-                        .principal(this.quickSightUserArn)
-                        .actions("quicksight:DescribeDataSource","quicksight:DescribeDataSourcePermissions",
-                                "quicksight:PassDataSource","quicksight:UpdateDataSource","quicksight:DeleteDataSource",
-                                "quicksight:UpdateDataSourcePermissions")
-                        .build()
-                )
-                .sslProperties(SslProperties.builder()
-                        .disableSsl(false)
-                        .build()
-                )
-                .tags(Tag.builder()
-                        .key("Name")
-                        .value(stackName)
-                        .build()
-                )
-                .build()
-        );
-
-        // Define the physical table for QuickSight
-        List<InputColumn> inputColumns = new ArrayList<>();
-        Stream.of("type", "workload", "context", "tenant_id", "tenant_name", "tenant_tier", "metric_name", "metric_unit", "meta_data")
-                .map(column -> InputColumn.builder()
-                                .name(column)
-                                .type(InputColumnDataType.STRING)
-                                .build()
-                )
-                .forEachOrdered(inputColumns::add);
-        inputColumns.add(InputColumn.builder()
-                .name("metric_value")
-                .type(InputColumnDataType.INTEGER)
-                .build()
-        );
-        inputColumns.add(InputColumn.builder()
-                .name("timerecorded")
-                .type(InputColumnDataType.DATETIME)
-                .build()
-        );
-
-        PhysicalTable physicalTable = PhysicalTable.builder()
-                .relationalTable(RelationalTable.builder()
-                        .dataSourceArn(createDataSourceResponse.arn())
-                        .schema("public")
-                        .name("sb_metrics")
-                        .inputColumns(inputColumns)
-                        .build()
-                )
-                .build();
-
-        Map<String, PhysicalTable> physicalTableMap = new HashMap<>();
-        physicalTableMap.put("string", physicalTable);
-
-        LOGGER.info("Create dataset for sb_metrics table in Quicksight in Region " + AWS_REGION.id());
-        quickSight.createDataSet(CreateDataSetRequest.builder()
-                .awsAccountId(accountId)
-                .dataSetId("sb-" + this.envName + "-metrics")
-                .name("sb-" + this.envName + "-metrics")
-                .physicalTableMap(physicalTableMap)
-                .importMode(DataSetImportMode.DIRECT_QUERY)
-                .permissions(ResourcePermission.builder()
-                        .principal(this.quickSightUserArn)
-                        .actions("quicksight:DescribeDataSet","quicksight:DescribeDataSetPermissions",
-                                "quicksight:PassDataSet","quicksight:DescribeIngestion","quicksight:ListIngestions",
-                                "quicksight:UpdateDataSet","quicksight:DeleteDataSet","quicksight:CreateIngestion",
-                                "quicksight:CancelIngestion","quicksight:UpdateDataSetPermissions")
-                        .build()
-                )
-                .tags(Tag.builder()
-                        .key("Name")
-                        .value(stackName)
-                        .build()
-                )
-                .build()
-        );
-    }
-
-    /*
-    Create Service Roles necessary for Tenant Stack Deployment
-     */
+    // TODO Technically these may only be necessary now if we're installing Keycloak
+    // Create Service Roles necessary for Tenant Stack Deployment
     protected void setupAwsServiceRoles() {
         /*
         aws iam get-role --role-name "AWSServiceRoleForElasticLoadBalancing" || aws iam create-service-linked-role --aws-service-name "elasticloadbalancing.amazonaws.com"
@@ -1355,7 +938,7 @@ public class SaaSBoostInstall {
                 iam.createServiceLinkedRole(request -> request.awsServiceName(serviceRole));
             } catch (SdkServiceException iamError) {
                 LOGGER.error("iam:CreateServiceLinkedRole error", iamError);
-                LOGGER.error(getFullStackTrace(iamError));
+                LOGGER.error(Utils.getFullStackTrace(iamError));
                 throw iamError;
             }
         }
@@ -1377,7 +960,7 @@ public class SaaSBoostInstall {
             }
         } catch (IOException ioe) {
             LOGGER.error("Error listing resources directory", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+            LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }
         try (Stream<Path> stream = Files.walk(resourcesDir.resolve("keycloak"))) {
@@ -1389,7 +972,7 @@ public class SaaSBoostInstall {
             }
         } catch (IOException ioe) {
             LOGGER.error("Error walking keycloak directory", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+            LOGGER.error(Utils.getFullStackTrace(ioe));
             // TODO while this is an invalid state, maybe we only want to fail out if
             //      KEYCLOAK actually needs to be installed for this environment
             throw new RuntimeException(ioe);
@@ -1404,7 +987,7 @@ public class SaaSBoostInstall {
             }
         } catch (IOException ioe) {
             LOGGER.error("Error reading from runtime exec process", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+            LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }
     }
@@ -1451,7 +1034,6 @@ public class SaaSBoostInstall {
         this.lambdaSourceFolder = environment.getLambdasFolderName();
         this.stackName = environment.getBaseCloudFormationStackName();
         this.baseStackDetails = environment.getBaseCloudFormationStackInfo();
-        this.useAnalyticsModule = environment.isMetricsAnalyticsDeployed();
     }
 
     protected String getExistingSaaSBoostEnvironment() {
@@ -1467,7 +1049,8 @@ public class SaaSBoostInstall {
             }
         }
         try {
-            ssm.getParameter(GetParameterRequest.builder().name("/saas-boost/" + environment + "/SAAS_BOOST_ENVIRONMENT").build());
+            String envParamsExist = "/saas-boost/" + environment + "/STACK_NAME";
+            ssm.getParameter(request -> request.name(envParamsExist));
         } catch (ParameterNotFoundException ssmError) {
             outputMessage("Cannot find existing SaaS Boost environment " + environment
                     + " in this AWS account and region.");
@@ -1476,10 +1059,10 @@ public class SaaSBoostInstall {
         return environment;
     }
 
-    protected static boolean validateEmail(String emailAddress) {
+    protected static boolean validateEmail(String email) {
         boolean valid = false;
-        if (emailAddress != null) {
-            valid = emailAddress.matches("^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$");
+        if (email != null) {
+            valid = email.matches("^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$");
         }
         return valid;
     }
@@ -1502,6 +1085,14 @@ public class SaaSBoostInstall {
         boolean valid = false;
         if (domain != null) {
             valid = domain.matches("^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\\.)+[A-Za-z]{2,6}$");
+        }
+        return valid;
+    }
+
+    protected static boolean validateAwsAccountId(String accountId) {
+        boolean valid = false;
+        if (accountId != null) {
+            valid = accountId.replace("-", "").matches("^[0-9]{12}$");
         }
         return valid;
     }
@@ -1596,8 +1187,11 @@ public class SaaSBoostInstall {
             // Now add the separate layers directories to the list so we can upload the lambda
             // package to S3 below. Build utils before anything else.
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "utils")));
+            // TODO make this a list of everything in the layers folder that's not utils
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "apigw-helper")));
             sourceDirectories.add(workingDir.resolve(Path.of("layers", "cloudformation-utils")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "keycloak-helper")));
+            sourceDirectories.add(workingDir.resolve(Path.of("layers", "saas-boost-api-client-helper")));
 
             DirectoryStream<Path> functions = Files.newDirectoryStream(workingDir.resolve(Path.of("functions")), Files::isDirectory);
             functions.forEach(sourceDirectories::add);
@@ -1608,14 +1202,19 @@ public class SaaSBoostInstall {
             DirectoryStream<Path> services = Files.newDirectoryStream(workingDir.resolve(Path.of("services")), Files::isDirectory);
             services.forEach(sourceDirectories::add);
 
-            sourceDirectories.add(workingDir.resolve(Path.of("metering-billing", "lambdas")));
-
             final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:**.zip");
             outputMessage("Uploading " + sourceDirectories.size() + " Lambda functions to S3");
             for (ListIterator<Path> iter = sourceDirectories.listIterator(); iter.hasNext();) {
                 int progress = iter.nextIndex();
                 Path sourceDirectory = iter.next();
-                if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
+                if (sourceDirectory.endsWith("saas-boost-api-client-helper")) {
+                    executeCommand("sh build.sh", null, sourceDirectory.toFile());
+                    Path zipFile = sourceDirectory.resolve("build/SaaSBoostApiClientHelper-lambda.zip");
+                    LOGGER.info("Uploading Lambda source package to S3 " + zipFile.toString() + " -> " + this.lambdaSourceFolder + "/" + zipFile.getFileName().toString());
+                    System.out.printf("%2d. %s%n", (progress + 1), zipFile.getFileName().toString());
+                    saasBoostArtifactsBucket.putFile(s3, zipFile,
+                            Path.of(this.lambdaSourceFolder, zipFile.getFileName().toString()));
+                } else if (Files.exists(sourceDirectory.resolve("pom.xml"))) {
                     executeCommand("mvn", null, sourceDirectory.toFile());
                     final Path targetDir = sourceDirectory.resolve("target");
                     try (Stream<Path> stream = Files.list(targetDir)) {
@@ -1630,12 +1229,12 @@ public class SaaSBoostInstall {
                         }
                     }
                 } else {
-                    LOGGER.warn("No POM file found in {}", sourceDirectory.toString());
+                    LOGGER.warn("No POM file found in {}", sourceDirectory);
                 }
             }
         } catch (IOException ioe) {
             LOGGER.error("Error processing Lambda source folders", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+            LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }
     }
@@ -1643,7 +1242,7 @@ public class SaaSBoostInstall {
     protected void createSaaSBoostStack(final String stackName, String adminEmail, String systemIdentityProvider,
                                         String identityProviderCustomDomain, String identityProviderHostedZone,
                                         String identityProviderCertificate, String adminWebAppCustomDomain,
-                                        String adminWebAppHostedZone, String adminWebAppCertificate) {
+                                        String adminWebAppHostedZone, String adminWebAppCertificate, String appPlaneAccount) {
         // Note - most params the default is used from the CloudFormation stack
         List<Parameter> templateParameters = new ArrayList<>();
         templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(envName).build());
@@ -1660,7 +1259,8 @@ public class SaaSBoostInstall {
         //templateParameters.add(Parameter.builder().parameterKey("ApiDomain").parameterValue(Objects.toString(apiCustomDomaine, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiHostedZone").parameterValue(Objects.toString(apiHostedZone, "")).build());
         //templateParameters.add(Parameter.builder().parameterKey("ApiCertificate").parameterValue(Objects.toString(apiCertificate, "")).build());
-        templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
+        //templateParameters.add(Parameter.builder().parameterKey("CreateMacroResources").parameterValue(Boolean.toString(!doesCfnMacroResourceExist())).build());
+        templateParameters.add(Parameter.builder().parameterKey("AppPlaneAccountId").parameterValue(appPlaneAccount).build());
 
         LOGGER.info("createSaaSBoostStack::create stack " + stackName);
         String stackId = null;
@@ -1668,8 +1268,6 @@ public class SaaSBoostInstall {
             CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
                     .stackName(stackName)
                     .disableRollback(true)
-                    //.onFailure("DO_NOTHING") // TODO bug on roll back?
-                    //.timeoutInMinutes(90)
                     .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
                     .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost.yaml")
                     .parameters(templateParameters)
@@ -1701,67 +1299,7 @@ public class SaaSBoostInstall {
             } while (!stackCompleted);
         } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation error", cfnError);
-            LOGGER.error(getFullStackTrace(cfnError));
-            throw cfnError;
-        }
-    }
-
-    protected void createMetricsStack(final String stackName, final String dbPasswordSsmParameter, final String databaseName) {
-        LOGGER.info("Creating CloudFormation stack {} with database name {}", stackName, databaseName);
-        List<Parameter> templateParameters = new ArrayList<>();
-        templateParameters.add(Parameter.builder().parameterKey("Environment").parameterValue(this.envName).build());
-        templateParameters.add(Parameter.builder().parameterKey("LambdaSourceFolder").parameterValue(this.lambdaSourceFolder).build());
-        templateParameters.add(Parameter.builder().parameterKey("MetricUserPasswordSSMParameter").parameterValue(dbPasswordSsmParameter).build());
-        templateParameters.add(Parameter.builder().parameterKey("SaaSBoostBucket").parameterValue(saasBoostArtifactsBucket.getBucketName()).build());
-        templateParameters.add(Parameter.builder().parameterKey("LoggingBucket").parameterValue(baseStackDetails.get("LoggingBucket")).build());
-        templateParameters.add(Parameter.builder().parameterKey("DatabaseName").parameterValue(databaseName).build());
-        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet1").parameterValue(baseStackDetails.get("PublicSubnet1")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PublicSubnet2").parameterValue(baseStackDetails.get("PublicSubnet2")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet1").parameterValue(baseStackDetails.get("PrivateSubnet1")).build());
-        templateParameters.add(Parameter.builder().parameterKey("PrivateSubnet2").parameterValue(baseStackDetails.get("PrivateSubnet2")).build());
-        templateParameters.add(Parameter.builder().parameterKey("VPC").parameterValue(baseStackDetails.get("EgressVpc")).build());
-
-        // Now run the  stack to provision the infrastructure for Metrics and Analytics
-        LOGGER.info("createMetricsStack::stack " + stackName);
-
-        String stackId;
-        try {
-            CreateStackResponse cfnResponse = cfn.createStack(CreateStackRequest.builder()
-                    .stackName(stackName)
-                    //.onFailure("DO_NOTHING") // TODO bug on roll back?
-                    //.timeoutInMinutes(90)
-                    .capabilitiesWithStrings("CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND")
-                    .templateURL(saasBoostArtifactsBucket.getBucketUrl() + "saas-boost-metrics-analytics.yaml")
-                    .parameters(templateParameters)
-                    .build()
-            );
-            stackId = cfnResponse.stackId();
-            LOGGER.info("createMetricsStack::stack id " + stackId);
-
-            boolean stackCompleted = false;
-            long sleepTime = 5L;
-            do {
-                DescribeStacksResponse response = cfn.describeStacks(request -> request.stackName(stackName));
-                Stack stack = response.stacks().get(0);
-                if ("CREATE_COMPLETE".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation stack: " + stackName + " completed successfully.");
-                    stackCompleted = true;
-                } else if ("CREATE_FAILED".equalsIgnoreCase(stack.stackStatusAsString())) {
-                    outputMessage("CloudFormation stack: " + stackName + " failed.");
-                    throw new RuntimeException("Error with CloudFormation stack " + stackName + ". Check the events in the AWS CloudFormation Console");
-                } else {
-                    outputMessage("Awaiting CloudFormation Stack " + stackName + " to complete.  Sleep " + sleepTime + " minute(s)...");
-                    try {
-                        Thread.sleep(sleepTime * 60 * 1000);
-                    } catch (Exception e) {
-                        LOGGER.error("Error with sleep");
-                    }
-                    sleepTime = 1L; //set to 1 minute after kick off of 5 minute
-                }
-            } while (!stackCompleted);
-        } catch (SdkServiceException cfnError) {
-            LOGGER.error("cloudformation error", cfnError);
-            LOGGER.error(getFullStackTrace(cfnError));
+            LOGGER.error(Utils.getFullStackTrace(cfnError));
             throw cfnError;
         }
     }
@@ -1778,7 +1316,7 @@ public class SaaSBoostInstall {
             }
         } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation:DescribeStacks error", cfnError);
-            LOGGER.error(getFullStackTrace(cfnError));
+            LOGGER.error(Utils.getFullStackTrace(cfnError));
             throw cfnError;
         }
         try {
@@ -1815,14 +1353,14 @@ public class SaaSBoostInstall {
                 } catch (SdkServiceException cfnError) {
                     if (!cfnError.getMessage().contains("does not exist")) {
                         LOGGER.error("cloudformation:DescribeStacks error", cfnError);
-                        LOGGER.error(getFullStackTrace(cfnError));
+                        LOGGER.error(Utils.getFullStackTrace(cfnError));
                         throw cfnError;
                     }
                 }
             }
         } catch (SdkServiceException cfnError) {
             LOGGER.error("cloudformation:DeleteStack error", cfnError);
-            LOGGER.error(getFullStackTrace(cfnError));
+            LOGGER.error(Utils.getFullStackTrace(cfnError));
             throw cfnError;
         }
     }
@@ -1836,7 +1374,7 @@ public class SaaSBoostInstall {
         } catch (SdkServiceException cfnError) {
             if (!cfnError.getMessage().contains("does not exist")) {
                 LOGGER.error("cloudformation:DescribeStacks error", cfnError);
-                LOGGER.error(getFullStackTrace(cfnError));
+                LOGGER.error(Utils.getFullStackTrace(cfnError));
                 throw cfnError;
             }
         }
@@ -1851,7 +1389,7 @@ public class SaaSBoostInstall {
         }
 
         // Sync files to the web bucket
-        outputMessage("Synchronizing AWS SaaS Boost web application files to s3 web bucket");
+        outputMessage("Synchronizing AWS SaaS Boost web application files to s3");
         List<Path> filesToUpload;
         try (Stream<Path> stream = Files.walk(webDir)) {
             filesToUpload = stream
@@ -1892,7 +1430,7 @@ public class SaaSBoostInstall {
                     );
                 } catch (SdkServiceException s3Error) {
                     LOGGER.error("s3:PutObject error", s3Error);
-                    LOGGER.error(getFullStackTrace(s3Error));
+                    LOGGER.error(Utils.getFullStackTrace(s3Error));
                     throw s3Error;
                 }
             } catch (IOException ioe) {
@@ -1901,7 +1439,77 @@ public class SaaSBoostInstall {
             }
         } catch (IOException ioe) {
             LOGGER.error("Error walking client/web directory", ioe);
-            LOGGER.error(getFullStackTrace(ioe));
+            LOGGER.error(Utils.getFullStackTrace(ioe));
+            throw new RuntimeException(ioe);
+        }
+    }
+
+    public static void copyApiDocsSourceToS3(Path workingDir, String artifactsBucket, S3Client s3) {
+        Path webDir = workingDir.resolve(Path.of("resources", "api-docs"));
+        if (!Files.isDirectory(webDir)) {
+            outputMessage("Error, can't find resources/api-docs directory at " + webDir.toAbsolutePath().toString());
+            System.exit(2);
+        }
+
+        // Sync files to the web bucket
+        outputMessage("Synchronizing AWS SaaS Boost API Docs (Swagger) files to s3");
+        List<Path> filesToUpload;
+        try (Stream<Path> stream = Files.walk(webDir)) {
+            filesToUpload = stream
+                    .filter(file ->
+                            Files.isRegularFile(file) && (
+                                    file.startsWith("resources/api-docs/app.js")
+                                            || file.startsWith("resources/api-docs/package.json")
+                                            || file.startsWith("resources/api-docs/package-lock.json")
+                                            || file.startsWith("resources/api-docs/buildspec_no_post_build.yaml")
+                                            || file.startsWith("resources/api-docs/update.sh"))
+                    )
+                    .collect(Collectors.toList());
+            outputMessage("Uploading " + filesToUpload.size() + " files to S3");
+
+            // Create a ZIP archive of the source files so we only call s3 put object once
+            // and so we can trigger the CodeBuild project off of that single s3 event
+            // (instead of triggering CodeBuild 180+ times -- once for each file put to s3).
+            try {
+                ByteArrayOutputStream src = new ByteArrayOutputStream();
+                ZipOutputStream zip = new ZipOutputStream(src);
+                for (Path fileToUpload : filesToUpload) {
+                    // java.nio.file.Path will use OS dependent file separators
+                    String fileName = fileToUpload.toFile().toString().replace('\\', '/');
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zip.putNextEntry(entry);
+                    zip.write(Files.readAllBytes(fileToUpload)); // all of our files are very small
+                    zip.closeEntry();
+                }
+                zip.close();
+                try {
+                    // Now copy the Swagger source files up to the artifacts bucket
+                    // This will trigger a CodeBuild project to build and deploy the app
+                    // if done after the initial install of SaaS Boost
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(artifactsBucket)
+                            .key("api-docs/src.zip")
+                            .build(), RequestBody.fromBytes(src.toByteArray())
+                    );
+                    // Copy the swagger definition file up to the artifacts bucket separately
+                    // because we use it as an event source to trigger future builds of the
+                    // api docs site
+                    s3.putObject(PutObjectRequest.builder()
+                            .bucket(artifactsBucket)
+                            .key("api-docs/swagger.json")
+                            .build(), workingDir.resolve(Path.of("resources", "api-docs", "swagger.json")));
+                } catch (SdkServiceException s3Error) {
+                    LOGGER.error("s3:PutObject error", s3Error);
+                    LOGGER.error(Utils.getFullStackTrace(s3Error));
+                    throw s3Error;
+                }
+            } catch (IOException ioe) {
+                LOGGER.error("ZIP archive generation failed");
+                throw new RuntimeException(Utils.getFullStackTrace(ioe));
+            }
+        } catch (IOException ioe) {
+            LOGGER.error("Error walking resources/api-docs directory", ioe);
+            LOGGER.error(Utils.getFullStackTrace(ioe));
             throw new RuntimeException(ioe);
         }
     }
@@ -1923,7 +1531,7 @@ public class SaaSBoostInstall {
             printResults(process);
         } catch (Exception e) {
             LOGGER.error("Error running command: " + command);
-            LOGGER.error(getFullStackTrace(e));
+            LOGGER.error(Utils.getFullStackTrace(e));
             throw new RuntimeException("Error running command: " + command);
         }
 
@@ -1944,38 +1552,6 @@ public class SaaSBoostInstall {
         process.destroy();
     }
 
-    protected LinkedHashMap<String, User> getQuickSightUsers() {
-        LOGGER.info("Load Quicksight users");
-        LinkedHashMap<String, User> users = new LinkedHashMap<>();
-        try {
-            String nextToken = null;
-            do {
-                ListUsersResponse response = quickSight.listUsers(ListUsersRequest.builder()
-                        .awsAccountId(accountId)
-                        .namespace("default")
-                        .nextToken(nextToken)
-                        .build()
-                );
-                if (response.hasUserList()) {
-                    for (User quickSightUser : response.userList()) {
-                        users.put(quickSightUser.userName(), quickSightUser);
-                    }
-                }
-                nextToken = response.nextToken();
-            } while (nextToken != null);
-        } catch (SdkServiceException quickSightError) {
-            LOGGER.error("quickSight:ListUsers error {}", quickSightError.getMessage());
-            LOGGER.error(getFullStackTrace(quickSightError));
-            throw quickSightError;
-        }
-        LOGGER.info("Completed load of QuickSight users");
-        return users;
-    }
-
-    protected String analyticsStackName() {
-        return this.stackName + "-analytics";
-    }
-
     protected static void cleanUpS3(S3Client s3, String bucket, String prefix) {
         // The list of objects in the bucket to delete
         List<ObjectIdentifier> toDelete = new ArrayList<>();
@@ -1983,7 +1559,8 @@ public class SaaSBoostInstall {
             prefix = prefix + "/";
         }
         GetBucketVersioningResponse versioningResponse = s3.getBucketVersioning(request -> request.bucket(bucket));
-        if (BucketVersioningStatus.ENABLED == versioningResponse.status() || BucketVersioningStatus.SUSPENDED == versioningResponse.status()) {
+        if (BucketVersioningStatus.ENABLED == versioningResponse.status()
+                || BucketVersioningStatus.SUSPENDED == versioningResponse.status()) {
             LOGGER.info("Bucket " + bucket + " is versioned (" + versioningResponse.status() + ")");
             ListObjectVersionsResponse listObjectResponse;
             String keyMarker = null;
@@ -2018,6 +1595,15 @@ public class SaaSBoostInstall {
                                 ObjectIdentifier.builder()
                                         .key(version.key())
                                         .versionId(version.versionId())
+                                        .build()
+                        )
+                        .forEachOrdered(toDelete::add);
+                listObjectResponse.deleteMarkers()
+                        .stream()
+                        .map(marker ->
+                                ObjectIdentifier.builder()
+                                        .key(marker.key())
+                                        .versionId(marker.versionId())
                                         .build()
                         )
                         .forEachOrdered(toDelete::add);
@@ -2078,50 +1664,6 @@ public class SaaSBoostInstall {
         }
     }
 
-    private boolean doesCfnMacroResourceExist() {
-        // this assumes that the macro resource exists in CloudFormation if and only if all requisite resources also 
-        // exist, i.e. the macro Lambda function, execution role, and log group. this should always be true, since the
-        // macro resource will never be deleted unless each of the others are deleted thanks to CloudFormation
-        // dependency analysis
-        List<String> stackNamesToCheck = new ArrayList<>();
-        String paginationToken = null;
-        do {
-            ListStacksResponse listStacksResponse = cfn.listStacks(
-                    ListStacksRequest.builder().nextToken(paginationToken).build());
-            stackNamesToCheck.addAll(listStacksResponse.stackSummaries().stream()
-                    .filter(summary -> summary.stackStatus() != StackStatus.DELETE_COMPLETE 
-                                    && summary.stackStatus() != StackStatus.DELETE_IN_PROGRESS)
-                    .map(StackSummary::stackName)
-                    .collect(Collectors.toList()));
-            paginationToken = listStacksResponse.nextToken();
-        } while (paginationToken != null);
-        // for each stack, look for Macro Resource (either by listing all or getResource by logical id)
-        for (String stackName : stackNamesToCheck) {
-            try {
-                StackResourceDetail stackResourceDetail = cfn.describeStackResource(request -> request
-                        .stackName(stackName)
-                        .logicalResourceId("ApplicationServicesMacro")).stackResourceDetail();
-                if (stackResourceDetail.resourceStatus() != ResourceStatus.DELETE_COMPLETE) {
-                    LOGGER.info("Found the ApplicationServicesMacro resource in {}", stackName);
-                    return true;
-                }
-            } catch (CloudFormationException cfne) {
-                if (cfne.getMessage().contains("Stack '" + stackName + "' does not exist")) {
-                    // if stacks are being deleted
-                }
-            }
-        }
-        LOGGER.info("Could not find any ApplicationServicesMacro resource");
-        return false;
-    }
-
-    public static String getFullStackTrace(Exception e) {
-        final StringWriter sw = new StringWriter();
-        final PrintWriter pw = new PrintWriter(sw, true);
-        e.printStackTrace(pw);
-        return sw.getBuffer().toString();
-    }
-
     public static boolean isWindows() {
         return (OS.contains("win"));
     }
@@ -2130,32 +1672,65 @@ public class SaaSBoostInstall {
         return (OS.contains("mac"));
     }
 
-    /**
-     * Generate a random password that matches the password policy of the Cognito user pool
-     * @return a random password that matches the password policy of the Cognito user pool
-     */
-    public static String generatePassword(int passwordLength) {
-        if (passwordLength < 8) {
-            throw new IllegalArgumentException("Invalid password length. Minimum of 8 characters is required.");
-        }
-
-        // Split the classes of characters into separate buckets so we can be sure to use
-        // the correct amount of each type
-        final char[][] requiredCharacterBuckets = {
-                {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'},
-                {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'},
-                {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
-        };
-
-        Random random = new Random();
-        StringBuilder password = new StringBuilder(passwordLength);
-
-        // Randomly select one character from each of the required character types
-        for (char[] requiredCharacterBucket : requiredCharacterBuckets) {
-            password.append(requiredCharacterBucket[random.nextInt(requiredCharacterBucket.length)]);
-        }
-
-        // build the remaining password using Utils.randomString
-        return password.append(Utils.randomString(passwordLength - requiredCharacterBuckets.length)).toString();
+    protected String quickCreateLink() {
+        StringBuilder quickCreateLink = new StringBuilder();
+        quickCreateLink.append("https://");
+        quickCreateLink.append(AWS_REGION);
+        quickCreateLink.append(".console.aws.amazon.com/cloudformation/home?region=");
+        quickCreateLink.append(AWS_REGION);
+        quickCreateLink.append("#/stacks/create/review?");
+        quickCreateLink.append("templateURL=");
+        quickCreateLink.append(saasBoostArtifactsBucket.getBucketUrl());
+        quickCreateLink.append("saas-boost-app-integration.yaml");
+        quickCreateLink.append("&stackName=");
+        quickCreateLink.append("sb-");
+        quickCreateLink.append(envName);
+        quickCreateLink.append("-integration");
+        quickCreateLink.append("&param_Environment=");
+        quickCreateLink.append(envName);
+        Map<String, String> params = getQuickCreateLinkParameters();
+        quickCreateLink.append("&param_EventBusArn=");
+        quickCreateLink.append(params.get("EVENT_BUS"));
+        quickCreateLink.append("&param_ApiAppClientSecretArn=");
+        quickCreateLink.append(params.get("API_APP_CLIENT_SECRET"));
+        quickCreateLink.append("&param_EncryptionKeyArn=");
+        quickCreateLink.append(params.get("API_APP_CLIENT_KEY"));
+        quickCreateLink.append("&param_UtilsLayerArn=");
+        quickCreateLink.append(params.get("UTILS_LAYER"));
+        quickCreateLink.append("&param_CloudFormationUtilsLayerArn=");
+        quickCreateLink.append(params.get("CFN_UTILS_LAYER"));
+        quickCreateLink.append("&param_ApiHelperLayerArn=");
+        quickCreateLink.append(params.get("API_CLIENT_HELPER_LAYER"));
+        return quickCreateLink.toString();
     }
+
+    protected Map<String, String> getQuickCreateLinkParameters() {
+        Map<String, String> params = new HashMap<>();
+        try {
+            GetParametersResponse response = ssm.getParameters(request -> request
+                    .names(List.of(
+                            "/saas-boost/" + envName + "/EVENT_BUS",
+                            "/saas-boost/" + envName + "/API_APP_CLIENT_SECRET",
+                            "/saas-boost/" + envName + "/API_APP_CLIENT_KEY",
+                            "/saas-boost/" + envName + "/UTILS_LAYER",
+                            "/saas-boost/" + envName + "/CFN_UTILS_LAYER",
+                            "/saas-boost/" + envName + "/API_CLIENT_HELPER_LAYER"
+                    ))
+            );
+            response.parameters()
+                    .stream()
+                    .forEach(parameter -> params.put(
+                            parameter.name().substring(parameter.name().lastIndexOf("/") + 1), parameter.value()));
+            // ParameterStore only has the name of the event bus, but we need the whole ARN
+            params.put("EVENT_BUS",
+                    "arn:" + AWS_REGION.metadata().partition().id() + ":events:" + AWS_REGION.id()
+                    + ":" + accountId + ":event-bus/" + params.get("EVENT_BUS"));
+        } catch (SdkServiceException ssmError) {
+            LOGGER.error("ssm getParameters failed", ssmError);
+            LOGGER.error(Utils.getFullStackTrace(ssmError));
+            throw ssmError;
+        }
+        return params;
+    }
+
 }

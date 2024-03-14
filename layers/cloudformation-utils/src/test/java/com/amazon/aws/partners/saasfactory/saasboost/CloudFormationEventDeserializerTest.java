@@ -16,13 +16,13 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CloudFormationEventDeserializerTest {
 

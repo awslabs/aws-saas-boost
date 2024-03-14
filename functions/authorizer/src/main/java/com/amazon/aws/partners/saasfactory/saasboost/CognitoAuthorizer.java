@@ -19,33 +19,46 @@ package com.amazon.aws.partners.saasfactory.saasboost;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 public class CognitoAuthorizer implements Authorizer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CognitoAuthorizer.class);
 
     @Override
-    public boolean verifyToken(TokenAuthorizerRequest request) {
-        // TODO add aud claim and pass client id in to the Lambda as an env variable
+    public DecodedJWT verifyToken(TokenAuthorizerRequest request) {
         JWTVerifier verifier = JWT
                 .require(Algorithm.RSA256(new CognitoKeyProvider()))
                 .acceptLeeway(5L) // Allowed seconds of clock skew between token issuer and verifier
-                .withClaim("token_use", (claim, token) -> (
-                        // Per Cognito documentation, make sure we got an Access or Identity token
-                        // (not a refresh token)
-                        "access".equals(claim.asString()) || "id".equals(claim.asString()))
+                .withClaim("token_use", "access")
+                .withClaim("client_id", (claim, token) -> (
+                        List.of(ApiGatewayAuthorizer.ADMIN_WEB_APP_CLIENT_ID,
+                                ApiGatewayAuthorizer.API_APP_CLIENT_ID,
+                                ApiGatewayAuthorizer.PRIVATE_API_APP_CLIENT_ID).contains(claim.asString())
+                        )
                 )
                 .build();
-        boolean valid = false;
+        DecodedJWT token = null;
         try {
-            verifier.verify(request.tokenPayload());
-            valid = true;
+            token = verifier.verify(request.tokenPayload());
         } catch (JWTVerificationException e) {
             LOGGER.error(Utils.getFullStackTrace(e));
         }
-        return valid;
+        return token;
+    }
+
+    @Override
+    public String getClientId(DecodedJWT token) {
+        return token.getClaim("client_id").asString();
+    }
+
+    @Override
+    public List<String> getGroups(DecodedJWT token) {
+        return token.getClaim("cognito:groups").asList(String.class);
     }
 }

@@ -19,6 +19,7 @@ import com.amazon.aws.partners.saasfactory.metering.common.BillingUtils;
 import com.amazon.aws.partners.saasfactory.metering.common.EventBridgeEvent;
 import com.amazon.aws.partners.saasfactory.metering.common.MeteredProduct;
 import com.amazon.aws.partners.saasfactory.metering.common.SubscriptionPlan;
+import com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayHelper;
 import com.amazon.aws.partners.saasfactory.saasboost.Utils;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -39,31 +40,19 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     private final static Logger LOGGER = LoggerFactory.getLogger(BillingIntegration.class);
     private static final String SAAS_BOOST_EVENT_BUS = System.getenv("SAAS_BOOST_EVENT_BUS");
     private static final String BILL_PUBLISH_EVENT = System.getenv("BILL_PUBLISH_EVENT");
-    private static final String API_GATEWAY_HOST = System.getenv("API_GATEWAY_HOST");
-    private static final String API_GATEWAY_STAGE = System.getenv("API_GATEWAY_STAGE");
-    private static final String API_TRUST_ROLE = System.getenv("API_TRUST_ROLE");
-    private EventBridgeClient eventBridge;
+    private static final String API_APP_CLIENT = System.getenv("API_APP_CLIENT");
+    private final EventBridgeClient eventBridge;
 
     public BillingIntegration() {
-        long startTimeMillis = System.currentTimeMillis();
         if (Utils.isBlank(SAAS_BOOST_EVENT_BUS)) {
             throw new IllegalStateException("Missing required environment variable SAAS_BOOST_EVENT_BUS");
         }
-        if (Utils.isBlank(API_GATEWAY_HOST)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_HOST");
-        }
-        if (Utils.isBlank(API_GATEWAY_STAGE)) {
-            throw new IllegalStateException("Missing required environment variable API_GATEWAY_STAGE");
-        }
-        if (Utils.isBlank(API_TRUST_ROLE)) {
-            throw new IllegalStateException("Missing required environment variable API_TRUST_ROLE");
+        if (Utils.isBlank(API_APP_CLIENT)) {
+            throw new IllegalStateException("Missing required environment variable API_APP_CLIENT");
         }
 
         LOGGER.info("Version Info: " + Utils.version(this.getClass()));
-        eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
-        LOGGER.info("Version Info: " + Utils.version(this.getClass()));
-        LOGGER.info("Constructor init: {}", System.currentTimeMillis() - startTimeMillis);
+        this.eventBridge = Utils.sdkClient(EventBridgeClient.builder(), EventBridgeClient.SERVICE_NAME);
     }
 
     public Object setupBillingSystemListener(EventBridgeEvent event, Context context) {
@@ -77,7 +66,8 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
          */
         try {
             LOGGER.info("setupBillingSystemListener: Get Stripe API Key");
-            Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+            ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+            Stripe.apiKey = BillingUtils.getBillingApiKey(api);
             LOGGER.info("setupBillingSystemListener: Create Metered Products");
             createMeteredProducts();
             LOGGER.info("setupBillingSystemListener: Create Subscription Products in Stripe");
@@ -228,7 +218,8 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     private void provisionTenantInStripe(String tenantId, String planId) throws StripeException {
         LOGGER.info("provisionTenantInStripe: Starting...");
 
-        Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+        ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+        Stripe.apiKey = BillingUtils.getBillingApiKey(api);
 
         if (Utils.isBlank(tenantId)) {
             throw new RuntimeException("provisionTenantInStripe: No TenantID found in the event detail");
@@ -329,7 +320,8 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
         LOGGER.info("cancelSubscriptionInStripe: Starting...");
 
         try {
-            Stripe.apiKey = BillingUtils.getBillingApiKey(API_GATEWAY_HOST, API_GATEWAY_STAGE, API_TRUST_ROLE);
+            ApiGatewayHelper api = ApiGatewayHelper.clientCredentialsHelper(API_APP_CLIENT);
+            Stripe.apiKey = BillingUtils.getBillingApiKey(api);
         } catch (Exception e) {
             LOGGER.error("No api key found so skipping subscription cancellation");
             return;
@@ -505,5 +497,6 @@ public class BillingIntegration implements RequestHandler<EventBridgeEvent, Obje
     public Object handleRequest(EventBridgeEvent eventBridgeEvent, Context context) {
         return null;
     }
+
 }
 

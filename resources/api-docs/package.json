@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "dependencies": {
+    "serverless-http": "^2.6.1",
+    "swagger-ui-express": "^5.0.0"
+  }
+}

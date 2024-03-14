@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.policybuilder.iam.*;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
@@ -34,14 +35,28 @@ public class SaaSBoostArtifactsBucket {
 
     private final String bucketName;
     private final Region region;
+    private final String appPlaneAccountId;
 
     public SaaSBoostArtifactsBucket(String bucketName, Region region) {
+        this(bucketName, region, null);
+    }
+
+    public SaaSBoostArtifactsBucket(String bucketName, Region region, String appPlaneAccountId) {
         this.bucketName = bucketName;
         this.region = region;
+        this.appPlaneAccountId = appPlaneAccountId;
     }
 
     public String getBucketName() {
         return bucketName;
+    }
+
+    public Region getRegion() {
+        return region;
+    }
+
+    public String getAppPlaneAccountId() {
+        return appPlaneAccountId;
     }
 
     public String toString() {
@@ -62,7 +77,7 @@ public class SaaSBoostArtifactsBucket {
             s3.putObject(PutObjectRequest.builder()
                     .bucket(bucketName)
                     // java.nio.file.Path will use OS dependent file separators, so when we run the installer on
-                    // Windows, the S3 key will have back slashes instead of forward slashes. The CloudFormation
+                    // Windows, the S3 key will have backslashes instead of forward slashes. The CloudFormation
                     // definitions of the Lambda functions will always use forward slashes for the S3Key property.
                     .key(remotePath.toString().replace('\\', '/'))
                     .build(), RequestBody.fromFile(localPath)
@@ -74,9 +89,9 @@ public class SaaSBoostArtifactsBucket {
         }
     }
 
-    protected static SaaSBoostArtifactsBucket createS3ArtifactBucket(S3Client s3, String envName, Region awsRegion) {
+    protected static SaaSBoostArtifactsBucket createS3ArtifactBucket(S3Client s3, String envName, Region awsRegion
+            , String appPlaneAccountId) {
         String s3ArtifactBucketName = "sb-" + envName + "-artifacts-" + Utils.randomString(12, "[^a-z0-9]");
-        LOGGER.info("Creating S3 Artifact Bucket {}", s3ArtifactBucketName);
         try {
             CreateBucketRequest.Builder createBucketRequestBuilder = CreateBucketRequest.builder();
             // LocationConstraint is not valid in US_EAST_1
@@ -86,13 +101,16 @@ public class SaaSBoostArtifactsBucket {
                         config.locationConstraint(BucketLocationConstraint.fromValue(awsRegion.id())));
             }
             createBucketRequestBuilder.bucket(s3ArtifactBucketName);
+            LOGGER.info("Creating S3 artifact bucket {}", s3ArtifactBucketName);
             s3.createBucket(createBucketRequestBuilder.build());
+            LOGGER.info("Enabling EventBridge bucket notifications {}", s3ArtifactBucketName);
             s3.putBucketNotificationConfiguration(PutBucketNotificationConfigurationRequest.builder()
                     .bucket(s3ArtifactBucketName)
                     .notificationConfiguration(NotificationConfiguration.builder()
                             .eventBridgeConfiguration(EventBridgeConfiguration.builder().build())
                             .build())
                     .build());
+            LOGGER.info("Setting default bucket encryption {}", s3ArtifactBucketName);
             s3.putBucketEncryption(PutBucketEncryptionRequest.builder()
                     .bucket(s3ArtifactBucketName)
                     .serverSideEncryptionConfiguration(ServerSideEncryptionConfiguration.builder()
@@ -103,35 +121,42 @@ public class SaaSBoostArtifactsBucket {
                                     .build())
                             .build())
                     .build());
-            final String partitionName = awsRegion.metadata().partition().id();
+            String partitionName = awsRegion.metadata().partition().id();
+            IamPolicy policy = IamPolicy.builder()
+                    .addStatement(statement -> statement
+                            .sid("DenyNonHttps")
+                            .effect(IamEffect.DENY)
+                            .addPrincipal(IamPrincipal.ALL)
+                            .addAction("s3:*")
+                            .addResource("arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "/*")
+                            .addResource("arn:" + partitionName + ":s3:::" + s3ArtifactBucketName)
+                            .addCondition(condition -> condition
+                                    .operator(IamConditionOperator.BOOL)
+                                    .key("aws:SecureTransport")
+                                    .value("false")
+                            )
+                    )
+                    .addStatement(statement -> statement
+                            .sid("AppPlaneAccountQuickLink")
+                            .effect(IamEffect.ALLOW)
+                            .addPrincipal(IamPrincipalType.AWS, "arn:aws:iam::" + appPlaneAccountId + ":root")
+                            .addAction("s3:GetObject")
+                            .addResource("arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "/saas-boost-app-integration.yaml")
+                    )
+                    .build();
+            String bucketPolicy = policy.toJson(IamPolicyWriter.builder().prettyPrint(true).build());
+            LOGGER.info("Creating bucket policy {}", s3ArtifactBucketName);
+            LOGGER.info(bucketPolicy);
             s3.putBucketPolicy(PutBucketPolicyRequest.builder()
-                    .policy("{\n"
-                            + "    \"Version\": \"2012-10-17\",\n"
-                            + "    \"Statement\": [\n"
-                            + "        {\n"
-                            + "            \"Sid\": \"DenyNonHttps\",\n"
-                            + "            \"Effect\": \"Deny\",\n"
-                            + "            \"Principal\": \"*\",\n"
-                            + "            \"Action\": \"s3:*\",\n"
-                            + "            \"Resource\": [\n"
-                            + "                \"arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "/*\",\n"
-                            + "                \"arn:" + partitionName + ":s3:::" + s3ArtifactBucketName + "\"\n"
-                            + "            ],\n"
-                            + "            \"Condition\": {\n"
-                            + "                \"Bool\": {\n"
-                            + "                    \"aws:SecureTransport\": \"false\"\n"
-                            + "                }\n"
-                            + "            }\n"
-                            + "        }\n"
-                            + "    ]\n"
-                            + "}")
+                    .policy(bucketPolicy)
                     .bucket(s3ArtifactBucketName)
                     .build());
         } catch (SdkServiceException s3Error) {
             LOGGER.error("s3 error {}", s3Error.getMessage());
             LOGGER.error(getFullStackTrace(s3Error));
+            //TODO delete bucket if that step worked but the other settings failed
             throw s3Error;
         }
-        return new SaaSBoostArtifactsBucket(s3ArtifactBucketName, awsRegion);
+        return new SaaSBoostArtifactsBucket(s3ArtifactBucketName, awsRegion, appPlaneAccountId);
     }
 }

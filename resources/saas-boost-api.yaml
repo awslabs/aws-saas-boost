@@ -1,0 +1,2651 @@
+#---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost API
+Parameters:
+  Environment:
+    Description: Environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  StartCodeBuildLambda:
+    Description: StartCodeBuild Lambda ARN
+    Type: String
+  CodePipelineBucket:
+    Description: S3 bucket for CodePipeline artifacts
+    Type: String
+  SSMParamSaaSBoostBucket:
+    Description: Parameter Store entry for SaaS Boost assets bucket
+    Type: String
+  SSMParamLambdaSourceFolder:
+    Description: Parameter Store entry for SaaS Boost assets bucket lambda source folder
+    Type: String
+  SaaSBoostApi:
+    Description: API Gateway REST API
+    Type: String
+  RootResourceId:
+    Description: API Gateway REST API root resource id
+    Type: String
+  ApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost API
+    Type: String
+    Default: v1
+  IdentityProvider:
+    Description: Identity Provider for the SaaS Boost system users and Control Plane API authorization
+    Type: String
+    Default: COGNITO
+    AllowedValues: [COGNITO, KEYCLOAK, AUTH0]
+  CognitoUserPoolId:
+    Description: User Pool Id for the Cognito Authorizer
+    Type: String
+  KeycloakHost:
+    Description: The hostname (and protocol) for the Keycloak install
+    Type: String
+  KeycloakRealm:
+    Description: The non-master Keycloak realm to authenticate against
+    Type: String
+  AdminWebAppClientId:
+    Description: OAuth App Client Id for the Admin Web App
+    Type: String
+  ApiAppClientId:
+    Description: OAuth App Client Id for API client credentials grant
+    Type: String
+  PrivateApiAppClientId:
+    Description: OAuth App Client Id for private API client credentials grant
+    Type: String
+#  BillingServiceGetPlans:
+#    Description: Billing Service subscription plans Lambda ARN
+#    Type: String
+#  MetricsServiceQuery:
+#    Description: Metrics Service query Lambda ARN
+#    Type: String
+#  MetricsServiceDatasets:
+#    Description: Metrics Service datasets Lambda ARN
+#    Type: String
+#  MetricsServiceAlbQuery:
+#    Description: Metrics Service ALB metric query Lambda ARN
+#    Type: String
+  MetricsServicePut:
+    Description: Metrics Service put metrics request Lambda ARN
+    Type: String
+  OnboardingServiceGetAll:
+    Description: Onboarding Service get all onboarding requests Lambda ARN
+    Type: String
+  OnboardingServiceInsert:
+    Description: Onboarding Service insert onboarding request Lambda ARN
+    Type: String
+  OnboardingServiceById:
+    Description: Onboarding Service get onboarding request by id Lambda ARN
+    Type: String
+  SettingsServiceGetAll:
+    Description: Settings Service get all settings Lambda ARN
+    Type: String
+  SettingsServiceById:
+    Description: Settings Service get setting Lambda ARN
+    Type: String
+  SettingsServiceGetSecret:
+    Description: Settings Service get decrypted secret setting Lambda ARN
+    Type: String
+  SettingsServiceUpdate:
+    Description: Settings Service update setting Lambda ARN
+    Type: String
+  AppConfigServiceOptions:
+    Description: AppConfig Service get configuration options Lambda ARN
+    Type: String
+  AppConfigServiceGet:
+    Description: AppConfig Service get application configuration Lambda ARN
+    Type: String
+  AppConfigServiceUpdate:
+    Description: AppConfig Service update application configuration Lambda ARN
+    Type: String
+  AppConfigServiceDelete:
+    Description: AppConfig Service delete application configuration Lambda ARN
+    Type: String
+  TenantServiceGetAll:
+    Description: Tenant Service get all tenants Lambda ARN
+    Type: String
+  TenantServiceInsert:
+    Description: Tenant Service insert new tenant Lambda ARN
+    Type: String
+  TenantServiceById:
+    Description: Tenant Service get tenant by id Lambda ARN
+    Type: String
+  TenantServiceUpdate:
+    Description: Tenant Service update tenant Lambda ARN
+    Type: String
+  TenantServiceDelete:
+    Description: Tenant Service delete tenant Lambda ARN
+    Type: String
+  TenantServiceEnable:
+    Description: Tenant Service enable tenant Lambda ARN
+    Type: String
+  TenantServiceDisable:
+    Description: Tenant Service disable tenant Lambda ARN
+    Type: String
+  TierServiceGetAll:
+    Description: Tier Service get all tiers Lambda ARN
+    Type: String
+  TierServiceGetById:
+    Description: Tier Service get tier by id Lambda ARN
+    Type: String
+  TierServiceUpdate:
+    Description: Tier Service update tier Lambda ARN
+    Type: String
+  TierServiceInsert:
+    Description: Tier Service insert tier Lambda ARN
+    Type: String
+  TierServiceDelete:
+    Description: Tier Service delete tier Lambda ARN
+    Type: String
+  SystemUserServiceGetAll:
+    Description: System User Service get all users Lambda ARN
+    Type: String
+  SystemUserServiceInsert:
+    Description: System User Service insert new user Lambda ARN
+    Type: String
+  SystemUserServiceById:
+    Description: System User Service get user by id Lambda ARN
+    Type: String
+  SystemUserServiceUpdate:
+    Description: System User Service update user Lambda ARN
+    Type: String
+  SystemUserServiceDelete:
+    Description: System User Service delete user Lambda ARN
+    Type: String
+  SystemUserServiceEnable:
+    Description: System User Service enable user Lambda ARN
+    Type: String
+  SystemUserServiceDisable:
+    Description: System User Service disable user Lambda ARN
+    Type: String
+  IdentityServiceGetProviders:
+    Description: Identity Service get all providers Lambda ARN
+    Type: String
+  IdentityServiceGetProvider:
+    Description: Identity Service get active identity provider Lambda ARN
+    Type: String
+  IdentityServiceSetProvider:
+    Description: Identity Service set active identity provider Lambda ARN
+    Type: String
+Resources:
+  AuthorizerExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-authorizer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-authorizer-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  AuthorizerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-authorizer
+      RetentionInDays: 30
+  AuthorizerLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: AuthorizerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-authorizer
+      Role: !GetAtt AuthorizerExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApiGatewayAuthorizer
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/Authorizer-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          IDENTITY_PROVIDER: !Ref IdentityProvider
+          USER_POOL_ID: !Ref CognitoUserPoolId
+          KEYCLOAK_HOST: !Ref KeycloakHost
+          KEYCLOAK_REALM: !Ref KeycloakRealm
+          ADMIN_WEB_APP_CLIENT_ID: !Ref AdminWebAppClientId
+          API_APP_CLIENT_ID: !Ref ApiAppClientId
+          PRIVATE_API_APP_CLIENT_ID: !Ref PrivateApiAppClientId
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BoostService
+          Value: Authorizer
+  ApiGatewayLoggingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-apigw-log-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayLoggingAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayLoggingRole.Arn
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${SaaSBoostApi}
+      RetentionInDays: 30
+  ApiDocsCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:listBucket
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/api-docs/*
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/codebuild-cache/*
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${CodePipelineBucket}/codebuild-cache/*
+                  - !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/${LambdaSourceFolder}/ApiDocs-lambda.zip
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionCode
+                Resource:
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:sb-${Environment}-api-docs
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParamSaaSBoostBucket}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SSMParamLambdaSourceFolder}
+  ApiDocsCodeBuildLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/sb-${Environment}-api-docs
+      RetentionInDays: 14
+  ApiDocsCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub sb-${Environment}-api-docs
+      ServiceRole: !Ref ApiDocsCodeBuildRole
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Cache:
+        Type: S3
+        Location: !Sub ${CodePipelineBucket}/codebuild-cache
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        Type: ARM_CONTAINER
+        EnvironmentVariables:
+          - Name: SAAS_BOOST_ENV
+            Value: !Ref Environment
+          - Name: SOURCE_BUCKET
+            Value: !Ref SaaSBoostBucket
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - if [ "$AWS_DEFAULT_REGION" = "cn-northwest-1" ] || [ "$AWS_DEFAULT_REGION" = "cn-north-1" ]; then npm config set registry https://registry.npm.taobao.org; fi
+                - aws s3 cp s3://$SOURCE_BUCKET/api-docs/src.zip src.zip
+                - unzip src.zip
+                - aws s3 cp s3://$SOURCE_BUCKET/api-docs/swagger.json ./resources/api-docs/swagger.json
+            build:
+              commands:
+                - cd ./resources/api-docs
+                - npm install
+                - cd ../../
+            post_build:
+              commands:
+                - cd ./resources/api-docs
+                - bash update.sh $SAAS_BOOST_ENV
+          cache:
+            paths:
+              - $CODEBUILD_SRC_DIR/resources/api-docs/node_modules/**/*
+  InvokeStartCodeBuild:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !Ref StartCodeBuildLambda
+      Project: !Ref ApiDocsCodeBuildProject
+      Wait: true
+  ApiDocsBuildEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-event-build-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-event-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource: !GetAtt ApiDocsCodeBuildProject.Arn
+  ApiDocsBuildRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-api-docs-build
+      Description: SaaS Boost API Docs new source event
+      EventPattern: !Sub |
+        {
+          "source": [
+            "aws.s3"
+          ],
+          "detail-type": [
+            "Object Created",
+            "Object Deleted"
+          ],
+          "detail": {
+            "bucket": {
+              "name": [
+                "${SaaSBoostBucket}"
+              ]
+            },
+            "object": {
+              "key": [{
+                "prefix": "api-docs/"
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ApiDocsCodeBuildProject.Arn
+          RoleArn: !GetAtt ApiDocsBuildEventRole.Arn
+          Id: !Sub sb-${Environment}-api-docs-build
+  ApiDocsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-docs-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-docs-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+  ApiDocsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-api-docs
+      RetentionInDays: 30
+  ApiDocs:
+    Type: AWS::Lambda::Function
+    DependsOn: InvokeStartCodeBuild
+    Properties:
+      FunctionName: !Sub sb-${Environment}-api-docs
+      Role: !GetAtt ApiDocsExecutionRole.Arn
+      Runtime: nodejs16.x
+      Timeout: 30
+      MemorySize: 512
+      Handler: app.handler
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/ApiDocs-lambda.zip
+      Environment:
+        Variables:
+          SWAGGER_UI_URL_PATH: /docs
+  ApiGatewayLambdaAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-authorizer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-api-authorizer-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:invokeFunction
+                Resource:
+                  - !GetAtt AuthorizerLambda.Arn
+  ApiGatewayLambdaAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      Type: TOKEN
+      Name: !Sub sb-${Environment}-api-authorizer
+      AuthorizerCredentials: !GetAtt ApiGatewayLambdaAuthorizerRole.Arn
+      IdentitySource: method.request.header.Authorization
+      IdentityValidationExpression: ^[Bb]earer [A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$
+      AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerLambda.Arn}/invocations
+#  BillingServiceResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref RootResourceId
+#      PathPart: 'billing'
+#  BillingServicePlansResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref BillingServiceResource
+#      PathPart: 'plans'
+#  BillingServicePlansResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref BillingServicePlansResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  BillingServiceGetPlansMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref BillingServicePlansResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BillingServiceGetPlans}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  BillingServiceGetPlansLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref BillingServiceGetPlans
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/billing/plans
+  MetricsServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: metrics
+  MetricsServicePutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref MetricsServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServicePut}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+#      RequestModels:
+#        application/json: !Ref MetricListModel
+  MetricsServicePutLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MetricsServicePut
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics
+  MetricsServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref MetricsServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+#  MetricsServiceQueryResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: query
+#  MetricsServiceDatasetsResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: datasets
+#  MetricsServiceAlbResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceResource
+#      PathPart: alb
+#  MetricsServiceAlbMetricResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbResource
+#      PathPart: '{metric}'
+#  MetricsServiceAlbQueryResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbMetricResource
+#      PathPart: '{timerange}'
+#  MetricsServiceAlbQueryByTenantIdResource:
+#    Type: AWS::ApiGateway::Resource
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ParentId: !Ref MetricsServiceAlbQueryResource
+#      PathPart: '{id}'
+#  MetricsServiceQueryMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceQueryResource
+#      HttpMethod: POST
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceQueryLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/metrics/query
+#  MetricsServiceQueryResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceQueryResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceDatasetsMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceDatasetsResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceDatasets}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceDatasetsLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceDatasets
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/datasets
+#  MetricsServiceDatasetsResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceDatasetsResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceAlbQueryMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      RequestParameters:
+#        method.request.path.metric: true
+#        method.request.path.timerange: true
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        RequestParameters:
+#          integration.request.path.metric: 'method.request.path.metric'
+#          integration.request.path.timerange: 'method.request.path.timerange'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceAlbQueryLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceAlbQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}
+#  MetricsServiceAlbQueryResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+#  MetricsServiceAlbQueryByTenantIdMethod:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+#      HttpMethod: GET
+#      AuthorizationType: CUSTOM
+#      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+#      RequestParameters:
+#        method.request.path.metric: true
+#        method.request.path.timerange: true
+#        method.request.path.id: true
+#      Integration:
+#        Type: AWS_PROXY
+#        IntegrationHttpMethod: POST
+#        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MetricsServiceAlbQuery}/invocations
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        RequestParameters:
+#          integration.request.path.metric: 'method.request.path.metric'
+#          integration.request.path.timerange: 'method.request.path.timerange'
+#          integration.request.path.id: 'method.request.path.id'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: false
+#  MetricsServiceAlbQueryByTenantIdLambdaPermission:
+#    Type: AWS::Lambda::Permission
+#    Properties:
+#      Principal: apigateway.amazonaws.com
+#      Action: lambda:InvokeFunction
+#      FunctionName: !Ref MetricsServiceAlbQuery
+#      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/metrics/alb/{metric}/{timerange}/{id}
+#  MetricsServiceAlbQueryByTenantIdResourceCORS:
+#    Type: AWS::ApiGateway::Method
+#    Properties:
+#      RestApiId: !Ref SaaSBoostApi
+#      ResourceId: !Ref MetricsServiceAlbQueryByTenantIdResource
+#      HttpMethod: OPTIONS
+#      AuthorizationType: NONE
+#      Integration:
+#        Type: MOCK
+#        PassthroughBehavior: WHEN_NO_MATCH
+#        IntegrationResponses:
+#          - StatusCode: '200'
+#            ResponseTemplates: {application/json: ''}
+#            ResponseParameters:
+#              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+#              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+#              method.response.header.Access-Control-Allow-Origin: "'*'"
+#              method.response.header.Access-Control-Max-Age: "'3600'"
+#              method.response.header.X-Requested-With: "'*'"
+#        RequestTemplates:
+#          application/json: '{"statusCode": 200}'
+#      MethodResponses:
+#        - StatusCode: '200'
+#          ResponseModels: {application/json: Empty}
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Headers: false
+#            method.response.header.Access-Control-Allow-Methods: false
+#            method.response.header.Access-Control-Allow-Origin: false
+#            method.response.header.Access-Control-Max-Age: false
+#            method.response.header.X-Requested-With: false
+  OnboardingServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: onboarding
+  OnboardingServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref OnboardingServiceResource
+      PathPart: '{id}'
+  OnboardingServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/onboarding
+  OnboardingServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/onboarding
+  OnboardingServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref OnboardingServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  OnboardingServiceByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref OnboardingServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnboardingServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  OnboardingServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OnboardingServiceById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/onboarding/{id}
+  OnboardingServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref OnboardingServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: settings
+  SettingsServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SettingsServiceResource
+      PathPart: '{id}'
+  SettingsServiceSecretResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SettingsServiceByIdResource
+      PathPart: secret
+  SettingsServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings
+  SettingsServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/settings/{id}
+  SettingsServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/{id}
+  SettingsServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SettingsServiceSecretMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceSecretResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SettingsServiceGetSecret}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceGetSecretLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SettingsServiceGetSecret
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/settings/{id}/secret
+  SettingsServiceSecretResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SettingsServiceSecretResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  AppConfigServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: appconfig
+  AppConfigServiceOptionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref AppConfigServiceResource
+      PathPart: options
+  AppConfigServiceOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceOptionsResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceOptions}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceOptionsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceOptions
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/appconfig/options
+  AppConfigServiceOptionsResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceOptionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  AppConfigServiceGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceGet}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceGetLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceGet
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/appconfig
+  AppConfigServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  AppConfigServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/appconfig
+  AppConfigServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppConfigServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SettingsServiceDeleteAppConfigLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AppConfigServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/appconfig
+  AppConfigServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref AppConfigServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'tenants'
+  TenantServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref TenantServiceResource
+      PathPart: '{id}'
+  TenantServiceEnableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref TenantServiceByIdResource
+      PathPart: 'enable'
+  TenantServiceDisableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref TenantServiceByIdResource
+      PathPart: 'disable'
+  TenantServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tenants
+  TenantServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/tenants
+  TenantServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tenants/{id}
+  TenantServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/tenants/{id}
+  TenantServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceDeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/tenants/{id}
+  TenantServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceEnableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceEnableResource
+      HttpMethod: PATCH
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceEnable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceEnableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceEnable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/tenants/{id}/enable
+  TenantServiceEnableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceEnableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TenantServiceDisableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceDisableResource
+      HttpMethod: PATCH
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TenantServiceDisable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TenantServiceDisableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TenantServiceDisable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/tenants/{id}/disable
+  TenantServiceDisableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TenantServiceDisableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TierServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'tiers'
+  TierServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: { application/json: '' }
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: { application/json: Empty }
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TierServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref TierServiceResource
+      PathPart: '{id}'
+  TierServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: { application/json: '' }
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: { application/json: Empty }
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  TierServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TierServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TierServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tiers
+  TierServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TierServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TierServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/tiers
+  TierServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceGetById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TierServiceGetByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TierServiceGetById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/tiers/{id}
+  TierServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TierServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TierServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/tiers/{id}
+  TierServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref TierServiceByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TierServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  TierServiceDeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TierServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/tiers/{id}
+  SystemUserServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'sysusers'
+  SystemUserServiceByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SystemUserServiceResource
+      PathPart: '{id}'
+  SystemUserServiceEnableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SystemUserServiceByIdResource
+      PathPart: 'enable'
+  SystemUserServiceDisableResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref SystemUserServiceByIdResource
+      PathPart: 'disable'
+  SystemUserServiceGetAllMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceGetAll}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceGetAllLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceGetAll
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/sysusers
+  SystemUserServiceInsertMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceInsert}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceInsertLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceInsert
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/sysusers
+  SystemUserServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SystemUserServiceGetByIdMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceByIdResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceById}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceByIdLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceById
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/sysusers/{id}
+  SystemUserServiceUpdateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceByIdResource
+      HttpMethod: PUT
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceUpdate}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceUpdateLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceUpdate
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PUT/sysusers/{id}
+  SystemUserServiceDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceByIdResource
+      HttpMethod: DELETE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceDelete}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceDeleteLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceDelete
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/DELETE/sysusers/{id}
+  SystemUserServiceByIdResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceByIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SystemUserServiceEnableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceEnableResource
+      HttpMethod: PATCH
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceEnable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceEnableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceEnable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/sysusers/{id}/enable
+  SystemUserServiceEnableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceEnableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  SystemUserServiceDisableMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceDisableResource
+      HttpMethod: PATCH
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      RequestParameters: {method.request.path.id: true}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SystemUserServiceDisable}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters: {integration.request.path.id: 'method.request.path.id'}
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  SystemUserServiceDisableLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SystemUserServiceDisable
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/PATCH/sysusers/{id}/disable
+  SystemUserServiceDisableResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref SystemUserServiceDisableResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PATCH'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  IdentityServiceResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'identity'
+  IdentityServiceProvidersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref IdentityServiceResource
+      PathPart: 'providers'
+  IdentityServiceResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  IdentityServiceGetProviderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceGetProvider}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceGetProviderLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceGetProvider
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/identity
+  IdentityServiceSetProviderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceResource
+      HttpMethod: POST
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceSetProvider}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceSetProviderLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceSetProvider
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/POST/identity
+  IdentityServiceGetProvidersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceProvidersResource
+      HttpMethod: GET
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref ApiGatewayLambdaAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IdentityServiceGetProviders}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  IdentityServiceGetProvidersLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref IdentityServiceGetProviders
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/identity/providers
+  IdentityServiceProvidersResourceCORS:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref IdentityServiceProvidersResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates: {application/json: ''}
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Max-Age: "'3600'"
+              method.response.header.X-Requested-With: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels: {application/json: Empty}
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Max-Age: false
+            method.response.header.X-Requested-With: false
+  ApiDocsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref RootResourceId
+      PathPart: 'docs'
+  ApiDocsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref ApiDocsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiDocs.Arn}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  ApiDocsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiDocs
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/GET/docs  
+  ApiDocsProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ParentId: !Ref ApiDocsResource
+      PathPart: '{proxy+}'
+  ApiDocsProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      ResourceId: !Ref ApiDocsProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiDocs.Arn}/invocations
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+        CacheKeyParameters:
+          - method.request.path.proxy
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+  ApiDocsProxyLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Principal: apigateway.amazonaws.com
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiDocs
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SaaSBoostApi}/*/ANY/docs/{proxy+}
+  # To Do: Remove deployment from CloudFormation and deal with it either through
+  # CodePipeline or a custom resource, or some other external deployment action.
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+#      - BillingServicePlansResourceCORS
+#      - BillingServiceGetPlansMethod
+#      - MetricsServiceQueryMethod
+#      - MetricsServiceQueryResourceCORS
+#      - MetricsServiceDatasetsMethod
+#      - MetricsServiceDatasetsResourceCORS
+#      - MetricsServiceAlbQueryMethod
+#      - MetricsServiceAlbQueryResourceCORS
+#      - MetricsServiceAlbQueryByTenantIdMethod
+#      - MetricsServiceAlbQueryByTenantIdResourceCORS
+      - MetricsServiceResourceCORS
+      - MetricsServicePutMethod
+      - OnboardingServiceGetAllMethod
+      - OnboardingServiceInsertMethod
+      - OnboardingServiceResourceCORS
+      - OnboardingServiceByIdMethod
+      - OnboardingServiceByIdResourceCORS
+      - SettingsServiceGetAllMethod
+      - SettingsServiceResourceCORS
+      - SettingsServiceGetByIdMethod
+      - SettingsServiceUpdateMethod
+      - SettingsServiceByIdResourceCORS
+      - SettingsServiceSecretMethod
+      - SettingsServiceSecretResourceCORS
+      - AppConfigServiceOptionsMethod
+      - AppConfigServiceOptionsResourceCORS
+      - AppConfigServiceGetMethod
+      - AppConfigServiceUpdateMethod
+      - AppConfigServiceDeleteMethod
+      - AppConfigServiceResourceCORS
+      - TenantServiceGetAllMethod
+      - TenantServiceInsertMethod
+      - TenantServiceResourceCORS
+      - TenantServiceGetByIdMethod
+      - TenantServiceUpdateMethod
+      - TenantServiceDeleteMethod
+      - TenantServiceByIdResourceCORS
+      - TenantServiceEnableMethod
+      - TenantServiceEnableResourceCORS
+      - TenantServiceDisableMethod
+      - TenantServiceDisableResourceCORS
+      - TierServiceGetAllMethod
+      - TierServiceInsertMethod
+      - TierServiceGetByIdMethod
+      - TierServiceUpdateMethod
+      - TierServiceDeleteMethod
+      - TierServiceByIdResourceCORS
+      - TierServiceResourceCORS
+      - SystemUserServiceGetAllMethod
+      - SystemUserServiceInsertMethod
+      - SystemUserServiceResourceCORS
+      - SystemUserServiceGetByIdMethod
+      - SystemUserServiceUpdateMethod
+      - SystemUserServiceDeleteMethod
+      - SystemUserServiceByIdResourceCORS
+      - SystemUserServiceEnableMethod
+      - SystemUserServiceEnableResourceCORS
+      - SystemUserServiceDisableMethod
+      - SystemUserServiceDisableResourceCORS
+      - IdentityServiceResourceCORS
+      - IdentityServiceGetProviderMethod
+      - IdentityServiceSetProviderMethod
+      - IdentityServiceGetProvidersMethod
+      - IdentityServiceProvidersResourceCORS
+      - ApiDocsProxyMethod
+      - ApiDocsGetMethod
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    DependsOn: ApiGatewayLoggingAccount
+    Properties:
+      RestApiId: !Ref SaaSBoostApi
+      StageName: !Ref ApiStage
+      DeploymentId: !Ref ApiDeployment
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+        Format: "{\"operationName\":\"$context.operationName\",\"userAgent\":\"$context.identity.userAgent\",\"extendedRequestId\":\"$context.extendedRequestId\",\"requestId\":\"$context.requestId\",\"ip\":\"$context.identity.sourceIp\",\"accountId\":\"$context.identity.accountId\",\"user\":\"$context.identity.user\",\"userArn\":\"$context.identity.userArn\",\"principalOrgId\":\"$context.identity.principalOrgId\",\"requestTime\":\"$context.requestTime\",\"httpMethod\":\"$context.httpMethod\",\"resourcePath\":\"$context.resourcePath\",\"requestPath\":\"$context.path\",\"status\":\"$context.status\",\"latency\":\"$context.responseLatency\",\"integrationLatency\":\"$context.integrationLatency\",\"integrationErrorMessage\":\"$context.integrationErrorMessage\",\"authorizerLatency\":\"$context.authorizer.integrationLatency\",\"xrayTraceId\":\"$context.xrayTraceId\",\"responseLength\":\"$context.responseLength\",\"stage\":\"$context.stage\",\"executions\":$context.executions}"
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          ResourcePath: '/*'
+Outputs:
+  ApiGatewayEndpoint:
+    Description: SaaS Boost API Gateway Invoke URL
+    Value: !Sub 'https://${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
+...

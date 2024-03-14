@@ -28,9 +28,10 @@ import {
 } from './ducks'
 import { useDispatch, useSelector } from 'react-redux'
 import { selectConfig } from '../settings/ducks'
-import { selectAllPlans, fetchPlans, selectPlanLoading } from '../billing/ducks'
+//import { selectAllPlans, fetchPlans, selectPlanLoading } from '../billing/ducks'
 import { saveToPresignedBucket } from '../settings/ducks'
 import { selectAllTiers } from '../tier/ducks'
+import {transform} from "framer-motion";
 
 export default function OnboardingCreateContainer() {
   const dispatch = useDispatch()
@@ -39,12 +40,13 @@ export default function OnboardingCreateContainer() {
   const error = useSelector(selectError)
   const errorName = useSelector(selectErrorName)
   const loading = useSelector(selectLoading)
-  const plans = useSelector(selectAllPlans)
-  const plansLoading = useSelector(selectPlanLoading)
+  //const plans = useSelector(selectAllPlans)
+  //const plansLoading = useSelector(selectPlanLoading)
   const tiers = useSelector(selectAllTiers)
 
   const [file, setFile] = useState({})
 
+  /*
   useEffect(() => {
     const fetchPlansThunk = dispatch(fetchPlans())
     return () => {
@@ -54,6 +56,7 @@ export default function OnboardingCreateContainer() {
       dispatch(dismissError())
     }
   }, [dispatch])
+  */
 
   const nullBlankProps = (obj) => {
     const ret = { ...obj }
@@ -65,16 +68,36 @@ export default function OnboardingCreateContainer() {
     })
     return ret
   }
-
+  const dataTransform = (data)=> {
+      const transform = {
+        "name": data.name,
+        "tier": data.tier,
+        "subdomain": data.subdomain,
+        "adminUsers": [
+          {
+            "username": data.username,
+            "email": data.email,
+            "phoneNumber": data.phoneNumber,
+            "givenName": data.givenName,
+            "familyName": data.familyName
+          }
+        ]
+      };
+      return transform;
+  };
   const submitOnboardingRequestForm = async (
     values,
     { resetForm, setSubmitting }
   ) => {
-    const { hasDomain, hasBilling, ...rest } = values
-    const valsToSend = nullBlankProps(rest)
-    let onboardingResponse
+    //const { hasDomain, hasBilling, ...rest } = values
+    const { hasDomain, ...rest } = values
+    const valsToSend = nullBlankProps(rest);
+    const data = dataTransform(valsToSend);
+
+    let onboardingResponse;
+    console.log('data: ', JSON.stringify(data));
     try {
-      onboardingResponse = await dispatch(createOnboarding(valsToSend))
+      onboardingResponse = await dispatch(createOnboarding(data))
       const presignedS3url = onboardingResponse.payload.zipFile
       if (presignedS3url && !!file && file.name) {
         await dispatch(
@@ -105,8 +128,8 @@ export default function OnboardingCreateContainer() {
   return (
     <LoadingOverlay active={!loading} spinner text="Loading...">
       <OnboardingFormComponent
-        billingPlans={plans}
-        plansLoading={plansLoading === 'pending'}
+        //billingPlans={plans}
+        //plansLoading={plansLoading === 'pending'}
         cancel={cancel}
         config={config}
         error={error}

@@ -1,0 +1,370 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost Control Plane Integration
+Parameters:
+  Environment:
+    Description: SaaS Boost control plane environment label
+    Type: String
+  EventBusArn:
+    Description: SaaS Boost control plane EventBus ARN
+    Type: String
+  ApiAppClientSecretArn:
+    Description: SaaS Boost API App Client SecretsManager ARN
+    Type: String
+  EncryptionKeyArn:
+    Description: SaaS Boost KMS key ARN for SecretsManager secrets
+    Type: String
+  UtilsLayerArn:
+    Description: SaaS Boost Utils Lambda Layer ARN
+    Type: String
+  CloudFormationUtilsLayerArn:
+    Description: SaaS Boost CloudFormation Utils Lambda Layer ARN
+    Type: String
+  ApiHelperLayerArn:
+    Description: SaaS Boost API Helper Lambda Layer ARN
+    Type: String
+Resources:
+  # Event bus to receive from and relay events to the SaaS Boost control plane
+  # Permissions for which SaaS Boost events this account is allowed to put on the
+  # control plane EventBus are defined by the control plane
+  AppPlaneEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Select [1, !Split ['/', !Ref EventBusArn]]
+  AppPlaneEventBusDlq:
+    Type: AWS::SQS::Queue
+  AppPlaneEventBusDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - Ref: AppPlaneEventBusDlq
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - SQS:SendMessage
+            Resource: !GetAtt AppPlaneEventBusDlq.Arn
+            Principal:
+              Service: events.amazonaws.com
+            Condition:
+              ArnEquals:
+                "aws:SourceArn":
+                  - !GetAtt SaaSBoostEventsSubscriberRule.Arn
+  # Allow the control plane to publish events on the app plane EventBus
+  ControlPlaneEventBusToAppPlaneEventBusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-ctrl-plane-events-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-ctrl-plane-events-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt AppPlaneEventBus.Arn
+  # Events the app plane should be listening for from the SaaS Boost control plane
+  SaaSBoostEventsSubscriberRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-ctrl-plane-events
+      Description: App Plane Subscription to SaaS Boost Control Plane Events
+      EventBusName: !Ref EventBusArn
+      EventPattern:
+        source:
+          - saas-boost
+        detail-type:
+          - Application Configuration Changed
+          - Onboarding Initiated
+          - Onboarding Tenant Assigned
+          - Onboarding Completed
+          - Tenant Deleted
+          - Tenant Enabled
+          - Tenant Disabled
+          - Tenant Tier Changed
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AppPlaneEventBus.Arn
+          Id: !Sub sb-${Environment}-ctrl-plane-events
+          RoleArn: !GetAtt ControlPlaneEventBusToAppPlaneEventBusRole.Arn
+  # This policy allows access to the OAuth app client details in the control
+  # plane's Secrets Manager. This app client can do a client credentials grant
+  # for an access token the API authorizer will accept. This policy should be
+  # added to any execution role for compute that will be calling the SaaS Boost API.
+  ControlPlaneApiTrustPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub sb-${Environment}-api-policy-${AWS::Region}
+      Description: Access to the API client secret from the SaaS Boost control plane account
+      Path: '/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !Ref ApiAppClientSecretArn
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource:
+              - !Ref EncryptionKeyArn
+  # Save some things in Parameter Store to make them easier to use in other places
+  ControlPlaneApiTrustPolicyParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/API_CLIENT_TRUST_POLICY
+      Type: String
+      Value: !Ref ControlPlaneApiTrustPolicy
+  AppPlaneEventBusParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/EVENT_BUS
+      Type: String
+      Value: !Ref AppPlaneEventBus
+  ApiClientSecretParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/API_APP_CLIENT_SECRET
+      Type: String
+      Value: !Ref ApiAppClientSecretArn
+  UtilsLayerParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/UTILS_LAYER
+      Type: String
+      Value: !Ref UtilsLayerArn
+  CloudFormationUtilsLayerParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/CFN_LAYER
+      Type: String
+      Value: !Ref CloudFormationUtilsLayerArn
+  ApiClientHelperLayerParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/app/API_CLIENT_HELPER_LAYER
+      Type: String
+      Value: !Ref ApiHelperLayerArn
+  
+  #
+  # Below are some optional resources for debugging and getting started
+  #
+  
+  # LogGroup to debug EventBridge cross account communication
+  SaaSBoostEventsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/events/${AppPlaneEventBus}
+      RetentionInDays: 30
+  SaaSBoostEventsLogsResourcePolicy:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: !Sub sb-${Environment}-event-logs
+      PolicyDocument: 
+        !Join
+          - ''
+          - - "{\"Version\": \"2012-10-17\",\"Statement\": [{\"Effect\": \"Allow\",\"Action\": [\"logs:CreateLogStream\",\"logs:PutLogEvents\"],"
+            - "\"Principal\": {\"Service\": [\"events.amazonaws.com\",\"delivery.logs.amazonaws.com\"]}, \"Resource\": [\"arn:"
+            - !Ref AWS::Partition
+            - ":logs:"
+            - !Ref AWS::Region
+            - ":"
+            - !Ref AWS::AccountId
+            - ":log-group:/aws/events/"
+            - !Ref AppPlaneEventBus
+            - ":*"
+            - "\"]}]}"
+  SaaSBoostEventsTargetRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-ctrl-plane-event-logger
+      Description: SaaS Boost Control Plane Event Logger Target
+      EventBusName: !Ref AppPlaneEventBus
+      EventPattern:
+        source:
+          - saas-boost
+        detail-type:
+          - Application Configuration Changed
+          - Onboarding Initiated
+          - Onboarding Tenant Assigned
+          - Onboarding Completed
+          - Tenant Deleted
+          - Tenant Enabled
+          - Tenant Disabled
+          - Tenant Tier Changed
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt SaaSBoostEventsLogs.Arn
+          Id: !Sub sb-${Environment}-event-logger
+  # Example event producer role
+  AppPlaneEventProducerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-event-producer-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-event-producer-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: !Ref EventBusArn
+  AppPlaneEventProducerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-app-plane-events
+      RetentionInDays: 30
+  # Sample app plane event producer
+  AppPlaneEventProducer:
+    Type: AWS::Lambda::Function
+    DependsOn: AppPlaneEventProducerLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-app-plane-events
+      Role: !GetAtt AppPlaneEventProducerExecutionRole.Arn
+      Runtime: python3.11
+      Architectures:
+        - arm64
+      Timeout: 10
+      MemorySize: 512
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import boto3
+          from botocore.exceptions import ClientError
+          
+          SAAS_BOOST_EVENT_BUS = os.environ['SAAS_BOOST_EVENT_BUS']
+          events = boto3.client('events')
+          
+          # Invoke with an event object that contains a valid SaaS Boost
+          # event detail type and corresponding detail object (escaped JSON)
+          # For example:
+          # {
+          #   "detailType": "Onboarding Validated",
+          #   "detail": "{\"onboardingId\": \"UUID Value\"}"
+          # }
+          def lambda_handler(event, context):
+              print(json.dumps(event, default=str))
+              detail_type = event['detailType']
+              detail = json.loads(event['detail'])
+              try:
+                response = events.put_events(
+                  Entries=[
+                    {
+                      'EventBusName': SAAS_BOOST_EVENT_BUS,
+                      'Source': 'saas-boost',
+                      'DetailType': detail_type,
+                      'Detail': json.dumps(detail)
+                    }
+                  ]
+                )
+                print(f"Event sent to {SAAS_BOOST_EVENT_BUS}")
+                print(response['Entries'])
+              except ClientError as eventbridge_error:
+                print(str(eventbridge_error))
+      Environment:
+        Variables:
+          SAAS_BOOST_EVENT_BUS: !Ref EventBusArn
+  # Example SaaS Boost API client role
+  AppPlaneApiClientExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-api-client-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref ControlPlaneApiTrustPolicy
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  AppPlaneApiClientLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-app-plane-api-client
+      RetentionInDays: 30
+  # Sample SaaS Boost API client using the helper Lambda Layer
+  AppPlaneApiClient:
+    Type: AWS::Lambda::Function
+    DependsOn: AppPlaneApiClientLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-app-plane-api-client
+      Role: !GetAtt AppPlaneApiClientExecutionRole.Arn
+      Runtime: python3.11
+      Architectures:
+        - arm64
+      Timeout: 30
+      MemorySize: 512
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+          import os
+          from SaaSBoostApiHelper import SaaSBoostApiHelper
+          
+          API_CLIENT_SECRET = os.environ['API_CLIENT_SECRET']
+          
+          # Invoke with an event object that contains the HTTP method
+          # (e.g. GET, POST, PUT) and the API resource (e.g. /onboarding/{id},
+          # /tenant?status=provisioned) and the optional request body
+          # For example to get a list of all tenantonboarding requests:
+          # {
+          #   "method": "GET",
+          #   "resource": "onboarding"
+          # }
+          def lambda_handler(event, context):
+              print(json.dumps(event, default=str))
+
+              api = SaaSBoostApiHelper(API_CLIENT_SECRET)
+
+              method = event['method']
+              resource = event['resource']
+              body = event.get('body')
+              response = api.authorized_request(method, resource, body)
+
+              return response
+      Layers:
+         - !Ref ApiHelperLayerArn
+      Environment:
+        Variables:
+          API_CLIENT_SECRET: !Ref ApiAppClientSecretArn
+...

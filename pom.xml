@@ -15,42 +15,53 @@
     </licenses>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
+        <module>layers</module>
+        <module>installer</module>
         <module>resources/custom-resources</module>
         <module>functions</module>
-        <module>installer</module>
-        <module>layers</module>
-        <module>metering-billing</module>
-        <module>metrics-analytics</module>
         <module>services</module>
     </modules>
     <properties>
+        <saasboost.rootdir>${project.basedir}</saasboost.rootdir>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- plugin versions -->
         <assembly.version>3.1.1</assembly.version>
-        <checkstyle.version>3.1.2</checkstyle.version>
+        <checkstyle.version>3.3.0</checkstyle.version>
         <compiler.version>3.8.1</compiler.version>
-        <compiler.java.version>11</compiler.java.version>
-        <spotbugs.version>4.3.0</spotbugs.version>
-        <!-- TODO upgrade to surefire 3 on release? -->
-        <surefire.version>2.22.2</surefire.version>
+        <compiler.java.version>17</compiler.java.version>
+        <spotbugs.version>4.7.3.5</spotbugs.version>
+        <surefire.version>3.0.0</surefire.version>
         <!-- dependency versions -->
         <!-- aws-lambda-java-log4j2 and log4j versions should be upgraded in tandem -->
         <aws-lambda-java-log4j2.version>1.5.1</aws-lambda-java-log4j2.version>
-        <aws-lambda-java-core.version>1.2.1</aws-lambda-java-core.version>
-        <aws-lambda-java-events.version>3.11.0</aws-lambda-java-events.version>
-        <aws.java.sdk.version>2.17.132</aws.java.sdk.version>
+        <aws-lambda-java-core.version>1.2.2</aws-lambda-java-core.version>
+        <aws-lambda-java-events.version>3.11.2</aws-lambda-java-events.version>
+        <aws.java.sdk.version>2.20.120</aws.java.sdk.version>
         <log4j.version>2.17.1</log4j.version>
-        <junit.version>4.13.2</junit.version>
+        <junit.version>5.9.3</junit.version>
         <mockito.version>3.12.4</mockito.version>
+        <jacoco.version>0.8.11</jacoco.version>
         <slf4j.version>1.7.32</slf4j.version>
     </properties>
     <!-- Define default configurations for some dependencies. Each child POM chooses which dependencies to include. -->
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
                 <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-lambda-java-tests</artifactId>
+                <version>1.1.1</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -128,6 +139,11 @@
                         <classpathDependencyExcludes>
                             <classpathDependencyExclude>org.apache.logging.log4j:log4j-slf4j-impl</classpathDependencyExclude>
                         </classpathDependencyExcludes>
+                        <jvm>${env.JAVA_HOME}/bin/java</jvm>
+                        <environmentVariables>
+                            <AWS_REGION>us-east-1</AWS_REGION>
+                            <SAAS_BOOST_ENV>test</SAAS_BOOST_ENV>
+                        </environmentVariables>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -148,6 +164,42 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>com.github.spotbugs</groupId>
+                    <artifactId>spotbugs-maven-plugin</artifactId>
+                    <version>${spotbugs.version}</version>
+                    <configuration>
+                        <failOnError>false</failOnError>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>spot-bugs</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
         <!-- Warning! All plugins defined here will be included in all child POMs. -->
@@ -155,27 +207,14 @@
             <plugin>
                 <groupId>com.github.spotbugs</groupId>
                 <artifactId>spotbugs-maven-plugin</artifactId>
-                <version>${spotbugs.version}</version>
-                <configuration>
-                    <failOnError>false</failOnError>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>spot-bugs</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${checkstyle.version}</version>
                 <configuration>
-                    <encoding>UTF-8</encoding>
-                    <configLocation>resources/checkstyle/checkstyle.xml</configLocation>
+                    <inputEncoding>UTF-8</inputEncoding>
+                    <configLocation>${saasboost.rootdir}/resources/checkstyle/checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
                     <failOnViolation>true</failOnViolation>

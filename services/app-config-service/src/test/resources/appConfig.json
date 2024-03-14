@@ -1,0 +1,193 @@
+{
+  "name": "Multi Container",
+  "domainName": "",
+  "hostedZone": "",
+  "sslCertificate": "",
+  "services": {
+    "main": {
+      "name": "main",
+      "description": "Main Service",
+      "public": true,
+      "path": "/*",
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
+      "compute": {
+        "type": "ECS",
+        "ecsExecEnabled": true,
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2,
+            "ec2min": 1,
+            "ec2max": 2
+          }
+        }
+      },
+      "filesystem": {
+        "type": "EFS",
+        "mountPoint": "/mnt",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "lifecycle": "NEVER"
+          },
+          "Gold": {
+            "encrypt": true,
+            "lifecycle": "AFTER_7_DAYS",
+            "encryptionKey": "encryptionARN"
+          }
+        }
+      }
+    },
+    "feature": {
+      "name": "feature",
+      "description": "Feature service public path routing",
+      "public": true,
+      "path": "/feature*",
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
+      "compute": {
+        "type": "ECS",
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2
+          }
+        }
+      },
+      "filesystem": {
+        "type": "FSX_WINDOWS",
+        "mountPoint": "/mnt",
+        "windowsMountDrive": "G:\\\\",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "storageGb": 100,
+            "throughputMbs": 200,
+            "backupRetentionDays": 1,
+            "dailyBackupTime": "12:00",
+            "weeklyMaintenanceTime": "3:09:00"
+          },
+          "Gold": {
+            "encrypt": true,
+            "encryptionKey": "encryptionARN",
+            "storageGb": 1000,
+            "throughputMbs": 2000,
+            "backupRetentionDays": 10,
+            "dailyBackupTime": "23:55",
+            "weeklyMaintenanceTime": "6:12:00"
+          }
+        }
+      }
+    },
+    "internal": {
+      "name": "internal",
+      "description": "Internal private service",
+      "public": false,
+      "path": "",
+      "database": {
+        "engine": "MYSQL",
+        "version": "1.2.3",
+        "family": "t3.medium",
+        "database": "example",
+        "username": "example",
+        "password": "examplepass",
+        "bootstrapFilename": null,
+        "passwordParam": "exampleParam",
+        "tiers": {
+          "Free": {
+            "instance": "db.t3.micro"
+          },
+          "Gold": {
+            "instance": "db.t3.xlarge"
+          }
+        }
+      },
+      "compute": {
+        "type": "ECS",
+        "healthCheckUrl": "/health",
+        "operatingSystem": "LINUX",
+        "containerPort": 7000,
+        "containerRepo": "",
+        "containerTag": "latest",
+        "tiers": {
+          "default": {
+            "computeSize": "S",
+            "min": 1,
+            "max": 2
+          }
+        }
+      },
+      "filesystem": {
+        "type": "FSX_ONTAP",
+        "mountPoint": "/mnt",
+        "windowsMountDrive": "G:\\\\",
+        "tiers": {
+          "Free": {
+            "encrypt": false,
+            "storageGb": 100,
+            "throughputMbs": 200,
+            "backupRetentionDays": 1,
+            "dailyBackupTime": "12:00",
+            "weeklyMaintenanceTime": "3:09:00",
+            "volumeSize": 300
+          },
+          "Gold": {
+            "encrypt": true,
+            "encryptionKey": "encryptionARN",
+            "storageGb": 1000,
+            "throughputMbs": 2000,
+            "backupRetentionDays": 10,
+            "dailyBackupTime": "23:55",
+            "weeklyMaintenanceTime": "6:12:00",
+            "volumeSize": 3000
+          }
+        }
+      }
+    }
+  }
+}

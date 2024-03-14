@@ -194,12 +194,10 @@ Resources:
             "aws.s3"
           ],
           "detail-type": [
-            "Object Created"
+            "Object Created",
+            "Object Deleted"
           ],
           "detail": {
-            "reason": [
-              "PutObject", "PostObject", "CopyObject", "CompleteMultipartUpload"
-            ],
             "bucket": {
               "name": [
                 "${SaaSBoostBucket}"

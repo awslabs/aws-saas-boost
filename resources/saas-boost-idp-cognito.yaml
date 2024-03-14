@@ -1,0 +1,382 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS SaaS Boost System User Cognito IdP
+Parameters:
+  Environment:
+    Description: SaaS Boost environment name
+    Type: String
+  SaaSBoostBucket:
+    Description: SaaS Boost assets S3 bucket
+    Type: String
+  LambdaSourceFolder:
+    Description: Folder for lambda source code to change on each deployment
+    Type: String
+  SaaSBoostUtilsLayer:
+    Description: Utils Layer ARN
+    Type: String
+  CloudFormationUtilsLayer:
+    Description: CloudFormation Utils Layer ARN
+    Type: String
+  AdminUsername:
+    Description: SaaS Boost initial admin user name
+    Type: String
+    Default: admin
+  AdminEmailAddress:
+    Description: Email address of admin user to receive temporary password notification
+    AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+    ConstraintDescription: Must be a valid email address.
+    Type: String
+  AdminWebUrl:
+    Description: The SaaS Boost admin web URL.
+    Type: String
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub sb-${Environment}-system-users
+      MfaConfiguration: 'OFF'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailMessage: !Sub |
+            <b>Welcome to AWS SaaS Boost!</b> <br>
+            <br>
+            You can login to your AWS SaaS Boost environment at <a rel="noopener noreferrer" href="${AdminWebUrl}">${AdminWebUrl}</a>.
+            <br>
+            Your username is:  <b>{username}</b>
+            <br>
+            Your temporary password is:  <b>{####}</b>
+            <br>
+          EmailSubject: !Sub AWS SaaS Boost temporary password for environment ${Environment}
+  UserPoolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: !Sub saas-boost/${Environment}
+      Name: !Sub sb-${Environment}-api
+      Scopes:
+        - ScopeName: read
+          ScopeDescription: Read Public API Access
+        - ScopeName: write
+          ScopeDescription: Write Public API Access
+        - ScopeName: private
+          ScopeDescription: Read/Write Private API Access
+  AdminWebAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: UserPoolResourceServer
+    Properties:
+      ClientName: !Sub sb-${Environment}-admin-webapp-client
+      UserPoolId: !Ref UserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
+      CallbackURLs:
+        - !Ref AdminWebUrl
+        - http://localhost:3000
+      LogoutURLs:
+        - !Ref AdminWebUrl
+        - http://localhost:3000
+  ApiAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: UserPoolResourceServer
+    Properties:
+      ClientName: !Sub sb-${Environment}-api-client
+      UserPoolId: !Ref UserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      GenerateSecret: true
+      AccessTokenValidity: 5
+      TokenValidityUnits:
+        AccessToken: minutes
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - client_credentials
+      AllowedOAuthScopes:
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
+  PrivateApiAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: UserPoolResourceServer
+    Properties:
+      ClientName: !Sub sb-${Environment}-private-api-client
+      UserPoolId: !Ref UserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      GenerateSecret: true
+      AccessTokenValidity: 5
+      TokenValidityUnits:
+        AccessToken: minutes
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - client_credentials
+      AllowedOAuthScopes:
+        - !Sub saas-boost/${Environment}/read
+        - !Sub saas-boost/${Environment}/write
+        - !Sub saas-boost/${Environment}/private
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub
+        - sb-${Environment}-saas-boost-${RandomString}
+        - RandomString: !Select [2, !Split ['/', !Ref AWS::StackId]]
+      UserPoolId: !Ref UserPool
+  UserPoolAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admin
+      UserPoolId: !Ref UserPool
+  UserPoolAdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      DesiredDeliveryMediums:
+        - EMAIL
+      ForceAliasCreation: false
+      UserAttributes:
+        - Name: email
+          Value: !Ref AdminEmailAddress
+        - Name: email_verified
+          Value: 'true'
+      Username: !Ref AdminUsername
+      UserPoolId: !Ref UserPool
+  AdminUserGroupMembership:
+    Type: AWS::Cognito::UserPoolUserToGroupAttachment
+    Properties:
+      GroupName: !Ref UserPoolAdminGroup
+      Username: !Ref AdminUsername
+      UserPoolId: !Ref UserPool
+  CustomizeCognitoUiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-customize-cognito-ui
+      RetentionInDays: 30
+  CustomizeCognitoUiExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-customize-cognito-ui-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-customize-cognito-ui-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${SaaSBoostBucket}/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:SetUICustomization
+                Resource: !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolDomain
+                Resource: '*'
+  CustomizeCognitoUiLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CustomizeCognitoUiLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-customize-cognito-ui
+      Role: !GetAtt CustomizeCognitoUiExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.CustomizeCognitoUi
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CustomizeCognitoUi-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+          ADMIN_WEB_SOURCE_KEY: client/web/src.zip
+          ADMIN_WEB_LOGO: client/web/public/saas-boost-login.png
+          ADMIN_WEB_BG_COLOR: rgb(50, 31, 219)
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+  CustomizeCognitoUi:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CustomizeCognitoUiLambda.Arn
+      UserPoolId: !Ref UserPool
+      UserPoolDomain: !Ref UserPoolDomain
+      SourceBucket: !Ref SaaSBoostBucket
+  CognitoAppClientDetailsLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-cognito-client-details
+      RetentionInDays: 30
+  CognitoAppClientDetailsExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-cognito-client-details-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-cognito-client-details-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:DescribeUserPoolClient
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPool}
+  CognitoAppClientDetailsLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CognitoAppClientDetailsLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-cognito-client-details
+      Role: !GetAtt CognitoAppClientDetailsExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.CognitoAppClientDetails
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CognitoAppClientDetails-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+      Tags:
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
+          Value: !Ref Environment
+  InvokeApiAppClientDetails:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CognitoAppClientDetailsLambda.Arn
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref ApiAppClient
+  InvokePrivateApiAppClientDetails:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt CognitoAppClientDetailsLambda.Arn
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref PrivateApiAppClient
+Outputs:
+  UserPool:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  # We need the authorization server domain from Cognito so we can make manual 
+  # logout calls since Cognito does not support OIDC end_session_endpoint
+  CognitoDomain:
+    Description: The OIDC domain URL for this Cognito User Pool
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+  OidcIssuer:
+    Description: The OIDC issuer URL for this Cognito User Pool
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+  OidcTokenEndpoint:
+    Description: The OIDC token endpoint for this Cognito user pool domain
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com/oauth2/token
+  AdminWebAppClientName:
+    Description: Public OAuth app client with PKCE for authorization code grant
+    Value: !Sub sb-${Environment}-admin-webapp-client
+  AdminWebAppClientId:
+    Description: Public OAuth app client id
+    Value: !Ref AdminWebAppClient
+  ApiAppClientName:
+    Description: Private OAuth app client for client credentials grant
+    Value: !GetAtt InvokeApiAppClientDetails.ClientName
+  ApiAppClientId:
+    Description: Private OAuth app client id
+    Value: !GetAtt InvokeApiAppClientDetails.ClientId
+  ApiAppClientSecret:
+    Description: Private OAuth app client secret
+    Value: !GetAtt InvokeApiAppClientDetails.ClientSecret
+  PrivateApiAppClientName:
+    Description: Private OAuth app client for client credentials grant for private API access
+    Value: !GetAtt InvokePrivateApiAppClientDetails.ClientName
+  PrivateApiAppClientId:
+    Description: Private OAuth app client id for private API access
+    Value: !GetAtt InvokePrivateApiAppClientDetails.ClientId
+  PrivateApiAppClientSecret:
+    Description: Private OAuth app client secret for private API access
+    Value: !GetAtt InvokePrivateApiAppClientDetails.ClientSecret
+...

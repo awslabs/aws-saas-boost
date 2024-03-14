@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.7.3/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- SpotBugs thinks the AWS SDK client classes are mutable -->
+    <Match>
+        <Class name="com.amazon.aws.partners.saasfactory.saasboost.IdentityDataAccessLayer"/>
+        <Method name="&lt;init&gt;"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="com.amazon.aws.partners.saasfactory.saasboost.CognitoIdentityProvider"/>
+        <Method name="&lt;init&gt;"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+</FindBugsFilter>

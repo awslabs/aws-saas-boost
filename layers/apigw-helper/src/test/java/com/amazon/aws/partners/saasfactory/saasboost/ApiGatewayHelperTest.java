@@ -16,43 +16,62 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
 
 import java.net.URL;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ApiGatewayHelperTest {
 
     @Test
     public void testAppendQueryParams() throws Exception {
-        ApiRequest request = ApiRequest.builder()
-                .resource("settings?setting=SAAS_BOOST_STACK&setting=DOMAIN_NAME")
-                .method("GET")
-                .build();
-
         String protocol = "https";
         String host = "xxxxxxxxxx.execute-api.us-east-2.amazonaws.com";
         String stage = "v1";
+        String method = "GET";
+        String resource = "settings?setting=FOO&setting=BAR";
 
-        URL url = new URL(protocol, host, stage + "/" + request.getResource());
+        URL url = new URL(protocol, host, stage + "/" + resource);
 
         SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder()
-                .protocol(protocol)
+                .protocol("https")
                 .host(host)
                 .encodedPath(url.getPath())
-                .method(request.getMethod());
+                .method(SdkHttpMethod.fromValue(method));
 
         ApiGatewayHelper.appendQueryParams(sdkRequestBuilder, url);
 
         Map<String, List<String>> actual = sdkRequestBuilder.rawQueryParameters();
-        assertEquals("2 query params with same name", 1, actual.size());
-        assertEquals("2 query params with same name", 2, actual.get("setting").size());
-        assertTrue("query parameter is named", actual.containsKey("setting"));
-        assertTrue("multivalue param", actual.get("setting").contains("SAAS_BOOST_STACK"));
-        assertTrue("multivalue param", actual.get("setting").contains("DOMAIN_NAME"));
+        assertEquals(1, actual.size(), "2 query params with same name");
+        assertEquals(2, actual.get("setting").size(), "2 query params with same name");
+        assertTrue(actual.containsKey("setting"), "query parameter is named");
+        assertTrue(actual.get("setting").contains("FOO"), "multivalue param");
+        assertTrue(actual.get("setting").contains("BAR"), "multivalue param");
+    }
+
+    @Test
+    public void testCachedClientCredentials() {
+//        Integer expireSeconds = 300;
+//        Integer buffer = 2;
+//        Map<String, Object> clientCredentials = Map.of(
+//                "access_token", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" +
+//                        ".eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ" +
+//                        ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+//                "expires_in", expireSeconds,
+//                "token_type", "Bearer"
+//        );
+//        ApiGatewayHelper api = ApiGatewayHelper.builder().host("").stage("").build();
+//        Instant now = Instant.now();
+//        Instant expires = now.plusSeconds(expireSeconds);
+//        api.putCachedClientCredentials("foo", clientCredentials);
+//        Map<String, Object> cached = api.getCachedClientCredentials("foo");
+//        assertNotNull(cached);
+//        assertEquals(cached.get("access_token"), clientCredentials.get("access_token"));
     }
 }

@@ -14,10 +14,15 @@
     <packaging>pom</packaging>
     <url>https://github.com/awslabs/aws-saas-boost</url>
     <modules>
-        <module>apigw-helper</module>
         <module>utils</module>
-        <module>cloudformation-utils</module>
+        <module>apigw-helper</module>
+		<module>cloudformation-utils</module>
+		<module>keycloak-helper</module>
+		<module>saas-boost-api-client-helper/java</module>
     </modules>
+    <properties>
+        <saasboost.rootdir>${project.basedir}/..</saasboost.rootdir>
+    </properties>
     <licenses>
         <license>
             <name>Apache-2.0</name>
@@ -48,8 +53,12 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

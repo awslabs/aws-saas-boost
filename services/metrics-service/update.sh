@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License").
@@ -17,19 +17,15 @@ if [ -z $1 ]; then
     echo "Usage: $0 <Environment> [Lambda Folder]"
     exit 2
 fi
+ENVIRONMENT=$1
+FUNCTIONS=($2)
+LAMBDA_CODE=MetricsService-lambda.zip
+
+# Disable AWS CLI paging
+export AWS_PAGER=""
 
 MY_AWS_REGION=$(aws configure list | grep region | awk '{print $2}')
 echo "AWS Region = $MY_AWS_REGION"
-
-ENVIRONMENT=$1
-LAMBDA_STAGE_FOLDER=$2
-if [ -z $LAMBDA_STAGE_FOLDER ]; then
-	LAMBDA_STAGE_FOLDER="lambdas"
-fi
-LAMBDA_CODE=MetricsService-lambda.zip
-
-#set this for V2 AWS CLI to disable paging
-export AWS_PAGER=""
 
 SAAS_BOOST_BUCKET=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/SAAS_BOOST_BUCKET" --query 'Parameter.Value' --output text)
 echo "SaaS Boost Bucket = $SAAS_BOOST_BUCKET"
@@ -37,23 +33,29 @@ if [ -z $SAAS_BOOST_BUCKET ]; then
     echo "Can't find SAAS_BOOST_BUCKET in Parameter Store"
     exit 1
 fi
+LAMBDAS_FOLDER=$(aws --region $MY_AWS_REGION ssm get-parameter --name "/saas-boost/${ENVIRONMENT}/LAMBDAS_FOLDER" --query 'Parameter.Value' --output text 2>/dev/null)
+if [ -z $LAMBDAS_FOLDER ]; then
+    LAMBDAS_FOLDER="lambdas/"
+fi
+echo "Lambdas folder = $LAMBDAS_FOLDER"
+echo "Function code = $LAMBDA_CODE"
 
 # Do a fresh build of the project
-mvn
+mvn -Dspotbugs.skip -Djacoco.skip
 if [ $? -ne 0 ]; then
     echo "Error building project"
     exit 1
 fi
 
 # And copy it up to S3
-aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDA_STAGE_FOLDER/
+aws s3 cp target/$LAMBDA_CODE s3://$SAAS_BOOST_BUCKET/$LAMBDAS_FOLDER
 
 # Find all the functions for this microservice
-eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-metrics-\`)] | [].FunctionName' --output text"\)
-FUNCTIONS=($FUNCTIONS)
+if [ -z $FUNCTIONS ]; then
+    eval FUNCTIONS=\$\("aws --region $MY_AWS_REGION lambda list-functions --query 'Functions[?starts_with(FunctionName, \`sb-${ENVIRONMENT}-metrics-\`)] | [].FunctionName' --output text"\)
+    FUNCTIONS=($FUNCTIONS)
+fi
 for FX in "${FUNCTIONS[@]}"; do
-	if [[ ! $FX == *"listener"* ]]; then
-		printf "Updating function code for %s\n" $FX
-		aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "$FX" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key $LAMBDA_STAGE_FOLDER/$LAMBDA_CODE
-	fi
+	printf "Updating function code for %s\n" $FX
+	aws lambda --region "$MY_AWS_REGION" update-function-code --function-name "$FX" --s3-bucket "$SAAS_BOOST_BUCKET" --s3-key "${LAMBDAS_FOLDER}${LAMBDA_CODE}"
 done

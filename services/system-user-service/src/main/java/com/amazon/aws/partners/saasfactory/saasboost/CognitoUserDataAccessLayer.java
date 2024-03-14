@@ -148,11 +148,15 @@ public class CognitoUserDataAccessLayer implements SystemUserDataAccessLayer {
         LOGGER.info("UserServiceDAL::insertUser");
         SystemUser inserted;
         try {
-            AdminCreateUserResponse createUserResponse = cognito.adminCreateUser(AdminCreateUserRequest.builder()
+            AdminCreateUserResponse createUserResponse = cognito.adminCreateUser(request -> request
                     .userPoolId(COGNITO_USER_POOL)
                     .username(user.getUsername())
                     .userAttributes(toAttributeTypeCollection(user))
-                    .build()
+            );
+            cognito.adminAddUserToGroup(request -> request
+                    .userPoolId(COGNITO_USER_POOL)
+                    .username(user.getUsername())
+                    .groupName("admin")
             );
             inserted = fromUserType(createUserResponse.user());
         } catch (SdkServiceException cognitoError) {
@@ -170,6 +174,7 @@ public class CognitoUserDataAccessLayer implements SystemUserDataAccessLayer {
                     .userPoolId(COGNITO_USER_POOL)
                     .username(username)
             );
+            // admin-delete-user also removes the user from any groups
         } catch (SdkServiceException cognitoError) {
             LOGGER.error("cognito-idp:AdminCreateUser", cognitoError);
             LOGGER.error(Utils.getFullStackTrace(cognitoError));

@@ -31,10 +31,12 @@ limitations under the License.
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
+    
     <properties>
+        <saasboost.rootdir>${project.basedir}/../../..</saasboost.rootdir>
         <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
-
+    
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>
@@ -51,27 +53,13 @@ limitations under the License.
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>pl.project13.maven</groupId>
-                <artifactId>git-commit-id-plugin</artifactId>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>Utils</artifactId>
-            <version>1.0.0</version>
-            <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>CloudFormationUtils</artifactId>
-            <version>1.0.0</version>
-            <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>cognitoidentityprovider</artifactId>

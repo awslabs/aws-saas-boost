@@ -16,79 +16,111 @@
 
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import java.time.Instant;
-import java.util.*;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 
+import java.time.Instant;
+import java.util.Map;
+import java.util.Objects;
+
+@JsonDeserialize(builder = Metric.Builder.class)
 public class Metric {
 
-    private String stat;
-    private String nameSpace;
-    private SortedMap<Instant, PriorityQueue<MetricValue>> timeValMap = new TreeMap<>();
-    private String metricName;
-    private double period;
-    private List<Double> metricValues = new ArrayList<>();
-    private List<Instant> metricTimes = new ArrayList<>();
+    private final String name;
+    private final Instant timestamp;
+    private final Measure measure;
+    private final MetricContext context;
 
-    public void addMetricValue(Double val) {
-        this.metricValues.add(val);
+    private Metric(Builder builder) {
+        this.name = builder.name;
+        this.timestamp = builder.timestamp;
+        this.measure = builder.measure;
+        this.context = builder.context;
     }
 
-    public List<Double> getMetricValues() {
-        return List.copyOf(this.metricValues);
+    public String getName() {
+        return name;
     }
 
-    public List<Instant> getMetricTimes() {
-        return List.copyOf(metricTimes);
+    public Instant getTimestamp() {
+        return timestamp;
     }
 
-    public void addSortTime(Instant sortTime) {
-        this.metricTimes.add(sortTime);
+    public Measure getMeasure() {
+        return measure;
     }
 
-    public double getPeriod() {
-        return period;
-    }
-
-    public void setPeriod(double period) {
-        this.period = period;
-    }
-
-    public String getStat() {
-        return stat;
-    }
-
-    public void setStat(String stat) {
-        this.stat = stat;
-    }
-
-    public String getNameSpace() {
-        return nameSpace;
-    }
-
-    public void setNameSpace(String nameSpace) {
-        this.nameSpace = nameSpace;
-    }
-
-    public void setMetricName(String metricName) {
-        this.metricName = metricName;
-    }
-
-    public String getMetricName() {
-        return metricName;
-    }
-
-    public void addQueueValue(Instant time, MetricValue mv) {
-        PriorityQueue<MetricValue> pq = timeValMap.computeIfAbsent(time, k -> new PriorityQueue<>());
-        pq.add(mv);
-    }
-
-    public SortedMap<Instant, PriorityQueue<MetricValue>> getTimeValMap() {
-        return new TreeMap<>(timeValMap);
+    public MetricContext getContext() {
+        return (MetricContext) context.clone();
     }
 
     @Override
-    public String toString() {
-        return Utils.toJson(this);
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        // Same reference?
+        if (this == obj) {
+            return true;
+        }
+        // Same type?
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Metric other = (Metric) obj;
+        return (Objects.equals(name, other.name)
+                && Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(measure, other.measure)
+                && Objects.equals(context, other.context));
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, timestamp, measure, context);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
+    public static final class Builder {
+
+        private String name;
+        private Instant timestamp = Instant.now();
+        private Measure measure;
+        private MetricContext context = new MetricContext();
+
+        private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder timestamp(Instant timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public Builder measure(Measure measure) {
+            this.measure = measure;
+            return this;
+        }
+
+        public Builder context(Map<String, String> context) {
+            if (context != null) {
+                this.context.putAll(context);
+            }
+            return this;
+        }
+
+        public Metric build() {
+            if (name == null || name.isBlank()) {
+                throw new IllegalStateException("Can't build Metric without name");
+            }
+            return new Metric(this);
+        }
+    }
 }

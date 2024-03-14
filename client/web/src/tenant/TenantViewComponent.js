@@ -316,7 +316,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.LOAD_BALANCER.consoleUrl}
+                            href={tenant.resources.LOAD_BALANCER?.consoleUrl}
                             className="pl-0"
                           >
                             Application Load Balancer Details
@@ -334,7 +334,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.VPC.consoleUrl}
+                            href={tenant.resources.VPC?.consoleUrl}
                             className="pl-0"
                           >
                             VPC Details
@@ -394,7 +394,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.CLOUDFORMATION.consoleUrl}
+                            href={tenant.resources.CLOUDFORMATION?.consoleUrl}
                             className="pl-0"
                           >
                             CloudFormation Details
@@ -414,7 +414,7 @@ function TenantViewComponent(props) {
                           <NavLink
                             active={true}
                             target="_blank"
-                            href={tenant.resources.ECS_CLUSTER.consoleUrl}
+                            href={tenant.resources.ECS_CLUSTER?.consoleUrl}
                             className="pl-0"
                           >
                             ECS Cluster Details

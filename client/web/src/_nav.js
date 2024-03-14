@@ -17,11 +17,14 @@ import React from 'react'
 import CIcon from '@coreui/icons-react'
 import {
   cilHome,
-  cilLayers,
   cilPeople,
-  cilPowerStandby,
-  cilSpeedometer,
+  cilCog,
+  cilFactory,
+  cilBarChart,
   cilUserPlus,
+  cilGift,
+  cilShieldAlt,
+  cilCreditCard
 } from '@coreui/icons'
 import { CNavGroup, CNavItem } from '@coreui/react'
 import { BaseUserRoute } from './users'
@@ -29,14 +32,17 @@ import { BaseUserRoute } from './users'
 const _nav = [
   {
     component: CNavItem,
-    name: 'Summary',
+    name: 'Home',
     to: '/summary',
     icon: <CIcon icon={cilHome} customClassName="nav-icon" />,
   },
   {
-    component: CNavGroup,
-    name: 'Dashboard',
-    icon: <CIcon icon={cilSpeedometer} customClassName="nav-icon" />,
+    //component: CNavGroup,
+    component: CNavItem,
+    name: 'Metrics',
+    icon: <CIcon icon={cilBarChart} customClassName="nav-icon" />,
+    to: '/metrics',
+    /*
     items: [
       {
         component: CNavItem,
@@ -54,44 +60,62 @@ const _nav = [
         to: '/dashboard/accesslogging',
       },
     ],
-  },
-  {
-    component: CNavItem,
-    name: 'Application',
-    to: '/application',
-    icon: <CIcon icon={cilPowerStandby} customClassName="nav-icon" />,
-    badge: {
-      color: 'danger',
-      text: 'SETUP',
-    },
-  },
-  {
-    component: CNavItem,
-    name: 'Onboarding',
-    to: '/onboarding',
-    icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
-    disabled: true,
-  },
-  {
-    component: CNavItem,
-    name: 'Tenants',
-    to: '/tenants',
-    icon: <CIcon icon={cilLayers} customClassName="nav-icon" />,
-    disabled: true,
+    */
   },
   {
     component: CNavItem,
     name: 'Tiers',
     to: '/tiers',
-    icon: <CIcon icon={cilLayers} customClassName="nav-icon" />,
-    disabled: false,
+    icon: <CIcon icon={cilGift} customClassName="nav-icon" />,
+    //disabled: false,
+  },
+  {
+    component: CNavItem,
+    name: 'Billing',
+    to: '/billing',
+    icon: <CIcon icon={cilCreditCard} customClassName="nav-icon" />,
+    //disabled: false,
+  },
+  {
+    component: CNavItem,
+    name: 'Identity',
+    to: '/providers',
+    icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
+    //disabled: false,
+  },
+  {
+    component: CNavItem,
+    name: 'Tenants',
+    to: '/tenants',
+    icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
+    //disabled: true,
+  },
+  {
+    component: CNavItem,
+    name: 'Application',
+    to: '/application',
+    icon: <CIcon icon={cilCog} customClassName="nav-icon" />,
+    /*
+    badge: {
+      color: 'danger',
+      text: 'SETUP',
+    },
+    */
+  },
+  {
+    component: CNavItem,
+    name: 'Onboarding',
+    to: '/onboarding',
+    icon: <CIcon icon={cilFactory} customClassName="nav-icon" />,
+    //disabled: true,
   },
   {
     component: CNavItem,
     name: 'System Users',
     to: BaseUserRoute,
-    icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
-  },
+    icon: <CIcon icon={cilShieldAlt} customClassName="nav-icon" />,
+  }
+  // AppSidebar.js adds the last menu entry for redirect to api docs
 ]
 
 export default _nav

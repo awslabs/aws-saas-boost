@@ -24,19 +24,32 @@ Parameters:
   LambdaSourceFolder:
     Description: Folder for lambda source code to change on each deployment
     Type: String
+  SaaSBoostEventBus:
+    Description: SaaS Boost Eventbridge Bus
+    Type: String
   SaaSBoostUtilsLayer:
     Description: Utils Layer ARN
-    Type: String
-  SaaSBoostPrivateApi:
-    Description: SaaS Boost Private API
-    Type: String
-  PrivateApiStage:
-    Description: Private API Stage
     Type: String
   ApiGatewayHelperLayer:
     Description: API Gateway Helper Layer ARN
     Type: String
 Resources:
+  BillingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub sb-${Environment}-billing
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        - Key: SaaS Boost
+          Value: !Ref Environment
   BillingServiceExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -68,22 +81,41 @@ Resources:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
-                  - sts:AssumeRole
-                Resource: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-  BillingServiceGetPlansLogs:
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BillingTable}
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/saas-boost/${Environment}/PRIVATE_API_APP_CLIENT*
+  BillingServiceEventHandlerLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-billing-plans-get
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-billing-events
       RetentionInDays: 30
-  BillingServiceGetPlans:
+  BillingServiceEventHandler:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub sb-${Environment}-billing-plans-get
+      FunctionName: !Sub sb-${Environment}-billing-events
       Role: !GetAtt BillingServiceExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 300
       MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.metering.onboarding.SubscriptionService::getPlans
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.BillingService::handleBillingEvent
       Code:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/BillingService-lambda.zip
@@ -92,18 +124,44 @@ Resources:
         - !Ref ApiGatewayHelperLayer
       Environment:
         Variables:
-          API_TRUST_ROLE: !Sub '{{resolve:ssm:/saas-boost/${Environment}/PRIVATE_API_TRUST_ROLE}}'
-          API_GATEWAY_HOST: !Sub ${SaaSBoostPrivateApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
-          API_GATEWAY_STAGE: !Ref PrivateApiStage
+          SAAS_BOOST_ENV: !Ref Environment
+          BILLING_TABLE: !Ref BillingTable
+          API_APP_CLIENT: !Sub /saas-boost/${Environment}/PRIVATE_API_APP_CLIENT
+          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
       Tags:
-        - Key: "Application"
-          Value: "SaaSBoost"
-        - Key: "Environment"
+        - Key: Application
+          Value: SaaSBoost
+        - Key: Environment
           Value: !Ref Environment
-        - Key: "BoostService"
-          Value: "Billing"
+  BillingServiceEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub sb-${Environment}-billing-events
+      Description: SaaS Boost billing events
+      EventBusName: !Ref SaaSBoostEventBus
+      EventPattern:
+        {
+          "source": [
+            "saas-boost"
+          ],
+          "detail-type": [
+            {"prefix": "Billing "},
+            {"prefix": "Tenant "}
+          ]
+        }
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BillingServiceEventHandler.Arn
+          Id: !Sub sb-${Environment}-billing-events
+  BillingServiceEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref BillingServiceEventHandler
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt BillingServiceEventRule.Arn
 Outputs:
-  BillingServiceGetPlansArn:
-    Description: Billing Service subscription plans Lambda ARN
-    Value: !GetAtt BillingServiceGetPlans.Arn
+  BillingServiceEventHandlerArn:
+    Description: Billing Service event handler Lambda ARN
+    Value: !GetAtt BillingServiceEventHandler.Arn
 ...

@@ -97,25 +97,24 @@ public class Setting {
             return false;
         }
         final Setting other = (Setting) obj;
-        return (((name == null && other.name == null) || (name != null && name.equals(other.name))) // Parameter Store is case sensitive
-                && ((value == null && other.value == null) || (value != null && value.equals(other.value)))
-                && ((description == null && other.description == null)
-                        || (description != null && description.equalsIgnoreCase(other.description)))
-                && ((version == null && other.version == null) || (version != null && version.equals(other.version)))
+        return (Objects.equals(name, other.name) // Parameter Store is case sensitive
+                && Objects.equals(value, other.value)
+                && Objects.equals(description, other.description)
+                && Objects.equals(version, other.version)
                 && (readOnly == other.readOnly)
                 && (secure == other.secure));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, value, (description != null ? description.toUpperCase() : null), version, readOnly, secure);
+        return Objects.hash(name, value, description, version, readOnly, secure);
     }
 
     @JsonPOJOBuilder(withPrefix = "") // setters aren't named with[Property]
     public static final class Builder {
         private String name;
         private String value;
-        private boolean readOnly = true;
+        private boolean readOnly = false;
         private boolean secure = false;
         private Long version;
         private String description;
@@ -125,7 +124,8 @@ public class Setting {
 
         public Builder name(String name) {
             if (!isValidSettingName(name)) {
-                throw new IllegalArgumentException("Only a mix of letters, numbers and the following 4 symbols .-_/ are allowed.");
+                throw new IllegalArgumentException("Only a mix of letters, numbers"
+                        + " and the following 4 symbols .-_/ are allowed.");
             }
             this.name = name;
             return this;

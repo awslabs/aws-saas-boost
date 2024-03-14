@@ -15,16 +15,14 @@
  */
 package com.amazon.aws.partners.saasfactory.saasboost;
 
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 // Note that these tests will only work if you run them from Maven or if you add
 // the AWS_REGION environment variable to your IDE's configuration settings
@@ -76,7 +74,7 @@ public class SaaSBoostInstallTest {
     }
     */
 
-    @After
+    @AfterEach
     public void resetStdIn() {
         System.setIn(System.in);
     }

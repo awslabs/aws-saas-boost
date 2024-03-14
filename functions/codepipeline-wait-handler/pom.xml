@@ -33,6 +33,7 @@ limitations under the License.
     </licenses>
 
     <properties>
+        <saasboost.rootdir>${project.basedir}/../..</saasboost.rootdir>
         <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
     </properties>
 
@@ -59,13 +60,6 @@ limitations under the License.
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
-            <artifactId>Utils</artifactId>
-            <version>1.0.0</version>
-            <!-- Don't bundle our layer so we get the shared one at runtime -->
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>CloudFormationUtils</artifactId>

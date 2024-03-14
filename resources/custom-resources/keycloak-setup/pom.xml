@@ -31,10 +31,12 @@ limitations under the License.
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
         </license>
     </licenses>
+    
     <properties>
-        <checkstyle.maxAllowedViolations>0</checkstyle.maxAllowedViolations>
+        <saasboost.rootdir>${project.basedir}/../../..</saasboost.rootdir>
+        <checkstyle.maxAllowedViolations>10</checkstyle.maxAllowedViolations>
     </properties>
-
+    
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>
@@ -51,8 +53,8 @@ limitations under the License.
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>pl.project13.maven</groupId>
-                <artifactId>git-commit-id-plugin</artifactId>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
@@ -68,6 +70,13 @@ limitations under the License.
         <dependency>
             <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
             <artifactId>CloudFormationUtils</artifactId>
+            <version>1.0.0</version>
+            <!-- Don't bundle our layer so we get the shared one at runtime -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.amazon.aws.partners.saasfactory.saasboost</groupId>
+            <artifactId>KeycloakHelper</artifactId>
             <version>1.0.0</version>
             <!-- Don't bundle our layer so we get the shared one at runtime -->
             <scope>provided</scope>

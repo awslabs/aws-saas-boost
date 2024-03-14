@@ -63,33 +63,19 @@ Parameters:
     Type: String
     AllowedPattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
     ConstraintDescription: Must be a valid email address.
-  PublicApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost public API
-    Type: String
-    Default: v1
-  PrivateApiStage:
-    Description: The API Gateway REST API stage name for the SaaS Boost private API
+  ApiStage:
+    Description: The API Gateway REST API stage name for the SaaS Boost API
     Type: String
     Default: v1
   Version:
     Description: Version of SaaS Boost
     Type: String
     Default: 1.0
-  ApplicationServices:
-    Description: Comma separated list of application service names to create ECR repositories for
+  AppPlaneAccountId:
+    Description: Application Plane account to communicate with this Control Plane. Leave blank to use the same AWS account for your application plane resources.
     Type: String
     Default: ''
-  AppExtensions:
-    Description: Comma separated list of extension names to apply to the entire application
-    Type: String
-    Default: ''
-  CreateMacroResources:
-    Description: Whether to create the Lambda, ExecutionRole, LogGroup, and CloudFormation macro for SaaS Boost environments
-    Type: String
-    AllowedValues: ['true', 'false']
-    Default: 'false'
 Conditions:
-  ShouldCreateMacroResources: !Equals [!Ref CreateMacroResources, 'true']
   UseCognito: !Equals [!Ref SystemIdentityProvider, 'COGNITO']
   UseKeycloak: !Equals [!Ref SystemIdentityProvider, 'KEYCLOAK']
   InChinaRegion: !Equals [!Ref AWS::Partition, 'aws-cn']
@@ -98,31 +84,13 @@ Conditions:
   HasSystemIdPCustomDomain: !Not [!Equals [!Ref SystemIdentityProviderDomain, '']]
   AdminWebAppCustomDomainInChina: !And [!Condition InChinaRegion, !Condition HasAdminWebAppCustomDomain]
   AdminWebAppCustomDomainNotInChina: !And [!Condition NotInChinaRegion, !Condition HasAdminWebAppCustomDomain]
+  AppPlaneSameAccount: !Equals ['', !Ref AppPlaneAccountId]
 Resources:
-  SSMSaaSBoostEnvironment:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_ENVIRONMENT
-      Type: String
-      Value: !Ref Environment
-  SSMParamSaaSBoostBucket:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
-      Type: String
-      Value: !Ref SaaSBoostBucket
-  SSMParamLambdaSourceFolder:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_LAMBDAS_FOLDER
-      Type: String
-      Value: !Ref LambdaSourceFolder
   # Create all the S3 buckets SaaS Boost needs up front so we can create
   # a single Lambda IAM policy to clean up the buckets on stack delete
   Logging:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -165,11 +133,9 @@ Resources:
                 - logging.s3.amazonaws.com
             Resource:
               - !Sub arn:${AWS::Partition}:s3:::${Logging}/*
-  # Bucket needed for CodePipeline to drive tenant deployment workflow
   Pipelines:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -190,57 +156,15 @@ Resources:
       Tags:
         - Key: SaaS Boost
           Value: !Ref Environment
-  CodePipelineBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref Pipelines
-      PolicyDocument:
-        Statement:
-          - Effect: Deny
-            Action: s3:*
-            Principal: '*'
-            Resource:
-              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}/*
-              - !Sub arn:${AWS::Partition}:s3:::${Pipelines}
-            Condition:
-              Bool: { 'aws:SecureTransport': false }
-  # Bucket for Access Logs for ALBs for Tenants
-  AccessLogs:
-    Type: AWS::S3::Bucket
-    Properties:
-      AccessControl: Private
-      LifecycleConfiguration:
-        Rules:
-          - Id: DeleteContentAfter30Day
-            Status: 'Enabled'
-            ExpirationInDays: 30
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: SaaS Boost
-          Value: !Ref Environment
   # Bucket for Athena output for access log queries
   AthenaOutput:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       LifecycleConfiguration:
         Rules:
           - Id: DeleteContentAfter5Day
             Status: 'Enabled'
             ExpirationInDays: 5
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -273,7 +197,6 @@ Resources:
   Resources:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -301,7 +224,6 @@ Resources:
   AdminWeb:
     Type: AWS::S3::Bucket
     Properties:
-      AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -424,15 +346,35 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-utils
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes:
+        - java17
+        - java21
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/Utils-lambda.zip
+  SaaSBoostUtilsLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref SaaSBoostUtilsLayer
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   ApiGatewayHelperLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-apigw-helper
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes:
+        - java17
+        - java21
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/ApiGatewayHelper-lambda.zip
@@ -440,10 +382,68 @@ Resources:
     Type: AWS::Lambda::LayerVersion
     Properties:
       LayerName: !Sub sb-${Environment}-cloudformation-utils
-      CompatibleRuntimes: [java11]
+      CompatibleRuntimes:
+        - java17
+        - java21
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
       Content:
         S3Bucket: !Ref SaaSBoostBucket
         S3Key: !Sub ${LambdaSourceFolder}/CloudFormationUtils-lambda.zip
+  CloudFormationUtilsLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref CloudFormationUtilsLayer
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+  KeycloakHelperLayer:
+    Type: AWS::Lambda::LayerVersion
+    Condition: UseKeycloak
+    Properties:
+      LayerName: !Sub sb-${Environment}-keycloak-helper
+      CompatibleRuntimes:
+        - java17
+        - java21
+      CompatibleArchitectures:
+        - arm64
+        - x86_64 
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/KeycloakHelper-lambda.zip
+  SaaSBoostApiClientHelperLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub sb-${Environment}-api-client-helper
+      CompatibleRuntimes:
+        - java21
+        - java17
+        - java11
+        - python3.12
+        - python3.11
+        - python3.10
+        - python3.9
+        - python3.8
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      Content:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/SaaSBoostApiClientHelper-lambda.zip
+  SaaSBoostApiClientHelperLayerPermissions:
+    Type: AWS::Lambda::LayerVersionPermission
+    Properties:
+      Action: lambda:GetLayerVersion
+      LayerVersionArn: !Ref SaaSBoostApiClientHelperLayer
+      Principal:
+        !If 
+          - AppPlaneSameAccount
+          - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          - !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
   ClearBucketExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -499,7 +499,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-bucket
       Role: !GetAtt ClearBucketExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearS3Bucket
@@ -509,9 +511,6 @@ Resources:
       Layers:
          - !Ref SaaSBoostUtilsLayer
          - !Ref CloudFormationUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
@@ -533,11 +532,6 @@ Resources:
     Properties:
       ServiceToken: !GetAtt ClearBucket.Arn
       Bucket: !Ref AthenaOutput
-  InvokeClearAccessLogsBucket:
-    Type: Custom::CustomResource
-    Properties:
-      ServiceToken: !GetAtt ClearBucket.Arn
-      Bucket: !Ref AccessLogs
   InvokeClearWebsiteBucket:
     Type: Custom::CustomResource
     Properties:
@@ -599,7 +593,9 @@ Resources:
     Properties:
       FunctionName: !Sub sb-${Environment}-clear-ecr-repo
       Role: !GetAtt ClearEcrRepoExecutionRole.Arn
-      Runtime: java11
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 900
       MemorySize: 1024
       Handler: com.amazon.aws.partners.saasfactory.saasboost.ClearEcrRepo
@@ -609,109 +605,90 @@ Resources:
       Layers:
          - !Ref SaaSBoostUtilsLayer
          - !Ref CloudFormationUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
         - Key: Application
           Value: SaaSBoost
         - Key: Environment
           Value: !Ref Environment
-  ApplicationServicesMacroExecutionRole:
-    Type: AWS::IAM::Role
-    Condition: ShouldCreateMacroResources
-    DependsOn:
-      - ApplicationServicesMacroLogs
-    Properties:
-      RoleName: !Sub saas-boost-app-services-macro-${AWS::Region}
-      Path: '/'
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: saas-boost-app-services-macro
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:PutLogEvents
-                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:DescribeLogStreams
-                Resource:
-                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
-  ApplicationServicesMacroLogs:
-    Type: AWS::Logs::LogGroup
-    Condition: ShouldCreateMacroResources
-    Properties:
-      LogGroupName: /aws/lambda/saas-boost-app-services-macro
-      RetentionInDays: 30
-  ApplicationServicesMacroFunction:
-    Type: AWS::Lambda::Function
-    Condition: ShouldCreateMacroResources
-    DependsOn: ApplicationServicesMacroLogs
-    Properties:
-      FunctionName: saas-boost-app-services-macro
-      Role: !GetAtt ApplicationServicesMacroExecutionRole.Arn
-      Runtime: java11
-      Timeout: 900
-      MemorySize: 1024
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.ApplicationServicesMacro
-      Code:
-        S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/ApplicationServicesMacro-lambda.zip
-      Layers:
-         - !Ref SaaSBoostUtilsLayer
-      Environment:
-        Variables:
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-      Tags:
-        - Key: Application
-          Value: SaaSBoost
-        - Key: Environment
-          Value: !Ref Environment
-  ApplicationServicesMacro:
-    Type: AWS::CloudFormation::Macro
-    Condition: ShouldCreateMacroResources
-    Properties:
-      # Can't use a parameter as part of a macro name when you include it in another template
-      Name: saas-boost-app-services-macro
-      FunctionName: !GetAtt ApplicationServicesMacroFunction.Arn
-  CreateMacroWaitHandle:
-    Condition: ShouldCreateMacroResources
-    DependsOn: ApplicationServicesMacro
-    Type: AWS::CloudFormation::WaitConditionHandle
-  NoCreateMacroWaitHandle:
-    Type: AWS::CloudFormation::WaitConditionHandle
-  MacroWaitCondition:
-    Type: AWS::CloudFormation::WaitCondition
-    Properties:
-      Handle: !If [ShouldCreateMacroResources, !Ref CreateMacroWaitHandle, !Ref NoCreateMacroWaitHandle]
-      Timeout: '1'
-      Count: 0
   SaaSBoostEventBus:
     Type: AWS::Events::EventBus
     Properties:
       Name: !Sub sb-${Environment}-events
-  SaaSBoostEventBusParam:
-    Type: AWS::SSM::Parameter
+  SaaSBoostEventBusDlq:
+    Type: AWS::SQS::Queue
+  SaaSBoostEventBusDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
     Properties:
-      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
-      Type: String
-      Value: !Ref SaaSBoostEventBus
-  CoreStackListenerExecRole:
+      Queues:
+        - Ref: SaaSBoostEventBusDlq
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - SQS:SendMessage
+            Resource: !GetAtt SaaSBoostEventBusDlq.Arn
+            Principal:
+              Service: events.amazonaws.com
+  # Allow App Plane to publish certain SaaS Boost events to the Control Plane EventBus
+  AppPlanePublishStatement:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      EventBusName: !Ref SaaSBoostEventBus
+      StatementId: !Sub sb-${Environment}-app-plane-publish
+      Statement:
+        Effect: Allow
+        Principal:
+          AWS: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+        Action:
+          - events:PutEvents
+        Resource:
+          - !GetAtt SaaSBoostEventBus.Arn
+        Condition:
+          ForAnyValue:StringEquals:
+            "events:detail-type":
+              - Onboarding Validated
+              - Onboarding Provisioning
+              - Onboarding Provisioned
+              - Onboarding Deploying
+              - Onboarding Deployed
+              - Onboarding Failed
+              - Tenant Onboarding Status Changed
+              - Tenant Resources Changed
+          StringEquals:
+            events:source: saas-boost
+  # Allow App Plane to create rules and targets for Control Plane events
+  AppPlaneRuleCreationStatement:
+    Type: AWS::Events::EventBusPolicy
+    Properties: 
+      EventBusName: !Ref SaaSBoostEventBus
+      StatementId: !Sub sb-${Environment}-app-plane-rule-creation
+      Statement:
+        Effect: Allow
+        Principal:
+          AWS: !Sub arn:${AWS::Partition}:iam::${AppPlaneAccountId}:root
+        Action:
+          - events:PutRule
+          - events:DeleteRule
+          - events:DescribeRule
+          - events:DisableRule
+          - events:EnableRule
+          - events:PutTargets
+          - events:RemoveTargets
+        Resource:
+          - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${SaaSBoostEventBus.Name}/*
+        Condition:
+          StringEqualsIfExists:
+            "events:creatorAccount": "${aws:PrincipalAccount}"
+            "events:source": saas-boost
+  CodeBuildStartLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-start-build
+      RetentionInDays: 30
+  CodeBuildStartExecRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub sb-${Environment}-core-stack-listener-${AWS::Region}
+      RoleName: !Sub sb-${Environment}-start-build-role-${AWS::Region}
       Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -723,7 +700,7 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
-        - PolicyName: !Sub sb-${Environment}-core-stack-listener
+        - PolicyName: !Sub sb-${Environment}-start-build-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -740,72 +717,187 @@ Resources:
                   - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
               - Effect: Allow
                 Action:
-                  - cloudformation:DescribeStacks
-                  - cloudformation:ListStackResources
-                Resource:
-                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
-              - Effect: Allow
-                Action:
-                  - events:PutEvents
-                Resource:
-                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${SaaSBoostEventBus}
-              - Effect: Allow
-                Action:
-                  - ecr:ListTagsForResource
-                Resource:
-                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/sb-${Environment}-core-*
-  CoreStackListenerLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/sb-${Environment}-core-stack-listener
-      RetentionInDays: 30
-  CoreStackListener:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/*
+  CodeBuildStartLambda:
     Type: AWS::Lambda::Function
-    DependsOn: CoreStackListenerLogs
+    DependsOn: CodeBuildStartLogs
     Properties:
-      FunctionName: !Sub sb-${Environment}-core-stack-listener
-      Role: !GetAtt CoreStackListenerExecRole.Arn
-      Runtime: java11
+      FunctionName: !Sub sb-${Environment}-start-build
+      Role: !GetAtt CodeBuildStartExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
       Timeout: 600
-      MemorySize: 512
-      Handler: com.amazon.aws.partners.saasfactory.saasboost.CoreStackListener
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.StartCodeBuild
       Code:
         S3Bucket: !Ref SaaSBoostBucket
-        S3Key: !Sub ${LambdaSourceFolder}/CoreStackListener-lambda.zip
+        S3Key: !Sub ${LambdaSourceFolder}/StartCodeBuild-lambda.zip
       Layers:
         - !Ref SaaSBoostUtilsLayer
         - !Ref CloudFormationUtilsLayer
       Environment:
         Variables:
           SAAS_BOOST_ENV: !Ref Environment
-          SAAS_BOOST_EVENT_BUS: !Ref SaaSBoostEventBus
-          JAVA_TOOL_OPTIONS: '-XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       Tags:
-        - Key: Application
-          Value: SaaSBoost
-        - Key: Environment
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
           Value: !Ref Environment
-  CoreStackListenerTopic:
-    Type: AWS::SNS::Topic
+  CodePipelineWaitHandlerLogs:
+    Type: AWS::Logs::LogGroup
     Properties:
-      DisplayName: SaaS Boost Provisioning Notifications
-      TopicName: !Sub sb-${Environment}-core-stack-listener
-      KmsMasterKeyId: alias/aws/sns
-  CoreStackListenerSubscription:
-    Type: AWS::SNS::Subscription
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-pipeline-waithandler
+      RetentionInDays: 30
+  CodePipelineWaitHandlerExecRole:
+    Type: AWS::IAM::Role
     Properties:
-      Protocol: lambda
-      Endpoint: !GetAtt CoreStackListener.Arn
-      TopicArn: !Ref CoreStackListenerTopic
-  CoreStackListenerPermission:
-    Type: AWS::Lambda::Permission
+      RoleName: !Sub sb-${Environment}-pipeline-waithandler-role-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-pipeline-waithandler-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+  CodePipelineWaitHandlerLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CodePipelineWaitHandlerLogs
     Properties:
-      FunctionName: !Ref CoreStackListener
-      Principal: sns.amazonaws.com
-      Action: lambda:InvokeFunction
-      SourceArn: !Ref CoreStackListenerTopic
+      FunctionName: !Sub sb-${Environment}-pipeline-waithandler
+      Role: !GetAtt CodePipelineWaitHandlerExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
+      Timeout: 600
+      MemorySize: 1024
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.CodePipelineWaitHandler
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/CodePipelineWaitHandler-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+        - !Ref CloudFormationUtilsLayer
+      Environment:
+        Variables:
+          SAAS_BOOST_ENV: !Ref Environment
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+  CodePipelineUpdateEcsServiceExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub sb-${Environment}-update-ecs-${AWS::Region}
+      Path: '/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub sb-${Environment}-update-ecs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/*
+                Condition:
+                  StringLike:
+                    ecs:cluster:
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-tenant*
+                      - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/sb-${Environment}-keycloak
+  CodePipelineUpdateEcsServiceLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/sb-${Environment}-update-ecs
+      RetentionInDays: 30
+  CodePipelineUpdateEcsServiceLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CodePipelineUpdateEcsServiceLogs
+    Properties:
+      FunctionName: !Sub sb-${Environment}-update-ecs
+      Role: !GetAtt CodePipelineUpdateEcsServiceExecRole.Arn
+      Runtime: java21
+      Architectures:
+        - arm64
+      Timeout: 300
+      MemorySize: 512
+      Handler: com.amazon.aws.partners.saasfactory.saasboost.EcsServiceUpdate
+      Code:
+        S3Bucket: !Ref SaaSBoostBucket
+        S3Key: !Sub ${LambdaSourceFolder}/EcsServiceUpdate-lambda.zip
+      Layers:
+        - !Ref SaaSBoostUtilsLayer
+      Tags:
+        - Key: "Application"
+          Value: "SaaSBoost"
+        - Key: "Environment"
+          Value: !Ref Environment
+        - Key: "BoostService"
+          Value: "ECSDeploy"
+  SaaSBoostApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub sb-${Environment}-api
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      MinimumCompressionSize: 2000
+  # We only need a VPC for the control plane if we're self-hosting Keycloak
   network:
     Type: AWS::CloudFormation::Stack
+    Condition: UseKeycloak
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-network.yaml
       Parameters:
@@ -821,10 +913,11 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
+        KeycloakHelperLayer: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
         CodePipelineBucket: !Ref Pipelines
-        CodePipelineUpdateEcsService: !GetAtt core.Outputs.CodePipelineUpdateEcsService
-        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
-        CloudFormationWaitHandleCallback: !GetAtt core.Outputs.CodePipelineWaitHandler
+        CodePipelineUpdateEcsService: !Ref CodePipelineUpdateEcsServiceLambda
+        StartCodeBuildLambda: !GetAtt CodeBuildStartLambda.Arn
+        CloudFormationWaitHandleCallback: !Ref CodePipelineWaitHandlerLambda
         AdminUsername: !Ref AdminUsername
         AdminEmailAddress: !Ref AdminEmailAddress
         AdminWebUrl: !If
@@ -834,19 +927,28 @@ Resources:
         CustomDomainName: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderDomain, '']
         CustomDomainHostedZone: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderHostedZone, '']
         CustomDomainCertificate: !If [HasSystemIdPCustomDomain, !Ref SystemIdentityProviderCertificate, '']
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
-        VPC: !GetAtt network.Outputs.EgressVpc
+        ApiGatewayUrl: !Sub https://${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        VPC: !If [UseKeycloak, !GetAtt network.Outputs.Vpc, '']
         ClearEcrRepoArn: !GetAtt ClearEcrRepo.Arn
         PrivateSubnets:
-          !Join
-            - ','
-            - - !GetAtt network.Outputs.PrivateSubnet1
-              - !GetAtt network.Outputs.PrivateSubnet2
+          !If
+            - UseKeycloak
+            - 
+              !Join
+                - ','
+                - - !GetAtt network.Outputs.PrivateSubnet1
+                  - !GetAtt network.Outputs.PrivateSubnet2
+            - ''
         PublicSubnets:
-          !Join
-            - ','
-            - - !GetAtt network.Outputs.PublicSubnet1
-              - !GetAtt network.Outputs.PublicSubnet2
+          !If
+            - UseKeycloak
+            - 
+              !Join
+                - ','
+                - - !GetAtt network.Outputs.PublicSubnet1
+                  - !GetAtt network.Outputs.PublicSubnet2
+            - ''
+        AppPlaneAccountId: !Ref AppPlaneAccountId
   web:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -854,43 +956,19 @@ Resources:
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
-        StartCodeBuildLambda: !GetAtt core.Outputs.StartCodeBuildLambda
+        StartCodeBuildLambda: !GetAtt CodeBuildStartLambda.Arn
         AdminWebBucket: !Ref AdminWeb
         AdminWebUrl: !If
           - HasAdminWebAppCustomDomain
           - !Sub 'https://${AdminWebAppDomain}'
           - !Sub 'https://${AdminWebCloudFrontDistribution.DomainName}'
-        ApiGatewayUrl: !Sub https://${core.Outputs.SaaSBoostPublicApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${PublicApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
+        ApiGatewayUrl: !Sub https://${SaaSBoostApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage} #!GetAtt publicapi.Outputs.PublicApiGatewayEndpoint
         AdminWebClientId: !GetAtt idp.Outputs.AdminWebAppClient
         OidcIssuerUrl: !GetAtt idp.Outputs.OidcIssuerUrl
         OidcDomainUrl: !GetAtt idp.Outputs.OidcDomainUrl
         SystemIdentityProvider: !Ref SystemIdentityProvider
-  core:
-    Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - network
-      - MacroWaitCondition
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-core.yaml
-      Parameters:
-        Environment: !Ref Environment
-        SaaSBoostBucket: !Ref SaaSBoostBucket
-        LambdaSourceFolder: !Ref LambdaSourceFolder
-        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
-        CodePipelineBucket: !Ref Pipelines
-        LoggingBucket: !Ref Logging
-        PublicApiStage: !Ref PublicApiStage
-        PrivateApiStage: !Ref PrivateApiStage
-        ApplicationServices: !Ref ApplicationServices
-        EventBus: !Ref SaaSBoostEventBus
-        AppExtensions: !Ref AppExtensions
-      NotificationARNs:
-        - !Ref CoreStackListenerTopic
   billing:
     Type: AWS::CloudFormation::Stack
-    DependsOn: core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing.yaml
       Parameters:
@@ -899,29 +977,28 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
   # To Do - merge this stuff into the billing template
-  metering:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-metering-billing.yaml
-      Parameters:
-        Environment: !Ref Environment
-        SaaSBoostBucket: !Ref SaaSBoostBucket
-        LambdaSourceFolder: !Ref LambdaSourceFolder
-        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        EventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+  #stripe:
+  #  Type: AWS::CloudFormation::Stack
+  #  Properties:
+  #    TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-billing-stripe.yaml
+  #    Parameters:
+  #      Environment: !Ref Environment
+  #      SaaSBoostBucket: !Ref SaaSBoostBucket
+  #      LambdaSourceFolder: !Ref LambdaSourceFolder
+  #      SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+  #      ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
+  #      EventBus: !Ref SaaSBoostEventBus
+  #      SaaSBoostApi: !Ref SaaSBoostApi
+  #      ApiStage: !Ref ApiStage
   metrics:
     Type: AWS::CloudFormation::Stack
     # Delete the metrics stack before clearing the S3 buckets because the metrics stack defines
     # EventBridge timers that could write to the bucket after clearing but before deleting
     DependsOn:
       - InvokeClearAthenaBucket
-      - InvokeClearAccessLogsBucket
+      #- InvokeClearAccessLogsBucket
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-metrics.yaml
       Parameters:
@@ -930,10 +1007,10 @@ Resources:
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
-        AccessLogs: !Ref AccessLogs
+        #AccessLogs: !Ref AccessLogs
         AthenaOutput: !Ref AthenaOutput
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
+        SaaSBoostApi: !Ref SaaSBoostApi
+        ApiStage: !Ref ApiStage
   onboarding:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -946,20 +1023,7 @@ Resources:
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
         ResourcesBucket: !Ref Resources
-  quota:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: core
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-quota.yaml
-      Parameters:
-        Environment: !Ref Environment
-        SaaSBoostBucket: !Ref SaaSBoostBucket
-        LambdaSourceFolder: !Ref LambdaSourceFolder
-        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
   settings:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -969,11 +1033,18 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+  appconfig:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-app-config.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
         ApiGatewayHelperLayer: !Ref ApiGatewayHelperLayer
         CloudFormationUtilsLayer: !Ref CloudFormationUtilsLayer
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
-        SaaSBoostPrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        PrivateApiStage: !Ref PrivateApiStage
         ResourcesBucket: !Ref Resources
   tenant:
     Type: AWS::CloudFormation::Stack
@@ -999,8 +1070,6 @@ Resources:
         SaaSBoostEventBus: !Ref SaaSBoostEventBus
   sysuser:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - core
     Properties:
       TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-system-user.yaml
       Parameters:
@@ -1008,39 +1077,63 @@ Resources:
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        KeycloakHelperLayer: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
         IdentityProvider: !Ref SystemIdentityProvider
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
-  publicapi:
+  identity:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-public-api.yaml
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-svc-identity.yaml
       Parameters:
         Environment: !Ref Environment
         SaaSBoostBucket: !Ref SaaSBoostBucket
         LambdaSourceFolder: !Ref LambdaSourceFolder
         SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
-        PublicApi: !GetAtt core.Outputs.SaaSBoostPublicApi
-        RootResourceId: !GetAtt core.Outputs.SaaSBoostPublicApiRootResourceId
-        PublicApiStage: !Ref PublicApiStage
+        SaaSBoostEventBus: !Ref SaaSBoostEventBus
+        AppPlaneAccountId: !If [AppPlaneSameAccount, !Ref AWS::AccountId, !Ref AppPlaneAccountId]
+  api:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-api.yaml
+      Parameters:
+        Environment: !Ref Environment
+        SaaSBoostBucket: !Ref SaaSBoostBucket
+        LambdaSourceFolder: !Ref LambdaSourceFolder
+        SaaSBoostUtilsLayer: !Ref SaaSBoostUtilsLayer
+        CodePipelineBucket: !Ref Pipelines
+        StartCodeBuildLambda: !GetAtt CodeBuildStartLambda.Arn
+        SSMParamSaaSBoostBucket: !Ref SSMParamSaaSBoostBucket
+        SSMParamLambdaSourceFolder: !Ref SSMParamLambdaSourceFolder
+        SaaSBoostApi: !Ref SaaSBoostApi
+        RootResourceId: !GetAtt SaaSBoostApi.RootResourceId
+        ApiStage: !Ref ApiStage
         IdentityProvider: !Ref SystemIdentityProvider
         CognitoUserPoolId: !If [UseCognito, !GetAtt idp.Outputs.CognitoUserPool, '']
         KeycloakHost: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakHost, '']
         KeycloakRealm: !If [UseKeycloak, !GetAtt idp.Outputs.KeycloakRealm, '']
-        BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
-        MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
-        MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
-        MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
+        AdminWebAppClientId: !GetAtt idp.Outputs.AdminWebAppClient
+        ApiAppClientId: !GetAtt idp.Outputs.ApiAppClient
+        PrivateApiAppClientId: !GetAtt idp.Outputs.PrivateApiAppClient
+        #BillingServiceGetPlans: !GetAtt billing.Outputs.BillingServiceGetPlansArn
+        #MetricsServiceQuery: !GetAtt metrics.Outputs.QueryArn
+        #MetricsServiceDatasets: !GetAtt metrics.Outputs.DatasetsArn
+        #MetricsServiceAlbQuery: !GetAtt metrics.Outputs.AlbQueryArn
+        MetricsServicePut: !GetAtt metrics.Outputs.MetricsServicePutArn
         OnboardingServiceGetAll: !GetAtt onboarding.Outputs.OnboardingServiceGetAllArn
-        OnboardingServiceStart: !GetAtt onboarding.Outputs.OnboardingServiceStartArn
+        OnboardingServiceInsert: !GetAtt onboarding.Outputs.OnboardingServiceInsertArn
         OnboardingServiceById: !GetAtt onboarding.Outputs.OnboardingServiceByIdArn
         SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
         SettingsServiceById: !GetAtt settings.Outputs.SettingsServiceByIdArn
-        SettingsServiceOptions: !GetAtt settings.Outputs.SettingsServiceOptionsArn
-        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-        SettingsServiceUpdateAppConfig: !GetAtt settings.Outputs.SettingsServiceUpdateAppConfigArn
+        SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
+        SettingsServiceUpdate: !GetAtt settings.Outputs.SettingsServiceUpdateArn
+        AppConfigServiceOptions: !GetAtt appconfig.Outputs.AppConfigServiceOptionsArn
+        AppConfigServiceGet: !GetAtt appconfig.Outputs.AppConfigServiceGetArn
+        AppConfigServiceUpdate: !GetAtt appconfig.Outputs.AppConfigServiceUpdateArn
+        AppConfigServiceDelete: !GetAtt appconfig.Outputs.AppConfigServiceDeleteArn
         TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
+        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
         TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
         TenantServiceUpdate: !GetAtt tenant.Outputs.TenantServiceUpdateArn
         TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
@@ -1049,7 +1142,7 @@ Resources:
         TierServiceGetAll: !GetAtt tier.Outputs.TierServiceGetAllArn
         TierServiceGetById: !GetAtt tier.Outputs.TierServiceGetByIdArn
         TierServiceUpdate: !GetAtt tier.Outputs.TierServiceUpdateArn
-        TierServiceCreate: !GetAtt tier.Outputs.TierServiceCreateArn
+        TierServiceInsert: !GetAtt tier.Outputs.TierServiceInsertArn
         TierServiceDelete: !GetAtt tier.Outputs.TierServiceDeleteArn
         SystemUserServiceGetAll: !GetAtt sysuser.Outputs.SystemUserServiceGetAllArn
         SystemUserServiceInsert: !GetAtt sysuser.Outputs.SystemUserServiceInsertArn
@@ -1058,31 +1151,15 @@ Resources:
         SystemUserServiceDelete: !GetAtt sysuser.Outputs.SystemUserServiceDeleteArn
         SystemUserServiceEnable: !GetAtt sysuser.Outputs.SystemUserServiceEnableArn
         SystemUserServiceDisable: !GetAtt sysuser.Outputs.SystemUserServiceDisableArn
-  privateapi:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${SaaSBoostBucket}.s3.${AWS::Region}.${AWS::URLSuffix}/saas-boost-private-api.yaml
-      Parameters:
-        Environment: !Ref Environment
-        PrivateApi: !GetAtt core.Outputs.SaaSBoostPrivateApi
-        RootResourceId: !GetAtt core.Outputs.SaaSBoostPrivateApiRootResourceId
-        PrivateApiStage: !Ref PrivateApiStage
-        QuotasServiceCheck: !GetAtt quota.Outputs.QuotasServiceCheckArn
-        TenantServiceById: !GetAtt tenant.Outputs.TenantServiceByIdArn
-        TenantServiceInsert: !GetAtt tenant.Outputs.TenantServiceInsertArn
-        TenantServiceGetAll: !GetAtt tenant.Outputs.TenantServiceGetAllArn
-        TenantServiceDelete: !GetAtt tenant.Outputs.TenantServiceDeleteArn
-        SettingsServiceGetAll: !GetAtt settings.Outputs.SettingsServiceGetAllArn
-        SettingsServiceGetSecret: !GetAtt settings.Outputs.SettingsServiceGetSecretArn
-        SettingsServiceDeleteAppConfig: !GetAtt settings.Outputs.SettingsServiceDeleteAppConfigArn
-        SettingsServiceGetAppConfig: !GetAtt settings.Outputs.SettingsServiceGetAppConfigArn
-  SSMParamMetricsAnalyticsDeployed:
+        IdentityServiceGetProviders: !GetAtt identity.Outputs.IdentityServiceGetProvidersArn
+        IdentityServiceGetProvider: !GetAtt identity.Outputs.IdentityServiceGetProviderArn
+        IdentityServiceSetProvider: !GetAtt identity.Outputs.IdentityServiceSetProviderArn
+  SSMParamEnvironment:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/METRICS_ANALYTICS_DEPLOYED
+      Name: !Sub /saas-boost/${Environment}/ENVIRONMENT
       Type: String
-      # start out as false and will update when stack is deployed separately
-      Value: 'false'
+      Value: !Ref Environment
   SSMParamVersion:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1092,15 +1169,27 @@ Resources:
   SSMParamSaaSBoostStack:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_STACK
+      Name: !Sub /saas-boost/${Environment}/STACK_NAME
       Type: String
       Value: !Ref AWS::StackName
-  SSMParamALBOutputBucket:
+  SSMParamSaaSBoostBucket:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /saas-boost/${Environment}/ACCESS_LOGS_BUCKET
+      Name: !Sub /saas-boost/${Environment}/SAAS_BOOST_BUCKET
       Type: String
-      Value: !Ref AccessLogs
+      Value: !Ref SaaSBoostBucket
+  SSMParamLambdaSourceFolder:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/LAMBDAS_FOLDER
+      Type: String
+      Value: !Ref LambdaSourceFolder
+  SSMParamSaaSBoostEventBus:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/EVENT_BUS
+      Type: String
+      Value: !Ref SaaSBoostEventBus
   SSMParamCodePipelineBucket:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1131,6 +1220,24 @@ Resources:
       Name: !Sub /saas-boost/${Environment}/CFN_UTILS_LAYER
       Type: String
       Value: !Ref CloudFormationUtilsLayer
+  SSMParamApiClientHelperLayer:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_CLIENT_HELPER_LAYER
+      Type: String
+      Value: !Ref SaaSBoostApiClientHelperLayer
+  SSMParamApiClientSecretArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_SECRET
+      Type: String
+      Value: !GetAtt idp.Outputs.ApiAppClientSecret
+  SSMParamApiClientSecretKeyArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /saas-boost/${Environment}/API_APP_CLIENT_KEY
+      Type: String
+      Value: !GetAtt idp.Outputs.ApiAppClientEncryptionKey
 Outputs:
   SaaSBoostBucket:
     Description: S3 bucket with Saas Boost resources
@@ -1150,9 +1257,6 @@ Outputs:
   AthenaOutputBucket:
     Description: S3 bucket for Athena queries output
     Value: !Ref AthenaOutput
-  AccessLogsBucket:
-    Description: S3 bucket for ALB access logs
-    Value: !Ref AccessLogs
   LoggingBucket:
     Description: S3 bucket for s3 access logging
     Value: !Ref Logging
@@ -1160,36 +1264,27 @@ Outputs:
     Description: SaaS Boost Utils Layer
     Value: !Ref SaaSBoostUtilsLayer
   ApiGatewayHelperLayer:
-    Description: SaaS Boost Private API Layer
+    Description: SaaS Boost API Gateway Helper Layer
     Value: !Ref ApiGatewayHelperLayer
   CloudFormationUtilsLayer:
     Description: SaaS Boost CloudFormation Utils Layer
     Value: !Ref CloudFormationUtilsLayer
+  KeycloakHelperLayer:
+    Description: SaaS Boost Keycloak Helper Layer
+    Value: !If [UseKeycloak, !Ref KeycloakHelperLayer, '']
   EventBus:
     Description: SaaS Boost Eventbridge Bus
     Value: !Ref SaaSBoostEventBus
-  EgressVpc:
-    Description: Egress VPC Id
-    Value: !GetAtt network.Outputs.EgressVpc
-  TransitGateway:
-    Description: Transit Gateway for Egress to Public Internet
-    Value: !GetAtt network.Outputs.TransitGateway
-  TenantTransitGatewayRouteTable:
-    Description: Transit Gateway Route table for tenant
-    Value: !GetAtt network.Outputs.TenantTransitGatewayRouteTable
-  EgressTransitGatewayRouteTable:
-    Description: Transit Gateway Route table for egress
-    Value: !GetAtt network.Outputs.EgressTransitGatewayRouteTable
-  PublicSubnet1:
-    Description: Public Subnet AZ 1
-    Value: !GetAtt network.Outputs.PublicSubnet1
-  PublicSubnet2:
-    Description: Public Subnet AZ 2
-    Value: !GetAtt network.Outputs.PublicSubnet2
-  PrivateSubnet1:
-    Description: Private Subnet AZ 1
-    Value: !GetAtt network.Outputs.PrivateSubnet1
-  PrivateSubnet2:
-    Description: Private Subnet AZ 2
-    Value: !GetAtt network.Outputs.PrivateSubnet2
+  CodePipelineUpdateEcsService:
+    Description: Lambda to update ECS desired count
+    Value: !Ref CodePipelineUpdateEcsServiceLambda
+  StartCodeBuildLambda:
+    Description: Lambda ARN to trigger a CodeBuild project
+    Value: !GetAtt CodeBuildStartLambda.Arn
+  CodePipelineWaitHandler:
+    Description: Lambda to process CloudFormation wait condition as part of a CodePipeline
+    Value: !Ref CodePipelineWaitHandlerLambda
+  SaaSBoostApiRootResourceId:
+    Description: SaaS Boost API root resource id
+    Value: !GetAtt SaaSBoostApi.RootResourceId
 ...

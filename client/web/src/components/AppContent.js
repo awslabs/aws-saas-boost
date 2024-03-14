@@ -44,7 +44,8 @@ const AppContent = () => {
               )
             )
           })}
-          <Redirect from="/" to="/dashboard" />
+          {/* <Redirect from="/" to="/dashboard" /> */}
+          <Redirect from="/" to="/summary" />
         </Switch>
       </Suspense>
     </CContainer>
