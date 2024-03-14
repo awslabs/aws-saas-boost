@@ -40,7 +40,7 @@
         <log4j.version>2.17.1</log4j.version>
         <junit.version>5.9.3</junit.version>
         <mockito.version>3.12.4</mockito.version>
-        <jacoco.version>0.8.7</jacoco.version>
+        <jacoco.version>0.8.11</jacoco.version>
         <slf4j.version>1.7.32</slf4j.version>
     </properties>
     <!-- Define default configurations for some dependencies. Each child POM chooses which dependencies to include. -->
@@ -213,7 +213,7 @@
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${checkstyle.version}</version>
                 <configuration>
-                    <encoding>UTF-8</encoding>
+                    <inputEncoding>UTF-8</inputEncoding>
                     <configLocation>${saasboost.rootdir}/resources/checkstyle/checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <failsOnError>true</failsOnError>
