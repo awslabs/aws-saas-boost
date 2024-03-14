@@ -65,7 +65,7 @@ public class CodePipelineWaitHandler implements RequestHandler<Map<String, Objec
             // Pre signed S3 URL
             String waitHandle = (String) params.get("waitHandle");
 
-            // Since there's not built-in way to have dynamic CodePipeline stage actions,
+            // Since there's no built-in way to have dynamic CodePipeline stage actions,
             // and because this pipeline could be triggered outside of CloudFormation, the
             // wait condition handle mey be irrelevant. Skip it if it's out of date.
             if (signalCloudFormation(waitHandle)) {
