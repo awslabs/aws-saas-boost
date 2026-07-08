@@ -146,6 +146,7 @@ Parameters:
     MaxLength: '1024'
     MinLength: '1'
     Type: String
+    NoEcho: true
   # MetricUserPassword:
   #   Description: The master password for the Amazon Redshift cluster.
   #   MaxLength: '1024'
