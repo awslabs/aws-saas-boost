@@ -57,6 +57,7 @@ Parameters:
   RDSPasswordParam:
     Description: The Parameter Store secure string parameter and version containing the database password
     Type: String
+    NoEcho: true
   RDSPort:
     Description: The TCP port to connect to the database on
     Type: String
