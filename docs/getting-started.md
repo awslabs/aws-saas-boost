@@ -15,7 +15,7 @@
 ## Introduction
 This document describes the basic steps to install, configure, and start running a workload in AWS SaaS Boost. Refer to the other AWS SaaS Boost documents to get a more comprehensive view of the system.
 
-While this document provides an overview of the steps to setup AWS SaaS Boost, it is not intended to provide a deep dive into the user experience or underlying technology. These details are covered in the [User Guide](user-guide.md) and [Developer Guide](developer-guide.md). 
+While this document provides an overview of the steps to setup AWS SaaS Boost, it is not intended to provide a deep dive into the user experience or underlying technology. These details are covered in the [User Guide](user-guide.md) and [Developer Guide](developer-guide.md).
 
 ## The Target Experience
 Before digging into the steps needed to set up AWS SaaS Boost, let's look at the basic elements of the environment to get a better sense of what AWS SaaS Boost enables. The diagram below shows the key components of the AWS SaaS Boost experience in the order of the setup flow.
@@ -53,22 +53,22 @@ With the tooling in place, you can now download the code and installation script
 ## Step 3 - Provision AWS SaaS Boost into your AWS Account 
 Now that you have the code, AWS SaaS Boost needs to be installed in an AWS account that you own and manage. The installation process executes scripts that provision and configure all the resources that are needed to set up AWS SaaS Boost. The system where you run the installation should have at least 4 GB of memory and high speed Internet access.
 
-Before running the installation, [setup your AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html):
-1. Setup an IAM user in your AWS account with full admin permissions.
+Before running the installation, [set up your AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html):
+1. Set up an IAM user in your AWS account with full admin permissions.
 2. Set up your AWS CLI credentials with an AWS Access Key and default region.
 
 If you are installing SaaS Boost in one of the AWS **China Regions (Beijing/Ningxia)**, please follow the instructions in [Provision AWS SaaS Boost in GCR](./provision-in-gcr.md) or the Chinese version of [Getting Started Guide](./getting-started.cn.md).
 
 To start the installation process, perform the following steps:
 1. From the terminal window, navigate to the directory where you've downloaded AWS SaaS Boost (aws-saas-boost).
-2. Invoke the install command. 
+2. Invoke the install command.
       - If you're running on Linux or OSX, run: `sh ./install.sh`
       - If you're running on Windows, run: `powershell .\install.ps1`
 3. Select the option for a new installation.
 4. Enter the full path to your AWS SaaS Boost directory (push enter for the current directory): /\<mydir\>/aws-saas-boost.
 5. Enter the name for this SaaS Boost environment (dev, QA, test, sandbox, etc.).
 6. Enter the email address of the AWS SaaS Boost administrator who will receive the initial temporary password.
-7. Choose the identity provider for the SaaS Boost admin web console: enter either `Cognito` or `Keycloak` (push enter for Cognito). To use [Keycloak](https://www.keycloak.org/) you will need a registered domain name with a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution. 
+7. Choose the identity provider for the SaaS Boost admin web console: enter either `Cognito` or `Keycloak` (push enter for Cognito). To use [Keycloak](https://www.keycloak.org/) you will need a registered domain name with a verified TLS (SSL) certificate, an existing Route53 Hosted Zone, and working DNS resolution.
       - If you choose `Keycloak` you will be prompted for the custom domain name you will be using for your Keycloak installation.
       - SaaS Boost will search for existing Route53 Hosted Zones and provide you a list to select from. Enter the number of the hosted zone for your existing custom domain to select it.
       - SaaS Boost will search for existing ACM Certificates and provide you a list to select form. Enter the number of the certificate for your existing custom domain to select it.
@@ -80,18 +80,18 @@ To start the installation process, perform the following steps:
       - If you enter `y`, you are prompted to setup [QuickSight](https://aws.amazon.com/quicksight/). To use Quicksight, _you must have already registered_ for a Standard or Enterprise Quicksight account in your AWS Account by following the steps at [https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html](https://docs.aws.amazon.com/quicksight/latest/user/signing-up.html).
 10. Review the settings for your installation. Double check the AWS account number and AWS Region you're about to install AWS SaaS Boost into. Enter `y` to proceed or `n` to cancel.
 
-The installation process will take 30-45 minutes to configure and provision all the resources (this will vary based on the options you've selected). Detailed logs from the installation process are stored in **saas-boost-install.log**. 
+The installation process will take 30-45 minutes to configure and provision all the resources (this will vary based on the options you've selected). Detailed logs from the installation process are stored in **saas-boost-install.log**.
 
 ## Step 4 - Login to AWS SaaS Boost
 As part of the installation process you will receive a message at the email address you provided during the installation process. This message includes a link with a URL to the AWS SaaS Boost administration application. The message appears as follows:
 
 ![Welcome Email](images/gs-welcome-email.png?raw=true "Welcome Email")
 
-Copy the temporary password that is shown here. Once the install script completes, it will also print out the same URL of the AWS SaaS Boost administration application. Use your web browser to navigate to the admin application. The following login appears:
+Copy the temporary password that is shown here. Once the installation script completes, it will also print out the same URL of the AWS SaaS Boost administration application. Use your web browser to navigate to the admin application. The following login appears:
 
 ![Login Screen](images/gs-login.png?raw=true "Login Screen")
 
-Enter `admin` for the user name and enter the temporary password that was delivered in the email referenced earlier. Since you're logging in with a temporary password, you're prompted to enter a new password for your account. The screen appears as follows:
+Enter `admin` for the username and enter the temporary password that was delivered in the email referenced earlier. Since you're logging in with a temporary password, you're prompted to enter a new password for your account. The screen appears as follows:
 
 ![Change Password](images/gs-change-password.png?raw=true "Change Password")
 
@@ -110,7 +110,7 @@ Now that your tiers are defined, you need to configure the settings for your app
 
 Start by giving your application a friendly **Name**. You do not need to fill out the **Domain Name** or **SSL Certificate** entries for testing. In production, make sure you have a certificate defined in [Amazon Certificate Manager](https://aws.amazon.com/certificate-manager/) for the domain name you will host your SaaS application at. Note that [registering a domain name](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) and [setting up SSL certificates](https://docs.aws.amazon.com/acm/latest/userguide/gs.html) must be done prior to configuring AWS SaaS Boost.
 
-AWS SaaS Boost lets you configure as many "services" as necessary to support your workload. You provide a separate Docker image for each of your services. These services can be public or private and are configured independently of each other. Services do not share resources like file systems or databases, but they can communicate with each other inside the provisioned VPC network. Publically accessible services are exposed via the Application Load Balancer and reachable via DNS over the Internet. Private services are not reachable from the Internet. Refer to the Developer and User Guides for a deeper dive on how to use services to best represent your SaaS application.
+AWS SaaS Boost lets you configure as many "services" as necessary to support your workload. You provide a separate Docker image for each of your services. These services can be public or private and are configured independently of each other. Services do not share resources like file systems or databases, but they can communicate with each other inside the provisioned VPC network. Publicly accessible services are exposed via the Application Load Balancer and reachable via DNS over the Internet. Private services are not reachable from the Internet. Refer to the Developer and User Guides for a deeper dive on how to use services to best represent your SaaS application.
 
 Create your first service by click on the **New Service** button. A popup dialog similar to the following will appear:
 
@@ -120,9 +120,9 @@ In this example, I've called my service `main`. After clicking the **Create Serv
 
 ![Application Setup](images/gs-service-collapsed.png?raw=true "Service Config Collapsed")
 
-Click on the service name to expand the configuration options for this service. A dynamic form will appear for you to configure the settings and tier-based variations for each service that makes up your SaaS application. 
+Click on the service name to expand the configuration options for this service. A dynamic form will appear for you to configure the settings and tier-based variations for each service that makes up your SaaS application.
 
-While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working. See below for an example of the service configuration form filled out for one of the sample applicatinos provided with SaaS Boost.
+While this _Getting Started Guide_ doesn't document every field in the configuration screens, the options you choose are essential to getting your application working. See below for an example of the service configuration form filled out for one of the sample applications provided with SaaS Boost.
 
 ## Step 6 - Upload Your Application Services
 Once you've configured each of your services for every tier you've defined, SaaS Boost will automatically create an [Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html) image repository for each service. Before you can onboard any tenants into your system, you must upload a Docker image for each of the services in your application. From the **Summary** page, click the **View details** link next to the `ECR Repository URL` listing for each service to see the proper Docker push commands to upload your image. You can also refer to the build shell scripts included with the sample apps to see one approach to automating the Docker push process.
@@ -148,7 +148,7 @@ Just as you would configure AWS SaaS Boost to support the requirements of your a
       - **Enable** the `Provision a database for the application` checkbox
       - Select any of the available databases (MariaDB with a db.t3.micro instance class will probably provision the fastest)
       - Enter a **Database Name**, **Username**, and **Password**. You _do not_ need to provide a SQL file for database initialization.
-- Under the `default` Tier settings: 
+- Under the `default` Tier settings:
       - Set `Compute Size` to **Medium**
       - `Minimum Instance Count` and `Maximum Instance Count` can be **1** and **1** respectively
       - Select the `db.t3.micro` instance class for your Database.

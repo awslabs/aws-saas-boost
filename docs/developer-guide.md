@@ -69,7 +69,6 @@ Before we dig into the details, let's take a high-level view of core services, a
 ![Core Services](images/dg-core-services.png?raw=true "Core Services")
 <p align="center">Figure 3 - Core services</p>
 
-
 The architecture of core services is implemented as a series of microservices that run in a serverless model with AWS Lambda. The highly variable nature of the load placed on these services typically fits well with the cost and consumption profile of the serverless model. This prevents you from paying for idle or rarely used services in your environment.
 
 The administration application and each SaaS tenant environment access these services via the Amazon API Gateway, which exposes the public API of SaaS Boost.

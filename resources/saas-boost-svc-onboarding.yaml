@@ -713,6 +713,7 @@ Resources:
               - rds:DescribeDBSubnetGroups
               - rds:CreateDBSubnetGroup
               - rds:DeleteDBSubnetGroup
+              - rds:ListTagsForResource
             Resource:
               - !Sub arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:subgrp:sb-${Environment}-*tenant*
           - Effect: Allow
